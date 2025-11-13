@@ -190,7 +190,6 @@ class AdminClient (_AdminClientImpl):
         Map per-group results to per-group futures in futmap.
         """
         try:
-
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -217,7 +216,6 @@ class AdminClient (_AdminClientImpl):
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
         """
         try:
-
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -266,7 +264,6 @@ class AdminClient (_AdminClientImpl):
     def _make_futmap_result_from_list(f: concurrent.futures.Future,
                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
         try:
-
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -1126,7 +1123,6 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures(
@@ -1163,7 +1159,6 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],

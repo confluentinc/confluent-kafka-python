@@ -12,6 +12,14 @@ from confluent_kafka import KafkaException, KafkaError, \
     IsolationLevel, TopicCollection
 import concurrent.futures
 
+# GC module is used to prevent intermittent segfaults in specific Admin tests:
+# - Tests that make "fire-and-forget" Admin API calls (without waiting for results)
+# can leave callbacks queued in librdkafka's background thread.
+# - When these callbacks allocate Python objects, they may trigger gargabe collection
+# - When GC tries to destroy an AdminClient object while running in librdkafka's thread,
+# librdkafka (which forbids this) will send an ABORT signal to crash the tests.
+import gc
+
 
 def test_types():
     ConfigResource(ResourceType.BROKER, "2")
@@ -700,352 +708,380 @@ def test_delete_consumer_groups_api():
 
 
 def test_list_consumer_group_offsets_api():
+    # Disable GC to prevent segfault from librdkafka thread (see gc import comment at top)
+    gc.disable()
+    try:
+        a = AdminClient({"socket.timeout.ms": 10})
 
-    a = AdminClient({"socket.timeout.ms": 10})
+        only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
+        request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
+            "test-group2", [TopicPartition("test-topic1", 1)])
+        same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
 
-    only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
-    request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
-        "test-group2", [TopicPartition("test-topic1", 1)])
-    same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
+        a.list_consumer_group_offsets([only_group_id_request])
 
-    a.list_consumer_group_offsets([only_group_id_request])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets(None)
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets(None)
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets(1)
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets(1)
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets("")
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets("")
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([only_group_id_request,
+                                           request_with_group_and_topic_partition])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([only_group_id_request,
-                                       request_with_group_and_topic_partition])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([request_with_group_and_topic_partition,
+                                           same_name_request])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([request_with_group_and_topic_partition,
-                                       same_name_request])
+        fs = a.list_consumer_group_offsets([only_group_id_request])
+        with pytest.raises(KafkaException):
+            for f in fs.values():
+                f.result(timeout=10)
 
-    fs = a.list_consumer_group_offsets([only_group_id_request])
-    with pytest.raises(KafkaException):
-        for f in fs.values():
-            f.result(timeout=10)
+        fs = a.list_consumer_group_offsets([only_group_id_request],
+                                           request_timeout=0.5)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
 
-    fs = a.list_consumer_group_offsets([only_group_id_request],
-                                       request_timeout=0.5)
-    for f in concurrent.futures.as_completed(iter(fs.values())):
-        e = f.exception(timeout=1)
-        assert isinstance(e, KafkaException)
-        assert e.args[0].code() == KafkaError._TIMED_OUT
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([only_group_id_request],
+                                          request_timeout=-5)
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([only_group_id_request],
-                                      request_timeout=-5)
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+        with pytest.raises(TypeError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
 
-    with pytest.raises(TypeError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+                "test-group1", [TopicPartition("test-topic", -1)])])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
-            "test-group1", [TopicPartition("test-topic", -1)])])
+        with pytest.raises(ValueError):
+            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+                "test-group1", [TopicPartition("test-topic", 1, 1)])])
 
-    with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
-            "test-group1", [TopicPartition("test-topic", 1, 1)])])
-
-    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
-    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+        a.list_consumer_group_offsets([
+            ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])
+        ])
+    finally:
+        gc.enable()
 
 
 def test_alter_consumer_group_offsets_api():
+    # Disable GC to prevent segfault from librdkafka thread (see gc import comment at top)
+    gc.disable()
+    try:
+        a = AdminClient({"socket.timeout.ms": 10})
 
-    a = AdminClient({"socket.timeout.ms": 10})
+        request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic1", 1, 5)])
+        same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
+        request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
+            "test-group2", [TopicPartition("test-topic2", 1, 5)])
 
-    request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
-        "test-group1", [TopicPartition("test-topic1", 1, 5)])
-    same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
-    request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
-        "test-group2", [TopicPartition("test-topic2", 1, 5)])
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
 
-    a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets(None)
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets(None)
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets(1)
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets(1)
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets("")
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets("")
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                           request_with_group_and_topic_partition_offset2])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
-                                       request_with_group_and_topic_partition_offset2])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                            same_name_request])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
-                                        same_name_request])
+        # TODO: This test is failing intermittently with Fatal Error for MacOS builds.
+        # Uncomment and fix this after the release v2.10.0.
 
-    # TODO: This test is failing intermittently with Fatal Error for MacOS builds.
-    # Uncomment and fix this after the release v2.10.0.
+        # with pytest.raises(KafkaException):
+        #     fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+        #     for f in fs.values():
+        #         f.result(timeout=10)
 
-    # with pytest.raises(KafkaException):
-    #     fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
-    #     for f in fs.values():
-    #         f.result(timeout=10)
+        # fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+        #                                     request_timeout=0.5)
+        # for f in concurrent.futures.as_completed(iter(fs.values())):
+        #     e = f.exception(timeout=1)
+        #     assert isinstance(e, KafkaException)
+        #     assert e.args[0].code() == KafkaError._TIMED_OUT
 
-    # fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-    #                                     request_timeout=0.5)
-    # for f in concurrent.futures.as_completed(iter(fs.values())):
-    #     e = f.exception(timeout=1)
-    #     assert isinstance(e, KafkaException)
-    #     assert e.args[0].code() == KafkaError._TIMED_OUT
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+                                           request_timeout=-5)
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-                                       request_timeout=-5)
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+        with pytest.raises(TypeError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
 
-    with pytest.raises(TypeError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([
+                ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])
+            ])
 
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+                "test-group1", [TopicPartition("test-topic", -1)])])
 
-    with pytest.raises(ValueError):
+        with pytest.raises(ValueError):
+            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+                "test-group1", [TopicPartition("test-topic", 1, -1001)])])
+
         a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-            "test-group1", [TopicPartition("test-topic", -1)])])
-
-    with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-            "test-group1", [TopicPartition("test-topic", 1, -1001)])])
-
-    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-        "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+            "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+    finally:
+        gc.enable()
 
 
 def test_describe_user_scram_credentials_api():
     # Describe User Scram API
-    a = AdminClient({"socket.timeout.ms": 10})
+    # Disable GC to prevent segfault from librdkafka thread (see gc import comment at top)
+    gc.disable()
+    try:
+        a = AdminClient({"socket.timeout.ms": 10})
 
-    f = a.describe_user_scram_credentials()
-    assert isinstance(f, concurrent.futures.Future)
+        f = a.describe_user_scram_credentials()
+        assert isinstance(f, concurrent.futures.Future)
 
-    futmap = a.describe_user_scram_credentials(["user"])
-    assert isinstance(futmap, dict)
+        futmap = a.describe_user_scram_credentials(["user"])
+        assert isinstance(futmap, dict)
 
-    with pytest.raises(TypeError):
-        a.describe_user_scram_credentials(10)
-    with pytest.raises(TypeError):
-        a.describe_user_scram_credentials([None])
-    with pytest.raises(ValueError):
-        a.describe_user_scram_credentials([""])
-    with pytest.raises(KafkaException) as ex:
-        futmap = a.describe_user_scram_credentials(["sam", "sam"])
-        futmap["sam"].result(timeout=3)
-        assert "Duplicate users" in str(ex.value)
+        with pytest.raises(TypeError):
+            a.describe_user_scram_credentials(10)
+        with pytest.raises(TypeError):
+            a.describe_user_scram_credentials([None])
+        with pytest.raises(ValueError):
+            a.describe_user_scram_credentials([""])
+        with pytest.raises(KafkaException) as ex:
+            futmap = a.describe_user_scram_credentials(["sam", "sam"])
+            futmap["sam"].result(timeout=3)
+            assert "Duplicate users" in str(ex.value)
 
-    fs = a.describe_user_scram_credentials(["user1", "user2"])
-    for f in concurrent.futures.as_completed(iter(fs.values())):
-        e = f.exception(timeout=1)
-        assert isinstance(e, KafkaException)
-        assert e.args[0].code() == KafkaError._TIMED_OUT
+        fs = a.describe_user_scram_credentials(["user1", "user2"])
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+    finally:
+        gc.enable()
 
 
 def test_alter_user_scram_credentials_api():
     # Alter User Scram API
-    a = AdminClient({"socket.timeout.ms": 10})
+    # Disable GC to prevent segfault from librdkafka thread (see gc import comment at top)
+    gc.disable()
+    try:
+        a = AdminClient({"socket.timeout.ms": 10})
 
-    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
-    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"salt")
-    upsertion_without_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password")
-    upsertion_with_none_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", None)
-    deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
-    alterations = [upsertion, upsertion_without_salt, upsertion_with_none_salt, deletion]
+        scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
+        upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"salt")
+        upsertion_without_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password")
+        upsertion_with_none_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", None)
+        deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
+        alterations = [upsertion, upsertion_without_salt, upsertion_with_none_salt, deletion]
 
-    fs = a.alter_user_scram_credentials(alterations)
-    for f in concurrent.futures.as_completed(iter(fs.values())):
-        e = f.exception(timeout=1)
-        assert isinstance(e, KafkaException)
-        assert e.args[0].code() == KafkaError._TIMED_OUT
+        fs = a.alter_user_scram_credentials(alterations)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
 
-    # Request type tests
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials(None)
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials(234)
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials("test")
+        # Request type tests
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials(None)
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials(234)
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials("test")
 
-    # Individual request tests
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([None])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials(["test"])
+        # Individual request tests
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([None])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials(["test"])
 
-    # User tests
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialAlteration(None)])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialAlteration(123)])
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialAlteration("")])
+        # User tests
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialAlteration(None)])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialAlteration(123)])
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([UserScramCredentialAlteration("")])
 
-    # Upsertion request user test
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
-                                                                     scram_credential_info,
-                                                                     b"password",
-                                                                     b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
-                                                                     scram_credential_info,
-                                                                     b"password",
-                                                                     b"salt")])
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
-                                                                     scram_credential_info,
-                                                                     b"password",
-                                                                     b"salt")])
+        # Upsertion request user test
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
 
-    # Upsertion password user test
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"", b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                     scram_credential_info,
-                                                                     "password",
-                                                                     b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
+        # Upsertion password user test
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"", b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                         scram_credential_info,
+                                                                         "password",
+                                                                         b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
 
-    # Upsertion salt user test
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                     scram_credential_info,
-                                                                     b"password",
-                                                                     "salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)])
+        # Upsertion salt user test
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")
+            ])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         "salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)
+            ])
 
-    # Upsertion scram_credential_info tests
-    sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
-    sci_incorrect_iteration_type = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, "string type")
-    sci_negative_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, -1)
-    sci_zero_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 0)
+        # Upsertion scram_credential_info tests
+        sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
+        sci_incorrect_iteration_type = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, "string type")
+        sci_negative_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, -1)
+        sci_zero_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 0)
 
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", None, b"password", b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                     sci_incorrect_mechanism_type,
-                                                                     b"password",
-                                                                     b"salt")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                     sci_incorrect_iteration_type,
-                                                                     b"password",
-                                                                     b"salt")])
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                     sci_negative_iteration,
-                                                                     b"password",
-                                                                     b"salt")])
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", None, b"password", b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                         sci_incorrect_mechanism_type,
+                                                                         b"password",
+                                                                         b"salt")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                         sci_incorrect_iteration_type,
+                                                                         b"password",
+                                                                         b"salt")])
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                         sci_negative_iteration,
+                                                                         b"password",
+                                                                         b"salt")])
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")
+            ])
 
-    # Deletion user tests
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion(None, ScramMechanism.SCRAM_SHA_256)])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion(123, ScramMechanism.SCRAM_SHA_256)])
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion("", ScramMechanism.SCRAM_SHA_256)])
+        # Deletion user tests
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion(None, ScramMechanism.SCRAM_SHA_256)])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion(123, ScramMechanism.SCRAM_SHA_256)])
+        with pytest.raises(ValueError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion("", ScramMechanism.SCRAM_SHA_256)])
 
-    # Deletion mechanism tests
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", None)])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
-    with pytest.raises(TypeError):
-        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+        # Deletion mechanism tests
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", None)])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
+        with pytest.raises(TypeError):
+            a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+    finally:
+        gc.enable()
 
 
 def test_list_offsets_api():
