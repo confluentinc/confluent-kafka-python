@@ -28,6 +28,7 @@
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
+#include <unistd.h>
 
 
 /****************************************************************************
@@ -5346,9 +5347,21 @@ static int Admin_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        /* Enable SASL callbacks on background thread for AdminClient since
+         * applications typically don't call poll() regularly on AdminClient. */
+        if (self->oauth_cb) {
+                rd_kafka_sasl_background_callbacks_enable(self->rk);
+        }
+
         /* Forward log messages to poll queue */
         if (self->logger)
                 rd_kafka_set_log_queue(self->rk, NULL);
+
+
+        /* Wait for the background thread to set the token */
+        if (self->oauth_cb) {
+            return wait_for_oauth_token_set(self);
+        }
 
         return 0;
 }
