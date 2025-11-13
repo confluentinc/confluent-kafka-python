@@ -12,12 +12,12 @@ from confluent_kafka import KafkaException, KafkaError, \
     IsolationLevel, TopicCollection
 import concurrent.futures
 
-# GC module is used to prevent intermittent segfaults in specific Admin tests.
-# Tests that make "fire-and-forget" Admin API calls (without waiting for results)
-# can leave callbacks queued in librdkafka's background thread. When Python's GC
-# runs during subsequent test cleanup, it may try to destroy AdminClient objects while callbacks
-# from previous tests are still running in librdkafka's thread. Librdkafka
-# forbids calling rd_kafka_destroy() from its own threads and will send an ABORT to crash the tests.
+# GC module is used to prevent intermittent segfaults in specific Admin tests:
+# - Tests that make "fire-and-forget" Admin API calls (without waiting for results)
+# can leave callbacks queued in librdkafka's background thread.
+# - When these callbacks allocate Python objects, they may trigger gargabe collection
+# - When GC tries to destroy an AdminClient object while running in librdkafka's thread,
+# librdkafka (which forbids this) will send an ABORT signal to crash the tests.
 import gc
 
 
@@ -798,7 +798,9 @@ def test_list_consumer_group_offsets_api():
                 "test-group1", [TopicPartition("test-topic", 1, 1)])])
 
         a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
+        a.list_consumer_group_offsets([
+            ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])
+        ])
     finally:
         gc.enable()
 
@@ -893,7 +895,9 @@ def test_alter_consumer_group_offsets_api():
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
+            a.alter_consumer_group_offsets([
+                ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])
+            ])
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
@@ -1018,14 +1022,18 @@ def test_alter_user_scram_credentials_api():
 
         # Upsertion salt user test
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")
+            ])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
                                                                          scram_credential_info,
                                                                          b"password",
                                                                          "salt")])
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)
+            ])
 
         # Upsertion scram_credential_info tests
         sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
@@ -1053,7 +1061,9 @@ def test_alter_user_scram_credentials_api():
                                                                          b"password",
                                                                          b"salt")])
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")
+            ])
 
         # Deletion user tests
         with pytest.raises(TypeError):
