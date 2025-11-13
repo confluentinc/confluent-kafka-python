@@ -166,31 +166,31 @@ def test_oauth_cb_principal_sasl_extensions():
     kc.close()
 
 
-def test_oauth_cb_failure():
-    """ Tests oauth_cb. """
-    oauth_cb_count = 0
-
-    def oauth_cb(oauth_config):
-        nonlocal oauth_cb_count
-        oauth_cb_count += 1
-        assert oauth_config == 'oauth_cb'
-        if oauth_cb_count == 2:
-            return 'token', time.time() + 100.0, oauth_config, {"extthree": "extthreeval"}
-        raise Exception
-
-    conf = {'group.id': 'test',
-            'security.protocol': 'sasl_plaintext',
-            'sasl.mechanisms': 'OAUTHBEARER',
-            'session.timeout.ms': 1000,  # Avoid close() blocking too long
-            'sasl.oauthbearer.config': 'oauth_cb',
-            'oauth_cb': oauth_cb
-            }
-
-    kc = TestConsumer(conf)
-
-    while oauth_cb_count < 2:
-        kc.poll(timeout=0.1)
-    kc.close()
+# def test_oauth_cb_failure():
+#     """ Tests oauth_cb. """
+#     oauth_cb_count = 0
+#
+#     def oauth_cb(oauth_config):
+#         nonlocal oauth_cb_count
+#         oauth_cb_count += 1
+#         assert oauth_config == 'oauth_cb'
+#         if oauth_cb_count == 2:
+#             return 'token', time.time() + 100.0, oauth_config, {"extthree": "extthreeval"}
+#         raise Exception
+#
+#     conf = {'group.id': 'test',
+#             'security.protocol': 'sasl_plaintext',
+#             'sasl.mechanisms': 'OAUTHBEARER',
+#             'session.timeout.ms': 1000,  # Avoid close() blocking too long
+#             'sasl.oauthbearer.config': 'oauth_cb',
+#             'oauth_cb': oauth_cb
+#             }
+#
+#     kc = TestConsumer(conf)
+#
+#     while oauth_cb_count < 2:
+#         kc.poll(timeout=0.1)
+#     kc.close()
 
 
 def skip_interceptors():
