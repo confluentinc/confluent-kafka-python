@@ -28,6 +28,15 @@
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <unistd.h>
+#include <signal.h>  /* For sig_atomic_t and sigaction */
+#include <string.h>  /* For strerror */
+#include <errno.h>   /* For errno */
+#endif
 
 
 /**
@@ -2176,6 +2185,8 @@ void Handle_clear (Handle *h) {
                 PyThread_delete_key(h->tlskey);
 #endif
         }
+        
+        stop_signal_handler_thread(h);
 }
 
 /**
@@ -2721,6 +2732,237 @@ int CallState_end (Handle *h, CallState *cs) {
 	}
 
 	return 1;
+}
+
+
+/****************************************************************************
+ *
+ * Signal Handler Thread Implementation
+ *
+ * Per-instance signal handler thread that periodically checks for signals
+ * and unblocks blocking calls by calling rd_kafka_yield().
+ *
+ * Uses a shared flag approach because PyErr_CheckSignals() doesn't work
+ * in background threads.
+ *
+ * On POSIX: POSIX signal handler is sufficient.
+ * On Windows: Python signal handler must call set_signal_flag().
+ *
+ ****************************************************************************/
+
+/* Global flag for signal detection (thread-safe, atomic) */
+#ifdef _WIN32
+static volatile int g_signal_received = 0;
+#else
+static volatile sig_atomic_t g_signal_received = 0;
+
+/**
+ * @brief POSIX signal handler to set the flag
+ * This can run even when main thread is blocked in C code with GIL released.
+ */
+static void posix_signal_handler(int sig) {
+    (void)sig;
+    g_signal_received = 1;  /* Atomic write */
+}
+#endif
+
+/**
+ * @brief Set the signal flag
+ * Required on Windows, optional on POSIX (POSIX handler is sufficient).
+ * @returns None
+ */
+static PyObject* set_signal_flag(PyObject *self, PyObject *args) {
+    (void)self;
+    (void)args;
+    g_signal_received = 1;
+    Py_RETURN_NONE;
+}
+
+/**
+ * @brief Check and clear the signal flag (called from background signal handler thread)
+ * @returns 1 if signal detected (and flag cleared), 0 otherwise
+ */
+static int check_signal_flag(void) {
+    if (g_signal_received) {
+        g_signal_received = 0;  /* Clear flag */
+        return 1; 
+    }
+    return 0;
+}
+
+/**
+ * @brief Platform-agnostic sleep helper
+ * @param milliseconds Sleep duration in milliseconds
+ */
+static void sleep_ms(int milliseconds) {
+#ifdef _WIN32
+    Sleep(milliseconds);
+#else
+    usleep(milliseconds * 1000);
+#endif
+}
+
+/**
+ * @brief Yield all relevant queues for Consumer
+ * Calls yield on consumer queue and main queue to unblock both
+ * consume() and poll() operations.
+ */
+static void yield_consumer_queues(Handle *self) {
+    if (!self->rk) {
+        return;
+    }
+    
+    rd_kafka_yield(self->rk);
+    
+    if (self->u.Consumer.rkqu) {
+        rd_kafka_queue_yield(self->u.Consumer.rkqu);
+    }
+    
+    rd_kafka_queue_t *main_queue = rd_kafka_queue_get_main(self->rk);
+    if (main_queue) {
+        rd_kafka_queue_yield(main_queue);
+    }
+}
+
+/**
+ * @brief Yield all relevant queues for Producer/Admin
+ * Calls yield on main queue and background queue to unblock
+ * poll() and flush() operations.
+ */
+static void yield_producer_queues(Handle *self) {
+    if (!self->rk) {
+        return;
+    }
+    
+    rd_kafka_yield(self->rk);
+    
+    rd_kafka_queue_t *main_queue = rd_kafka_queue_get_main(self->rk);
+    if (main_queue) {
+        rd_kafka_queue_yield(main_queue);
+    }
+    
+    rd_kafka_queue_t *bg_queue = rd_kafka_queue_get_background(self->rk);
+    if (bg_queue) {
+        rd_kafka_queue_yield(bg_queue);
+    }
+}
+
+/**
+ * @brief Unified thread function
+ */
+static void* signal_handler_thread_func_common(Handle *self) {
+    PyThreadState *thread_state;
+    
+    thread_state = PyThreadState_New(PyInterpreterState_Head());
+    if (!thread_state) {
+        return NULL;
+    }
+    
+    PyEval_AcquireThread(thread_state);
+    
+    while (self->signal_thread_running) {
+        int signal_detected = check_signal_flag();
+        
+        if (signal_detected) {
+            /* Signal detected - yield queues to unblock blocking calls */
+            if (self->type == RD_KAFKA_CONSUMER) {
+                yield_consumer_queues(self);
+            } else {
+                yield_producer_queues(self);
+            }
+            
+            Py_BEGIN_ALLOW_THREADS
+            sleep_ms(10);
+            Py_END_ALLOW_THREADS
+            continue;
+        }
+        
+        /* Normal check interval when no signal */
+        Py_BEGIN_ALLOW_THREADS
+        sleep_ms(100);
+        Py_END_ALLOW_THREADS
+    }
+    
+    PyEval_ReleaseThread(thread_state);
+    PyThreadState_Clear(thread_state);
+    PyThreadState_Delete(thread_state);
+    
+    return NULL;
+}
+
+#ifdef _WIN32
+/* Windows thread wrapper */
+static DWORD WINAPI signal_handler_thread_func_win(LPVOID arg) {
+    signal_handler_thread_func_common((Handle *)arg);
+    return 0;
+}
+#else
+/* POSIX thread wrapper */
+static void* signal_handler_thread_func(void *arg) {
+    return signal_handler_thread_func_common((Handle *)arg);
+}
+#endif
+
+int start_signal_handler_thread(Handle *self) {
+    if (self->signal_thread_running) {
+        return 0;  /* Already running */
+    }
+    
+    self->signal_thread_lock = PyThread_allocate_lock();
+    if (!self->signal_thread_lock) {
+        return -1;
+    }
+    
+    self->signal_thread_running = 1;
+    
+#ifdef _WIN32
+    /* Note: Windows doesn't support POSIX signal handlers, so we rely on Python signal handler */
+    HANDLE thread = CreateThread(NULL, 0, signal_handler_thread_func_win, self, 0, NULL);
+    if (!thread) {
+        self->signal_thread_running = 0;
+        PyThread_free_lock(self->signal_thread_lock);
+        return -1;
+    }
+    CloseHandle(thread);
+#else
+    /* Set up POSIX signal handler for SIGINT (Ctrl+C)
+     * This runs asynchronously even when main thread is blocked in C code */
+    struct sigaction sa;
+    sa.sa_handler = posix_signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;  /* Don't use SA_RESTART - we want to interrupt blocking calls */
+    sigaction(SIGINT, &sa, NULL);  /* Ignore errors - Python handler can still work */
+    
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, signal_handler_thread_func, self) != 0) {
+        self->signal_thread_running = 0;
+        PyThread_free_lock(self->signal_thread_lock);
+        return -1;
+    }
+    pthread_detach(thread);
+#endif
+    
+    return 0;
+}
+
+void stop_signal_handler_thread(Handle *self) {
+    if (!self->signal_thread_running) {
+        return;
+    }
+    
+    PyThread_acquire_lock(self->signal_thread_lock, 1);
+    self->signal_thread_running = 0;
+    PyThread_release_lock(self->signal_thread_lock);
+    
+    /* Wait a bit for thread to finish */
+    Py_BEGIN_ALLOW_THREADS
+    sleep_ms(150);
+    Py_END_ALLOW_THREADS
+    
+    if (self->signal_thread_lock) {
+        PyThread_free_lock(self->signal_thread_lock);
+        self->signal_thread_lock = NULL;
+    }
 }
 
 

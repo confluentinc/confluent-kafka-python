@@ -107,6 +107,8 @@ static void Producer_dealloc (Handle *self) {
 
         Producer_clear0(self);
 
+        stop_signal_handler_thread(self);
+
         if (self->rk) {
                 CallState cs;
                 CallState_begin(self, &cs);
@@ -1280,6 +1282,9 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        self->signal_thread_running = 0;
+        self->signal_thread_lock = NULL;
+
         self->type = RD_KAFKA_PRODUCER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_PRODUCER, self,
@@ -1300,6 +1305,15 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         /* Forward log messages to poll queue */
         if (self->logger)
                 rd_kafka_set_log_queue(self->rk, NULL);
+
+        /* Start signal handler thread for interruptibility */
+        if (start_signal_handler_thread(self) < 0) {
+                /* Log warning but don't fail initialization*/
+                PyErr_WarnEx(PyExc_RuntimeWarning,
+                             "Failed to start signal handler thread. "
+                             "User interrupt will not work during blocking calls.",
+                             1);
+        }
 
         return 0;
 }

@@ -233,6 +233,10 @@ typedef struct {
         PyObject *logger;
         PyObject *oauth_cb;
 
+        /* Per-instance signal handler thread for interruptibility */
+        int signal_thread_running;  /* Flag to control thread lifecycle */
+        PyThread_type_lock signal_thread_lock;  /* Lock for thread state */
+
 	union {
 		/**
 		 * Producer
@@ -262,6 +266,10 @@ typedef struct {
 
 void Handle_clear (Handle *h);
 int  Handle_traverse (Handle *h, visitproc visit, void *arg);
+
+/* Signal handler thread functions */
+int start_signal_handler_thread(Handle *self);
+void stop_signal_handler_thread(Handle *self);
 
 
 /**

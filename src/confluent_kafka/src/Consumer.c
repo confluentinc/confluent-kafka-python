@@ -73,6 +73,8 @@ static void Consumer_dealloc (Handle *self) {
 
         Consumer_clear0(self);
 
+        stop_signal_handler_thread(self);
+
         if (self->rk) {
                 CallState cs;
 
@@ -1677,6 +1679,9 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        self->signal_thread_running = 0;
+        self->signal_thread_lock = NULL;
+
         self->type = RD_KAFKA_CONSUMER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
@@ -1704,6 +1709,15 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
         self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
         assert(self->u.Consumer.rkqu);
+
+        /* Start signal handler thread for interruptibility */
+        if (start_signal_handler_thread(self) < 0) {
+                /* Log warning but don't fail initialization - signal handling is best-effort */
+                PyErr_WarnEx(PyExc_RuntimeWarning,
+                             "Failed to start signal handler thread. "
+                             "User interrupt will not work during blocking calls.",
+                             1);
+        }
 
         return 0;
 }
