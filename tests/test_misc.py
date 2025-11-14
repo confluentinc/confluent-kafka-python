@@ -135,7 +135,7 @@ def test_oauth_cb():
             }
 
     kc = TestConsumer(conf)
-    assert seen_oauth_cb == True  # callback is expected to happen during client init
+    assert seen_oauth_cb  # callback is expected to happen during client init
     kc.close()
 
 
@@ -158,7 +158,7 @@ def test_oauth_cb_principal_sasl_extensions():
             }
 
     kc = TestConsumer(conf)
-    assert seen_oauth_cb == True  # callback is expected to happen during client init
+    assert seen_oauth_cb  # callback is expected to happen during client init
     kc.close()
 
 
@@ -182,6 +182,7 @@ def test_oauth_cb_failure():
     with pytest.raises(KafkaException):
         TestConsumer(conf)
 
+
 def test_oauth_cb_token_refresh_success():
     """
     Tests whether oauth callback gets called multiple times by the background thread
@@ -202,7 +203,7 @@ def test_oauth_cb_token_refresh_success():
             'oauth_cb': oauth_cb
             }
 
-    kc = TestConsumer(conf) # callback is expected to happen during client init
+    kc = TestConsumer(conf)  # callback is expected to happen during client init
     assert oauth_cb_count == 1
 
     # Check every 1 second for up to 5 seconds for callback count to increase
@@ -214,6 +215,7 @@ def test_oauth_cb_token_refresh_success():
 
     kc.close()
     assert oauth_cb_count > 1
+
 
 def test_oauth_cb_token_refresh_failure():
     """
