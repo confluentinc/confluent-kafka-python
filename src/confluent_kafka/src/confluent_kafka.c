@@ -2053,11 +2053,56 @@ static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
         return 1;
 }
 
+
+/**
+ * @brief Waits for OAuth callback to set the token
+ *
+ * Useful during client init as we want to ensure we have the token before we return back
+ *
+ * Returns 0 if token was set within the timeout period, -1 otherwise.
+ */
+int wait_for_oauth_token_set(Handle *h) {
+
+    if (!h->oauth_cb)
+        return 0;
+
+    int max_wait_sec = 5;
+    int retry_interval_sec = 1; /* Check every 1 sec */
+    int elapsed_sec = 0;
+    while (!h->oauth_token_set && elapsed_sec < max_wait_sec) {
+        CallState cs;
+        CallState_begin(h, &cs);
+        sleep(retry_interval_sec);
+        CallState_end(h, &cs);
+        elapsed_sec += retry_interval_sec;
+    }
+
+    if (!h->oauth_token_set) {
+        /* Token not set within timeout */
+        cfl_PyErr_Format(RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
+                        "OAuth token not set within %d seconds timeout",
+                        max_wait_sec);
+        CallState cs;
+        CallState_begin(h, &cs);
+        rd_kafka_destroy(h->rk);
+        h->rk = NULL;
+        CallState_end(h, &cs);
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * @brief Callback invoked when a OAuth token needs to be refreshed.
+ *
+ * Note that this callback will be invoked by the background thread as
+ * all client types have been configured to use background threads for sasl events.
+ */
 static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                       void *opaque) {
         Handle *h = opaque;
         PyObject *eo, *result;
-        CallState *cs;
+        PyGILState_STATE gstate;
         const char *token;
         double expiry;
         const char *principal = "";
@@ -2067,7 +2112,7 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
         char err_msg[2048];
         rd_kafka_resp_err_t err_code;
 
-        cs = CallState_get(h);
+        gstate = PyGILState_Ensure();
 
         eo = Py_BuildValue("s", oauthbearer_config);
         result = PyObject_CallFunctionObjArgs(h->oauth_cb, eo, NULL);
@@ -2116,6 +2161,7 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);
                 goto fail;
         }
+        h->oauth_token_set = 1;
         goto done;
 
 fail:
@@ -2127,10 +2173,10 @@ fail:
         PyErr_Clear();
         goto done;
  err:
-        CallState_crash(cs);
+        PyGILState_Release(gstate);
         rd_kafka_yield(h->rk);
  done:
-        CallState_resume(cs);
+        PyGILState_Release(gstate);
 }
 
 /****************************************************************************
@@ -2650,8 +2696,10 @@ inner_err:
                 rd_kafka_conf_set_log_cb(conf, log_cb);
         }
 
-        if (h->oauth_cb)
+        if (h->oauth_cb) {
                 rd_kafka_conf_set_oauthbearer_token_refresh_cb(conf, oauth_cb);
+                rd_kafka_conf_enable_sasl_queue(conf, 1);
+        }
 
 	rd_kafka_conf_set_opaque(conf, h);
 
