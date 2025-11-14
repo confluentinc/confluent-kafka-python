@@ -724,11 +724,11 @@ def test_list_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.list_consumer_group_offsets([only_group_id_request,
-                                        request_with_group_and_topic_partition])
+                                           request_with_group_and_topic_partition])
 
         with pytest.raises(ValueError):
             a.list_consumer_group_offsets([request_with_group_and_topic_partition,
-                                        same_name_request])
+                                           same_name_request])
 
         fs = a.list_consumer_group_offsets([only_group_id_request])
         with pytest.raises(KafkaException):
@@ -736,7 +736,7 @@ def test_list_consumer_group_offsets_api():
                 f.result(timeout=10)
 
         fs = a.list_consumer_group_offsets([only_group_id_request],
-                                        request_timeout=0.5)
+                                           request_timeout=0.5)
         for f in concurrent.futures.as_completed(iter(fs.values())):
             e = f.exception(timeout=1)
             assert isinstance(e, KafkaException)
@@ -744,7 +744,7 @@ def test_list_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.list_consumer_group_offsets([only_group_id_request],
-                                        request_timeout=-5)
+                                           request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
@@ -788,7 +788,9 @@ def test_list_consumer_group_offsets_api():
                 "test-group1", [TopicPartition("test-topic", 1, 1)])])
 
         a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
+        a.list_consumer_group_offsets([
+            ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])
+        ])
 
 
 def test_alter_consumer_group_offsets_api():
@@ -817,7 +819,7 @@ def test_alter_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
-                                        request_with_group_and_topic_partition_offset2])
+                                            request_with_group_and_topic_partition_offset2])
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
@@ -840,7 +842,7 @@ def test_alter_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-                                        request_timeout=-5)
+                                            request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
@@ -879,7 +881,9 @@ def test_alter_consumer_group_offsets_api():
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
+            a.alter_consumer_group_offsets([
+                ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])
+            ])
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
@@ -965,19 +969,19 @@ def test_alter_user_scram_credentials_api():
         # Upsertion request user test
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
-                                                                        scram_credential_info,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
-                                                                        scram_credential_info,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
         with pytest.raises(ValueError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
-                                                                        scram_credential_info,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         b"salt")])
 
         # Upsertion password user test
         with pytest.raises(ValueError):
@@ -986,22 +990,28 @@ def test_alter_user_scram_credentials_api():
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                        scram_credential_info,
-                                                                        "password",
-                                                                        b"salt")])
+                                                                         scram_credential_info,
+                                                                         "password",
+                                                                         b"salt")])
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")
+            ])
 
         # Upsertion salt user test
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")
+            ])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                        scram_credential_info,
-                                                                        b"password",
-                                                                        "salt")])
+                                                                         scram_credential_info,
+                                                                         b"password",
+                                                                         "salt")])
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)
+            ])
 
         # Upsertion scram_credential_info tests
         sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
@@ -1015,21 +1025,23 @@ def test_alter_user_scram_credentials_api():
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                        sci_incorrect_mechanism_type,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         sci_incorrect_mechanism_type,
+                                                                         b"password",
+                                                                         b"salt")])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                        sci_incorrect_iteration_type,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         sci_incorrect_iteration_type,
+                                                                         b"password",
+                                                                         b"salt")])
         with pytest.raises(ValueError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                        sci_negative_iteration,
-                                                                        b"password",
-                                                                        b"salt")])
+                                                                         sci_negative_iteration,
+                                                                         b"password",
+                                                                         b"salt")])
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")])
+            a.alter_user_scram_credentials([
+                UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")
+            ])
 
         # Deletion user tests
         with pytest.raises(TypeError):
