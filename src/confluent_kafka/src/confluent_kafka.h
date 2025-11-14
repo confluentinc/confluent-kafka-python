@@ -232,6 +232,7 @@ typedef struct {
 
         PyObject *logger;
         PyObject *oauth_cb;
+        int oauth_token_set;
 
 	union {
 		/**
@@ -444,6 +445,7 @@ PyObject *c_topic_partition_result_to_py_dict(
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
+int wait_for_oauth_token_set(Handle *self);
 
 
 extern const char list_topics_doc[];
