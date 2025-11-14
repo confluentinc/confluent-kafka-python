@@ -744,7 +744,7 @@ def test_list_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.list_consumer_group_offsets([only_group_id_request],
-                                           request_timeout=-5)
+                                          request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
@@ -842,7 +842,7 @@ def test_alter_consumer_group_offsets_api():
 
         with pytest.raises(ValueError):
             a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-                                            request_timeout=-5)
+                                           request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
