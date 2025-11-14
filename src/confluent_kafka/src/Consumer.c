@@ -1695,6 +1695,11 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        /* Enable Token Refresh to be handled by background thread if OAuth callback is provided */
+        if (self->oauth_cb) {
+                rd_kafka_sasl_background_callbacks_enable(self->rk);
+        }
+
         /* Forward log messages to main queue which is then forwarded
          * to the consumer queue */
         if (self->logger)
@@ -1704,6 +1709,12 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
         self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
         assert(self->u.Consumer.rkqu);
+
+
+        /* Wait for the background thread to set the token */
+        if (self->oauth_cb) {
+            return wait_for_oauth_token_set(self);
+        }
 
         return 0;
 }
