@@ -106,7 +106,11 @@ class DeserializingConsumer(_ConsumerImpl):
         if error is not None:
             raise ConsumeError(error, kafka_message=msg)
 
-        ctx = SerializationContext(msg.topic(), MessageField.VALUE, msg.headers())
+        topic = msg.topic()
+        if topic is None:
+            raise TypeError("Message topic is None")
+        ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
+
         value = msg.value()
         if self._value_deserializer is not None:
             try:
