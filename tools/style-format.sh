@@ -1,9 +1,14 @@
 #!/bin/bash
 #
 # Check or apply/fix the project coding style to all files passed as arguments.
-# Uses clang-format for C and flake8 for Python.
+# Uses clang-format for C, and black/isort/flake8 for Python.
 #
-# Requires clang-format version 10  (apt install clang-format-10).
+# Requirements:
+#   - clang-format version 10 or higher
+#     * Linux: apt install clang-format-10
+#     * macOS: brew install clang-format
+#   - black and isort for Python formatting
+#     * pip install black isort
 #
 
 
@@ -26,9 +31,9 @@ else
     fix=0
 fi
 
-clang_format_version=$(${CLANG_FORMAT} --version | sed -Ee 's/.*version ([[:digit:]]+)\.[[:digit:]]+\.[[:digit:]]+.*/\1/')
-if [[ $clang_format_version != "10" ]] ; then
-    echo "$0: clang-format version 10, '$clang_format_version' detected"
+clang_format_version=$(${CLANG_FORMAT} --version 2>/dev/null | sed -Ee 's/.*version ([[:digit:]]+)\.[[:digit:]]+\.[[:digit:]]+.*/\1/' || echo "0")
+if [[ -z $clang_format_version ]] || [[ $clang_format_version == "0" ]] || [[ $clang_format_version -lt 10 ]] ; then
+    echo "$0: clang-format version 10 or higher required, but version '$clang_format_version' detected (or not found)" 1>&2
     exit 1
 fi
 
@@ -79,17 +84,20 @@ for f in $*; do
             ${CLANG_FORMAT} --style="$style" "$f" > _styletmp
 
         else
-            # Run autopep8 to reformat the file.
-            python3 -m autopep8 -a "$f" > _styletmp
-            # autopep8 can't fix all errors, so we also perform a flake8 check.
+            # Run isort and black to format the file 
+            # First, create a backup to compare
+            cp "$f" _styletmp_orig
+            # Run isort to sort imports
+            python3 -m isort "$f" > /dev/null 2>&1 || true
+            # Run black to format the file
+            python3 -m black "$f" > /dev/null 2>&1 || true
+            # Compare to see if changes were made
+            if ! cmp -s "$f" _styletmp_orig; then
+                echo "$f: style fixed (isort + black)"
+            fi
+            rm -f _styletmp_orig
+            #  Run flake8 check after formatting
             check=1
-        fi
-
-        if ! cmp -s "$f" _styletmp; then
-            echo "$f: style fixed ($stylename)"
-            # Use cp to preserve target file mode/attrs.
-            cp _styletmp "$f"
-            rm _styletmp
         fi
     fi
 
@@ -107,11 +115,25 @@ for f in $*; do
                 ret=1
             fi
         elif [[ $lang == py ]]; then
+            # Check with isort first
+            isort_check=$(python3 -m isort --check-only --diff "$f" 2>&1)
+            if [[ $? -ne 0 ]]; then
+                echo "$f: import sorting issues (isort)" 1>&2
+                echo "$isort_check" | head -10 1>&2
+                ret=1
+            fi
+            # Check with black
+            black_check=$(python3 -m black --check --diff "$f" 2>&1)
+            if [[ $? -ne 0 ]]; then
+                echo "$f: formatting issues (black)" 1>&2
+                echo "$black_check" | head -10 1>&2
+                ret=1
+            fi
+            # Also run flake8 for linting (not formatting)
             if ! python3 -m flake8 "$f"; then
-                echo "$f: had style errors ($stylename): see flake8 output above"
+                echo "$f: had linting errors (flake8): see flake8 output above"
                 if [[ $fix == 1 ]]; then
-                    # autopep8 couldn't fix all errors. Let the user know.
-                    extra_info="Error: autopep8 could not fix all errors, fix the flake8 errors manually and run again."
+                    extra_info="Error: black/isort could not fix all linting errors, fix the flake8 errors manually and run again."
                 fi
                 ret=1
             fi
