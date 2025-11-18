@@ -116,21 +116,31 @@ for f in $*; do
             fi
         elif [[ $lang == py ]]; then
             # Check with isort first
+            set +e
             isort_check=$(python3 -m isort --check-only --diff "$f" 2>&1)
-            if [[ $? -ne 0 ]]; then
+            isort_exit=$?
+            set -e
+            if [[ $isort_exit -ne 0 ]]; then
                 echo "$f: import sorting issues (isort)" 1>&2
                 echo "$isort_check" | head -10 1>&2
                 ret=1
             fi
             # Check with black
+            set +e
             black_check=$(python3 -m black --check --diff "$f" 2>&1)
-            if [[ $? -ne 0 ]]; then
+            black_exit=$?
+            set -e
+            if [[ $black_exit -ne 0 ]]; then
                 echo "$f: formatting issues (black)" 1>&2
                 echo "$black_check" | head -10 1>&2
                 ret=1
             fi
             # Also run flake8 for linting (not formatting)
-            if ! python3 -m flake8 "$f"; then
+            set +e
+            python3 -m flake8 "$f"
+            flake8_exit=$?
+            set -e
+            if [[ $flake8_exit -ne 0 ]]; then
                 echo "$f: had linting errors (flake8): see flake8 output above"
                 if [[ $fix == 1 ]]; then
                     extra_info="Error: black/isort could not fix all linting errors, fix the flake8 errors manually and run again."
