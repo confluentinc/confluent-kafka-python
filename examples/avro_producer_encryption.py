@@ -22,30 +22,18 @@ import argparse
 import os
 from uuid import uuid4
 
-from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor
-
-from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import \
-    LocalKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
-    HcVaultKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
-    AzureKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
-    AwsKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
-    GcpKmsDriver
 from six.moves import input
 
 from confluent_kafka import Producer
-from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
-from confluent_kafka.schema_registry import SchemaRegistryClient, Rule, \
-    RuleKind, RuleMode, RuleParams, Schema, RuleSet
+from confluent_kafka.schema_registry import Rule, RuleKind, RuleMode, RuleParams, RuleSet, Schema, SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
+from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
+from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 
 
 class User(object):
@@ -85,9 +73,7 @@ def user_to_dict(user, ctx):
     """
 
     # User._address must not be serialized; omit from dict
-    return dict(name=user.name,
-                favorite_number=user.favorite_number,
-                favorite_color=user.favorite_color)
+    return dict(name=user.name, favorite_number=user.favorite_number, favorite_color=user.favorite_color)
 
 
 def delivery_report(err, msg):
@@ -111,8 +97,11 @@ def delivery_report(err, msg):
     if err is not None:
         print("Delivery failed for User record {}: {}".format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -150,36 +139,24 @@ def main(args):
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": kek_name,
-            "encrypt.kms.type": kms_type,
-            "encrypt.kms.key.id": kms_key_id
-        }),
+        RuleParams({"encrypt.kek.name": kek_name, "encrypt.kms.type": kms_type, "encrypt.kms.key.id": kms_key_id}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
 
     subject = f"{topic}-value"
-    schema_registry_client.register_schema(subject, Schema(
-        schema_str,
-        "AVRO",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    schema_registry_client.register_schema(subject, Schema(schema_str, "AVRO", [], None, RuleSet(None, [rule])))
 
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = None
     # KMS credentials can be passed as follows
     # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
     # Alternatively, the KMS credentials can be set via environment variables
-    avro_serializer = AvroSerializer(schema_registry_client,
-                                     schema_str,
-                                     user_to_dict,
-                                     conf=ser_conf,
-                                     rule_conf=rule_conf)
+    avro_serializer = AvroSerializer(
+        schema_registry_client, schema_str, user_to_dict, conf=ser_conf, rule_conf=rule_conf
+    )
 
     string_serializer = StringSerializer('utf_8')
 
@@ -196,14 +173,18 @@ def main(args):
             user_address = input("Enter address: ")
             user_favorite_number = int(input("Enter favorite number: "))
             user_favorite_color = input("Enter favorite color: ")
-            user = User(name=user_name,
-                        address=user_address,
-                        favorite_color=user_favorite_color,
-                        favorite_number=user_favorite_number)
-            producer.produce(topic=topic,
-                             key=string_serializer(str(uuid4())),
-                             value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
-                             on_delivery=delivery_report)
+            user = User(
+                name=user_name,
+                address=user_address,
+                favorite_color=user_favorite_color,
+                favorite_number=user_favorite_number,
+            )
+            producer.produce(
+                topic=topic,
+                key=string_serializer(str(uuid4())),
+                value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
+                on_delivery=delivery_report,
+            )
         except KeyboardInterrupt:
             break
         except ValueError:
@@ -216,20 +197,15 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="AvroSerializer example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_avro",
-                        help="Topic name")
-    parser.add_argument('-p', dest="specific", default="true",
-                        help="Avro specific record")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('-t', dest="topic", default="example_serde_avro", help="Topic name")
+    parser.add_argument('-p', dest="specific", default="true", help="Avro specific record")
 
-    parser.add_argument('-kn', dest="kek_name", required=True,
-                        help="KEK name")
-    parser.add_argument('-kt', dest="kms_type", required=True,
-                        help="KMS type, one of aws-kms, azure-kms, gcp-kms, hcvault")
-    parser.add_argument('-ki', dest="kms_key_id", required=True,
-                        help="KMS key id, such as an ARN")
+    parser.add_argument('-kn', dest="kek_name", required=True, help="KEK name")
+    parser.add_argument(
+        '-kt', dest="kms_type", required=True, help="KMS type, one of aws-kms, azure-kms, gcp-kms, hcvault"
+    )
+    parser.add_argument('-ki', dest="kms_key_id", required=True, help="KMS key id, such as an ARN")
 
     main(parser.parse_args())

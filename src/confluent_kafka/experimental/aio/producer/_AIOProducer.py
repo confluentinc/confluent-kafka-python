@@ -20,10 +20,9 @@ from typing import Any, Callable, Dict, Optional
 import confluent_kafka
 
 from .. import _common as _common
-from ._producer_batch_processor import ProducerBatchManager
-from ._kafka_batch_executor import ProducerBatchExecutor
 from ._buffer_timeout_manager import BufferTimeoutManager
-
+from ._kafka_batch_executor import ProducerBatchExecutor
+from ._producer_batch_processor import ProducerBatchManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +39,19 @@ class AIOProducer:
         max_workers: int = 4,
         executor: Optional[concurrent.futures.Executor] = None,
         batch_size: int = 1000,
-        buffer_timeout: float = 1.0
+        buffer_timeout: float = 1.0,
     ) -> None:
         if executor is not None:
             self.executor = executor
         else:
-            self.executor = concurrent.futures.ThreadPoolExecutor(
-                max_workers=max_workers)
+            self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         # Store the event loop for async operations
         self._loop = asyncio.get_running_loop()
 
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_common_callbacks(self._loop, producer_conf)
 
-        self._producer: confluent_kafka.Producer = confluent_kafka.Producer(
-            producer_conf
-        )
+        self._producer: confluent_kafka.Producer = confluent_kafka.Producer(producer_conf)
 
         # Batching configuration
         self._batch_size: int = batch_size
@@ -64,17 +60,13 @@ class AIOProducer:
         self._is_closed: bool = False  # Track if producer is closed
 
         # Initialize Kafka batch executor for handling Kafka operations
-        self._kafka_executor = ProducerBatchExecutor(
-            self._producer, self.executor
-        )
+        self._kafka_executor = ProducerBatchExecutor(self._producer, self.executor)
 
         # Initialize batch processor for message batching and processing
         self._batch_processor = ProducerBatchManager(self._kafka_executor)
 
         # Initialize buffer timeout manager for timeout handling
-        self._buffer_timeout_manager = BufferTimeoutManager(
-            self._batch_processor, self._kafka_executor, buffer_timeout
-        )
+        self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
         if buffer_timeout > 0:
             self._buffer_timeout_manager.start_timeout_monitoring()
 
@@ -120,9 +112,7 @@ class AIOProducer:
             #
             # We run this in a separate thread (using None as executor) to avoid
             # blocking the asyncio event loop during the potentially long shutdown wait
-            await asyncio.get_running_loop().run_in_executor(
-                None, self.executor.shutdown, True
-            )
+            await asyncio.get_running_loop().run_in_executor(None, self.executor.shutdown, True)
 
     def __del__(self) -> None:
         """Cleanup method called during garbage collection
@@ -139,12 +129,7 @@ class AIOProducer:
     # CORE PRODUCER OPERATIONS - Main public API
     # ========================================================================
 
-    async def poll(
-        self,
-        timeout: float = 0,
-        *args: Any,
-        **kwargs: Any
-    ) -> int:
+    async def poll(self, timeout: float = 0, *args: Any, **kwargs: Any) -> int:
         """Processes delivery callbacks from librdkafka - blocking depends on timeout
 
         This method triggers any pending delivery reports that have been
@@ -162,12 +147,7 @@ class AIOProducer:
         return await self._call(self._producer.poll, timeout, *args, **kwargs)
 
     async def produce(
-        self,
-        topic: str,
-        value: Optional[Any] = None,
-        key: Optional[Any] = None,
-        *args: Any,
-        **kwargs: Any
+        self, topic: str, value: Optional[Any] = None, key: Optional[Any] = None, *args: Any, **kwargs: Any
     ) -> asyncio.Future[Any]:
         """Batched produce: Accumulates messages in buffer and flushes when threshold reached
 
@@ -182,11 +162,7 @@ class AIOProducer:
         """
         result = asyncio.get_running_loop().create_future()
 
-        msg_data = {
-            'topic': topic,
-            'value': value,
-            'key': key
-        }
+        msg_data = {'topic': topic, 'value': value, 'key': key}
 
         # Add optional parameters to message data
         if 'partition' in kwargs:
@@ -249,9 +225,7 @@ class AIOProducer:
 
     async def init_transactions(self, *args: Any, **kwargs: Any) -> Any:
         """Network call to initialize transactions"""
-        return await self._call(
-            self._producer.init_transactions, *args, **kwargs
-        )
+        return await self._call(self._producer.init_transactions, *args, **kwargs)
 
     async def begin_transaction(self, *args: Any, **kwargs: Any) -> Any:
         """Network call to begin transaction"""
@@ -259,19 +233,11 @@ class AIOProducer:
         # Flush messages to set a clean state before entering a transaction
         await self.flush()
 
-        return await self._call(
-            self._producer.begin_transaction, *args, **kwargs
-        )
+        return await self._call(self._producer.begin_transaction, *args, **kwargs)
 
-    async def send_offsets_to_transaction(
-        self,
-        *args: Any,
-        **kwargs: Any
-    ) -> Any:
+    async def send_offsets_to_transaction(self, *args: Any, **kwargs: Any) -> Any:
         """Network call to send offsets to transaction"""
-        return await self._call(
-            self._producer.send_offsets_to_transaction, *args, **kwargs
-        )
+        return await self._call(self._producer.send_offsets_to_transaction, *args, **kwargs)
 
     async def commit_transaction(self, *args: Any, **kwargs: Any) -> Any:
         """Commit transaction after flushing all buffered messages"""
@@ -281,9 +247,7 @@ class AIOProducer:
         await self.flush()
 
         # Then commit transaction
-        return await self._call(
-            self._producer.commit_transaction, *args, **kwargs
-        )
+        return await self._call(self._producer.commit_transaction, *args, **kwargs)
 
     async def abort_transaction(self, *args: Any, **kwargs: Any) -> Any:
         """Network call to abort transaction
@@ -300,9 +264,7 @@ class AIOProducer:
         # delivered to librdkafka
         await self.flush()
 
-        return await self._call(
-            self._producer.abort_transaction, *args, **kwargs
-        )
+        return await self._call(self._producer.abort_transaction, *args, **kwargs)
 
     # ========================================================================
     # AUTHENTICATION AND SECURITY
@@ -310,9 +272,7 @@ class AIOProducer:
 
     async def set_sasl_credentials(self, *args: Any, **kwargs: Any) -> Any:
         """Authentication operation that may involve network calls"""
-        return await self._call(
-            self._producer.set_sasl_credentials, *args, **kwargs
-        )
+        return await self._call(self._producer.set_sasl_credentials, *args, **kwargs)
 
     # ========================================================================
     # BATCH PROCESSING OPERATIONS - Delegated to BatchProcessor
@@ -333,13 +293,6 @@ class AIOProducer:
     # UTILITY METHODS - Helper functions and internal utilities
     # ========================================================================
 
-    async def _call(
-        self,
-        blocking_task: Callable[..., Any],
-        *args: Any,
-        **kwargs: Any
-    ) -> Any:
+    async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Helper method for blocking operations that need ThreadPool execution"""
-        return await _common.async_call(
-            self.executor, blocking_task, *args, **kwargs
-        )
+        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)

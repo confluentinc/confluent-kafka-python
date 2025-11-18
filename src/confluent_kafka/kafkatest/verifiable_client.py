@@ -30,8 +30,7 @@ class VerifiableClient(object):
     """
 
     def __init__(self, conf):
-        """
-        """
+        """ """
         super(VerifiableClient, self).__init__()
         self.conf = conf
         self.conf['client.id'] = 'python@' + socket.gethostname()
@@ -48,18 +47,18 @@ class VerifiableClient(object):
         return time.strftime('%H:%M:%S', time.localtime())
 
     def dbg(self, s):
-        """ Debugging printout """
+        """Debugging printout"""
         sys.stderr.write('%% %s DEBUG: %s\n' % (self._timestamp(), s))
 
     def err(self, s, term=False):
-        """ Error printout, if term=True the process will terminate immediately. """
+        """Error printout, if term=True the process will terminate immediately."""
         sys.stderr.write('%% %s ERROR: %s\n' % (self._timestamp(), s))
         if term:
             sys.stderr.write('%% FATAL ERROR ^\n')
             sys.exit(1)
 
     def send(self, d):
-        """ Send dict as JSON to stdout for consumtion by kafkatest handler """
+        """Send dict as JSON to stdout for consumtion by kafkatest handler"""
         d['_time'] = str(datetime.datetime.now())
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
@@ -67,7 +66,7 @@ class VerifiableClient(object):
 
     @staticmethod
     def set_config(conf, args):
-        """ Set client config properties using args dict. """
+        """Set client config properties using args dict."""
         for n, v in args.iteritems():
             if v is None:
                 continue
@@ -87,8 +86,7 @@ class VerifiableClient(object):
             if n == 'partition.assignment.strategy':
                 # Convert Java class name to config value.
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
-                v = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
-                           lambda x: x.group(1).lower(), v)
+                v = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor', lambda x: x.group(1).lower(), v)
                 if v == 'sticky':
                     v = 'cooperative-sticky'
 
@@ -111,7 +109,7 @@ class VerifiableClient(object):
                     raise Exception('%s: invalid line, no key=value pair: %s' % (path, line))
 
                 k = line[:fi]
-                v = line[fi+1:]
+                v = line[fi + 1 :]
 
                 conf[k] = v
 

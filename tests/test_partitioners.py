@@ -5,7 +5,8 @@ Unit tests for partitioner functions.
 """
 
 import pytest
-from confluent_kafka import murmur2, consistent, fnv1a
+
+from confluent_kafka import consistent, fnv1a, murmur2
 
 
 class TestPartitioners:

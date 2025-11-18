@@ -1,6 +1,6 @@
 # #!/usr/bin/env python
 
-from confluent_kafka import Message, KafkaError
+from confluent_kafka import KafkaError, Message
 
 
 def test_init_no_params():
@@ -18,9 +18,18 @@ def test_init_no_params():
 
 
 def test_init_all_params():
-    m = Message(topic="test", partition=1, offset=2, key=b"key", value=b"value", headers=[("h1", "v1")],
-                error=KafkaError(0),
-                timestamp=(1, 1762499956), latency=0.05, leader_epoch=1762499956)
+    m = Message(
+        topic="test",
+        partition=1,
+        offset=2,
+        key=b"key",
+        value=b"value",
+        headers=[("h1", "v1")],
+        error=KafkaError(0),
+        timestamp=(1, 1762499956),
+        latency=0.05,
+        leader_epoch=1762499956,
+    )
     assert m.topic() == "test"
     assert m.partition() == 1
     assert m.offset() == 2

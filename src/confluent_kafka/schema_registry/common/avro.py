@@ -1,18 +1,18 @@
 import decimal
+import json
 import logging
 import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-import json
-from typing import Dict, Union, Optional, Set
+from typing import Dict, Optional, Set, Union
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
-from .schema_registry_client import Schema, RuleKind
-from confluent_kafka.schema_registry.serde import RuleContext, FieldType, \
-    FieldTransform, RuleConditionError
+from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+
+from .schema_registry_client import RuleKind, Schema
 
 __all__ = [
     'AvroMessage',
@@ -100,8 +100,7 @@ def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]
 
 
 def transform(
-    ctx: RuleContext, schema: AvroSchema, message: AvroMessage,
-    field_transform: FieldTransform
+    ctx: RuleContext, schema: AvroSchema, message: AvroMessage, field_transform: FieldTransform
 ) -> AvroMessage:
     if message is None or schema is None:
         return message
@@ -119,14 +118,12 @@ def transform(
             if not isinstance(message, list):
                 log.warning("Incompatible message type for array schema")
                 return message
-            return [transform(ctx, schema["items"], item, field_transform)
-                    for item in message]
+            return [transform(ctx, schema["items"], item, field_transform) for item in message]
         elif schema_type == 'map':
             if not isinstance(message, dict):
                 log.warning("Incompatible message type for map schema")
                 return message
-            return {key: transform(ctx, schema["values"], value, field_transform)
-                    for key, value in message.items()}
+            return {key: transform(ctx, schema["values"], value, field_transform) for key, value in message.items()}
         elif schema_type == 'record':
             if not isinstance(message, dict):
                 log.warning("Incompatible message type for record schema")
@@ -145,21 +142,12 @@ def transform(
     return message
 
 
-def _transform_field(
-    ctx: RuleContext, schema: dict, field: dict,
-    message: dict, field_transform: FieldTransform
-):
+def _transform_field(ctx: RuleContext, schema: dict, field: dict, message: dict, field_transform: FieldTransform):
     field_type = field["type"]
     name = field["name"]
     full_name = schema["name"] + "." + name
     try:
-        ctx.enter_field(
-            message,
-            full_name,
-            name,
-            get_type(field_type),
-            None
-        )
+        ctx.enter_field(message, full_name, name, get_type(field_type), None)
         value = message[name]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
@@ -235,10 +223,7 @@ def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
     return inline_tags
 
 
-def _get_inline_tags_recursively(
-    ns: str, name: str, schema: Optional[AvroSchema],
-    tags: Dict[str, Set[str]]
-):
+def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema], tags: Dict[str, Set[str]]):
     if schema is None:
         return
     if isinstance(schema, list):
