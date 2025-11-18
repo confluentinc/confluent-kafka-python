@@ -55,6 +55,8 @@ def test_basic_api():
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
+    assert p.close(), "Failed to validate that producer was closed."
+
 
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """
@@ -239,6 +241,8 @@ def test_transaction_api():
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_purge():
     """
@@ -274,6 +278,8 @@ def test_purge():
     p.flush(0.002)
     assert cb_detector["on_delivery_called"]
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_producer_bool_value():
     """
@@ -283,6 +289,7 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+    assert p.close(), "The producer was not fully closed"
 
 
 def test_produce_batch_basic_types_and_data():
@@ -1395,3 +1402,24 @@ def test_uninitialized_producer_methods():
 
     # Test __len__() - should return 0 for closed producer (safe, no crash)
     assert len(producer) == 0
+
+
+def test_producer_close():
+    """
+    Ensures the producer close can be requested on demand
+    """
+    conf = {
+        'debug': 'all',
+        'socket.timeout.ms': 10,
+        'error_cb': error_cb,
+        'message.timeout.ms': 10
+    }
+    producer = Producer(conf)
+    cb_detector = {"on_delivery_called": False}
+
+    def on_delivery(err, msg):
+        cb_detector["on_delivery_called"] = True
+
+    producer.produce('mytopic', value='somedata', key='a key', callback=on_delivery)
+    assert producer.close(), "The producer could not be closed on demand"
+    assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"
