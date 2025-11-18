@@ -28,7 +28,7 @@ from collections import defaultdict
 import urllib3
 from requests import Session, utils
 
-from . import loads
+from .load import loads
 from .error import ClientError
 
 # Python 2 considers int an instance of str
