@@ -50,8 +50,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
         # Run these actions and tests only in this case
         echo "Checking code formatting ..."
-        black --check --diff . || exit 1
-        isort --check-only --diff . || exit 1
+        make style-check || exit 1
         echo "Building documentation ..."
         flake8 --exclude ./_venv,*_pb2.py,./build
         pip install -r requirements/requirements-docs.txt
