@@ -23,19 +23,16 @@ This module provides centralized type aliases to maintain DRY principle
 and ensure consistency across the package.
 """
 
-from typing import Any, Optional, Dict, Union, Callable, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # Headers can be either dict format or list of tuples format
-HeadersType = Union[
-    Dict[str, Union[str, bytes, None]],
-    List[Tuple[str, Union[str, bytes, None]]]
-]
+HeadersType = Union[Dict[str, Union[str, bytes, None]], List[Tuple[str, Union[str, bytes, None]]]]
 
 # Serializer/Deserializer callback types (will need SerializationContext import where used)
-Serializer = Callable[[Any, Any], bytes]          # (obj, SerializationContext) -> bytes
+Serializer = Callable[[Any, Any], bytes]  # (obj, SerializationContext) -> bytes
 Deserializer = Callable[[Optional[bytes], Any], Any]  # (Optional[bytes], SerializationContext) -> obj
 
 # Forward declarations for callback types that reference classes from cimpl
 # These are defined here to avoid circular imports
 DeliveryCallback = Callable[[Optional[Any], Any], None]  # (KafkaError, Message) -> None
-RebalanceCallback = Callable[[Any, List[Any]], None]     # (Consumer, List[TopicPartition]) -> None
+RebalanceCallback = Callable[[Any, List[Any]], None]  # (Consumer, List[TopicPartition]) -> None

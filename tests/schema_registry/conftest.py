@@ -132,13 +132,15 @@ be used to verify the handling of in valid compatibility settings.
 
 @pytest.fixture()
 def mock_schema_registry():
-    with (respx.mock as respx_mock):
+    with respx.mock as respx_mock:
         respx_mock.route().mock(side_effect=_auth_matcher)
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(
-            side_effect=post_compatibility_subjects_versions_callback)
+            side_effect=post_compatibility_subjects_versions_callback
+        )
         respx_mock.post(COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE).mock(
-            side_effect=post_compatibility_subjects_all_versions_callback)
+            side_effect=post_compatibility_subjects_all_versions_callback
+        )
 
         respx_mock.get(CONFIG_RE).mock(side_effect=get_config_callback)
         respx_mock.put(CONFIG_RE).mock(side_effect=put_config_callback)
@@ -200,10 +202,7 @@ USERINFO = 'mock_user:mock_password'
 
 # Counts requests handled per path by HTTP method
 # {HTTP method: { path : count}}
-COUNTER = {'DELETE': defaultdict(int),
-           'GET': defaultdict(int),
-           'POST': defaultdict(int),
-           'PUT': defaultdict(int)}
+COUNTER = {'DELETE': defaultdict(int), 'GET': defaultdict(int), 'POST': defaultdict(int), 'PUT': defaultdict(int)}
 
 
 def _auth_matcher(request):
@@ -219,14 +218,12 @@ def _auth_matcher(request):
     if b64decode(userinfo).decode('utf-8') == USERINFO:
         return None
 
-    unauthorized = {'error_code': 401,
-                    'message': "401 Unauthorized"}
+    unauthorized = {'error_code': 401, 'message': "401 Unauthorized"}
     return Response(401, json=unauthorized)
 
 
 def _load_avsc(name) -> str:
-    with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
-                           'data', name)) as fd:
+    with open(os.path.join(work_dir, '..', 'integration', 'schema_registry', 'data', name)) as fd:
         return fd.read()
 
 
@@ -237,8 +234,7 @@ def get_config_callback(request, route):
     subject = path_match.group(1)
 
     if subject == "notfound":
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
 
     return Response(200, json={'compatibility': 'FULL'})
 
@@ -250,8 +246,7 @@ def put_config_callback(request, route):
     level = body.get('compatibility')
 
     if level == "INVALID":
-        return Response(422, json={'error_code': 42203,
-                                   'message': "Invalid compatibility level"})
+        return Response(422, json={'error_code': 42203, 'message': "Invalid compatibility level"})
 
     return Response(200, json=body)
 
@@ -263,8 +258,7 @@ def delete_config_callback(request, route):
     subject = path_match.group(1)
 
     if subject == "notfound":
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
 
     return Response(200, json={'compatibility': 'FULL'})
 
@@ -281,8 +275,7 @@ def delete_subject_callback(request, route):
     subject = path_match.group(1)
 
     if subject == "notfound":
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
 
     return Response(200, json=VERSIONS)
 
@@ -300,17 +293,12 @@ def post_subject_callback(request, route):
     subject = path_match.group(1)
 
     if subject == 'notfound':
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
     if subject == 'schemanotfound':
-        return Response(404, json={'error_code': 40403,
-                                   'message': "Schema not found"})
+        return Response(404, json={'error_code': 40403, 'message': "Schema not found"})
 
     body = json.loads(request.content.decode('utf-8'))
-    return Response(200, json={'subject': subject,
-                               "id": SCHEMA_ID,
-                               "version": VERSION,
-                               "schema": body['schema']})
+    return Response(200, json={'subject': subject, "id": SCHEMA_ID, "version": VERSION, "schema": body['schema']})
 
 
 def get_schemas_callback(request, route):
@@ -320,8 +308,7 @@ def get_schemas_callback(request, route):
     schema_id = path_match.group(1)
 
     if int(schema_id) == 404:
-        return Response(404, json={'error_code': 40403,
-                                   'message': "Schema not found"})
+        return Response(404, json={'error_code': 40403, 'message': "Schema not found"})
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
 
@@ -338,10 +325,7 @@ def get_schema_types_callback(request, route):
 
 def get_schema_versions_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
-    return Response(200, json=[
-        {'subject': 'subject1', 'version': 1},
-        {'subject': 'subject2', 'version': 2}
-    ])
+    return Response(200, json=[{'subject': 'subject1', 'version': 1}, {'subject': 'subject2', 'version': 2}])
 
 
 def get_subject_version_callback(request, route):
@@ -353,18 +337,14 @@ def get_subject_version_callback(request, route):
     version_num = -1 if version == 'latest' else int(version)
 
     if version_num == 404:
-        return Response(404, json={'error_code': 40402,
-                                   'message': "Version not found"})
+        return Response(404, json={'error_code': 40402, 'message': "Version not found"})
     if version_num == 422:
-        return Response(422, json={'error_code': 42202,
-                                   'message': "Invalid version"})
+        return Response(422, json={'error_code': 42202, 'message': "Invalid version"})
     if subject == 'notfound':
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
-    return Response(200, json={'subject': subject,
-                               'id': SCHEMA_ID,
-                               'version': version_num,
-                               'schema': _load_avsc(SCHEMA)})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
+    return Response(
+        200, json={'subject': subject, 'id': SCHEMA_ID, 'version': version_num, 'schema': _load_avsc(SCHEMA)}
+    )
 
 
 def delete_subject_version_callback(request, route):
@@ -376,16 +356,13 @@ def delete_subject_version_callback(request, route):
     version_num = -1 if version == 'latest' else int(version)
 
     if version_num == 404:
-        return Response(404, json={'error_code': 40402,
-                                   'message': "Version not found"})
+        return Response(404, json={'error_code': 40402, 'message': "Version not found"})
 
     if version_num == 422:
-        return Response(422, json={'error_code': 42202,
-                                   'message': "Invalid version"})
+        return Response(422, json={'error_code': 42202, 'message': "Invalid version"})
 
     if subject == "notfound":
-        return Response(404, json={'error_code': 40401,
-                                   'message': "Subject not found"})
+        return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
 
     return Response(200, json=version_num)
 
@@ -397,12 +374,10 @@ def post_subject_version_callback(request, route):
     subject = path_match.group(1)
     if subject == "conflict":
         # oddly the Schema Registry does not send a proper error for this.
-        return Response(409, json={'error_code': -1,
-                                   'message': "Incompatible Schema"})
+        return Response(409, json={'error_code': -1, 'message': "Incompatible Schema"})
 
     if subject == "invalid":
-        return Response(422, json={'error_code': 42201,
-                                   'message': "Invalid Schema"})
+        return Response(422, json={'error_code': 42201, 'message': "Invalid Schema"})
     else:
         return Response(200, json={'id': SCHEMA_ID})
 
@@ -420,23 +395,19 @@ def post_compatibility_subjects_versions_callback(request, route):
     version = path_match.group(2)
 
     if version == '422':
-        return Response(422, json={'error_code': 42202,
-                                   'message': 'Invalid version'})
+        return Response(422, json={'error_code': 42202, 'message': 'Invalid version'})
 
     if version == '404':
-        return Response(404, json={'error_code': 40402,
-                                   'message': 'Version not found'})
+        return Response(404, json={'error_code': 40402, 'message': 'Version not found'})
 
     if subject == 'conflict':
         return Response(200, json={'is_compatible': False})
 
     if subject == 'notfound':
-        return Response(404, json={'error_code': 40401,
-                                   'message': 'Subject not found'})
+        return Response(404, json={'error_code': 40401, 'message': 'Subject not found'})
 
     if subject == 'invalid':
-        return Response(422, json={'error_code': 42201,
-                                   'message': 'Invalid Schema'})
+        return Response(422, json={'error_code': 42201, 'message': 'Invalid Schema'})
 
     return Response(200, json={'is_compatible': True})
 
@@ -471,11 +442,9 @@ def put_mode_callback(request, route):
     mode = body.get('mode')
 
     if subject == 'invalid_mode':
-        return Response(422, json={'error_code': 42204,
-                                   'message': "Invalid mode"})
+        return Response(422, json={'error_code': 42204, 'message': "Invalid mode"})
     if subject == 'operation_not_permitted':
-        return Response(422, json={'error_code': 42205,
-                                   'message': "Operation not permitted"})
+        return Response(422, json={'error_code': 42205, 'message': "Operation not permitted"})
     return Response(200, json={'mode': mode})
 
 
@@ -487,8 +456,7 @@ def delete_mode_callback(request, route):
 @pytest.fixture(scope="package")
 def load_avsc():
     def get_handle(name):
-        with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
-                               'data', name)) as fd:
+        with open(os.path.join(work_dir, '..', 'integration', 'schema_registry', 'data', name)) as fd:
             return fd.read()
 
     return get_handle

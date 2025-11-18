@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka import TopicPartition, IsolationLevel
+from confluent_kafka import IsolationLevel, TopicPartition
 from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 
 
@@ -27,11 +27,13 @@ def test_list_offsets(kafka_cluster):
     admin_client = kafka_cluster.admin()
 
     # Create a topic with a single partition
-    topic = kafka_cluster.create_topic_and_wait_propogation("test-topic-verify-list-offsets",
-                                                            {
-                                                                "num_partitions": 1,
-                                                                "replication_factor": 1,
-                                                            })
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        "test-topic-verify-list-offsets",
+        {
+            "num_partitions": 1,
+            "replication_factor": 1,
+        },
+    )
 
     # Create Producer instance
     p = kafka_cluster.producer()
@@ -43,38 +45,40 @@ def test_list_offsets(kafka_cluster):
 
     topic_partition = TopicPartition(topic, 0)
 
-    for kwargs in [{},
-                   {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
-                   {"request_timeout": 30},
-                   {"isolation_level": IsolationLevel.READ_COMMITTED, "request_timeout": 30}]:
+    for kwargs in [
+        {},
+        {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
+        {"request_timeout": 30},
+        {"isolation_level": IsolationLevel.READ_COMMITTED, "request_timeout": 30},
+    ]:
 
         requests = {topic_partition: OffsetSpec.earliest()}
         futmap = admin_client.list_offsets(requests, **kwargs)
         for _, fut in futmap.items():
             result = fut.result()
             assert isinstance(result, ListOffsetsResultInfo)
-            assert (result.offset == 0)
+            assert result.offset == 0
 
         requests = {topic_partition: OffsetSpec.latest()}
         futmap = admin_client.list_offsets(requests, **kwargs)
         for _, fut in futmap.items():
             result = fut.result()
             assert isinstance(result, ListOffsetsResultInfo)
-            assert (result.offset == 3)
+            assert result.offset == 3
 
         requests = {topic_partition: OffsetSpec.max_timestamp()}
         futmap = admin_client.list_offsets(requests, **kwargs)
         for _, fut in futmap.items():
             result = fut.result()
             assert isinstance(result, ListOffsetsResultInfo)
-            assert (result.offset == 1)
+            assert result.offset == 1
 
         requests = {topic_partition: OffsetSpec.for_timestamp(base_timestamp + 150)}
         futmap = admin_client.list_offsets(requests, **kwargs)
         for _, fut in futmap.items():
             result = fut.result()
             assert isinstance(result, ListOffsetsResultInfo)
-            assert (result.offset == 1)
+            assert result.offset == 1
 
     # Delete created topic
     fs = admin_client.delete_topics([topic])

@@ -22,9 +22,9 @@
 
 import unittest
 
+from confluent_kafka import avro
 from tests.avro import data_gen
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
-from confluent_kafka import avro
 
 
 class TestMockSchemaRegistryClient(unittest.TestCase):

@@ -20,7 +20,7 @@ from confluent_kafka.avro.error import ClientError
 
 
 def loads(schema_str):
-    """ Parse a schema given a schema string """
+    """Parse a schema given a schema string"""
     try:
         return schema.parse(schema_str)
     except SchemaParseException as e:
@@ -28,7 +28,7 @@ def loads(schema_str):
 
 
 def load(fp):
-    """ Parse a schema from a file path """
+    """Parse a schema from a file path"""
     with open(fp) as f:
         return loads(f.read())
 

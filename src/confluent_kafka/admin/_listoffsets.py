@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
 from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
 from .. import cimpl
 
@@ -23,6 +23,7 @@ class OffsetSpec(ABC):
     Used in `AdminClient.list_offsets` to specify the desired offsets
     of the partition being queried.
     """
+
     _values: Dict[int, 'OffsetSpec'] = {}
     _max_timestamp: Optional['MaxTimestampSpec'] = None
     _earliest: Optional['EarliestSpec'] = None
@@ -38,11 +39,13 @@ class OffsetSpec(ABC):
         cls._max_timestamp = MaxTimestampSpec()
         cls._earliest = EarliestSpec()
         cls._latest = LatestSpec()
-        cls._values.update({
-            cimpl.OFFSET_SPEC_MAX_TIMESTAMP: cls._max_timestamp,
-            cimpl.OFFSET_SPEC_EARLIEST: cls._earliest,
-            cimpl.OFFSET_SPEC_LATEST: cls._latest,
-        })
+        cls._values.update(
+            {
+                cimpl.OFFSET_SPEC_MAX_TIMESTAMP: cls._max_timestamp,
+                cimpl.OFFSET_SPEC_EARLIEST: cls._earliest,
+                cimpl.OFFSET_SPEC_LATEST: cls._latest,
+            }
+        )
 
     @classmethod
     def earliest(cls):
@@ -156,6 +159,7 @@ class ListOffsetsResultInfo:
     leader_epoch: int
         The leader epoch corresponding to the offset (optional).
     """
+
     def __init__(self, offset: int, timestamp: int, leader_epoch: int) -> None:
         self.offset = offset
         self.timestamp = timestamp

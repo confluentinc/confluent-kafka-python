@@ -13,15 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 import concurrent
+import time
+
 import pytest
 
-from confluent_kafka.admin import UserScramCredentialsDescription, UserScramCredentialUpsertion, \
-    UserScramCredentialDeletion, ScramCredentialInfo, \
-    ScramMechanism
-from confluent_kafka.error import KafkaException, KafkaError
-
+from confluent_kafka.admin import (
+    ScramCredentialInfo,
+    ScramMechanism,
+    UserScramCredentialDeletion,
+    UserScramCredentialsDescription,
+    UserScramCredentialUpsertion,
+)
+from confluent_kafka.error import KafkaError, KafkaException
 from tests.common import TestUtils
 
 
@@ -48,9 +52,9 @@ def test_user_scram_credentials(kafka_cluster):
     assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
 
     # Insert new user with SCRAM_SHA_256: 10000
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
-                                                        ScramCredentialInfo(mechanism, iterations),
-                                                        password, salt)])
+    futmap = admin_client.alter_user_scram_credentials(
+        [UserScramCredentialUpsertion(newuser, ScramCredentialInfo(mechanism, iterations), password, salt)]
+    )
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
@@ -58,14 +62,10 @@ def test_user_scram_credentials(kafka_cluster):
     time.sleep(1)
 
     # Try upsertion for newuser,SCRAM_SHA_256 and add newuser,SCRAM_SHA_512
-    request = [UserScramCredentialUpsertion(newuser,
-                                            ScramCredentialInfo(
-                                                mechanism, iterations),
-                                            password, salt),
-               UserScramCredentialUpsertion(newuser,
-                                            ScramCredentialInfo(
-                                                ScramMechanism.SCRAM_SHA_512, 10000),
-                                            password)]
+    request = [
+        UserScramCredentialUpsertion(newuser, ScramCredentialInfo(mechanism, iterations), password, salt),
+        UserScramCredentialUpsertion(newuser, ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000), password),
+    ]
 
     if TestUtils.use_kraft():
         futmap = admin_client.alter_user_scram_credentials([request[0]])
@@ -81,10 +81,9 @@ def test_user_scram_credentials(kafka_cluster):
     time.sleep(1)
 
     # Delete newuser,SCRAM_SHA_512
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(
-        newuser,
-        ScramMechanism.SCRAM_SHA_512)
-    ])
+    futmap = admin_client.alter_user_scram_credentials(
+        [UserScramCredentialDeletion(newuser, ScramMechanism.SCRAM_SHA_512)]
+    )
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
@@ -100,8 +99,7 @@ def test_user_scram_credentials(kafka_cluster):
         description = results[newuser]
         assert isinstance(description, UserScramCredentialsDescription)
         for scram_credential_info in description.scram_credential_infos:
-            assert ((scram_credential_info.mechanism == mechanism) and
-                    (scram_credential_info.iterations == iterations))
+            assert (scram_credential_info.mechanism == mechanism) and (scram_credential_info.iterations == iterations)
 
     # Describe specific user
     futmap = admin_client.describe_user_scram_credentials([newuser])
@@ -111,8 +109,7 @@ def test_user_scram_credentials(kafka_cluster):
     description = futmap[newuser].result()
     assert isinstance(description, UserScramCredentialsDescription)
     for scram_credential_info in description.scram_credential_infos:
-        assert ((scram_credential_info.mechanism == mechanism) and
-                (scram_credential_info.iterations == iterations))
+        assert (scram_credential_info.mechanism == mechanism) and (scram_credential_info.iterations == iterations)
 
     # Delete newuser
     futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser, mechanism)])

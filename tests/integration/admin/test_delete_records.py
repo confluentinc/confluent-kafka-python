@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka.admin import OffsetSpec, DeletedRecords
 from confluent_kafka import TopicPartition
+from confluent_kafka.admin import DeletedRecords, OffsetSpec
 
 
 def test_delete_records(kafka_cluster):
@@ -25,11 +25,13 @@ def test_delete_records(kafka_cluster):
     admin_client = kafka_cluster.admin()
 
     # Create a topic with a single partition
-    topic = kafka_cluster.create_topic_and_wait_propogation("test-del-records",
-                                                            {
-                                                                "num_partitions": 1,
-                                                                "replication_factor": 1,
-                                                            })
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        "test-del-records",
+        {
+            "num_partitions": 1,
+            "replication_factor": 1,
+        },
+    )
 
     # Create Producer instance
     p = kafka_cluster.producer()
@@ -44,7 +46,7 @@ def test_delete_records(kafka_cluster):
     # Check if the earliest avilable offset for this topic partition is 0
     fs = admin_client.list_offsets(requests)
     result = list(fs.values())[0].result()
-    assert (result.offset == 0)
+    assert result.offset == 0
 
     topic_partition_offset = TopicPartition(topic, 0, 2)
 
@@ -57,7 +59,7 @@ def test_delete_records(kafka_cluster):
     # Check if the earliest available offset is equal to the offset passed to the delete records function
     res = list(fs1.values())[0].result()
     assert isinstance(res, DeletedRecords)
-    assert (res.low_watermark == list(fs2.values())[0].result().offset)
+    assert res.low_watermark == list(fs2.values())[0].result().offset
 
     # Delete created topic
     fs = admin_client.delete_topics([topic])
@@ -73,16 +75,20 @@ def test_delete_records_multiple_topics_and_partitions(kafka_cluster):
     admin_client = kafka_cluster.admin()
     num_partitions = 3
     # Create two topics with a single partition
-    topic = kafka_cluster.create_topic_and_wait_propogation("test-del-records",
-                                                            {
-                                                                "num_partitions": num_partitions,
-                                                                "replication_factor": 1,
-                                                            })
-    topic2 = kafka_cluster.create_topic_and_wait_propogation("test-del-records2",
-                                                             {
-                                                                 "num_partitions": num_partitions,
-                                                                 "replication_factor": 1,
-                                                             })
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        "test-del-records",
+        {
+            "num_partitions": num_partitions,
+            "replication_factor": 1,
+        },
+    )
+    topic2 = kafka_cluster.create_topic_and_wait_propogation(
+        "test-del-records2",
+        {
+            "num_partitions": num_partitions,
+            "replication_factor": 1,
+        },
+    )
 
     topics = [topic, topic2]
     partitions = list(range(num_partitions))
@@ -94,13 +100,7 @@ def test_delete_records_multiple_topics_and_partitions(kafka_cluster):
             p.produce(t, "Message-2", partition=partition)
             p.produce(t, "Message-3", partition=partition)
     p.flush()
-    requests = dict(
-        [
-            (TopicPartition(t, partition), OffsetSpec.earliest())
-            for t in topics
-            for partition in partitions
-        ]
-    )
+    requests = dict([(TopicPartition(t, partition), OffsetSpec.earliest()) for t in topics for partition in partitions])
     # Check if the earliest available offset for this topic partition is 0
     fs = admin_client.list_offsets(requests)
     assert all([p.result().offset == 0 for p in fs.values()])
@@ -112,18 +112,18 @@ def test_delete_records_multiple_topics_and_partitions(kafka_cluster):
         # Single topic, two partitions, single record deleted
         [TopicPartition(topic, 0, 1), TopicPartition(topic, 1, 1)],
         # Two topics, four partitions, two records deleted
-        [TopicPartition(topic, 2, 2), TopicPartition(topic2, 0, 2),
-         TopicPartition(topic2, 1, 2), TopicPartition(topic2, 2, 2)],
+        [
+            TopicPartition(topic, 2, 2),
+            TopicPartition(topic2, 0, 2),
+            TopicPartition(topic2, 1, 2),
+            TopicPartition(topic2, 2, 2),
+        ],
     ]:
-        list_offsets_requests = dict([
-            (part, OffsetSpec.earliest()) for part in delete_partitions
-        ])
+        list_offsets_requests = dict([(part, OffsetSpec.earliest()) for part in delete_partitions])
         futmap_delete = admin_client.delete_records(delete_partitions)
-        delete_results = [(part, fut.result())
-                          for part, fut in futmap_delete.items()]
+        delete_results = [(part, fut.result()) for part, fut in futmap_delete.items()]
         futmap_list = admin_client.list_offsets(list_offsets_requests)
-        list_results = dict([(part, fut.result())
-                            for part, fut in futmap_list.items()])
+        list_results = dict([(part, fut.result()) for part, fut in futmap_list.items()])
         for part, delete_result in delete_results:
             list_result = list_results[part]
             assert isinstance(delete_result, DeletedRecords)
