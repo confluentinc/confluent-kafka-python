@@ -1,16 +1,38 @@
 #!/usr/bin/env python
+import concurrent.futures
+
 import pytest
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
-    ConfigResource, ConfigEntry, AclBinding, AclBindingFilter, ResourceType, \
-    ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
-    ScramCredentialInfo, ScramMechanism, \
-    UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec, _ElectionType as ElectionType
-from confluent_kafka import KafkaException, KafkaError, \
-    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel, TopicCollection
-import concurrent.futures
+from confluent_kafka import (
+    ConsumerGroupState,
+    ConsumerGroupTopicPartitions,
+    IsolationLevel,
+    KafkaError,
+    KafkaException,
+    TopicCollection,
+    TopicPartition,
+)
+from confluent_kafka.admin import (
+    AclBinding,
+    AclBindingFilter,
+    AclOperation,
+    AclPermissionType,
+    AdminClient,
+    AlterConfigOpType,
+    ConfigEntry,
+    ConfigResource,
+    NewPartitions,
+    NewTopic,
+    OffsetSpec,
+    ResourcePatternType,
+    ResourceType,
+    ScramCredentialInfo,
+    ScramMechanism,
+    UserScramCredentialAlteration,
+    UserScramCredentialDeletion,
+    UserScramCredentialUpsertion,
+)
+from confluent_kafka.admin import _ElectionType as ElectionType
 
 
 def test_types():
@@ -25,8 +47,15 @@ def test_types():
 
 
 def test_acl_binding_type():
-    attrs = [ResourceType.TOPIC, "topic", ResourcePatternType.LITERAL,
-             "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW]
+    attrs = [
+        ResourceType.TOPIC,
+        "topic",
+        ResourcePatternType.LITERAL,
+        "User:u1",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.ALLOW,
+    ]
 
     attrs_nullable_acl_binding_filter = [1, 3, 4]
 
@@ -47,7 +76,7 @@ def test_acl_binding_type():
             with pytest.raises(ValueError):
                 AclBindingFilter(*attrs_copy)
 
-    for (attr_num, attr_value) in [
+    for attr_num, attr_value in [
         (0, ResourceType.ANY),
         (2, ResourcePatternType.ANY),
         (2, ResourcePatternType.MATCH),
@@ -64,7 +93,7 @@ def test_acl_binding_type():
         AclBindingFilter(*attrs_copy)
 
     # UNKNOWN values are not forbidden, for received values
-    for (attr_num, attr_value) in [
+    for attr_num, attr_value in [
         (0, ResourceType.UNKNOWN),
         (2, ResourcePatternType.UNKNOWN),
         (2, ResourcePatternType.UNKNOWN),
@@ -77,8 +106,8 @@ def test_acl_binding_type():
 
 
 def test_basic_api():
-    """ Basic API tests, these wont really do anything since there is no
-        broker configured. """
+    """Basic API tests, these wont really do anything since there is no
+    broker configured."""
 
     with pytest.raises(TypeError):
         a = AdminClient()
@@ -99,12 +128,11 @@ def test_basic_api():
 
 
 def test_create_topics_api():
-    """ create_topics() tests, these wont really do anything since there is no
-        broker configured. """
+    """create_topics() tests, these wont really do anything since there is no
+    broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
-    f = a.create_topics([NewTopic("mytopic", 3, 2)],
-                        validate_only=True)
+    f = a.create_topics([NewTopic("mytopic", 3, 2)], validate_only=True)
     # ignore the result
 
     with pytest.raises(Exception):
@@ -125,28 +153,32 @@ def test_create_topics_api():
     try:
         a.create_topics([NewTopic("mytopic")])
     except Exception as err:
-        assert False, f"When none of the partitions, \
+        assert (
+            False
+        ), f"When none of the partitions, \
             replication and assignment is present, the request should not fail, but it does with error {err}"
     fs = a.create_topics([NewTopic("mytopic", 3, 2)])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.create_topics([NewTopic("mytopic", 3,
-                                   replica_assignment=[[10, 11], [0, 1, 2], [15, 20]],
-                                   config={"some": "config"})])
+    fs = a.create_topics(
+        [NewTopic("mytopic", 3, replica_assignment=[[10, 11], [0, 1, 2], [15, 20]], config={"some": "config"})]
+    )
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.create_topics([NewTopic("mytopic", 3, 2),
-                          NewTopic("othertopic", 1, 10),
-                          NewTopic("third", 500, 1, config={"more": "config",
-                                                            "anint": 13,
-                                                            "config2": "val"})],
-                         validate_only=True,
-                         request_timeout=0.5,
-                         operation_timeout=300.1)
+    fs = a.create_topics(
+        [
+            NewTopic("mytopic", 3, 2),
+            NewTopic("othertopic", 1, 10),
+            NewTopic("third", 500, 1, config={"more": "config", "anint": 13, "config2": "val"}),
+        ],
+        validate_only=True,
+        request_timeout=0.5,
+        operation_timeout=300.1,
+    )
 
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
@@ -154,30 +186,24 @@ def test_create_topics_api():
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(TypeError):
-        a.create_topics([NewTopic("mytopic", 3, 2)],
-                        validate_only="maybe")
+        a.create_topics([NewTopic("mytopic", 3, 2)], validate_only="maybe")
 
     with pytest.raises(ValueError):
-        a.create_topics([NewTopic("mytopic", 3, 2)],
-                        validate_only=False,
-                        request_timeout=-5)
+        a.create_topics([NewTopic("mytopic", 3, 2)], validate_only=False, request_timeout=-5)
 
     with pytest.raises(ValueError):
-        a.create_topics([NewTopic("mytopic", 3, 2)],
-                        operation_timeout=-4.12345678)
+        a.create_topics([NewTopic("mytopic", 3, 2)], operation_timeout=-4.12345678)
 
     with pytest.raises(TypeError):
-        a.create_topics([NewTopic("mytopic", 3, 2)],
-                        unknown_operation="it is")
+        a.create_topics([NewTopic("mytopic", 3, 2)], unknown_operation="it is")
 
     with pytest.raises(TypeError):
-        a.create_topics([NewTopic("mytopic", 3, 2,
-                                  config=["fails", "because not a dict"])])
+        a.create_topics([NewTopic("mytopic", 3, 2, config=["fails", "because not a dict"])])
 
 
 def test_delete_topics_api():
-    """ delete_topics() tests, these wont really do anything since there is no
-        broker configured. """
+    """delete_topics() tests, these wont really do anything since there is no
+    broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
     fs = a.delete_topics(["mytopic"])
@@ -200,22 +226,19 @@ def test_delete_topics_api():
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.delete_topics(["mytopic", "othertopic", "third"],
-                         request_timeout=0.5,
-                         operation_timeout=300.1)
+    fs = a.delete_topics(["mytopic", "othertopic", "third"], request_timeout=0.5, operation_timeout=300.1)
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
         assert isinstance(e, KafkaException)
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(TypeError):
-        a.delete_topics(["mytopic"],
-                        validate_only="maybe")
+        a.delete_topics(["mytopic"], validate_only="maybe")
 
 
 def test_create_partitions_api():
-    """ create_partitions() tests, these wont really do anything since there
-        is no broker configured. """
+    """create_partitions() tests, these wont really do anything since there
+    is no broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
     fs = a.create_partitions([NewPartitions("mytopic", 50)])
@@ -233,20 +256,23 @@ def test_create_partitions_api():
     with pytest.raises(Exception):
         a.create_partitions([None, NewPartitions("mytopic", 2)])
 
-    fs = a.create_partitions([NewPartitions("mytopic", 100),
-                              NewPartitions("other", 3,
-                                            replica_assignment=[[10, 11], [15, 20]])])
+    fs = a.create_partitions(
+        [NewPartitions("mytopic", 100), NewPartitions("other", 3, replica_assignment=[[10, 11], [15, 20]])]
+    )
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.create_partitions([NewPartitions("mytopic", 2),
-                              NewPartitions("othertopic", 10),
-                              NewPartitions("third", 55,
-                                            replica_assignment=[[1, 2, 3, 4, 5, 6, 7], [2]])],
-                             validate_only=True,
-                             request_timeout=0.5,
-                             operation_timeout=300.1)
+    fs = a.create_partitions(
+        [
+            NewPartitions("mytopic", 2),
+            NewPartitions("othertopic", 10),
+            NewPartitions("third", 55, replica_assignment=[[1, 2, 3, 4, 5, 6, 7], [2]]),
+        ],
+        validate_only=True,
+        request_timeout=0.5,
+        operation_timeout=300.1,
+    )
 
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
@@ -255,8 +281,8 @@ def test_create_partitions_api():
 
 
 def test_describe_configs_api():
-    """ describe_configs() tests, these wont really do anything since there
-        is no broker configured. """
+    """describe_configs() tests, these wont really do anything since there
+    is no broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
     fs = a.describe_configs([ConfigResource(ResourceType.BROKER, "3")])
@@ -274,21 +300,21 @@ def test_describe_configs_api():
     with pytest.raises(ValueError):
         a.describe_configs([None, ConfigResource(ResourceType.TOPIC, "mytopic")])
 
-    fs = a.describe_configs([ConfigResource(ResourceType.TOPIC, "mytopic"),
-                             ConfigResource(ResourceType.GROUP, "mygroup")],
-                            request_timeout=0.123)
+    fs = a.describe_configs(
+        [ConfigResource(ResourceType.TOPIC, "mytopic"), ConfigResource(ResourceType.GROUP, "mygroup")],
+        request_timeout=0.123,
+    )
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
 
 def test_alter_configs_api():
-    """ alter_configs() tests, these wont really do anything since there
-        is no broker configured. """
+    """alter_configs() tests, these wont really do anything since there
+    is no broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
-    fs = a.alter_configs([ConfigResource(ResourceType.BROKER, "3",
-                                         set_config={"some": "config"})])
+    fs = a.alter_configs([ConfigResource(ResourceType.BROKER, "3", set_config={"some": "config"})])
     # ignore the result
 
     with pytest.raises(Exception):
@@ -300,26 +326,22 @@ def test_alter_configs_api():
     with pytest.raises(ValueError):
         a.alter_configs([])
 
-    fs = a.alter_configs([ConfigResource("topic", "mytopic",
-                                         set_config={"set": "this",
-                                                     "and": "this"}),
-                          ConfigResource(ResourceType.GROUP,
-                                         "mygroup")],
-                         request_timeout=0.123)
+    fs = a.alter_configs(
+        [
+            ConfigResource("topic", "mytopic", set_config={"set": "this", "and": "this"}),
+            ConfigResource(ResourceType.GROUP, "mygroup"),
+        ],
+        request_timeout=0.123,
+    )
 
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
 
-def verify_incremental_alter_configs_api_call(a,
-                                              restype, resname,
-                                              incremental_configs,
-                                              error,
-                                              constructor_param=True):
+def verify_incremental_alter_configs_api_call(a, restype, resname, incremental_configs, error, constructor_param=True):
     if constructor_param:
-        resources = [ConfigResource(restype, resname,
-                                    incremental_configs=incremental_configs)]
+        resources = [ConfigResource(restype, resname, incremental_configs=incremental_configs)]
     else:
         resources = [ConfigResource(restype, resname)]
         for config_entry in incremental_configs:
@@ -350,96 +372,85 @@ def test_incremental_alter_configs_api():
 
     for use_constructor in [True, False]:
         # incremental_operation not of type AlterConfigOpType
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [
-                                                      ConfigEntry("advertised.listeners",
-                                                                  "host1",
-                                                                  incremental_operation="NEW_OPERATION")
-                                                  ],
-                                                  TypeError,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(
+            a,
+            ResourceType.BROKER,
+            "1",
+            [ConfigEntry("advertised.listeners", "host1", incremental_operation="NEW_OPERATION")],
+            TypeError,
+            use_constructor,
+        )
         # None name
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [
-                                                      ConfigEntry(None,
-                                                                  "host1",
-                                                                  incremental_operation=AlterConfigOpType.APPEND)
-                                                  ],
-                                                  TypeError,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(
+            a,
+            ResourceType.BROKER,
+            "1",
+            [ConfigEntry(None, "host1", incremental_operation=AlterConfigOpType.APPEND)],
+            TypeError,
+            use_constructor,
+        )
 
         # name type
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [
-                                                      ConfigEntry(5,
-                                                                  "host1",
-                                                                  incremental_operation=AlterConfigOpType.APPEND)
-                                                  ],
-                                                  TypeError,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(
+            a,
+            ResourceType.BROKER,
+            "1",
+            [ConfigEntry(5, "host1", incremental_operation=AlterConfigOpType.APPEND)],
+            TypeError,
+            use_constructor,
+        )
 
         # Empty list
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [],
-                                                  ValueError,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1", [], ValueError, use_constructor)
 
         # String instead of ConfigEntry list, treated as an iterable
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  "something",
-                                                  TypeError,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1", "something", TypeError, use_constructor)
 
         # Duplicate ConfigEntry found
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [
-                                                      ConfigEntry(
-                                                          name="advertised.listeners",
-                                                          value="host1:9092",
-                                                          incremental_operation=AlterConfigOpType.APPEND
-                                                      ),
-                                                      ConfigEntry(
-                                                          name="advertised.listeners",
-                                                          value=None,
-                                                          incremental_operation=AlterConfigOpType.DELETE
-                                                      )
-                                                  ],
-                                                  KafkaException,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(
+            a,
+            ResourceType.BROKER,
+            "1",
+            [
+                ConfigEntry(
+                    name="advertised.listeners", value="host1:9092", incremental_operation=AlterConfigOpType.APPEND
+                ),
+                ConfigEntry(name="advertised.listeners", value=None, incremental_operation=AlterConfigOpType.DELETE),
+            ],
+            KafkaException,
+            use_constructor,
+        )
 
         # Request timeout
-        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
-                                                  [
-                                                      ConfigEntry(
-                                                          name="advertised.listeners",
-                                                          value="host1:9092",
-                                                          incremental_operation=AlterConfigOpType.APPEND
-                                                      ),
-                                                      ConfigEntry(
-                                                          name="background.threads",
-                                                          value=None,
-                                                          incremental_operation=AlterConfigOpType.DELETE
-                                                      )
-                                                  ],
-                                                  KafkaException,
-                                                  use_constructor)
+        verify_incremental_alter_configs_api_call(
+            a,
+            ResourceType.BROKER,
+            "1",
+            [
+                ConfigEntry(
+                    name="advertised.listeners", value="host1:9092", incremental_operation=AlterConfigOpType.APPEND
+                ),
+                ConfigEntry(name="background.threads", value=None, incremental_operation=AlterConfigOpType.DELETE),
+            ],
+            KafkaException,
+            use_constructor,
+        )
 
     # Positive test that times out
-    resources = [ConfigResource(ResourceType.BROKER, "1"),
-                 ConfigResource(ResourceType.TOPIC, "test2")]
+    resources = [ConfigResource(ResourceType.BROKER, "1"), ConfigResource(ResourceType.TOPIC, "test2")]
 
     resources[0].add_incremental_config(
-        ConfigEntry("advertised.listeners", "host:9092",
-                    incremental_operation=AlterConfigOpType.SUBTRACT))
+        ConfigEntry("advertised.listeners", "host:9092", incremental_operation=AlterConfigOpType.SUBTRACT)
+    )
     resources[0].add_incremental_config(
-        ConfigEntry("background.threads", None,
-                    incremental_operation=AlterConfigOpType.DELETE))
+        ConfigEntry("background.threads", None, incremental_operation=AlterConfigOpType.DELETE)
+    )
     resources[1].add_incremental_config(
-        ConfigEntry("cleanup.policy", "compact",
-                    incremental_operation=AlterConfigOpType.APPEND))
+        ConfigEntry("cleanup.policy", "compact", incremental_operation=AlterConfigOpType.APPEND)
+    )
     resources[1].add_incremental_config(
-        ConfigEntry("retention.ms", "10000",
-                    incremental_operation=AlterConfigOpType.SET))
+        ConfigEntry("retention.ms", "10000", incremental_operation=AlterConfigOpType.SET)
+    )
 
     fs = a.incremental_alter_configs(resources)
 
@@ -449,18 +460,31 @@ def test_incremental_alter_configs_api():
 
 
 def test_create_acls_api():
-    """ create_acls() tests, these wont really do anything since there is no
-        broker configured. """
+    """create_acls() tests, these wont really do anything since there is no
+    broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
-                              "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
-    acl_binding2 = AclBinding(ResourceType.TOPIC, "topic2", ResourcePatternType.LITERAL,
-                              "User:u2", "*", AclOperation.READ, AclPermissionType.DENY)
+    acl_binding1 = AclBinding(
+        ResourceType.TOPIC,
+        "topic1",
+        ResourcePatternType.LITERAL,
+        "User:u1",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.ALLOW,
+    )
+    acl_binding2 = AclBinding(
+        ResourceType.TOPIC,
+        "topic2",
+        ResourcePatternType.LITERAL,
+        "User:u2",
+        "*",
+        AclOperation.READ,
+        AclPermissionType.DENY,
+    )
 
-    f = a.create_acls([acl_binding1],
-                      request_timeout=10.0)
+    f = a.create_acls([acl_binding1], request_timeout=10.0)
     # ignore the result
 
     with pytest.raises(TypeError):
@@ -489,32 +513,31 @@ def test_create_acls_api():
         for f in fs.values():
             f.result(timeout=1)
 
-    fs = a.create_acls([acl_binding1, acl_binding2],
-                       request_timeout=0.5)
+    fs = a.create_acls([acl_binding1, acl_binding2], request_timeout=0.5)
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
         assert isinstance(e, KafkaException)
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(ValueError):
-        a.create_acls([acl_binding1],
-                      request_timeout=-5)
+        a.create_acls([acl_binding1], request_timeout=-5)
 
     with pytest.raises(TypeError):
-        a.create_acls([acl_binding1],
-                      unknown_operation="it is")
+        a.create_acls([acl_binding1], unknown_operation="it is")
 
 
 def test_delete_acls_api():
-    """ delete_acls() tests, these wont really do anything since there is no
-        broker configured. """
+    """delete_acls() tests, these wont really do anything since there is no
+    broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, "topic2", ResourcePatternType.MATCH,
-                                           None, "*", AclOperation.WRITE, AclPermissionType.ALLOW)
+    acl_binding_filter1 = AclBindingFilter(
+        ResourceType.ANY, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
+    acl_binding_filter2 = AclBindingFilter(
+        ResourceType.ANY, "topic2", ResourcePatternType.MATCH, None, "*", AclOperation.WRITE, AclPermissionType.ALLOW
+    )
 
     fs = a.delete_acls([acl_binding_filter1])
     # ignore the result
@@ -536,32 +559,37 @@ def test_delete_acls_api():
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.delete_acls([acl_binding_filter1, acl_binding_filter2],
-                       request_timeout=0.5)
+    fs = a.delete_acls([acl_binding_filter1, acl_binding_filter2], request_timeout=0.5)
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
         assert isinstance(e, KafkaException)
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(ValueError):
-        a.create_acls([acl_binding_filter1],
-                      request_timeout=-5)
+        a.create_acls([acl_binding_filter1], request_timeout=-5)
 
     with pytest.raises(TypeError):
-        a.delete_acls([acl_binding_filter1],
-                      unknown_operation="it is")
+        a.delete_acls([acl_binding_filter1], unknown_operation="it is")
 
 
 def test_describe_acls_api():
-    """ describe_acls() tests, these wont really do anything since there is no
-        broker configured. """
+    """describe_acls() tests, these wont really do anything since there is no
+    broker configured."""
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
-                              "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
+    acl_binding_filter1 = AclBindingFilter(
+        ResourceType.ANY, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
+    acl_binding1 = AclBinding(
+        ResourceType.TOPIC,
+        "topic1",
+        ResourcePatternType.LITERAL,
+        "User:u1",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.ALLOW,
+    )
 
     a.describe_acls(acl_binding_filter1)
     # ignore the result
@@ -576,19 +604,16 @@ def test_describe_acls_api():
     with pytest.raises(KafkaException):
         f.result(timeout=1)
 
-    f = a.describe_acls(acl_binding_filter1,
-                        request_timeout=0.5)
+    f = a.describe_acls(acl_binding_filter1, request_timeout=0.5)
     e = f.exception(timeout=1)
     assert isinstance(e, KafkaException)
     assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(ValueError):
-        a.describe_acls(acl_binding_filter1,
-                        request_timeout=-5)
+        a.describe_acls(acl_binding_filter1, request_timeout=-5)
 
     with pytest.raises(TypeError):
-        a.describe_acls(acl_binding_filter1,
-                        unknown_operation="it is")
+        a.describe_acls(acl_binding_filter1, unknown_operation="it is")
 
 
 def test_list_consumer_groups_api():
@@ -626,8 +651,7 @@ def test_describe_topics_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
     # Wrong option types
-    for kwargs in [{"include_authorized_operations": "wrong_type"},
-                   {"request_timeout": "wrong_type"}]:
+    for kwargs in [{"include_authorized_operations": "wrong_type"}, {"request_timeout": "wrong_type"}]:
         with pytest.raises(TypeError):
             a.describe_topics(TopicCollection([]), **kwargs)
 
@@ -637,11 +661,12 @@ def test_describe_topics_api():
             a.describe_topics(TopicCollection([]), **kwargs)
 
     # Test with different options
-    for kwargs in [{},
-                   {"include_authorized_operations": True},
-                   {"request_timeout": 0.01},
-                   {"include_authorized_operations": False,
-                    "request_timeout": 0.01}]:
+    for kwargs in [
+        {},
+        {"include_authorized_operations": True},
+        {"request_timeout": 0.01},
+        {"include_authorized_operations": False, "request_timeout": 0.01},
+    ]:
 
         topic_names = ["test-topic-1", "test-topic-2"]
 
@@ -662,16 +687,13 @@ def test_describe_topics_api():
             ["test-topic-1"],
             [TopicCollection([3])],
             [TopicCollection(["correct", 3])],
-            [TopicCollection([None])]
+            [TopicCollection([None])],
         ]:
             with pytest.raises(TypeError):
                 a.describe_topics(*args, **kwargs)
 
         # Wrong argument value
-        for args in [
-            [TopicCollection([""])],
-            [TopicCollection(["correct", ""])]
-        ]:
+        for args in [[TopicCollection([""])], [TopicCollection(["correct", ""])]]:
             with pytest.raises(ValueError):
                 a.describe_topics(*args, **kwargs)
 
@@ -705,7 +727,8 @@ def test_list_consumer_group_offsets_api():
 
         only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
         request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
-            "test-group2", [TopicPartition("test-topic1", 1)])
+            "test-group2", [TopicPartition("test-topic1", 1)]
+        )
         same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
 
         a.list_consumer_group_offsets([only_group_id_request])
@@ -723,28 +746,24 @@ def test_list_consumer_group_offsets_api():
             a.list_consumer_group_offsets([])
 
         with pytest.raises(ValueError):
-            a.list_consumer_group_offsets([only_group_id_request,
-                                           request_with_group_and_topic_partition])
+            a.list_consumer_group_offsets([only_group_id_request, request_with_group_and_topic_partition])
 
         with pytest.raises(ValueError):
-            a.list_consumer_group_offsets([request_with_group_and_topic_partition,
-                                           same_name_request])
+            a.list_consumer_group_offsets([request_with_group_and_topic_partition, same_name_request])
 
         fs = a.list_consumer_group_offsets([only_group_id_request])
         with pytest.raises(KafkaException):
             for f in fs.values():
                 f.result(timeout=10)
 
-        fs = a.list_consumer_group_offsets([only_group_id_request],
-                                           request_timeout=0.5)
+        fs = a.list_consumer_group_offsets([only_group_id_request], request_timeout=0.5)
         for f in concurrent.futures.as_completed(iter(fs.values())):
             e = f.exception(timeout=1)
             assert isinstance(e, KafkaException)
             assert e.args[0].code() == KafkaError._TIMED_OUT
 
         with pytest.raises(ValueError):
-            a.list_consumer_group_offsets([only_group_id_request],
-                                          request_timeout=-5)
+            a.list_consumer_group_offsets([only_group_id_request], request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
@@ -780,17 +799,17 @@ def test_list_consumer_group_offsets_api():
             a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
         with pytest.raises(ValueError):
-            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
-                "test-group1", [TopicPartition("test-topic", -1)])])
+            a.list_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])]
+            )
 
         with pytest.raises(ValueError):
-            a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
-                "test-group1", [TopicPartition("test-topic", 1, 1)])])
+            a.list_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, 1)])]
+            )
 
         a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
-        a.list_consumer_group_offsets([
-            ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])
-        ])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
 
 
 def test_alter_consumer_group_offsets_api():
@@ -798,10 +817,12 @@ def test_alter_consumer_group_offsets_api():
     with AdminClient({"socket.timeout.ms": 10}) as a:
 
         request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
-            "test-group1", [TopicPartition("test-topic1", 1, 5)])
+            "test-group1", [TopicPartition("test-topic1", 1, 5)]
+        )
         same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
         request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
-            "test-group2", [TopicPartition("test-topic2", 1, 5)])
+            "test-group2", [TopicPartition("test-topic2", 1, 5)]
+        )
 
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
 
@@ -818,12 +839,12 @@ def test_alter_consumer_group_offsets_api():
             a.alter_consumer_group_offsets([])
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
-                                            request_with_group_and_topic_partition_offset2])
+            a.alter_consumer_group_offsets(
+                [request_with_group_and_topic_partition_offset1, request_with_group_and_topic_partition_offset2]
+            )
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
-                                            same_name_request])
+            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1, same_name_request])
 
         # TODO: This test is failing intermittently with Fatal Error for MacOS builds.
         # Uncomment and fix this after the release v2.10.0.
@@ -841,8 +862,7 @@ def test_alter_consumer_group_offsets_api():
         #     assert e.args[0].code() == KafkaError._TIMED_OUT
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-                                           request_timeout=-5)
+            a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1], request_timeout=-5)
 
         with pytest.raises(TypeError):
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
@@ -881,20 +901,23 @@ def test_alter_consumer_group_offsets_api():
             a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([
-                ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])
-            ])
+            a.alter_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])]
+            )
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-                "test-group1", [TopicPartition("test-topic", -1)])])
+            a.alter_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])]
+            )
 
         with pytest.raises(ValueError):
-            a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-                "test-group1", [TopicPartition("test-topic", 1, -1001)])])
+            a.alter_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, -1001)])]
+            )
 
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
-            "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+        a.alter_consumer_group_offsets(
+            [ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1, 23)])]
+        )
 
 
 def test_describe_user_scram_credentials_api():
@@ -968,20 +991,17 @@ def test_alter_user_scram_credentials_api():
 
         # Upsertion request user test
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
-                                                                         scram_credential_info,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion(None, scram_credential_info, b"password", b"salt")]
+            )
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
-                                                                         scram_credential_info,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion(123, scram_credential_info, b"password", b"salt")]
+            )
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
-                                                                         scram_credential_info,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("", scram_credential_info, b"password", b"salt")]
+            )
 
         # Upsertion password user test
         with pytest.raises(ValueError):
@@ -989,29 +1009,25 @@ def test_alter_user_scram_credentials_api():
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                         scram_credential_info,
-                                                                         "password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", scram_credential_info, "password", b"salt")]
+            )
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([
-                UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")
-            ])
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
 
         # Upsertion salt user test
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([
-                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")
-            ])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")]
+            )
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                         scram_credential_info,
-                                                                         b"password",
-                                                                         "salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", scram_credential_info, b"password", "salt")]
+            )
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([
-                UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)
-            ])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)]
+            )
 
         # Upsertion scram_credential_info tests
         sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
@@ -1024,24 +1040,21 @@ def test_alter_user_scram_credentials_api():
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                         sci_incorrect_mechanism_type,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", sci_incorrect_mechanism_type, b"password", b"salt")]
+            )
         with pytest.raises(TypeError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                         sci_incorrect_iteration_type,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", sci_incorrect_iteration_type, b"password", b"salt")]
+            )
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
-                                                                         sci_negative_iteration,
-                                                                         b"password",
-                                                                         b"salt")])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", sci_negative_iteration, b"password", b"salt")]
+            )
         with pytest.raises(ValueError):
-            a.alter_user_scram_credentials([
-                UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")
-            ])
+            a.alter_user_scram_credentials(
+                [UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")]
+            )
 
         # Deletion user tests
         with pytest.raises(TypeError):
@@ -1064,37 +1077,23 @@ def test_list_offsets_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
     # Wrong option types
-    for kwargs in [
-        {
-            "isolation_level": 10
-        },
-        {
-            "request_timeout": "test"
-        }
-    ]:
-        requests = {
-            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
-        }
+    for kwargs in [{"isolation_level": 10}, {"request_timeout": "test"}]:
+        requests = {TopicPartition("topic1", 0, 10): OffsetSpec.earliest()}
         with pytest.raises(TypeError):
             a.list_offsets(requests, **kwargs)
 
     # Wrong option values
-    for kwargs in [
-        {
-            "request_timeout": -1
-        }
-    ]:
-        requests = {
-            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
-        }
+    for kwargs in [{"request_timeout": -1}]:
+        requests = {TopicPartition("topic1", 0, 10): OffsetSpec.earliest()}
         with pytest.raises(ValueError):
             a.list_offsets(requests, **kwargs)
 
-    for kwargs in [{},
-                   {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
-                   {"request_timeout": 0.01},
-                   {"isolation_level": IsolationLevel.READ_COMMITTED,
-                    "request_timeout": 0.01}]:
+    for kwargs in [
+        {},
+        {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
+        {"request_timeout": 0.01},
+        {"isolation_level": IsolationLevel.READ_COMMITTED, "request_timeout": 0.01},
+    ]:
 
         # Not a dictionary
         with pytest.raises(TypeError):
@@ -1107,12 +1106,8 @@ def test_list_offsets_api():
 
         # Invalid TopicPartition
         for requests in [
-            {
-                TopicPartition("", 0, 10): OffsetSpec.earliest()
-            },
-            {
-                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
-            }
+            {TopicPartition("", 0, 10): OffsetSpec.earliest()},
+            {TopicPartition("correct", -1, 10): OffsetSpec.earliest()},
         ]:
             with pytest.raises(ValueError):
                 a.list_offsets(requests, **kwargs)
@@ -1143,32 +1138,18 @@ def test_list_offsets_api():
 
         # Key isn't a TopicPartition
         for requests in [
-            {
-                "not-topic-partition": OffsetSpec.latest()
-            },
-            {
-                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                "not-topic-partition": OffsetSpec.latest()
-            },
-            {
-                None: OffsetSpec.latest()
-            }
+            {"not-topic-partition": OffsetSpec.latest()},
+            {TopicPartition("topic1", 0, 10): OffsetSpec.latest(), "not-topic-partition": OffsetSpec.latest()},
+            {None: OffsetSpec.latest()},
         ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
 
         # Value isn't a OffsetSpec
         for requests in [
-            {
-                TopicPartition("topic1", 0, 10): "test"
-            },
-            {
-                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                TopicPartition("topic1", 0, 10): "test"
-            },
-            {
-                TopicPartition("topic1", 0, 10): None
-            }
+            {TopicPartition("topic1", 0, 10): "test"},
+            {TopicPartition("topic1", 0, 10): OffsetSpec.latest(), TopicPartition("topic1", 0, 10): "test"},
+            {TopicPartition("topic1", 0, 10): None},
         ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
@@ -1185,8 +1166,7 @@ def test_delete_records():
         a.delete_records(1)
 
     # Request-specific tests
-    with pytest.raises(TypeError,
-                       match="Element of the request list must be of type 'TopicPartition' got 'str'"):
+    with pytest.raises(TypeError, match="Element of the request list must be of type 'TopicPartition' got 'str'"):
         a.delete_records(["test-1"])
 
     with pytest.raises(TypeError):
@@ -1219,12 +1199,12 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, "1")
 
     # Partition-specific tests
-    with pytest.raises(TypeError,
-                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'str'"):
+    with pytest.raises(TypeError, match="Element of the 'partitions' list must be of type 'TopicPartition' got 'str'"):
         a.elect_leaders(correct_election_type, ["test-1"])
 
-    with pytest.raises(TypeError,
-                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'NoneType'"):
+    with pytest.raises(
+        TypeError, match="Element of the 'partitions' list must be of type 'TopicPartition' got 'NoneType'"
+    ):
         a.elect_leaders(correct_election_type, [None])
 
     with pytest.raises(ValueError):
@@ -1234,8 +1214,7 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, [incorrect_partitions])
 
     with pytest.raises(KafkaException):
-        a.elect_leaders(correct_election_type, [correct_partitions])\
-            .result(timeout=1)
+        a.elect_leaders(correct_election_type, [correct_partitions]).result(timeout=1)
 
 
 def test_admin_callback_exception_no_system_error():
@@ -1252,33 +1231,27 @@ def test_admin_callback_exception_no_system_error():
         raise RuntimeError("RuntimeError from error_cb")
 
     # Test error_cb with KafkaException
-    admin = AdminClient({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_kafka_exception
-    })
+    admin = AdminClient(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_kafka_exception}
+    )
 
     with pytest.raises(KafkaException) as exc_info:
         admin.poll(timeout=0.2)
     assert "KafkaException from error_cb" in str(exc_info.value)
 
     # Test error_cb with ValueError
-    admin = AdminClient({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_value_error
-    })
+    admin = AdminClient(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_value_error}
+    )
 
     with pytest.raises(ValueError) as exc_info:
         admin.poll(timeout=0.2)
     assert "ValueError from error_cb" in str(exc_info.value)
 
     # Test error_cb with RuntimeError
-    admin = AdminClient({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_runtime_error
-    })
+    admin = AdminClient(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_runtime_error}
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         admin.poll(timeout=0.2)
@@ -1287,7 +1260,7 @@ def test_admin_callback_exception_no_system_error():
 
 def test_admin_multiple_callbacks_different_error_types():
     """Test AdminClient with multiple callbacks configured with different error types
-to see which one gets triggered"""
+    to see which one gets triggered"""
 
     callbacks_called = []
 
@@ -1303,14 +1276,16 @@ to see which one gets triggered"""
         callbacks_called.append('throttle_cb_kafka')
         raise KafkaException(KafkaError._FAIL, "KafkaException from throttle_cb")
 
-    admin = AdminClient({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'statistics.interval.ms': 100,  # Enable stats callback
-        'error_cb': error_cb_that_raises_runtime,
-        'stats_cb': stats_cb_that_raises_value,
-        'throttle_cb': throttle_cb_that_raises_kafka
-    })
+    admin = AdminClient(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'statistics.interval.ms': 100,  # Enable stats callback
+            'error_cb': error_cb_that_raises_runtime,
+            'stats_cb': stats_cb_that_raises_value,
+            'throttle_cb': throttle_cb_that_raises_kafka,
+        }
+    )
 
     # Test that error_cb callback raises an exception (it's triggered by connection failures)
     with pytest.raises(RuntimeError):
@@ -1323,9 +1298,7 @@ to see which one gets triggered"""
 
 def test_admin_context_manager_basic():
     """Test basic AdminClient context manager usage and return value"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     # Test __enter__ returns self
     admin = AdminClient(config)
@@ -1345,9 +1318,7 @@ def test_admin_context_manager_basic():
 
 def test_admin_context_manager_exception_propagation():
     """Test exceptions propagate and admin client is cleaned up"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     # Test exception propagation
     exception_caught = False
@@ -1368,9 +1339,7 @@ def test_admin_context_manager_exception_propagation():
 
 def test_admin_context_manager_exit_with_exceptions():
     """Test __exit__ properly handles exception arguments"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     admin = AdminClient(config)
     admin.poll(0.001)
@@ -1391,9 +1360,7 @@ def test_admin_context_manager_exit_with_exceptions():
 
 def test_admin_context_manager_after_exit():
     """Test AdminClient behavior after context manager exit"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     # Normal exit
     with AdminClient(config) as admin:
@@ -1428,9 +1395,7 @@ def test_admin_context_manager_after_exit():
 
 def test_admin_context_manager_multiple_instances():
     """Test AdminClient context manager with multiple instances"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     # Test multiple sequential instances
     with AdminClient(config) as admin1:
@@ -1465,13 +1430,16 @@ def test_admin_context_manager_multiple_instances():
 
 def test_admin_context_manager_with_admin_apis():
     """Test AdminClient context manager with various Admin APIs"""
-    config = {
-        'socket.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10}
 
     acl_binding = AclBinding(
-        ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
-        "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW
+        ResourceType.TOPIC,
+        "topic1",
+        ResourcePatternType.LITERAL,
+        "User:u1",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.ALLOW,
     )
 
     with AdminClient(config) as admin:
@@ -1535,8 +1503,7 @@ def test_admin_context_manager_with_admin_apis():
 
 
 def test_uninitialized_admin_client_methods():
-    """Test that all AdminClient methods raise RuntimeError when called on uninitialized instance.
-    """
+    """Test that all AdminClient methods raise RuntimeError when called on uninitialized instance."""
 
     class UninitializedAdmin(AdminClient):
         def __init__(self, config):
@@ -1564,15 +1531,21 @@ def test_uninitialized_admin_client_methods():
         admin.alter_configs([ConfigResource(ResourceType.TOPIC, "test")])
 
     acl_binding = AclBinding(
-        ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
-        "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW
+        ResourceType.TOPIC,
+        "topic1",
+        ResourcePatternType.LITERAL,
+        "User:u1",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.ALLOW,
     )
 
     with pytest.raises(RuntimeError, match="AdminClient has been closed"):
         admin.create_acls([acl_binding])
 
-    acl_filter = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
-                                  None, None, AclOperation.ANY, AclPermissionType.ANY)
+    acl_filter = AclBindingFilter(
+        ResourceType.ANY, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
 
     with pytest.raises(RuntimeError, match="AdminClient has been closed"):
         admin.delete_acls([acl_filter])

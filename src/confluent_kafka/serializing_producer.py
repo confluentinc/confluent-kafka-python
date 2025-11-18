@@ -19,11 +19,10 @@
 from typing import Any, Dict, Optional
 
 from confluent_kafka.cimpl import Producer as _ProducerImpl
-from .serialization import (MessageField,
-                            SerializationContext)
-from .error import (KeySerializationError,
-                    ValueSerializationError)
-from ._types import HeadersType, DeliveryCallback
+
+from ._types import DeliveryCallback, HeadersType
+from .error import KeySerializationError, ValueSerializationError
+from .serialization import MessageField, SerializationContext
 
 
 class SerializingProducer(_ProducerImpl):
@@ -78,9 +77,14 @@ class SerializingProducer(_ProducerImpl):
         super(SerializingProducer, self).__init__(conf_copy)
 
     def produce(  # type: ignore[override]
-        self, topic: str, key: Any = None, value: Any = None, partition: int = -1,
-        on_delivery: Optional[DeliveryCallback] = None, timestamp: int = 0,
-        headers: Optional[HeadersType] = None
+        self,
+        topic: str,
+        key: Any = None,
+        value: Any = None,
+        partition: int = -1,
+        on_delivery: Optional[DeliveryCallback] = None,
+        timestamp: int = 0,
+        headers: Optional[HeadersType] = None,
     ) -> None:
         """
         Produce a message.
@@ -145,8 +149,6 @@ class SerializingProducer(_ProducerImpl):
             except Exception as se:
                 raise ValueSerializationError(se)
 
-        super(SerializingProducer, self).produce(topic, value, key,
-                                                 headers=headers,
-                                                 partition=partition,
-                                                 timestamp=timestamp,
-                                                 on_delivery=on_delivery)
+        super(SerializingProducer, self).produce(
+            topic, value, key, headers=headers, partition=partition, timestamp=timestamp, on_delivery=on_delivery
+        )

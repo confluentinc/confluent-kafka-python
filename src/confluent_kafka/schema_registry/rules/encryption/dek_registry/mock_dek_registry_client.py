@@ -20,9 +20,15 @@ import time
 from typing import Dict, Optional
 
 from confluent_kafka.schema_registry import SchemaRegistryError
-from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import \
-    DekRegistryClient, KekId, Kek, DekAlgorithm, Dek, \
-    KekKmsProps, DekId
+from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
+    Dek,
+    DekAlgorithm,
+    DekId,
+    DekRegistryClient,
+    Kek,
+    KekId,
+    KekKmsProps,
+)
 
 
 class MockDekRegistryClient(DekRegistryClient):
@@ -38,8 +44,13 @@ class MockDekRegistryClient(DekRegistryClient):
         super().__init__(conf)
 
     def register_kek(
-        self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Optional[Dict[str, str]] = None, doc: Optional[str] = None
+        self,
+        name: str,
+        kms_type: str,
+        kms_key_id: str,
+        shared: bool = False,
+        kms_props: Optional[Dict[str, str]] = None,
+        doc: Optional[str] = None,
     ) -> Kek:
         cache_key = KekId(name=name, deleted=False)
         kek = self._kek_cache.get_kek(cache_key)
@@ -52,7 +63,7 @@ class MockDekRegistryClient(DekRegistryClient):
             kms_key_id=kms_key_id,
             kms_props=KekKmsProps.from_dict(kms_props) if kms_props is not None else None,
             doc=doc,
-            shared=shared
+            shared=shared,
         )
 
         self._kek_cache.set(cache_key, kek)
@@ -68,16 +79,14 @@ class MockDekRegistryClient(DekRegistryClient):
         raise SchemaRegistryError(404, 40470, "Key Not Found")
 
     def register_dek(
-        self, kek_name: str, subject: str, encrypted_key_material: str,
-        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM, version: int = 1
+        self,
+        kek_name: str,
+        subject: str,
+        encrypted_key_material: str,
+        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
+        version: int = 1,
     ) -> Dek:
-        cache_key = DekId(
-            kek_name=kek_name,
-            subject=subject,
-            version=version,
-            algorithm=algorithm,
-            deleted=False
-        )
+        cache_key = DekId(kek_name=kek_name, subject=subject, version=version, algorithm=algorithm, deleted=False)
         dek = self._dek_cache.get_dek(cache_key)
         if dek is not None:
             return dek
@@ -88,7 +97,7 @@ class MockDekRegistryClient(DekRegistryClient):
             version=version,
             algorithm=algorithm,
             encrypted_key_material=encrypted_key_material,
-            ts=int(round(time.time() * 1000))
+            ts=int(round(time.time() * 1000)),
         )
 
         self._dek_cache.set(cache_key, dek)
@@ -96,28 +105,24 @@ class MockDekRegistryClient(DekRegistryClient):
         return dek
 
     def get_dek(
-        self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
-        version: int = 1, deleted: bool = False
+        self,
+        kek_name: str,
+        subject: str,
+        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
+        version: int = 1,
+        deleted: bool = False,
     ) -> Dek:
         if version == -1:
             # Find the latest version
             latest_version = 0
             for dek_id in self._dek_cache.get_dek_ids():
-                if (dek_id.kek_name == kek_name
-                        and dek_id.subject == subject
-                        and dek_id.algorithm == algorithm):
+                if dek_id.kek_name == kek_name and dek_id.subject == subject and dek_id.algorithm == algorithm:
                     latest_version = max(latest_version, dek_id.version)
             if latest_version == 0:
                 raise SchemaRegistryError(404, 40470, "Key Not Found")
             version = latest_version
 
-        cache_key = DekId(
-            kek_name=kek_name,
-            subject=subject,
-            version=version,
-            algorithm=algorithm,
-            deleted=False
-        )
+        cache_key = DekId(kek_name=kek_name, subject=subject, version=version, algorithm=algorithm, deleted=False)
         dek = self._dek_cache.get_dek(cache_key)
         if dek is not None:
             return dek

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List, Optional, Union, Any
-from enum import Enum
 import functools
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
 
 from .. import cimpl as _cimpl
 from ._resource import ResourceType
@@ -52,6 +52,7 @@ class ConfigSource(Enum):
     Used by ConfigEntry to specify the
     source of configuration properties returned by `describe_configs()`.
     """
+
     UNKNOWN_CONFIG = _cimpl.CONFIG_SOURCE_UNKNOWN_CONFIG  #: Unknown
     DYNAMIC_TOPIC_CONFIG = _cimpl.CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG  #: Dynamic Topic
     DYNAMIC_BROKER_CONFIG = _cimpl.CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG  #: Dynamic Broker
@@ -69,14 +70,18 @@ class ConfigEntry(object):
     This class is typically not user instantiated.
     """
 
-    def __init__(self, name: str, value: Optional[str],
-                 source: ConfigSource = ConfigSource.UNKNOWN_CONFIG,
-                 is_read_only: bool = False,
-                 is_default: bool = False,
-                 is_sensitive: bool = False,
-                 is_synonym: bool = False,
-                 synonyms: Dict[str, 'ConfigEntry'] = {},
-                 incremental_operation: Optional[AlterConfigOpType] = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        value: Optional[str],
+        source: ConfigSource = ConfigSource.UNKNOWN_CONFIG,
+        is_read_only: bool = False,
+        is_default: bool = False,
+        is_sensitive: bool = False,
+        is_synonym: bool = False,
+        synonyms: Dict[str, 'ConfigEntry'] = {},
+        incremental_operation: Optional[AlterConfigOpType] = None,
+    ) -> None:
         """
         This class is typically not user instantiated.
         """
@@ -132,11 +137,15 @@ class ConfigResource(object):
 
     Type = ResourceType
 
-    def __init__(self, restype: Union[ResourceType, str, int], name: str,
-                 set_config: Optional[Dict[str, str]] = None,
-                 described_configs: Optional[Dict[str, ConfigEntry]] = None,
-                 error: Optional[Any] = None,
-                 incremental_configs: Optional[List[ConfigEntry]] = None) -> None:
+    def __init__(
+        self,
+        restype: Union[ResourceType, str, int],
+        name: str,
+        set_config: Optional[Dict[str, str]] = None,
+        described_configs: Optional[Dict[str, ConfigEntry]] = None,
+        error: Optional[Any] = None,
+        incremental_configs: Optional[List[ConfigEntry]] = None,
+    ) -> None:
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.

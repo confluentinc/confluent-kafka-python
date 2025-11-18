@@ -19,10 +19,11 @@
 # This example uses Azure IMDS for credential-less authentication
 # to Kafka on Confluent Cloud
 
-import logging
 import argparse
+import logging
+
 from confluent_kafka import Producer
-from confluent_kafka.serialization import (StringSerializer)
+from confluent_kafka.serialization import StringSerializer
 
 
 def producer_config(args):
@@ -34,13 +35,14 @@ def producer_config(args):
         'sasl.mechanisms': 'OAUTHBEARER',
         'sasl.oauthbearer.method': 'oidc',
         'sasl.oauthbearer.metadata.authentication.type': 'azure_imds',
-        'sasl.oauthbearer.config': f'query={args.query}'
+        'sasl.oauthbearer.config': f'query={args.query}',
     }
     # These two parameters are only applicable when producing to
     # Confluent Cloud where some sasl extensions are required.
     if args.logical_cluster and args.identity_pool_id:
-        params['sasl.oauthbearer.extensions'] = 'logicalCluster=' + args.logical_cluster + \
-            ',identityPoolId=' + args.identity_pool_id
+        params['sasl.oauthbearer.extensions'] = (
+            'logicalCluster=' + args.logical_cluster + ',identityPoolId=' + args.identity_pool_id
+        )
 
     return params
 
@@ -66,8 +68,11 @@ def delivery_report(err, msg):
     if err is not None:
         print('Delivery failed for User record {}: {}'.format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -82,10 +87,9 @@ def main(args):
         producer.poll(0.0)
         try:
             name = input(">")
-            producer.produce(topic=topic,
-                             key=string_serializer(name),
-                             value=string_serializer(name),
-                             on_delivery=delivery_report)
+            producer.produce(
+                topic=topic, key=string_serializer(name), value=string_serializer(name), on_delivery=delivery_report
+            )
         except KeyboardInterrupt:
             break
 
@@ -95,12 +99,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="OAuth/OIDC example using Azure IMDS metadata-based authentication")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="topic", default="example_producer_oauth",
-                        help="Topic name")
-    parser.add_argument('--query', dest="query", required=True,
-                        help="Query parameters for Azure IMDS token endpoint")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-t', dest="topic", default="example_producer_oauth", help="Topic name")
+    parser.add_argument('--query', dest="query", required=True, help="Query parameters for Azure IMDS token endpoint")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
 

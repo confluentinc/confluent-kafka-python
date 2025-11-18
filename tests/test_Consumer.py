@@ -2,16 +2,20 @@
 
 import pytest
 
-from confluent_kafka import (Consumer, TopicPartition, KafkaError,
-                             KafkaException, TIMESTAMP_NOT_AVAILABLE,
-                             OFFSET_INVALID)
-
+from confluent_kafka import (
+    OFFSET_INVALID,
+    TIMESTAMP_NOT_AVAILABLE,
+    Consumer,
+    KafkaError,
+    KafkaException,
+    TopicPartition,
+)
 from tests.common import TestConsumer
 
 
 def test_basic_api():
-    """ Basic API tests, these wont really do anything since there is no
-        broker configured. """
+    """Basic API tests, these wont really do anything since there is no
+    broker configured."""
 
     with pytest.raises(TypeError) as ex:
         kc = TestConsumer()
@@ -20,9 +24,14 @@ def test_basic_api():
     def dummy_commit_cb(err, partitions):
         pass
 
-    kc = TestConsumer({'group.id': 'test', 'socket.timeout.ms': '100',
-                       'session.timeout.ms': 1000,  # Avoid close() blocking too long
-                       'on_commit': dummy_commit_cb})
+    kc = TestConsumer(
+        {
+            'group.id': 'test',
+            'socket.timeout.ms': '100',
+            'session.timeout.ms': 1000,  # Avoid close() blocking too long
+            'on_commit': dummy_commit_cb,
+        }
+    )
 
     kc.subscribe(["test"])
     kc.unsubscribe()
@@ -82,9 +91,11 @@ def test_basic_api():
         lo, hi = kc.get_watermark_offsets(partitions[0], timeout=0.5, cached=False)
     except KafkaException as e:
         assert e.args[0].code() in (
-            KafkaError._TIMED_OUT, KafkaError._WAIT_COORD,
+            KafkaError._TIMED_OUT,
+            KafkaError._WAIT_COORD,
             KafkaError.LEADER_NOT_AVAILABLE,
-            KafkaError._ALL_BROKERS_DOWN)
+            KafkaError._ALL_BROKERS_DOWN,
+        )
 
     kc.unassign(partitions)
 
@@ -118,13 +129,17 @@ def test_basic_api():
 
 
 def test_store_offsets():
-    """ Basic store_offsets() tests """
+    """Basic store_offsets() tests"""
 
-    c = TestConsumer({'group.id': 'test',
-                      'enable.auto.commit': True,
-                      'enable.auto.offset.store': False,
-                      'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100})
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
 
     c.subscribe(["test"])
 
@@ -138,7 +153,7 @@ def test_store_offsets():
 
 
 def test_on_commit():
-    """ Verify that on_commit is only called once per commit() (issue #71) """
+    """Verify that on_commit is only called once per commit() (issue #71)"""
 
     class CommitState(object):
         def __init__(self, topic, partition):
@@ -158,10 +173,15 @@ def test_on_commit():
 
     cs = CommitState('test', 2)
 
-    c = TestConsumer({'group.id': 'x',
-                      'enable.auto.commit': False, 'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100,
-                      'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
+    c = TestConsumer(
+        {
+            'group.id': 'x',
+            'enable.auto.commit': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+            'on_commit': lambda err, ps: commit_cb(cs, err, ps),
+        }
+    )
 
     c.assign([TopicPartition(cs.topic, cs.partition)])
 
@@ -191,31 +211,40 @@ def test_subclassing():
 
 
 def test_offsets_for_times():
-    c = TestConsumer({'group.id': 'test',
-                      'enable.auto.commit': True,
-                      'enable.auto.offset.store': False,
-                      'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100})
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
     # Query broker for timestamps for partition
     try:
         test_topic_partition = TopicPartition("test", 0, 100)
         c.offsets_for_times([test_topic_partition], timeout=0.1)
     except KafkaException as e:
         assert e.args[0].code() in (
-            KafkaError._TIMED_OUT, KafkaError._WAIT_COORD,
+            KafkaError._TIMED_OUT,
+            KafkaError._WAIT_COORD,
             KafkaError.LEADER_NOT_AVAILABLE,
-            KafkaError._ALL_BROKERS_DOWN)
+            KafkaError._ALL_BROKERS_DOWN,
+        )
     c.close()
 
 
 def test_multiple_close_does_not_throw_exception():
-    """ Calling Consumer.close() multiple times should not throw Runtime Exception
-    """
-    c = TestConsumer({'group.id': 'test',
-                      'enable.auto.commit': True,
-                      'enable.auto.offset.store': False,
-                      'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100})
+    """Calling Consumer.close() multiple times should not throw Runtime Exception"""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
 
     c.subscribe(["test"])
 
@@ -225,13 +254,16 @@ def test_multiple_close_does_not_throw_exception():
 
 
 def test_any_method_after_close_throws_exception():
-    """ Calling any consumer method after close should throw a RuntimeError
-    """
-    c = TestConsumer({'group.id': 'test',
-                      'enable.auto.commit': True,
-                      'enable.auto.offset.store': False,
-                      'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100})
+    """Calling any consumer method after close should throw a RuntimeError"""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
 
     c.subscribe(["test"])
     c.unsubscribe()
@@ -287,13 +319,17 @@ def test_any_method_after_close_throws_exception():
 
 
 def test_calling_store_offsets_after_close_throws_erro():
-    """ calling store_offset after close should throw RuntimeError """
+    """calling store_offset after close should throw RuntimeError"""
 
-    c = TestConsumer({'group.id': 'test',
-                      'enable.auto.commit': True,
-                      'enable.auto.offset.store': False,
-                      'socket.timeout.ms': 50,
-                      'session.timeout.ms': 100})
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
 
     c.subscribe(["test"])
     c.unsubscribe()
@@ -309,7 +345,7 @@ def test_calling_store_offsets_after_close_throws_erro():
 
 
 def test_consumer_without_groupid():
-    """ Consumer should raise exception if group.id is not set """
+    """Consumer should raise exception if group.id is not set"""
 
     with pytest.raises(ValueError) as ex:
         TestConsumer({'bootstrap.servers': "mybroker:9092"})
@@ -327,13 +363,15 @@ def test_callback_exception_no_system_error():
         error_called.append(error)
         raise RuntimeError("Test exception from error_cb")
 
-    consumer1 = TestConsumer({
-        'group.id': 'test-error-callback',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'error_cb': error_cb_that_raises
-    })
+    consumer1 = TestConsumer(
+        {
+            'group.id': 'test-error-callback',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'error_cb': error_cb_that_raises,
+        }
+    )
 
     consumer1.subscribe(['test-topic'])
 
@@ -354,14 +392,16 @@ def test_callback_exception_no_system_error():
         stats_called.append(stats_json)
         raise RuntimeError("Test exception from stats_cb")
 
-    consumer2 = TestConsumer({
-        'group.id': 'test-stats-callback',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'statistics.interval.ms': 100,  # Enable stats callback
-        'stats_cb': stats_cb_that_raises
-    })
+    consumer2 = TestConsumer(
+        {
+            'group.id': 'test-stats-callback',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'statistics.interval.ms': 100,  # Enable stats callback
+            'stats_cb': stats_cb_that_raises,
+        }
+    )
 
     consumer2.subscribe(['test-topic'])
 
@@ -382,13 +422,15 @@ def test_callback_exception_no_system_error():
         throttle_called.append(throttle_event)
         raise RuntimeError("Test exception from throttle_cb")
 
-    consumer3 = TestConsumer({
-        'group.id': 'test-throttle-callback',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'throttle_cb': throttle_cb_that_raises
-    })
+    consumer3 = TestConsumer(
+        {
+            'group.id': 'test-throttle-callback',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'throttle_cb': throttle_cb_that_raises,
+        }
+    )
 
     consumer3.subscribe(['test-topic'])
 
@@ -422,13 +464,15 @@ def test_error_callback_exception_different_error_types():
         raise RuntimeError(f"Runtime error: {error}")
 
     # Test with KafkaException
-    consumer1 = TestConsumer({
-        'group.id': 'test-kafka-exception',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'error_cb': error_cb_kafka_exception
-    })
+    consumer1 = TestConsumer(
+        {
+            'group.id': 'test-kafka-exception',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'error_cb': error_cb_kafka_exception,
+        }
+    )
     consumer1.subscribe(['test-topic'])
 
     with pytest.raises(KafkaException):
@@ -436,13 +480,15 @@ def test_error_callback_exception_different_error_types():
     consumer1.close()
 
     # Test with ValueError
-    consumer2 = TestConsumer({
-        'group.id': 'test-value-error',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'error_cb': error_cb_value_error
-    })
+    consumer2 = TestConsumer(
+        {
+            'group.id': 'test-value-error',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'error_cb': error_cb_value_error,
+        }
+    )
     consumer2.subscribe(['test-topic'])
 
     with pytest.raises(ValueError) as exc_info:
@@ -451,13 +497,15 @@ def test_error_callback_exception_different_error_types():
     consumer2.close()
 
     # Test with RuntimeError
-    consumer3 = TestConsumer({
-        'group.id': 'test-runtime-error',
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 1000,
-        'error_cb': error_cb_runtime_error
-    })
+    consumer3 = TestConsumer(
+        {
+            'group.id': 'test-runtime-error',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'error_cb': error_cb_runtime_error,
+        }
+    )
     consumer3.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -468,11 +516,7 @@ def test_error_callback_exception_different_error_types():
 
 def test_consumer_context_manager_basic():
     """Test basic Consumer context manager usage and return value"""
-    config = {
-        'group.id': 'test',
-        'socket.timeout.ms': 10,
-        'session.timeout.ms': 100
-    }
+    config = {'group.id': 'test', 'socket.timeout.ms': 10, 'session.timeout.ms': 100}
 
     # Test __enter__ returns self
     consumer = Consumer(config)
@@ -493,11 +537,7 @@ def test_consumer_context_manager_basic():
 
 def test_consumer_context_manager_exception_propagation():
     """Test exceptions propagate and consumer is cleaned up"""
-    config = {
-        'group.id': 'test',
-        'socket.timeout.ms': 10,
-        'session.timeout.ms': 100
-    }
+    config = {'group.id': 'test', 'socket.timeout.ms': 10, 'session.timeout.ms': 100}
 
     # Test exception propagation
     exception_caught = False
@@ -518,11 +558,7 @@ def test_consumer_context_manager_exception_propagation():
 
 def test_consumer_context_manager_exit_with_exceptions():
     """Test __exit__ properly handles exception arguments"""
-    config = {
-        'group.id': 'test',
-        'socket.timeout.ms': 10,
-        'session.timeout.ms': 100
-    }
+    config = {'group.id': 'test', 'socket.timeout.ms': 10, 'session.timeout.ms': 100}
 
     consumer = Consumer(config)
     consumer.subscribe(['mytopic'])
@@ -543,11 +579,7 @@ def test_consumer_context_manager_exit_with_exceptions():
 
 def test_consumer_context_manager_after_exit():
     """Test Consumer behavior after context manager exit"""
-    config = {
-        'group.id': 'test',
-        'socket.timeout.ms': 10,
-        'session.timeout.ms': 100
-    }
+    config = {'group.id': 'test', 'socket.timeout.ms': 10, 'session.timeout.ms': 100}
 
     # Normal exit
     with Consumer(config) as consumer:
@@ -580,11 +612,7 @@ def test_consumer_context_manager_after_exit():
 
 def test_consumer_context_manager_multiple_instances():
     """Test Consumer context manager with multiple instances"""
-    config = {
-        'group.id': 'test',
-        'socket.timeout.ms': 10,
-        'session.timeout.ms': 100
-    }
+    config = {'group.id': 'test', 'socket.timeout.ms': 10, 'session.timeout.ms': 100}
 
     # Test multiple sequential instances
     with Consumer(config) as consumer1:
@@ -618,8 +646,8 @@ def test_consumer_context_manager_multiple_instances():
 
 
 def test_uninitialized_consumer_methods():
-    """Test that all Consumer methods raise RuntimeError when called on uninitialized instance.
-    """
+    """Test that all Consumer methods raise RuntimeError when called on uninitialized instance."""
+
     class UninitializedConsumer(Consumer):
         def __init__(self, config):
             # Don't call super().__init__() - leaves self->rk as NULL

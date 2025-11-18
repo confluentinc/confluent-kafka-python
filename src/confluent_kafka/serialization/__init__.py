@@ -19,20 +19,22 @@ import struct as _struct
 from enum import Enum
 from typing import Any, List, Optional
 
-from confluent_kafka.error import KafkaException
 from confluent_kafka._types import HeadersType
+from confluent_kafka.error import KafkaException
 
-__all__ = ['Deserializer',
-           'IntegerDeserializer',
-           'IntegerSerializer',
-           'DoubleDeserializer',
-           'DoubleSerializer',
-           'StringDeserializer',
-           'StringSerializer',
-           'MessageField',
-           'SerializationContext',
-           'SerializationError',
-           'Serializer']
+__all__ = [
+    'Deserializer',
+    'IntegerDeserializer',
+    'IntegerSerializer',
+    'DoubleDeserializer',
+    'DoubleSerializer',
+    'StringDeserializer',
+    'StringSerializer',
+    'MessageField',
+    'SerializationContext',
+    'SerializationError',
+    'Serializer',
+]
 
 
 class MessageField(str, Enum):
@@ -75,6 +77,7 @@ class SerializationContext(object):
 
 class SerializationError(KafkaException):
     """Generic error from serializer package"""
+
     pass
 
 
