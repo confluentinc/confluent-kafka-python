@@ -14,13 +14,19 @@
 # limitations under the License.
 
 import time
+
 import pytest
 
-from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType)
-from confluent_kafka.error import ConsumeError
 from confluent_kafka import ConsumerGroupState, TopicCollection
-
+from confluent_kafka.admin import (
+    AclBinding,
+    AclBindingFilter,
+    AclOperation,
+    AclPermissionType,
+    ResourcePatternType,
+    ResourceType,
+)
+from confluent_kafka.error import ConsumeError
 from tests.common import TestUtils
 
 topic_prefix = "test-topic"
@@ -31,11 +37,13 @@ def verify_commit_result(err, _):
 
 
 def consume_messages(sasl_cluster, group_id, topic, num_messages=None):
-    conf = {'group.id': group_id,
-            'session.timeout.ms': 6000,
-            'enable.auto.commit': False,
-            'on_commit': verify_commit_result,
-            'auto.offset.reset': 'earliest'}
+    conf = {
+        'group.id': group_id,
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'on_commit': verify_commit_result,
+        'auto.offset.reset': 'earliest',
+    }
     consumer = sasl_cluster.consumer(conf)
     consumer.subscribe([topic])
     read_messages = 0
@@ -95,13 +103,8 @@ def delete_acls(admin_client, acl_binding_filters):
 
 
 def verify_provided_describe_for_authorized_operations(
-        admin_client,
-        describe_fn,
-        operation_to_allow,
-        operation_to_check,
-        restype,
-        resname,
-        *arg):
+    admin_client, describe_fn, operation_to_allow, operation_to_check, restype, resname, *arg
+):
     kwargs = {}
     kwargs['request_timeout'] = 10
 
@@ -118,8 +121,15 @@ def verify_provided_describe_for_authorized_operations(
     assert operation_to_check in desc.authorized_operations
 
     # Update Authorized Operation by creating new ACLs
-    acl_binding = AclBinding(restype, resname, ResourcePatternType.LITERAL,
-                             "User:sasl_user", "*", operation_to_allow, AclPermissionType.ALLOW)
+    acl_binding = AclBinding(
+        restype,
+        resname,
+        ResourcePatternType.LITERAL,
+        "User:sasl_user",
+        "*",
+        operation_to_allow,
+        AclPermissionType.ALLOW,
+    )
     create_acls(admin_client, [acl_binding])
     time.sleep(1)
 
@@ -130,21 +140,24 @@ def verify_provided_describe_for_authorized_operations(
     assert operation_to_check not in desc.authorized_operations
 
     # Delete Updated ACLs
-    acl_binding_filter = AclBindingFilter(restype, resname, ResourcePatternType.ANY,
-                                          None, None, AclOperation.ANY, AclPermissionType.ANY)
+    acl_binding_filter = AclBindingFilter(
+        restype, resname, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
     delete_acls(admin_client, [acl_binding_filter])
     time.sleep(1)
     return desc
 
 
 def verify_describe_topics(admin_client, topic_name):
-    desc = verify_provided_describe_for_authorized_operations(admin_client,
-                                                              admin_client.describe_topics,
-                                                              AclOperation.READ,
-                                                              AclOperation.DELETE,
-                                                              ResourceType.TOPIC,
-                                                              topic_name,
-                                                              TopicCollection([topic_name]))
+    desc = verify_provided_describe_for_authorized_operations(
+        admin_client,
+        admin_client.describe_topics,
+        AclOperation.READ,
+        AclOperation.DELETE,
+        ResourceType.TOPIC,
+        topic_name,
+        TopicCollection([topic_name]),
+    )
     assert desc.name == topic_name
     assert len(desc.partitions) == 1
     assert not desc.is_internal
@@ -167,13 +180,15 @@ def verify_describe_groups(cluster, admin_client, topic):
     consume_messages(cluster, group, topic, 2)
 
     # Verify Describe Consumer Groups
-    desc = verify_provided_describe_for_authorized_operations(admin_client,
-                                                              admin_client.describe_consumer_groups,
-                                                              AclOperation.READ,
-                                                              AclOperation.DELETE,
-                                                              ResourceType.GROUP,
-                                                              group,
-                                                              [group])
+    desc = verify_provided_describe_for_authorized_operations(
+        admin_client,
+        admin_client.describe_consumer_groups,
+        AclOperation.READ,
+        AclOperation.DELETE,
+        ResourceType.GROUP,
+        group,
+        [group],
+    )
     assert group == desc.group_id
     assert desc.is_simple_consumer_group is False
     assert desc.state == ConsumerGroupState.EMPTY
@@ -183,12 +198,14 @@ def verify_describe_groups(cluster, admin_client, topic):
 
 
 def verify_describe_cluster(admin_client):
-    desc = verify_provided_describe_for_authorized_operations(admin_client,
-                                                              admin_client.describe_cluster,
-                                                              AclOperation.ALTER,
-                                                              AclOperation.ALTER_CONFIGS,
-                                                              ResourceType.BROKER,
-                                                              "kafka-cluster")
+    desc = verify_provided_describe_for_authorized_operations(
+        admin_client,
+        admin_client.describe_cluster,
+        AclOperation.ALTER,
+        AclOperation.ALTER_CONFIGS,
+        ResourceType.BROKER,
+        "kafka-cluster",
+    )
     assert isinstance(desc.cluster_id, str)
     assert len(desc.nodes) > 0
     assert desc.controller is not None
@@ -204,14 +221,15 @@ def test_describe_operations(sasl_cluster):
 
     # Create Topic
     topic_config = {"compression.type": "gzip"}
-    our_topic = sasl_cluster.create_topic_and_wait_propogation(topic_prefix,
-                                                               {
-                                                                   "num_partitions": 1,
-                                                                   "config": topic_config,
-                                                                   "replication_factor": 1,
-                                                               },
-                                                               validate_only=False
-                                                               )
+    our_topic = sasl_cluster.create_topic_and_wait_propogation(
+        topic_prefix,
+        {
+            "num_partitions": 1,
+            "config": topic_config,
+            "replication_factor": 1,
+        },
+        validate_only=False,
+    )
 
     # Verify Authorized Operations in Describe Topics
     verify_describe_topics(admin_client, our_topic)

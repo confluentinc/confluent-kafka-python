@@ -15,10 +15,10 @@
 import hashlib
 from typing import Optional
 
-from hkdf import hkdf_extract, hkdf_expand
+from hkdf import hkdf_expand, hkdf_extract
 from tink import KmsClient, aead
 from tink.core import Registry
-from tink.proto import tink_pb2, aes_gcm_pb2
+from tink.proto import aes_gcm_pb2, tink_pb2
 
 
 class LocalKmsClient(KmsClient):
@@ -29,16 +29,11 @@ class LocalKmsClient(KmsClient):
 
     def _get_primitive(self, secret: str) -> aead.Aead:
         key = self._get_key(secret)
-        aes_gcm_key = aes_gcm_pb2.AesGcmKey(
-            version=0,
-            key_value=key
-        )
+        aes_gcm_key = aes_gcm_pb2.AesGcmKey(version=0, key_value=key)
         serialized_aes_gcm_key = aes_gcm_key.SerializeToString()
         key_template = aead.aead_key_templates.AES128_GCM_RAW
         key_data = tink_pb2.KeyData(
-            type_url=key_template.type_url,
-            value=serialized_aes_gcm_key,
-            key_material_type=tink_pb2.KeyData.SYMMETRIC
+            type_url=key_template.type_url, value=serialized_aes_gcm_key, key_material_type=tink_pb2.KeyData.SYMMETRIC
         )
         return Registry().primitive(key_data, aead.Aead)
 

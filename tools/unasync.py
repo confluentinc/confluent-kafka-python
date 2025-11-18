@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
+import argparse
+import difflib
 import os
 import re
 import sys
-import argparse
-import difflib
 
 # List of directories to convert from async to sync
 # Each tuple contains the async directory and its sync counterpart
@@ -34,11 +34,9 @@ SUBS = [
     ('import asyncio', ''),
     ('asyncio.sleep', 'time.sleep'),
     ('._async.', '._sync.'),
-
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
-
     ('async def', 'def'),
     ('await ', ''),
     ('aclose', 'close'),
@@ -60,22 +58,13 @@ IMPORT_CLEANUP_SUBS = [
     (r',\s*Coroutine', ''),
 ]
 
-COMPILED_IMPORT_CLEANUP_SUBS = [
-    (re.compile(regex), repl)
-    for regex, repl in IMPORT_CLEANUP_SUBS
-]
+COMPILED_IMPORT_CLEANUP_SUBS = [(re.compile(regex), repl) for regex, repl in IMPORT_CLEANUP_SUBS]
 
 # Compile type hint patterns without word boundaries
-COMPILED_TYPE_HINT_SUBS = [
-    (re.compile(regex), repl)
-    for regex, repl in TYPE_HINT_SUBS
-]
+COMPILED_TYPE_HINT_SUBS = [(re.compile(regex), repl) for regex, repl in TYPE_HINT_SUBS]
 
 # Compile regular patterns with word boundaries
-COMPILED_SUBS = [
-    (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)
-    for regex, repl in SUBS
-]
+COMPILED_SUBS = [(re.compile(r'(^|\b)' + regex + r'($|\b)'), repl) for regex, repl in SUBS]
 
 USED_SUBS = set()
 
@@ -134,7 +123,7 @@ def unasync_file_check(in_path, out_path):
                 actual_content.splitlines(keepends=True),
                 fromfile=in_path,
                 tofile=out_path,
-                n=3  # Show 3 lines of context
+                n=3,  # Show 3 lines of context
             )
             print(''.join(diff))
             return False
@@ -232,13 +221,9 @@ def unasync(dir_pairs=None, check=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert async code to sync code')
     parser.add_argument(
-        '--check',
-        action='store_true',
-        help='Exit with non-zero status if sync directory has any differences')
-    parser.add_argument(
-        '--file',
-        type=str,
-        help='Convert a single file instead of all directories')
+        '--check', action='store_true', help='Exit with non-zero status if sync directory has any differences'
+    )
+    parser.add_argument('--file', type=str, help='Convert a single file instead of all directories')
     args = parser.parse_args()
 
     if args.file:

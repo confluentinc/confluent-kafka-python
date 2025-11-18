@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
-import pytest
-from confluent_kafka import Producer, KafkaError, KafkaException
 import time
+
+import pytest
+
+from confluent_kafka import KafkaError, KafkaException, Producer
 
 seen_all_brokers_down = False
 
@@ -16,12 +18,11 @@ def error_cb(err):
 
 
 def test_error_cb():
-    """ Test the error callback. """
+    """Test the error callback."""
 
     # Configure an invalid broker and make sure the ALL_BROKERS_DOWN
     # error is seen in the error callback.
-    p = Producer({'bootstrap.servers': '127.0.0.1:1', 'socket.timeout.ms': 10,
-                  'error_cb': error_cb})
+    p = Producer({'bootstrap.servers': '127.0.0.1:1', 'socket.timeout.ms': 10, 'error_cb': error_cb})
 
     t_end = time.time() + 5
 
@@ -32,15 +33,14 @@ def test_error_cb():
 
 
 def test_fatal():
-    """ Test fatal exceptions """
+    """Test fatal exceptions"""
 
     # Configure an invalid broker and make sure the ALL_BROKERS_DOWN
     # error is seen in the error callback.
     p = Producer({'error_cb': error_cb})
 
     with pytest.raises(KafkaException) as exc:
-        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
-                                        fatal=True))
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED, fatal=True))
     err = exc.value.args[0]
     assert isinstance(err, KafkaError)
     assert err.fatal()
@@ -51,11 +51,10 @@ def test_fatal():
 
 
 def test_retriable():
-    """ Test retriable exceptions """
+    """Test retriable exceptions"""
 
     with pytest.raises(KafkaException) as exc:
-        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
-                                        retriable=True))
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED, retriable=True))
     err = exc.value.args[0]
     assert isinstance(err, KafkaError)
     assert not err.fatal()
@@ -64,11 +63,10 @@ def test_retriable():
 
 
 def test_abortable():
-    """ Test abortable exceptions """
+    """Test abortable exceptions"""
 
     with pytest.raises(KafkaException) as exc:
-        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
-                                        txn_requires_abort=True))
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED, txn_requires_abort=True))
     err = exc.value.args[0]
     assert isinstance(err, KafkaError)
     assert not err.fatal()
@@ -80,6 +78,7 @@ def test_subclassing():
     class MyExc(KafkaException):
         def a_method(self):
             return "yes"
+
     err = MyExc()
     assert err.a_method() == "yes"
     assert isinstance(err, KafkaException)

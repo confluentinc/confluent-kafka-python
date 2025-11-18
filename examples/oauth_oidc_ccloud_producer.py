@@ -21,8 +21,9 @@
 # where client_id and client_secret are passed as HTTP Authorization header
 # with the OIDC method and doesn't need to set a `oauth_cb` to obtain the token.
 
-import logging
 import argparse
+import logging
+
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 
@@ -38,13 +39,14 @@ def producer_config(args):
         'sasl.oauthbearer.client.id': args.client_id,
         'sasl.oauthbearer.client.secret': args.client_secret,
         'sasl.oauthbearer.token.endpoint.url': args.token_url,
-        'sasl.oauthbearer.scope': ' '.join(args.scopes)
+        'sasl.oauthbearer.scope': ' '.join(args.scopes),
     }
     # These two parameters are only applicable when producing to
     # confluent cloud where some sasl extensions are required.
     if args.logical_cluster and args.identity_pool_id:
-        params['sasl.oauthbearer.extensions'] = 'logicalCluster=' + args.logical_cluster + \
-                            ',identityPoolId=' + args.identity_pool_id
+        params['sasl.oauthbearer.extensions'] = (
+            'logicalCluster=' + args.logical_cluster + ',identityPoolId=' + args.identity_pool_id
+        )
 
     return params
 
@@ -70,8 +72,11 @@ def delivery_report(err, msg):
     if err is not None:
         print('Delivery failed for User record {}: {}'.format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -89,14 +94,11 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic=topic,
-                                 key=serializer(msg[0]),
-                                 value=serializer(msg[1]),
-                                 on_delivery=delivery_report)
+                producer.produce(
+                    topic=topic, key=serializer(msg[0]), value=serializer(msg[1]), on_delivery=delivery_report
+                )
             else:
-                producer.produce(topic=topic,
-                                 value=serializer(msg[0]),
-                                 on_delivery=delivery_report)
+                producer.produce(topic=topic, value=serializer(msg[0]), on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
 
@@ -106,20 +108,15 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="OAUTH example with client credentials grant")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="topic", default="example_producer_oauth",
-                        help="Topic name")
-    parser.add_argument('-d', dest="delimiter", default="|",
-                        help="Key-Value delimiter. Defaults to '|'"),
-    parser.add_argument('--client', dest="client_id", required=True,
-                        help="Client ID for client credentials flow")
-    parser.add_argument('--secret', dest="client_secret", required=True,
-                        help="Client secret for client credentials flow.")
-    parser.add_argument('--token-url', dest="token_url", required=True,
-                        help="Token URL.")
-    parser.add_argument('--scopes', dest="scopes", required=True, nargs='+',
-                        help="Scopes requested from OAuth server.")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-t', dest="topic", default="example_producer_oauth", help="Topic name")
+    parser.add_argument('-d', dest="delimiter", default="|", help="Key-Value delimiter. Defaults to '|'"),
+    parser.add_argument('--client', dest="client_id", required=True, help="Client ID for client credentials flow")
+    parser.add_argument(
+        '--secret', dest="client_secret", required=True, help="Client secret for client credentials flow."
+    )
+    parser.add_argument('--token-url', dest="token_url", required=True, help="Token URL.")
+    parser.add_argument('--scopes', dest="scopes", required=True, nargs='+', help="Scopes requested from OAuth server.")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
 

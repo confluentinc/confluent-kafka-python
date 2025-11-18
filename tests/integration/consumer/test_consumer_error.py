@@ -17,8 +17,8 @@
 #
 
 import pytest
-from confluent_kafka import TopicPartition, OFFSET_END, KafkaError, KafkaException
 
+from confluent_kafka import OFFSET_END, KafkaError, KafkaException, TopicPartition
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.serialization import StringSerializer
 from tests.common import TestUtils
@@ -36,32 +36,33 @@ def test_consume_error(kafka_cluster):
     producer.produce(topic=topic, value="a")
     producer.flush()
 
-    consumer = kafka_cluster.consumer(consumer_conf,
-                                      value_deserializer=StringSerializer())
+    consumer = kafka_cluster.consumer(consumer_conf, value_deserializer=StringSerializer())
     consumer.assign([TopicPartition(topic, 0, OFFSET_END)])
 
     with pytest.raises(ConsumeError) as exc_info:
         # Trigger EOF error
         consumer.poll()
-    assert exc_info.value.args[0].code() == KafkaError._PARTITION_EOF, \
-        "Expected _PARTITION_EOF, not {}".format(exc_info)
+    assert exc_info.value.args[0].code() == KafkaError._PARTITION_EOF, "Expected _PARTITION_EOF, not {}".format(
+        exc_info
+    )
 
 
 # Skipping the test for consumer protocol for now. Update the test to use
 # IncrementalAlterConfigs Admin operation to update
 # group.session.timeout.ms and enable the test again.
-@pytest.mark.skipif(TestUtils.use_group_protocol_consumer(),
-                    reason="session.timeout.ms is not supported on client side for "
-                    "consumer protocol. Update this test to use IncrementalAlterConfigs "
-                    "Admin operation to update group.session.timeout.ms and enable "
-                    "the test again.")
+@pytest.mark.skipif(
+    TestUtils.use_group_protocol_consumer(),
+    reason="session.timeout.ms is not supported on client side for "
+    "consumer protocol. Update this test to use IncrementalAlterConfigs "
+    "Admin operation to update group.session.timeout.ms and enable "
+    "the test again.",
+)
 def test_consume_error_commit(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when commiting.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
-    consumer_conf = {'group.id': 'pytest',
-                     'session.timeout.ms': 100}
+    consumer_conf = {'group.id': 'pytest', 'session.timeout.ms': 100}
 
     producer = kafka_cluster.producer()
     producer.produce(topic=topic, value="a")
@@ -75,27 +76,30 @@ def test_consume_error_commit(kafka_cluster):
         m = consumer.poll(2)
         consumer.commit(m)
     except KafkaException as e:
-        assert e.args[0].code() == KafkaError._INVALID_ARG, \
-            "Expected INVALID_ARG, not {}".format(e)
+        assert e.args[0].code() == KafkaError._INVALID_ARG, "Expected INVALID_ARG, not {}".format(e)
 
 
 # Skipping the test for consumer protocol for now. Update the test to use
 # IncrementalAlterConfigs Admin operation to update
 # group.session.timeout.ms and enable the test again.
-@pytest.mark.skipif(TestUtils.use_group_protocol_consumer(),
-                    reason="session.timeout.ms is not supported on client side for "
-                    "consumer protocol. Update this test to use IncrementalAlterConfigs "
-                    "Admin operation to update group.session.timeout.ms and enable "
-                    "the test again.")
+@pytest.mark.skipif(
+    TestUtils.use_group_protocol_consumer(),
+    reason="session.timeout.ms is not supported on client side for "
+    "consumer protocol. Update this test to use IncrementalAlterConfigs "
+    "Admin operation to update group.session.timeout.ms and enable "
+    "the test again.",
+)
 def test_consume_error_store_offsets(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when storing offsets.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
-    consumer_conf = {'group.id': 'pytest',
-                     'session.timeout.ms': 100,
-                     'enable.auto.offset.store': True,
-                     'enable.auto.commit': False}
+    consumer_conf = {
+        'group.id': 'pytest',
+        'session.timeout.ms': 100,
+        'enable.auto.offset.store': True,
+        'enable.auto.commit': False,
+    }
 
     producer = kafka_cluster.producer()
     producer.produce(topic=topic, value="a")
@@ -109,5 +113,4 @@ def test_consume_error_store_offsets(kafka_cluster):
         m = consumer.poll(2)
         consumer.store_offsets(m)
     except KafkaException as e:
-        assert e.args[0].code() == KafkaError._INVALID_ARG, \
-            "Expected INVALID_ARG, not {}".format(e)
+        assert e.args[0].code() == KafkaError._INVALID_ARG, "Expected INVALID_ARG, not {}".format(e)

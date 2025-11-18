@@ -15,10 +15,7 @@
 
 import time
 
-from confluent_kafka.admin import ConfigResource, \
-    ConfigEntry, ResourceType, \
-    AlterConfigOpType
-
+from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from tests.common import TestUtils
 
 
@@ -30,8 +27,7 @@ def assert_expected_config_entries(fs, num_fs, expected):
     assert len(fs.items()) == num_fs
     for res, f in fs.items():
         configs = f.result()
-        entries = sorted([str(entry) for entry in configs.values()
-                          if not entry.is_default])
+        entries = sorted([str(entry) for entry in configs.values() if not entry.is_default])
         assert entries == expected[res]
 
 
@@ -56,18 +52,22 @@ def test_incremental_alter_configs(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
 
-    our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
-                                                                {
-                                                                    "num_partitions": num_partitions,
-                                                                    "config": topic_config,
-                                                                    "replication_factor": 1,
-                                                                })
-    our_topic2 = kafka_cluster.create_topic_and_wait_propogation(topic_prefix2,
-                                                                 {
-                                                                     "num_partitions": num_partitions,
-                                                                     "config": topic_config,
-                                                                     "replication_factor": 1,
-                                                                 })
+    our_topic = kafka_cluster.create_topic_and_wait_propogation(
+        topic_prefix,
+        {
+            "num_partitions": num_partitions,
+            "config": topic_config,
+            "replication_factor": 1,
+        },
+    )
+    our_topic2 = kafka_cluster.create_topic_and_wait_propogation(
+        topic_prefix2,
+        {
+            "num_partitions": num_partitions,
+            "config": topic_config,
+            "replication_factor": 1,
+        },
+    )
 
     admin_client = kafka_cluster.admin()
 
@@ -75,29 +75,21 @@ def test_incremental_alter_configs(kafka_cluster):
         ResourceType.TOPIC,
         our_topic,
         incremental_configs=[
-            ConfigEntry("cleanup.policy", "compact",
-                        incremental_operation=AlterConfigOpType.APPEND),
-            ConfigEntry("retention.ms", "10000",
-                        incremental_operation=AlterConfigOpType.SET)
-        ]
+            ConfigEntry("cleanup.policy", "compact", incremental_operation=AlterConfigOpType.APPEND),
+            ConfigEntry("retention.ms", "10000", incremental_operation=AlterConfigOpType.SET),
+        ],
     )
     res2 = ConfigResource(
         ResourceType.TOPIC,
         our_topic2,
         incremental_configs=[
-            ConfigEntry("cleanup.policy", "delete",
-                        incremental_operation=AlterConfigOpType.SUBTRACT),
-            ConfigEntry("retention.ms", "5000",
-                        incremental_operation=AlterConfigOpType.SET)
-        ]
+            ConfigEntry("cleanup.policy", "delete", incremental_operation=AlterConfigOpType.SUBTRACT),
+            ConfigEntry("retention.ms", "5000", incremental_operation=AlterConfigOpType.SET),
+        ],
     )
     expected = {
-        res1: ['cleanup.policy="delete,compact"',
-               'compression.type="gzip"',
-               'retention.ms="10000"'],
-        res2: ['cleanup.policy=""',
-               'compression.type="gzip"',
-               'retention.ms="5000"']
+        res1: ['cleanup.policy="delete,compact"', 'compression.type="gzip"', 'retention.ms="10000"'],
+        res2: ['cleanup.policy=""', 'compression.type="gzip"', 'retention.ms="5000"'],
     }
 
     #
@@ -124,14 +116,11 @@ def test_incremental_alter_configs(kafka_cluster):
         ResourceType.TOPIC,
         our_topic2,
         incremental_configs=[
-            ConfigEntry("compression.type", None,
-                        incremental_operation=AlterConfigOpType.DELETE),
-            ConfigEntry("retention.ms", "10000",
-                        incremental_operation=AlterConfigOpType.SET)
-        ]
+            ConfigEntry("compression.type", None, incremental_operation=AlterConfigOpType.DELETE),
+            ConfigEntry("retention.ms", "10000", incremental_operation=AlterConfigOpType.SET),
+        ],
     )
-    expected[res2] = ['cleanup.policy=""',
-                      'retention.ms="10000"']
+    expected[res2] = ['cleanup.policy=""', 'retention.ms="10000"']
 
     #
     # Incrementally alter some configuration values
@@ -159,9 +148,8 @@ def test_incremental_alter_configs(kafka_cluster):
             ResourceType.GROUP,
             group_id,
             incremental_configs=[
-                ConfigEntry("consumer.session.timeout.ms", "50000",
-                            incremental_operation=AlterConfigOpType.SET)
-            ]
+                ConfigEntry("consumer.session.timeout.ms", "50000", incremental_operation=AlterConfigOpType.SET)
+            ],
         )
 
         expected[res_group] = ['consumer.session.timeout.ms="50000"']

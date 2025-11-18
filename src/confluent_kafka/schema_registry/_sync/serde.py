@@ -17,18 +17,23 @@
 #
 
 import logging
-from typing import List, Optional, Set, Dict, Any, Callable
+from typing import Any, Callable, Dict, List, Optional, Set
 
 from confluent_kafka.schema_registry import RegisteredSchema
-from confluent_kafka.schema_registry.common.schema_registry_client import \
-    RulePhase
-from confluent_kafka.schema_registry.common.serde import ErrorAction, \
-    FieldTransformer, Migration, NoneAction, RuleAction, \
-    RuleConditionError, RuleContext, RuleError, SchemaId
-from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
-    Rule, RuleKind, Schema, RuleSet
-from confluent_kafka.serialization import Serializer, Deserializer, \
-    SerializationContext, SerializationError
+from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
+from confluent_kafka.schema_registry.common.serde import (
+    ErrorAction,
+    FieldTransformer,
+    Migration,
+    NoneAction,
+    RuleAction,
+    RuleConditionError,
+    RuleContext,
+    RuleError,
+    SchemaId,
+)
+from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
+from confluent_kafka.serialization import Deserializer, SerializationContext, SerializationError, Serializer
 
 __all__ = [
     'BaseSerde',
@@ -40,9 +45,15 @@ log = logging.getLogger(__name__)
 
 
 class BaseSerde(object):
-    __slots__ = ['_use_schema_id', '_use_latest_version', '_use_latest_with_metadata',
-                 '_registry', '_rule_registry', '_subject_name_func',
-                 '_field_transformer']
+    __slots__ = [
+        '_use_schema_id',
+        '_use_latest_version',
+        '_use_latest_with_metadata',
+        '_registry',
+        '_rule_registry',
+        '_subject_name_func',
+        '_field_transformer',
+    ]
 
     _use_schema_id: Optional[int]
     _use_latest_version: bool
@@ -55,32 +66,41 @@ class BaseSerde(object):
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
-            return self._registry.lookup_schema(
-                subject, schema, normalize_schemas=False, deleted=True)
+            return self._registry.lookup_schema(subject, schema, normalize_schemas=False, deleted=True)
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(
-                subject, self._use_latest_with_metadata, deleted=True, fmt=fmt)
+                subject, self._use_latest_with_metadata, deleted=True, fmt=fmt
+            )
         if self._use_latest_version:
             return self._registry.get_latest_version(subject, fmt)
         return None
 
     def _execute_rules(
-        self, ser_ctx: SerializationContext, subject: str,
+        self,
+        ser_ctx: SerializationContext,
+        subject: str,
         rule_mode: RuleMode,
-        source: Optional[Schema], target: Optional[Schema],
-        message: Any, inline_tags: Optional[Dict[str, Set[str]]],
-        field_transformer: Optional[FieldTransformer]
+        source: Optional[Schema],
+        target: Optional[Schema],
+        message: Any,
+        inline_tags: Optional[Dict[str, Set[str]]],
+        field_transformer: Optional[FieldTransformer],
     ) -> Any:
         return self._execute_rules_with_phase(
-            ser_ctx, subject, RulePhase.DOMAIN, rule_mode,
-            source, target, message, inline_tags, field_transformer)
+            ser_ctx, subject, RulePhase.DOMAIN, rule_mode, source, target, message, inline_tags, field_transformer
+        )
 
     def _execute_rules_with_phase(
-        self, ser_ctx: SerializationContext, subject: str,
-        rule_phase: RulePhase, rule_mode: RuleMode,
-        source: Optional[Schema], target: Optional[Schema],
-        message: Any, inline_tags: Optional[Dict[str, Set[str]]],
-        field_transformer: Optional[FieldTransformer]
+        self,
+        ser_ctx: SerializationContext,
+        subject: str,
+        rule_phase: RulePhase,
+        rule_mode: RuleMode,
+        source: Optional[Schema],
+        target: Optional[Schema],
+        message: Any,
+        inline_tags: Optional[Dict[str, Set[str]]],
+        field_transformer: Optional[FieldTransformer],
     ) -> Any:
         if message is None or target is None:
             return message
@@ -120,18 +140,31 @@ class BaseSerde(object):
             elif rule.mode != rule_mode:
                 continue
 
-            ctx = RuleContext(ser_ctx, source, target, subject, rule_mode, rule,
-                              index, rules, inline_tags, field_transformer)
+            ctx = RuleContext(
+                ser_ctx, source, target, subject, rule_mode, rule, index, rules, inline_tags, field_transformer
+            )
             if rule.type is None:
-                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message,
-                                 RuleError(f"Rule type is None for rule {rule.name}"),
-                                 'ERROR')
+                self._run_action(
+                    ctx,
+                    rule_mode,
+                    rule,
+                    self._get_on_failure(rule),
+                    message,
+                    RuleError(f"Rule type is None for rule {rule.name}"),
+                    'ERROR',
+                )
                 return message
             rule_executor = self._rule_registry.get_executor(rule.type.upper())
             if rule_executor is None:
-                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message,
-                                 RuleError(f"Could not find rule executor of type {rule.type}"),
-                                 'ERROR')
+                self._run_action(
+                    ctx,
+                    rule_mode,
+                    rule,
+                    self._get_on_failure(rule),
+                    message,
+                    RuleError(f"Could not find rule executor of type {rule.type}"),
+                    'ERROR',
+                )
                 return message
             try:
                 result = rule_executor.transform(ctx, message)
@@ -141,15 +174,18 @@ class BaseSerde(object):
                 elif rule.kind == RuleKind.TRANSFORM:
                     message = result
                 self._run_action(
-                    ctx, rule_mode, rule,
+                    ctx,
+                    rule_mode,
+                    rule,
                     self._get_on_failure(rule) if message is None else self._get_on_success(rule),
-                    message, None,
-                    'ERROR' if message is None else 'NONE')
+                    message,
+                    None,
+                    'ERROR' if message is None else 'NONE',
+                )
             except SerializationError:
                 raise
             except Exception as e:
-                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule),
-                                 message, e, 'ERROR')
+                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message, e, 'ERROR')
         return message
 
     def _get_on_success(self, rule: Rule) -> Optional[str]:
@@ -177,9 +213,14 @@ class BaseSerde(object):
         return rule.disabled
 
     def _run_action(
-        self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule,
-        action: Optional[str], message: Any,
-        ex: Optional[Exception], default_action: str
+        self,
+        ctx: RuleContext,
+        rule_mode: RuleMode,
+        rule: Rule,
+        action: Optional[str],
+        message: Any,
+        ex: Optional[Exception],
+        default_action: str,
     ):
         action_name = self._get_rule_action_name(rule, rule_mode, action)
         if action_name is None:
@@ -195,9 +236,7 @@ class BaseSerde(object):
         except Exception as e:
             log.warning("Could not run post-rule action %s: %s", action_name, e)
 
-    def _get_rule_action_name(
-        self, rule: Rule, rule_mode: RuleMode, action_name: Optional[str]
-    ) -> Optional[str]:
+    def _get_rule_action_name(self, rule: Rule, rule_mode: RuleMode, action_name: Optional[str]) -> Optional[str]:
         if action_name is None or action_name == "":
             return None
         if rule.mode in (RuleMode.WRITEREAD, RuleMode.UPDOWN) and ',' in action_name:
@@ -230,8 +269,8 @@ class BaseDeserializer(BaseSerde, Deserializer):
     _schema_id_deserializer: Callable[[bytes, Any, Any], Any]
 
     def _get_writer_schema(
-            self, schema_id: SchemaId, subject: Optional[str] = None,
-            fmt: Optional[str] = None) -> Schema:
+        self, schema_id: SchemaId, subject: Optional[str] = None, fmt: Optional[str] = None
+    ) -> Schema:
         if schema_id.id is not None:
             return self._registry.get_schema(schema_id.id, subject, fmt)
         elif schema_id.guid is not None:
@@ -249,23 +288,19 @@ class BaseDeserializer(BaseSerde, Deserializer):
         elif phase == RulePhase.ENCODING:
             rules = rule_set.encoding_rules
         if mode in (RuleMode.UPGRADE, RuleMode.DOWNGRADE):
-            return any(rule.mode == mode or rule.mode == RuleMode.UPDOWN
-                       for rule in rules or [])
+            return any(rule.mode == mode or rule.mode == RuleMode.UPDOWN for rule in rules or [])
         elif mode == RuleMode.UPDOWN:
             return any(rule.mode == mode for rule in rules or [])
         elif mode in (RuleMode.WRITE, RuleMode.READ):
-            return any(rule.mode == mode or rule.mode == RuleMode.WRITEREAD
-                       for rule in rules or [])
+            return any(rule.mode == mode or rule.mode == RuleMode.WRITEREAD for rule in rules or [])
         elif mode == RuleMode.WRITEREAD:
             return any(rule.mode == mode for rule in rules or [])
         return False
 
     def _get_migrations(
-        self, subject: str, source_info: Schema,
-        target: RegisteredSchema, fmt: Optional[str]
+        self, subject: str, source_info: Schema, target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = self._registry.lookup_schema(
-            subject, source_info, normalize_schemas=False, deleted=True)
+        source = self._registry.lookup_schema(subject, source_info, normalize_schemas=False, deleted=True)
         migrations: List[Migration] = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE
@@ -284,8 +319,11 @@ class BaseDeserializer(BaseSerde, Deserializer):
             if i == 0:
                 previous = version
                 continue
-            if version.schema is not None and version.schema.rule_set is not None and self._has_rules(
-                  version.schema.rule_set, RulePhase.MIGRATION, migration_mode):
+            if (
+                version.schema is not None
+                and version.schema.rule_set is not None
+                and self._has_rules(version.schema.rule_set, RulePhase.MIGRATION, migration_mode)
+            ):
                 if previous is not None:  # previous is always set after first iteration
                     if migration_mode == RuleMode.UPGRADE:
                         migration = Migration(migration_mode, previous, version)
@@ -298,8 +336,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
         return migrations
 
     def _get_schemas_between(
-        self, subject: str, first: RegisteredSchema,
-        last: RegisteredSchema, fmt: Optional[str] = None
+        self, subject: str, first: RegisteredSchema, last: RegisteredSchema, fmt: Optional[str] = None
     ) -> List[RegisteredSchema]:
         if first.version is None or last.version is None:
             return [first, last]
@@ -314,13 +351,19 @@ class BaseDeserializer(BaseSerde, Deserializer):
         return result
 
     def _execute_migrations(
-        self, ser_ctx: SerializationContext, subject: str,
-        migrations: List[Migration], message: Any
+        self, ser_ctx: SerializationContext, subject: str, migrations: List[Migration], message: Any
     ) -> Any:
         for migration in migrations:
             if migration.source is not None and migration.target is not None:
                 message = self._execute_rules_with_phase(
-                    ser_ctx, subject, RulePhase.MIGRATION, migration.rule_mode,
-                    migration.source.schema, migration.target.schema,
-                    message, None, None)
+                    ser_ctx,
+                    subject,
+                    RulePhase.MIGRATION,
+                    migration.rule_mode,
+                    migration.source.schema,
+                    migration.target.schema,
+                    message,
+                    None,
+                    None,
+                )
         return message

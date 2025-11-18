@@ -53,8 +53,12 @@ function ignore {
 
 extra_info=""
 
-for f in $*; do
+file_count=$#
+file_num=0
 
+for f in $*; do
+    file_num=$((file_num + 1))
+    
     if ignore $f ; then
         echo "$f is ignored by .formatignore" 1>&2
         continue
@@ -93,7 +97,11 @@ for f in $*; do
             python3 -m black "$f" > /dev/null 2>&1 || true
             # Compare to see if changes were made
             if ! cmp -s "$f" _styletmp_orig; then
-                echo "$f: style fixed (isort + black)"
+                echo "[$file_num/$file_count] $f: style fixed (isort + black)"
+            else
+                # Show progress
+                echo -n "[$file_num/$file_count] Processing $f... " 1>&2
+                echo "OK" 1>&2
             fi
             rm -f _styletmp_orig
             #  Run flake8 check after formatting

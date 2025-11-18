@@ -69,10 +69,10 @@ typedef struct {
         PyObject *message;
 #endif
 
-	rd_kafka_resp_err_t code;  /* Error code */
-	char *str;   /* Human readable representation of error, if one
-		      * was provided by librdkafka.
-		      * Else falls back on err2str(). */
+        rd_kafka_resp_err_t code;  /* Error code */
+        char *str;   /* Human readable representation of error, if one
+                      * was provided by librdkafka.
+                      * Else falls back on err2str(). */
         int   fatal; /**< Set to true if a fatal error. */
         int   retriable; /**< Set to true if operation is retriable. */
         int   txn_requires_abort; /**< Set to true if this is an abortable
@@ -83,19 +83,19 @@ typedef struct {
 static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason);
 
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
-	return cfl_PyInt_FromInt(self->code);
+        return cfl_PyInt_FromInt(self->code);
 }
 
 static PyObject *KafkaError_str (KafkaError *self, PyObject *ignore) {
-	if (self->str)
-		return cfl_PyUnistr(_FromString(self->str));
-	else
-		return cfl_PyUnistr(_FromString(rd_kafka_err2str(self->code)));
+        if (self->str)
+                return cfl_PyUnistr(_FromString(self->str));
+        else
+                return cfl_PyUnistr(_FromString(rd_kafka_err2str(self->code)));
 }
 
 static PyObject *KafkaError_name (KafkaError *self, PyObject *ignore) {
-	/* FIXME: Pre-create name objects */
-	return cfl_PyUnistr(_FromString(rd_kafka_err2name(self->code)));
+        /* FIXME: Pre-create name objects */
+        return cfl_PyUnistr(_FromString(rd_kafka_err2name(self->code)));
 }
 
 static PyObject *KafkaError_fatal (KafkaError *self, PyObject *ignore) {
@@ -119,28 +119,28 @@ KafkaError_txn_requires_abort (KafkaError *self, PyObject *ignore) {
 
 
 static PyMethodDef KafkaError_methods[] = {
-	{ "code", (PyCFunction)KafkaError_code, METH_NOARGS,
-	  "  Returns the error/event code for comparison to"
-	  "KafkaError.<ERR_CONSTANTS>.\n"
-	  "\n"
-	  "  :returns: error/event code\n"
-	  "  :rtype: int\n"
-	  "\n"
-	},
-	{ "str", (PyCFunction)KafkaError_str, METH_NOARGS,
-	  "  Returns the human-readable error/event string.\n"
-	  "\n"
-	  "  :returns: error/event message string\n"
-	  "  :rtype: str\n"
-	  "\n"
-	},
-	{ "name", (PyCFunction)KafkaError_name, METH_NOARGS,
-	  "  Returns the enum name for error/event.\n"
-	  "\n"
-	  "  :returns: error/event enum name string\n"
-	  "  :rtype: str\n"
-	  "\n"
-	},
+        { "code", (PyCFunction)KafkaError_code, METH_NOARGS,
+          "  Returns the error/event code for comparison to"
+          "KafkaError.<ERR_CONSTANTS>.\n"
+          "\n"
+          "  :returns: error/event code\n"
+          "  :rtype: int\n"
+          "\n"
+        },
+        { "str", (PyCFunction)KafkaError_str, METH_NOARGS,
+          "  Returns the human-readable error/event string.\n"
+          "\n"
+          "  :returns: error/event message string\n"
+          "  :rtype: str\n"
+          "\n"
+        },
+        { "name", (PyCFunction)KafkaError_name, METH_NOARGS,
+          "  Returns the enum name for error/event.\n"
+          "\n"
+          "  :returns: error/event enum name string\n"
+          "  :rtype: str\n"
+          "\n"
+        },
         { "fatal", (PyCFunction)KafkaError_fatal, METH_NOARGS,
           "  :returns: True if this a fatal error, else False.\n"
           "  :rtype: bool\n"
@@ -165,7 +165,7 @@ static PyMethodDef KafkaError_methods[] = {
           "\n"
         },
 
-	{ NULL }
+        { NULL }
 };
 
 
@@ -192,16 +192,16 @@ static int KafkaError_traverse (KafkaError *self,
 }
 
 static PyObject *KafkaError_str0 (KafkaError *self) {
-	return cfl_PyUnistr(_FromFormat("KafkaError{%scode=%s,val=%d,str=\"%s\"}",
+        return cfl_PyUnistr(_FromFormat("KafkaError{%scode=%s,val=%d,str=\"%s\"}",
                                         self->fatal?"FATAL,":"",
-					 rd_kafka_err2name(self->code),
-					 self->code,
-					 self->str ? self->str :
-					 rd_kafka_err2str(self->code)));
+                                         rd_kafka_err2name(self->code),
+                                         self->code,
+                                         self->str ? self->str :
+                                         rd_kafka_err2str(self->code)));
 }
 
 static long KafkaError_hash (KafkaError *self) {
-	return self->code;
+        return self->code;
 }
 
 static PyTypeObject KafkaErrorType;
@@ -209,44 +209,44 @@ static PyTypeObject KafkaErrorType;
 
 
 static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
-					 int op) {
-	int code2;
-	int r;
-	PyObject *result;
+                                         int op) {
+        int code2;
+        int r;
+        PyObject *result;
 
-	if (Py_TYPE(o2) == &KafkaErrorType)
-		code2 = ((KafkaError *)o2)->code;
-	else
-		code2 = cfl_PyInt_AsInt(o2);
+        if (Py_TYPE(o2) == &KafkaErrorType)
+                code2 = ((KafkaError *)o2)->code;
+        else
+                code2 = cfl_PyInt_AsInt(o2);
 
-	switch (op)
-	{
-	case Py_LT:
-		r = self->code < code2;
-		break;
-	case Py_LE:
-		r = self->code <= code2;
-		break;
-	case Py_EQ:
-		r = self->code == code2;
-		break;
-	case Py_NE:
-		r = self->code != code2;
-		break;
-	case Py_GT:
-		r = self->code > code2;
-		break;
-	case Py_GE:
-		r = self->code >= code2;
-		break;
-	default:
-		r = 0;
-		break;
-	}
+        switch (op)
+        {
+        case Py_LT:
+                r = self->code < code2;
+                break;
+        case Py_LE:
+                r = self->code <= code2;
+                break;
+        case Py_EQ:
+                r = self->code == code2;
+                break;
+        case Py_NE:
+                r = self->code != code2;
+                break;
+        case Py_GT:
+                r = self->code > code2;
+                break;
+        case Py_GE:
+                r = self->code >= code2;
+                break;
+        default:
+                r = 0;
+                break;
+        }
 
-	result = r ? Py_True : Py_False;
-	Py_INCREF(result);
-	return result;
+        result = r ? Py_True : Py_False;
+        Py_INCREF(result);
+        return result;
 }
 
 static PyObject *KafkaError_new (PyTypeObject *type, PyObject *args,
@@ -291,34 +291,34 @@ static int KafkaError_init0 (PyObject *selfobj, PyObject *args,
 }
 
 static PyTypeObject KafkaErrorType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.KafkaError",      /*tp_name*/
-	sizeof(KafkaError),    /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)KafkaError_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	(reprfunc)KafkaError_str0, /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	(hashfunc)KafkaError_hash, /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	PyObject_GenericGetAttr,   /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.KafkaError",      /*tp_name*/
+        sizeof(KafkaError),    /*tp_basicsize*/
+        0,                         /*tp_itemsize*/
+        (destructor)KafkaError_dealloc, /*tp_dealloc*/
+        0,                         /*tp_print*/
+        0,                         /*tp_getattr*/
+        0,                         /*tp_setattr*/
+        0,                         /*tp_compare*/
+        (reprfunc)KafkaError_str0, /*tp_repr*/
+        0,                         /*tp_as_number*/
+        0,                         /*tp_as_sequence*/
+        0,                         /*tp_as_mapping*/
+        (hashfunc)KafkaError_hash, /*tp_hash */
+        0,                         /*tp_call*/
+        0,                         /*tp_str*/
+        PyObject_GenericGetAttr,   /*tp_getattro*/
+        0,                         /*tp_setattro*/
+        0,                         /*tp_as_buffer*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
         Py_TPFLAGS_BASE_EXC_SUBCLASS | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"Kafka error and event object\n"
-	"\n"
-	"  The KafkaError class serves multiple purposes\n"
-	"\n"
-	"  - Propagation of errors\n"
-	"  - Propagation of events\n"
-	"  - Exceptions\n"
+        "Kafka error and event object\n"
+        "\n"
+        "  The KafkaError class serves multiple purposes\n"
+        "\n"
+        "  - Propagation of errors\n"
+        "  - Propagation of events\n"
+        "  - Exceptions\n"
         "\n"
         "Args:\n"
         "  error (KafkaError): Error code indicating the type of error.\n"
@@ -331,23 +331,23 @@ static PyTypeObject KafkaErrorType = {
         "\n"
         "  txn_requires_abort (bool): Set to true if this is an abortable\n"
         "  transaction error.\n"
-	"\n", /*tp_doc*/
+        "\n", /*tp_doc*/
         (traverseproc)KafkaError_traverse, /* tp_traverse */
-	(inquiry)KafkaError_clear, /* tp_clear */
-	(richcmpfunc)KafkaError_richcompare, /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	KafkaError_methods,    /* tp_methods */
-	0,                         /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
+        (inquiry)KafkaError_clear, /* tp_clear */
+        (richcmpfunc)KafkaError_richcompare, /* tp_richcompare */
+        0,                           /* tp_weaklistoffset */
+        0,                           /* tp_iter */
+        0,                           /* tp_iternext */
+        KafkaError_methods,    /* tp_methods */
+        0,                         /* tp_members */
+        0,                         /* tp_getset */
+        0,                         /* tp_base */
+        0,                         /* tp_dict */
+        0,                         /* tp_descr_get */
+        0,                         /* tp_descr_set */
+        0,                         /* tp_dictoffset */
         KafkaError_init0,          /* tp_init */
-	0,                         /* tp_alloc */
+        0,                         /* tp_alloc */
         KafkaError_new             /* tp_new */
 };
 
@@ -356,24 +356,24 @@ static PyTypeObject KafkaErrorType = {
  */
 PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
 
-	KafkaError *self;
-	va_list ap;
-	char buf[512];
+        KafkaError *self;
+        va_list ap;
+        char buf[512];
 
-	self = (KafkaError *)KafkaErrorType.
-		tp_alloc(&KafkaErrorType, 0);
-	if (!self)
-		return NULL;
+        self = (KafkaError *)KafkaErrorType.
+                tp_alloc(&KafkaErrorType, 0);
+        if (!self)
+                return NULL;
 
-	if (fmt) {
-		va_start(ap, fmt);
-		vsnprintf(buf, sizeof(buf), fmt, ap);
-		va_end(ap);
-	}
+        if (fmt) {
+                va_start(ap, fmt);
+                vsnprintf(buf, sizeof(buf), fmt, ap);
+                va_end(ap);
+        }
 
-	KafkaError_init(self, err, fmt ? buf : rd_kafka_err2str(err));
+        KafkaError_init(self, err, fmt ? buf : rd_kafka_err2str(err));
 
-	return (PyObject *)self;
+        return (PyObject *)self;
 }
 
 /**
@@ -381,8 +381,8 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
  * @returns a new KafkaError object if \p err != 0, else a None object.
  */
  PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str) {
-	if (!err)
-		Py_RETURN_NONE;
+        if (!err)
+                Py_RETURN_NONE;
         if (str)
                 return KafkaError_new0(err, "%s", str);
         else
@@ -436,89 +436,89 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
  * @remark The error object refcount is increased by this function.
  */
 PyObject *Message_error (Message *self, PyObject *ignore) {
-	if (self->error) {
-		Py_INCREF(self->error);
-		return self->error;
-	} else
-		Py_RETURN_NONE;
+        if (self->error) {
+                Py_INCREF(self->error);
+                return self->error;
+        } else
+                Py_RETURN_NONE;
 }
 
 static PyObject *Message_value (Message *self, PyObject *ignore) {
-	if (self->value) {
-		Py_INCREF(self->value);
-		return self->value;
-	} else
-		Py_RETURN_NONE;
+        if (self->value) {
+                Py_INCREF(self->value);
+                return self->value;
+        } else
+                Py_RETURN_NONE;
 }
 
 
 static PyObject *Message_key (Message *self, PyObject *ignore) {
-	if (self->key) {
-		Py_INCREF(self->key);
-		return self->key;
-	} else
-		Py_RETURN_NONE;
+        if (self->key) {
+                Py_INCREF(self->key);
+                return self->key;
+        } else
+                Py_RETURN_NONE;
 }
 
 static PyObject *Message_topic (Message *self, PyObject *ignore) {
-	if (self->topic) {
-		Py_INCREF(self->topic);
-		return self->topic;
-	} else
-		Py_RETURN_NONE;
+        if (self->topic) {
+                Py_INCREF(self->topic);
+                return self->topic;
+        } else
+                Py_RETURN_NONE;
 }
 
 static PyObject *Message_partition (Message *self, PyObject *ignore) {
-	if (self->partition != RD_KAFKA_PARTITION_UA)
-		return cfl_PyInt_FromInt(self->partition);
-	else
-		Py_RETURN_NONE;
+        if (self->partition != RD_KAFKA_PARTITION_UA)
+                return cfl_PyInt_FromInt(self->partition);
+        else
+                Py_RETURN_NONE;
 }
 
 
 static PyObject *Message_offset (Message *self, PyObject *ignore) {
-	if (self->offset >= 0)
-		return PyLong_FromLongLong(self->offset);
-	else
-		Py_RETURN_NONE;
+        if (self->offset >= 0)
+                return PyLong_FromLongLong(self->offset);
+        else
+                Py_RETURN_NONE;
 }
 
 static PyObject *Message_leader_epoch (Message *self, PyObject *ignore) {
-	if (self->leader_epoch >= 0)
-		return cfl_PyInt_FromInt(self->leader_epoch);
-	else
-		Py_RETURN_NONE;
+        if (self->leader_epoch >= 0)
+                return cfl_PyInt_FromInt(self->leader_epoch);
+        else
+                Py_RETURN_NONE;
 }
 
 
 static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
-	return Py_BuildValue("iL",
-			     self->tstype,
-			     self->timestamp);
+        return Py_BuildValue("iL",
+                             self->tstype,
+                             self->timestamp);
 }
 
 static PyObject *Message_latency (Message *self, PyObject *ignore) {
         if (self->latency == -1)
                 Py_RETURN_NONE;
-	return PyFloat_FromDouble((double)self->latency / 1000000.0);
+        return PyFloat_FromDouble((double)self->latency / 1000000.0);
 }
 
 static PyObject *Message_headers (Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
-	if (self->headers) {
+        if (self->headers) {
         Py_INCREF(self->headers);
-		return self->headers;
+                return self->headers;
     } else if (self->c_headers) {
         self->headers = c_headers_to_py(self->c_headers);
         rd_kafka_headers_destroy(self->c_headers);
         self->c_headers = NULL;
         Py_INCREF(self->headers);
         return self->headers;
-	} else {
-		Py_RETURN_NONE;
+        } else {
+                Py_RETURN_NONE;
     }
 #else
-		Py_RETURN_NONE;
+                Py_RETURN_NONE;
 #endif
 }
 
@@ -550,47 +550,47 @@ static PyObject *Message_set_key (Message *self, PyObject *new_key) {
 }
 
 static PyMethodDef Message_methods[] = {
-	{ "error", (PyCFunction)Message_error, METH_NOARGS,
-	  "  The message object is also used to propagate errors and events, "
-	  "an application must check error() to determine if the Message "
-	  "is a proper message (error() returns None) or an error or event "
-	  "(error() returns a KafkaError object)\n"
-	  "\n"
-	  "  :rtype: None or :py:class:`KafkaError`\n"
-	  "\n"
-	},
+        { "error", (PyCFunction)Message_error, METH_NOARGS,
+          "  The message object is also used to propagate errors and events, "
+          "an application must check error() to determine if the Message "
+          "is a proper message (error() returns None) or an error or event "
+          "(error() returns a KafkaError object)\n"
+          "\n"
+          "  :rtype: None or :py:class:`KafkaError`\n"
+          "\n"
+        },
 
-	{ "value", (PyCFunction)Message_value, METH_NOARGS,
-	  "  :returns: message value (payload) or None if not available.\n"
-	  "  :rtype: str|bytes or None\n"
-	  "\n"
-	},
-	{ "key", (PyCFunction)Message_key, METH_NOARGS,
-	  "  :returns: message key or None if not available.\n"
-	  "  :rtype: str|bytes or None\n"
-	  "\n"
-	},
-	{ "topic", (PyCFunction)Message_topic, METH_NOARGS,
-	  "  :returns: topic name or None if not available.\n"
-	  "  :rtype: str or None\n"
-	  "\n"
-	},
-	{ "partition", (PyCFunction)Message_partition, METH_NOARGS,
-	  "  :returns: partition number or None if not available.\n"
-	  "  :rtype: int or None\n"
-	  "\n"
-	},
-	{ "offset", (PyCFunction)Message_offset, METH_NOARGS,
-	  "  :returns: message offset or None if not available.\n"
-	  "  :rtype: int or None\n"
-	  "\n"
-	},
+        { "value", (PyCFunction)Message_value, METH_NOARGS,
+          "  :returns: message value (payload) or None if not available.\n"
+          "  :rtype: str|bytes or None\n"
+          "\n"
+        },
+        { "key", (PyCFunction)Message_key, METH_NOARGS,
+          "  :returns: message key or None if not available.\n"
+          "  :rtype: str|bytes or None\n"
+          "\n"
+        },
+        { "topic", (PyCFunction)Message_topic, METH_NOARGS,
+          "  :returns: topic name or None if not available.\n"
+          "  :rtype: str or None\n"
+          "\n"
+        },
+        { "partition", (PyCFunction)Message_partition, METH_NOARGS,
+          "  :returns: partition number or None if not available.\n"
+          "  :rtype: int or None\n"
+          "\n"
+        },
+        { "offset", (PyCFunction)Message_offset, METH_NOARGS,
+          "  :returns: message offset or None if not available.\n"
+          "  :rtype: int or None\n"
+          "\n"
+        },
         { "leader_epoch", (PyCFunction)Message_leader_epoch, METH_NOARGS,
-	  "  :returns: message offset leader epoch or None if not available.\n"
-	  "  :rtype: int or None\n"
-	  "\n"
-	},
-	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
+          "  :returns: message offset leader epoch or None if not available.\n"
+          "  :rtype: int or None\n"
+          "\n"
+        },
+        { "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
           "Retrieve timestamp type and timestamp from message.\n"
           "The timestamp type is one of:\n\n"
           "  * :py:const:`TIMESTAMP_NOT_AVAILABLE` "
@@ -608,91 +608,91 @@ static PyMethodDef Message_methods[] = {
           "  Timestamps require broker version 0.10.0.0 or later and "
           "``{'api.version.request': True}`` configured on the client.\n"
           "\n"
-	  "  :returns: tuple of message timestamp type, and timestamp.\n"
-	  "  :rtype: (int, int)\n"
-	  "\n"
-	},
-	{ "latency", (PyCFunction)Message_latency, METH_NOARGS,
+          "  :returns: tuple of message timestamp type, and timestamp.\n"
+          "  :rtype: (int, int)\n"
+          "\n"
+        },
+        { "latency", (PyCFunction)Message_latency, METH_NOARGS,
           "Retrieve the time it took to produce the message, from calling "
           "produce() to the time the acknowledgement was received from "
           "the broker.\n"
           "Must only be used with the producer for successfully produced "
           "messages.\n"
           "\n"
-	  "  :returns: latency as float seconds, or None if latency "
+          "  :returns: latency as float seconds, or None if latency "
           "information is not available (such as for errored messages).\n"
-	  "  :rtype: float or None\n"
-	  "\n"
-	},
-	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
+          "  :rtype: float or None\n"
+          "\n"
+        },
+        { "headers", (PyCFunction)Message_headers, METH_NOARGS,
       "  Retrieve the headers set on a message. Each header is a key value"
       "pair. Please note that header keys are ordered and can repeat.\n"
       "\n"
-	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
-	  "  :rtype: [(str, bytes),...] or None.\n"
-	  "\n"
-	},
-	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
-	  "  Set the field 'Message.headers' with new value.\n"
+          "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
+          "  :rtype: [(str, bytes),...] or None.\n"
           "\n"
-	  "  :param object value: Message.headers.\n"
-	  "  :returns: None.\n"
-	  "  :rtype: None\n"
-	  "\n"
-	},
-	{ "set_value", (PyCFunction)Message_set_value, METH_O,
-	  "  Set the field 'Message.value' with new value.\n"
+        },
+        { "set_headers", (PyCFunction)Message_set_headers, METH_O,
+          "  Set the field 'Message.headers' with new value.\n"
           "\n"
-	  "  :param object value: Message.value.\n"
-	  "  :returns: None.\n"
-	  "  :rtype: None\n"
-	  "\n"
-	},
-	{ "set_key", (PyCFunction)Message_set_key, METH_O,
-	  "  Set the field 'Message.key' with new value.\n"
+          "  :param object value: Message.headers.\n"
+          "  :returns: None.\n"
+          "  :rtype: None\n"
           "\n"
-	  "  :param object value: Message.key.\n"
-	  "  :returns: None.\n"
-	  "  :rtype: None\n"
-	  "\n"
-	},
-	{ NULL }
+        },
+        { "set_value", (PyCFunction)Message_set_value, METH_O,
+          "  Set the field 'Message.value' with new value.\n"
+          "\n"
+          "  :param object value: Message.value.\n"
+          "  :returns: None.\n"
+          "  :rtype: None\n"
+          "\n"
+        },
+        { "set_key", (PyCFunction)Message_set_key, METH_O,
+          "  Set the field 'Message.key' with new value.\n"
+          "\n"
+          "  :param object value: Message.key.\n"
+          "  :returns: None.\n"
+          "  :rtype: None\n"
+          "\n"
+        },
+        { NULL }
 };
 
 static int Message_clear (Message *self) {
-	if (self->topic) {
-		Py_DECREF(self->topic);
-		self->topic = NULL;
-	}
-	if (self->value) {
-		Py_DECREF(self->value);
-		self->value = NULL;
-	}
-	if (self->key) {
-		Py_DECREF(self->key);
-		self->key = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->headers) {
-		Py_DECREF(self->headers);
-		self->headers = NULL;
-	}
+        if (self->topic) {
+                Py_DECREF(self->topic);
+                self->topic = NULL;
+        }
+        if (self->value) {
+                Py_DECREF(self->value);
+                self->value = NULL;
+        }
+        if (self->key) {
+                Py_DECREF(self->key);
+                self->key = NULL;
+        }
+        if (self->error) {
+                Py_DECREF(self->error);
+                self->error = NULL;
+        }
+        if (self->headers) {
+                Py_DECREF(self->headers);
+                self->headers = NULL;
+        }
 #ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
         self->c_headers = NULL;
     }
 #endif
-	return 0;
+        return 0;
 }
 
 static void Message_dealloc (Message *self) {
-	Message_clear(self);
-	PyObject_GC_UnTrack(self);
-	Py_TYPE(self)->tp_free((PyObject *)self);
+        Message_clear(self);
+        PyObject_GC_UnTrack(self);
+        Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static int Message_init (PyObject *self0, PyObject *args, PyObject *kwargs) {
@@ -702,90 +702,90 @@ static int Message_init (PyObject *self0, PyObject *args, PyObject *kwargs) {
     int64_t offset = RD_KAFKA_OFFSET_INVALID;
     PyObject *key = NULL;
     PyObject *value = NULL;
-	PyObject *headers = NULL;
-	PyObject *error = NULL;
-	PyObject *timestamp = NULL;
-	double latency = -1;
-	int32_t leader_epoch = -1;
+        PyObject *headers = NULL;
+        PyObject *error = NULL;
+        PyObject *timestamp = NULL;
+        double latency = -1;
+        int32_t leader_epoch = -1;
 
-	static char *kws[] = { "topic",
-			       "partition",
-			       "offset",
-			       "key",
+        static char *kws[] = { "topic",
+                               "partition",
+                               "offset",
+                               "key",
                    "value",
                    "headers",
                    "error",
                    "timestamp",
                    "latency",
                    "leader_epoch",
-			       NULL };
+                               NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdi", kws,
-					 &topic, &partition, &offset,
-					 &key, &value, &headers, &error,
-					 &timestamp, &latency, &leader_epoch)) {
-		return -1;
-	}
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdi", kws,
+                                         &topic, &partition, &offset,
+                                         &key, &value, &headers, &error,
+                                         &timestamp, &latency, &leader_epoch)) {
+                return -1;
+        }
 
-	/* Initialize all PyObject fields to NULL first */
-	self->topic = NULL;
-	self->value = NULL;
-	self->key = NULL;
-	self->headers = NULL;
+        /* Initialize all PyObject fields to NULL first */
+        self->topic = NULL;
+        self->value = NULL;
+        self->key = NULL;
+        self->headers = NULL;
 #ifdef RD_KAFKA_V_HEADERS
-	self->c_headers = NULL;
+        self->c_headers = NULL;
 #endif
-	self->error = NULL;
+        self->error = NULL;
 
     /* Set topic (string) */
-	if (topic && topic != Py_None) {
-		Py_INCREF(topic);
-		self->topic = topic;
-	}
+        if (topic && topic != Py_None) {
+                Py_INCREF(topic);
+                self->topic = topic;
+        }
 
-	/* Set key (bytes) */
-	if (key && key != Py_None) {
-		Py_INCREF(key);
-		self->key = key;
-	}
+        /* Set key (bytes) */
+        if (key && key != Py_None) {
+                Py_INCREF(key);
+                self->key = key;
+        }
 
-	/* Set value (bytes) */
-	if (value && value != Py_None) {
-		Py_INCREF(value);
-		self->value = value;
-	}
+        /* Set value (bytes) */
+        if (value && value != Py_None) {
+                Py_INCREF(value);
+                self->value = value;
+        }
 
-	/* Set headers (list of tuples) */
-	if (headers && headers != Py_None) {
-		Py_INCREF(headers);
-		self->headers = headers;
-	}
+        /* Set headers (list of tuples) */
+        if (headers && headers != Py_None) {
+                Py_INCREF(headers);
+                self->headers = headers;
+        }
 
-	/* Set error (KafkaError) */
-	if (error && error != Py_None) {
-		Py_INCREF(error);
-		self->error = error;
-	}
+        /* Set error (KafkaError) */
+        if (error && error != Py_None) {
+                Py_INCREF(error);
+                self->error = error;
+        }
 
     /* Set timestamp (tuple of (timestamp_type, timestamp)) */
-	if (timestamp && timestamp != Py_None) {
-	    if (!PyTuple_Check(timestamp) || PyTuple_Size(timestamp) != 2) {
-	        PyErr_SetString(PyExc_TypeError,
-	                        "timestamp must be a tuple of (int, int)");
-	        return -1;
-	    }
-	    self->tstype = (rd_kafka_timestamp_type_t)cfl_PyInt_AsInt(PyTuple_GET_ITEM(timestamp, 0));
-	    self->timestamp = PyLong_AsLongLong(PyTuple_GET_ITEM(timestamp, 1));
-	}
-	else {
-	    self->tstype = RD_KAFKA_TIMESTAMP_NOT_AVAILABLE;
-	    self->timestamp = 0;
-	}
+        if (timestamp && timestamp != Py_None) {
+            if (!PyTuple_Check(timestamp) || PyTuple_Size(timestamp) != 2) {
+                PyErr_SetString(PyExc_TypeError,
+                                "timestamp must be a tuple of (int, int)");
+                return -1;
+            }
+            self->tstype = (rd_kafka_timestamp_type_t)cfl_PyInt_AsInt(PyTuple_GET_ITEM(timestamp, 0));
+            self->timestamp = PyLong_AsLongLong(PyTuple_GET_ITEM(timestamp, 1));
+        }
+        else {
+            self->tstype = RD_KAFKA_TIMESTAMP_NOT_AVAILABLE;
+            self->timestamp = 0;
+        }
 
     self->partition = partition < 0 ? RD_KAFKA_PARTITION_UA: partition;
-	self->offset = offset < 0 ? RD_KAFKA_OFFSET_INVALID: offset;
-	self->leader_epoch = leader_epoch < 0 ? -1: leader_epoch;
-	self->latency = (int64_t)(latency < 0 ? -1: latency * 1000000.0);
+        self->offset = offset < 0 ? RD_KAFKA_OFFSET_INVALID: offset;
+        self->leader_epoch = leader_epoch < 0 ? -1: leader_epoch;
+        self->latency = (int64_t)(latency < 0 ? -1: latency * 1000000.0);
 
     return 0;
 }
@@ -799,90 +799,90 @@ static PyObject *Message_new (PyTypeObject *type, PyObject *args,
 
 
 static int Message_traverse (Message *self,
-			     visitproc visit, void *arg) {
-	if (self->topic)
-		Py_VISIT(self->topic);
-	if (self->value)
-		Py_VISIT(self->value);
-	if (self->key)
-		Py_VISIT(self->key);
-	if (self->error)
-		Py_VISIT(self->error);
-	if (self->headers)
-		Py_VISIT(self->headers);
-	return 0;
+                             visitproc visit, void *arg) {
+        if (self->topic)
+                Py_VISIT(self->topic);
+        if (self->value)
+                Py_VISIT(self->value);
+        if (self->key)
+                Py_VISIT(self->key);
+        if (self->error)
+                Py_VISIT(self->error);
+        if (self->headers)
+                Py_VISIT(self->headers);
+        return 0;
 }
 
 static Py_ssize_t Message__len__ (Message *self) {
-	return self->value ? PyObject_Length(self->value) : 0;
+        return self->value ? PyObject_Length(self->value) : 0;
 }
 
 static PySequenceMethods Message_seq_methods = {
-	(lenfunc)Message__len__ /* sq_length */
+        (lenfunc)Message__len__ /* sq_length */
 };
 
 PyTypeObject MessageType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Message",         /*tp_name*/
-	sizeof(Message),       /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)Message_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	&Message_seq_methods,  /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	PyObject_GenericGetAttr,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"The Message object represents either a single consumed or "
-	"produced message, or an event (:py:func:`error()` is not None).\n"
-	"\n"
-	"An application must check with :py:func:`error()` to see if the "
-	"object is a proper message (error() returns None) or an "
-	"error/event.\n"
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.Message",         /*tp_name*/
+        sizeof(Message),       /*tp_basicsize*/
+        0,                         /*tp_itemsize*/
+        (destructor)Message_dealloc, /*tp_dealloc*/
+        0,                         /*tp_print*/
+        0,                         /*tp_getattr*/
+        0,                         /*tp_setattr*/
+        0,                         /*tp_compare*/
+        0,                         /*tp_repr*/
+        0,                         /*tp_as_number*/
+        &Message_seq_methods,  /*tp_as_sequence*/
+        0,                         /*tp_as_mapping*/
+        0,                         /*tp_hash */
+        0,                         /*tp_call*/
+        0,                         /*tp_str*/
+        PyObject_GenericGetAttr,                         /*tp_getattro*/
+        0,                         /*tp_setattro*/
+        0,                         /*tp_as_buffer*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+        "The Message object represents either a single consumed or "
+        "produced message, or an event (:py:func:`error()` is not None).\n"
         "\n"
-	".. py:function:: len()\n"
-	"\n"
-	"  :returns: Message value (payload) size in bytes\n"
-	"  :rtype: int\n"
-	"\n", /*tp_doc*/
-	(traverseproc)Message_traverse,        /* tp_traverse */
-	(inquiry)Message_clear,	           /* tp_clear */
-	0,		           /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	Message_methods,           /* tp_methods */
-	0,                         /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
-	Message_init,                         /* tp_init */
-	0,                         /* tp_alloc */
-	Message_new                          /* tp_new */
+        "An application must check with :py:func:`error()` to see if the "
+        "object is a proper message (error() returns None) or an "
+        "error/event.\n"
+        "\n"
+        ".. py:function:: len()\n"
+        "\n"
+        "  :returns: Message value (payload) size in bytes\n"
+        "  :rtype: int\n"
+        "\n", /*tp_doc*/
+        (traverseproc)Message_traverse,        /* tp_traverse */
+        (inquiry)Message_clear,                   /* tp_clear */
+        0,                           /* tp_richcompare */
+        0,                           /* tp_weaklistoffset */
+        0,                           /* tp_iter */
+        0,                           /* tp_iternext */
+        Message_methods,           /* tp_methods */
+        0,                         /* tp_members */
+        0,                         /* tp_getset */
+        0,                         /* tp_base */
+        0,                         /* tp_dict */
+        0,                         /* tp_descr_get */
+        0,                         /* tp_descr_set */
+        0,                         /* tp_dictoffset */
+        Message_init,                         /* tp_init */
+        0,                         /* tp_alloc */
+        Message_new                          /* tp_new */
 };
 
 /**
  * @brief Internal factory to create Message object from message_t
  */
 PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
-	Message *self;
+        Message *self;
 
-	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
-	if (!self)
-		return NULL;
+        self = (Message *)MessageType.tp_alloc(&MessageType, 0);
+        if (!self)
+                return NULL;
 
         /* Only use message error string on Consumer, for Producers
          * it will contain the original message payload. */
@@ -891,28 +891,28 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
                 (rkm->err && handle->type != RD_KAFKA_PRODUCER) ?
                 rd_kafka_message_errstr(rkm) : NULL);
 
-	if (rkm->rkt)
-		self->topic = cfl_PyUnistr(
-			_FromString(rd_kafka_topic_name(rkm->rkt)));
-	if (rkm->payload)
-		self->value = cfl_PyBin(_FromStringAndSize(rkm->payload,
-							   rkm->len));
-	if (rkm->key)
-		self->key = cfl_PyBin(
-			_FromStringAndSize(rkm->key, rkm->key_len));
+        if (rkm->rkt)
+                self->topic = cfl_PyUnistr(
+                        _FromString(rd_kafka_topic_name(rkm->rkt)));
+        if (rkm->payload)
+                self->value = cfl_PyBin(_FromStringAndSize(rkm->payload,
+                                                           rkm->len));
+        if (rkm->key)
+                self->key = cfl_PyBin(
+                        _FromStringAndSize(rkm->key, rkm->key_len));
 
-	self->partition = rkm->partition;
-	self->offset = rkm->offset;
+        self->partition = rkm->partition;
+        self->offset = rkm->offset;
         self->leader_epoch = rd_kafka_message_leader_epoch(rkm);
 
-	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
+        self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
         if (handle->type == RD_KAFKA_PRODUCER)
                 self->latency = rd_kafka_message_latency(rkm);
         else
                 self->latency = -1;
 
-	return (PyObject *)self;
+        return (PyObject *)self;
 }
 
 
@@ -941,17 +941,17 @@ static PyObject *Uuid_least_significant_bits (Uuid *self, PyObject *ignore) {
 }
 
 static PyMethodDef Uuid_methods[] = {
-	{ "get_most_significant_bits", (PyCFunction)Uuid_most_significant_bits, METH_NOARGS,
-	  "  :returns: Most significant 64 bits of the 128 bits Uuid\n"
-	  "  :rtype: int\n"
-	  "\n"
-	},
-	{ "get_least_significant_bits", (PyCFunction)Uuid_least_significant_bits, METH_NOARGS,
-	  "  :returns: Least significant 64 bits of the 128 bits Uuid\n"
-	  "  :rtype: int\n"
-	  "\n"
-	},
-	{ NULL }
+        { "get_most_significant_bits", (PyCFunction)Uuid_most_significant_bits, METH_NOARGS,
+          "  :returns: Most significant 64 bits of the 128 bits Uuid\n"
+          "  :rtype: int\n"
+          "\n"
+        },
+        { "get_least_significant_bits", (PyCFunction)Uuid_least_significant_bits, METH_NOARGS,
+          "  :returns: Least significant 64 bits of the 128 bits Uuid\n"
+          "  :rtype: int\n"
+          "\n"
+        },
+        { NULL }
 };
 
 
@@ -997,11 +997,11 @@ static int Uuid_init (PyObject *self0, PyObject *args,
 }
 
 static int Uuid_clear (Uuid *self) {
-	if (self->cUuid) {
-		rd_kafka_Uuid_destroy(self->cUuid);
-		self->cUuid = NULL;
-	}
-	return 0;
+        if (self->cUuid) {
+                rd_kafka_Uuid_destroy(self->cUuid);
+                self->cUuid = NULL;
+        }
+        return 0;
 }
 
 static int Uuid_traverse (Uuid *self,
@@ -1037,7 +1037,7 @@ PyTypeObject UuidType = {
         0,                                      /* tp_setattro */
         0,                                      /* tp_as_buffer */
         Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC,                     /* tp_flags */
+        Py_TPFLAGS_HAVE_GC,                     /* tp_flags */
         "Generic Uuid. Being used in various identifiers including topic_id.\n"
         "\n"
         ".. py:function:: Uuid(most_significant_bits, least_significant_bits)\n"
@@ -1080,95 +1080,95 @@ PyTypeObject UuidType = {
  *
  ****************************************************************************/
 static int TopicPartition_clear (TopicPartition *self) {
-	if (self->topic) {
-		free(self->topic);
-		self->topic = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->metadata) {
-		free(self->metadata);
-		self->metadata = NULL;
-	}
-	return 0;
+        if (self->topic) {
+                free(self->topic);
+                self->topic = NULL;
+        }
+        if (self->error) {
+                Py_DECREF(self->error);
+                self->error = NULL;
+        }
+        if (self->metadata) {
+                free(self->metadata);
+                self->metadata = NULL;
+        }
+        return 0;
 }
 
 static void TopicPartition_setup (TopicPartition *self, const char *topic,
-				  int partition, long long offset,
+                                  int partition, long long offset,
                                   int32_t leader_epoch,
-				  const char *metadata,
-				  rd_kafka_resp_err_t err) {
-	self->topic = strdup(topic);
-	self->partition = partition;
-	self->offset = offset;
+                                  const char *metadata,
+                                  rd_kafka_resp_err_t err) {
+        self->topic = strdup(topic);
+        self->partition = partition;
+        self->offset = offset;
 
         if (leader_epoch < 0)
                 leader_epoch = -1;
         self->leader_epoch = leader_epoch;
 
-	if (metadata != NULL) {
-		self->metadata = strdup(metadata);
-	} else {
-		self->metadata = NULL;
-	}
+        if (metadata != NULL) {
+                self->metadata = strdup(metadata);
+        } else {
+                self->metadata = NULL;
+        }
 
-	self->error = KafkaError_new_or_None(err, NULL);
+        self->error = KafkaError_new_or_None(err, NULL);
 }
 
 
 static void TopicPartition_dealloc (TopicPartition *self) {
-	PyObject_GC_UnTrack(self);
+        PyObject_GC_UnTrack(self);
 
-	TopicPartition_clear(self);
+        TopicPartition_clear(self);
 
-	Py_TYPE(self)->tp_free((PyObject *)self);
+        Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 
 static int TopicPartition_init (PyObject *self, PyObject *args,
-				      PyObject *kwargs) {
-	const char *topic;
-	int partition = RD_KAFKA_PARTITION_UA;
+                                      PyObject *kwargs) {
+        const char *topic;
+        int partition = RD_KAFKA_PARTITION_UA;
         int32_t leader_epoch = -1;
-	long long offset = RD_KAFKA_OFFSET_INVALID;
-	const char *metadata = NULL;
+        long long offset = RD_KAFKA_OFFSET_INVALID;
+        const char *metadata = NULL;
 
-	static char *kws[] = { "topic",
-			       "partition",
-			       "offset",
-			       "metadata",
+        static char *kws[] = { "topic",
+                               "partition",
+                               "offset",
+                               "metadata",
                                "leader_epoch",
-			       NULL };
+                               NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLsi", kws,
-					 &topic, &partition, &offset,
-					 &metadata,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLsi", kws,
+                                         &topic, &partition, &offset,
+                                         &metadata,
                                          &leader_epoch)) {
-		return -1;
-	}
+                return -1;
+        }
 
-	TopicPartition_setup((TopicPartition *)self,
-			     topic, partition, offset,
+        TopicPartition_setup((TopicPartition *)self,
+                             topic, partition, offset,
                              leader_epoch, metadata, 0);
-	return 0;
+        return 0;
 }
 
 
 static PyObject *TopicPartition_new (PyTypeObject *type, PyObject *args,
-				     PyObject *kwargs) {
-	PyObject *self = type->tp_alloc(type, 1);
-	return self;
+                                     PyObject *kwargs) {
+        PyObject *self = type->tp_alloc(type, 1);
+        return self;
 }
 
 
 
 static int TopicPartition_traverse (TopicPartition *self,
-				    visitproc visit, void *arg) {
-	if (self->error)
-		Py_VISIT(self->error);
-	return 0;
+                                    visitproc visit, void *arg) {
+        if (self->error)
+                Py_VISIT(self->error);
+        return 0;
 }
 
 static PyObject *TopicPartition_get_leader_epoch (TopicPartition *tp, void *closure) {
@@ -1220,11 +1220,11 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
         PyObject *errstr = NULL;
         PyObject *errstr8 = NULL;
         const char *c_errstr = NULL;
-	PyObject *ret;
-	char offset_str[40];
+        PyObject *ret;
+        char offset_str[40];
         char leader_epoch_str[12];
 
-	snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
+        snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
         if (self->leader_epoch >= 0)
                 snprintf(leader_epoch_str, sizeof(leader_epoch_str),
                         "%"CFL_PRId32"", self->leader_epoch);
@@ -1237,162 +1237,162 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
                 c_errstr = cfl_PyUnistr_AsUTF8(errstr, &errstr8);
         }
 
-	ret = cfl_PyUnistr(
-		_FromFormat("TopicPartition{topic=%s,partition=%"CFL_PRId32
-			    ",offset=%s,leader_epoch=%s,error=%s}",
-			    self->topic, self->partition,
-			    offset_str,
+        ret = cfl_PyUnistr(
+                _FromFormat("TopicPartition{topic=%s,partition=%"CFL_PRId32
+                            ",offset=%s,leader_epoch=%s,error=%s}",
+                            self->topic, self->partition,
+                            offset_str,
                             leader_epoch_str,
-			    c_errstr ? c_errstr : "None"));
+                            c_errstr ? c_errstr : "None"));
         Py_XDECREF(errstr8);
         Py_XDECREF(errstr);
-	return ret;
+        return ret;
 }
 
 
 static PyObject *
 TopicPartition_richcompare (TopicPartition *self, PyObject *o2,
-			    int op) {
-	TopicPartition *a = self, *b;
-	int tr, pr;
-	int r;
-	PyObject *result;
+                            int op) {
+        TopicPartition *a = self, *b;
+        int tr, pr;
+        int r;
+        PyObject *result;
 
-	if (Py_TYPE(o2) != Py_TYPE(self)) {
-		PyErr_SetNone(PyExc_NotImplementedError);
-		return NULL;
-	}
+        if (Py_TYPE(o2) != Py_TYPE(self)) {
+                PyErr_SetNone(PyExc_NotImplementedError);
+                return NULL;
+        }
 
-	b = (TopicPartition *)o2;
+        b = (TopicPartition *)o2;
 
-	tr = strcmp(a->topic, b->topic);
-	pr = a->partition - b->partition;
-	switch (op)
-	{
-	case Py_LT:
-		r = tr < 0 || (tr == 0 && pr < 0);
-		break;
-	case Py_LE:
-		r = tr < 0 || (tr == 0 && pr <= 0);
-		break;
-	case Py_EQ:
-		r = (tr == 0 && pr == 0);
-		break;
-	case Py_NE:
-		r = (tr != 0 || pr != 0);
-		break;
-	case Py_GT:
-		r = tr > 0 || (tr == 0 && pr > 0);
-		break;
-	case Py_GE:
-		r = tr > 0 || (tr == 0 && pr >= 0);
-		break;
-	default:
-		r = 0;
-		break;
-	}
+        tr = strcmp(a->topic, b->topic);
+        pr = a->partition - b->partition;
+        switch (op)
+        {
+        case Py_LT:
+                r = tr < 0 || (tr == 0 && pr < 0);
+                break;
+        case Py_LE:
+                r = tr < 0 || (tr == 0 && pr <= 0);
+                break;
+        case Py_EQ:
+                r = (tr == 0 && pr == 0);
+                break;
+        case Py_NE:
+                r = (tr != 0 || pr != 0);
+                break;
+        case Py_GT:
+                r = tr > 0 || (tr == 0 && pr > 0);
+                break;
+        case Py_GE:
+                r = tr > 0 || (tr == 0 && pr >= 0);
+                break;
+        default:
+                r = 0;
+                break;
+        }
 
-	result = r ? Py_True : Py_False;
-	Py_INCREF(result);
-	return result;
+        result = r ? Py_True : Py_False;
+        Py_INCREF(result);
+        return result;
 }
 
 
 static long TopicPartition_hash (TopicPartition *self) {
-	PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
-	long r = PyObject_Hash(topic) ^ self->partition;
-	Py_DECREF(topic);
-	return r;
+        PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
+        long r = PyObject_Hash(topic) ^ self->partition;
+        Py_DECREF(topic);
+        return r;
 }
 
 
 PyTypeObject TopicPartitionType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.TopicPartition",         /*tp_name*/
-	sizeof(TopicPartition),       /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)TopicPartition_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	(reprfunc)TopicPartition_str0, /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	(hashfunc)TopicPartition_hash, /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	PyObject_GenericGetAttr,   /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"TopicPartition is a generic type to hold a single partition and "
-	"various information about it.\n"
-	"\n"
-	"It is typically used to provide a list of topics or partitions for "
-	"various operations, such as :py:func:`Consumer.assign()`.\n"
-	"\n"
-	".. py:function:: TopicPartition(topic, [partition], [offset],"
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.TopicPartition",         /*tp_name*/
+        sizeof(TopicPartition),       /*tp_basicsize*/
+        0,                         /*tp_itemsize*/
+        (destructor)TopicPartition_dealloc, /*tp_dealloc*/
+        0,                         /*tp_print*/
+        0,                         /*tp_getattr*/
+        0,                         /*tp_setattr*/
+        0,                         /*tp_compare*/
+        (reprfunc)TopicPartition_str0, /*tp_repr*/
+        0,                         /*tp_as_number*/
+        0,                         /*tp_as_sequence*/
+        0,                         /*tp_as_mapping*/
+        (hashfunc)TopicPartition_hash, /*tp_hash */
+        0,                         /*tp_call*/
+        0,                         /*tp_str*/
+        PyObject_GenericGetAttr,   /*tp_getattro*/
+        0,                         /*tp_setattro*/
+        0,                         /*tp_as_buffer*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+        "TopicPartition is a generic type to hold a single partition and "
+        "various information about it.\n"
+        "\n"
+        "It is typically used to provide a list of topics or partitions for "
+        "various operations, such as :py:func:`Consumer.assign()`.\n"
+        "\n"
+        ".. py:function:: TopicPartition(topic, [partition], [offset],"
         " [metadata], [leader_epoch])\n"
-	"\n"
-	"  Instantiate a TopicPartition object.\n"
-	"\n"
-	"  :param string topic: Topic name\n"
-	"  :param int partition: Partition id\n"
-	"  :param int offset: Initial partition offset\n"
+        "\n"
+        "  Instantiate a TopicPartition object.\n"
+        "\n"
+        "  :param string topic: Topic name\n"
+        "  :param int partition: Partition id\n"
+        "  :param int offset: Initial partition offset\n"
         "  :param string metadata: Offset metadata\n"
         "  :param int leader_epoch: Offset leader epoch\n"
-	"  :rtype: TopicPartition\n"
-	"\n"
-	"\n", /*tp_doc*/
-	(traverseproc)TopicPartition_traverse, /* tp_traverse */
-	(inquiry)TopicPartition_clear,       /* tp_clear */
-	(richcmpfunc)TopicPartition_richcompare, /* tp_richcompare */
-	0,		                    /* tp_weaklistoffset */
-	0,		                    /* tp_iter */
-	0,		                    /* tp_iternext */
-	0,                                  /* tp_methods */
-	TopicPartition_members,             /* tp_members */
-	TopicPartition_getters_and_setters, /* tp_getset */
-	0,                                  /* tp_base */
-	0,                                  /* tp_dict */
-	0,                                  /* tp_descr_get */
-	0,                                  /* tp_descr_set */
-	0,                                  /* tp_dictoffset */
-	TopicPartition_init,                /* tp_init */
-	0,                                  /* tp_alloc */
-	TopicPartition_new                  /* tp_new */
+        "  :rtype: TopicPartition\n"
+        "\n"
+        "\n", /*tp_doc*/
+        (traverseproc)TopicPartition_traverse, /* tp_traverse */
+        (inquiry)TopicPartition_clear,       /* tp_clear */
+        (richcmpfunc)TopicPartition_richcompare, /* tp_richcompare */
+        0,                                    /* tp_weaklistoffset */
+        0,                                    /* tp_iter */
+        0,                                    /* tp_iternext */
+        0,                                  /* tp_methods */
+        TopicPartition_members,             /* tp_members */
+        TopicPartition_getters_and_setters, /* tp_getset */
+        0,                                  /* tp_base */
+        0,                                  /* tp_dict */
+        0,                                  /* tp_descr_get */
+        0,                                  /* tp_descr_set */
+        0,                                  /* tp_dictoffset */
+        TopicPartition_init,                /* tp_init */
+        0,                                  /* tp_alloc */
+        TopicPartition_new                  /* tp_new */
 };
 
 /**
  * @brief Internal factory to create a TopicPartition object.
  */
 static PyObject *TopicPartition_new0 (const char *topic, int partition,
-				      long long offset, int32_t leader_epoch,
+                                      long long offset, int32_t leader_epoch,
                                       const char *metadata,
-				      rd_kafka_resp_err_t err) {
-	TopicPartition *self;
+                                      rd_kafka_resp_err_t err) {
+        TopicPartition *self;
 
-	self = (TopicPartition *)TopicPartitionType.tp_new(
-		&TopicPartitionType, NULL, NULL);
+        self = (TopicPartition *)TopicPartitionType.tp_new(
+                &TopicPartitionType, NULL, NULL);
 
-	TopicPartition_setup(self, topic, partition,
-			     offset, leader_epoch,
+        TopicPartition_setup(self, topic, partition,
+                             offset, leader_epoch,
                              metadata, err);
 
-	return (PyObject *)self;
+        return (PyObject *)self;
 }
 
 
 
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
         return TopicPartition_new0(rktpar->topic, rktpar->partition,
-			           rktpar->offset,
+                                   rktpar->offset,
                                    rd_kafka_topic_partition_get_leader_epoch(rktpar),
-				   rktpar->metadata,
-				   rktpar->err);
+                                   rktpar->metadata,
+                                   rktpar->err);
 }
 
 /**
@@ -1401,17 +1401,17 @@ PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
  * @returns The new Python list object.
  */
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
-	PyObject *parts;
-	size_t i;
+        PyObject *parts;
+        size_t i;
 
-	parts = PyList_New(c_parts->cnt);
+        parts = PyList_New(c_parts->cnt);
 
-	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
-		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-		PyList_SET_ITEM(parts, i, c_part_to_py(rktpar));
-	}
+        for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
+                const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
+                PyList_SET_ITEM(parts, i, c_part_to_py(rktpar));
+        }
 
-	return parts;
+        return parts;
 
 }
 
@@ -1421,47 +1421,47 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
  * @returns The new C list on success or NULL on error.
  */
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
-	rd_kafka_topic_partition_list_t *c_parts;
-	size_t i;
+        rd_kafka_topic_partition_list_t *c_parts;
+        size_t i;
 
-	if (!PyList_Check(plist)) {
-		PyErr_SetString(PyExc_TypeError,
-				"requires list of TopicPartition");
-		return NULL;
-	}
+        if (!PyList_Check(plist)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "requires list of TopicPartition");
+                return NULL;
+        }
 
-	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
+        c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
-	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
-		rd_kafka_topic_partition_t *rktpar;
-		TopicPartition *tp = (TopicPartition *)
-			PyList_GetItem(plist, i);
+        for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
+                rd_kafka_topic_partition_t *rktpar;
+                TopicPartition *tp = (TopicPartition *)
+                        PyList_GetItem(plist, i);
 
-		if (PyObject_Type((PyObject *)tp) !=
-		    (PyObject *)&TopicPartitionType) {
-			PyErr_Format(PyExc_TypeError,
-				     "expected %s",
-				     TopicPartitionType.tp_name);
-			rd_kafka_topic_partition_list_destroy(c_parts);
-			return NULL;
-		}
+                if (PyObject_Type((PyObject *)tp) !=
+                    (PyObject *)&TopicPartitionType) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected %s",
+                                     TopicPartitionType.tp_name);
+                        rd_kafka_topic_partition_list_destroy(c_parts);
+                        return NULL;
+                }
 
-		rktpar = rd_kafka_topic_partition_list_add(c_parts,
-							   tp->topic,
-							   tp->partition);
-		rktpar->offset = tp->offset;
+                rktpar = rd_kafka_topic_partition_list_add(c_parts,
+                                                           tp->topic,
+                                                           tp->partition);
+                rktpar->offset = tp->offset;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                         tp->leader_epoch);
-		if (tp->metadata != NULL) {
-			rktpar->metadata_size = strlen(tp->metadata) + 1;
-			rktpar->metadata = strdup(tp->metadata);
-		} else {
-			rktpar->metadata_size = 0;
-			rktpar->metadata = NULL;
-		}
-	}
+                if (tp->metadata != NULL) {
+                        rktpar->metadata_size = strlen(tp->metadata) + 1;
+                        rktpar->metadata = strdup(tp->metadata);
+                } else {
+                        rktpar->metadata_size = 0;
+                        rktpar->metadata = NULL;
+                }
+        }
 
-	return c_parts;
+        return c_parts;
 }
 
 /**
@@ -1701,7 +1701,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
  * @returns The new Python object, or NULL and raises an exception failure.
  */
 PyObject *c_cgmd_to_py (const rd_kafka_consumer_group_metadata_t *cgmd) {
-	PyObject *obj;
+        PyObject *obj;
         void *buffer;
         size_t size;
         rd_kafka_error_t *error;
@@ -1839,11 +1839,11 @@ err:
  *
  ****************************************************************************/
 static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
-	Handle *h = opaque;
-	PyObject *eo, *result;
-	CallState *cs;
+        Handle *h = opaque;
+        PyObject *eo, *result;
+        CallState *cs;
 
-	cs = CallState_get(h);
+        cs = CallState_get(h);
 
         /* If the client raised a fatal error we'll raise an exception
          * rather than calling the error callback. */
@@ -1854,26 +1854,26 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
                 goto crash;
         }
 
-	if (!h->error_cb) {
-		/* No callback defined */
-		goto done;
-	}
+        if (!h->error_cb) {
+                /* No callback defined */
+                goto done;
+        }
 
-	eo = KafkaError_new0(err, "%s", reason);
-	result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
-	Py_DECREF(eo);
+        eo = KafkaError_new0(err, "%s", reason);
+        result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
+        Py_DECREF(eo);
 
-	if (result)
-		Py_DECREF(result);
-	else {
-		CallState_fetch_exception(cs);
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_fetch_exception(cs);
         crash:
-		CallState_crash(cs);
-		rd_kafka_yield(h->rk);
-	}
+                CallState_crash(cs);
+                rd_kafka_yield(h->rk);
+        }
 
  done:
-	CallState_resume(cs);
+        CallState_resume(cs);
 }
 
 /**
@@ -1936,31 +1936,31 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
 }
 
 static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
-	Handle *h = opaque;
-	PyObject *eo = NULL, *result = NULL;
-	CallState *cs = NULL;
+        Handle *h = opaque;
+        PyObject *eo = NULL, *result = NULL;
+        CallState *cs = NULL;
 
-	cs = CallState_get(h);
-	if (json_len == 0) {
-		/* No data returned*/
-		goto done;
-	}
+        cs = CallState_get(h);
+        if (json_len == 0) {
+                /* No data returned*/
+                goto done;
+        }
 
-	eo = Py_BuildValue("s", json);
-	result = PyObject_CallFunctionObjArgs(h->stats_cb, eo, NULL);
-	Py_DECREF(eo);
+        eo = Py_BuildValue("s", json);
+        result = PyObject_CallFunctionObjArgs(h->stats_cb, eo, NULL);
+        Py_DECREF(eo);
 
-	if (result)
-		Py_DECREF(result);
-	else {
-		CallState_fetch_exception(cs);
-		CallState_crash(cs);
-		rd_kafka_yield(h->rk);
-	}
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_fetch_exception(cs);
+                CallState_crash(cs);
+                rd_kafka_yield(h->rk);
+        }
 
  done:
-	CallState_resume(cs);
-	return 0;
+        CallState_resume(cs);
+        return 0;
 }
 
 static void log_cb (const rd_kafka_t *rk, int level,
@@ -2182,16 +2182,16 @@ void Handle_clear (Handle *h) {
  * GC traversal for Python object references
  */
 int Handle_traverse (Handle *h, visitproc visit, void *arg) {
-	if (h->error_cb)
-		Py_VISIT(h->error_cb);
+        if (h->error_cb)
+                Py_VISIT(h->error_cb);
 
         if (h->throttle_cb)
                 Py_VISIT(h->throttle_cb);
 
-	if (h->stats_cb)
-		Py_VISIT(h->stats_cb);
+        if (h->stats_cb)
+                Py_VISIT(h->stats_cb);
 
-	return 0;
+        return 0;
 }
 
 /**
@@ -2200,21 +2200,21 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      const char *name, PyObject *valobj) {
+                                      const char *name, PyObject *valobj) {
 
-	if (!strcmp(name, "on_delivery")) {
-		if (!PyCallable_Check(valobj)) {
-			cfl_PyErr_Format(
-				RD_KAFKA_RESP_ERR__INVALID_ARG,
-				"%s requires a callable "
-				"object", name);
-			return -1;
-		}
+        if (!strcmp(name, "on_delivery")) {
+                if (!PyCallable_Check(valobj)) {
+                        cfl_PyErr_Format(
+                                RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "%s requires a callable "
+                                "object", name);
+                        return -1;
+                }
 
-		self->u.Producer.default_dr_cb = valobj;
-		Py_INCREF(self->u.Producer.default_dr_cb);
+                self->u.Producer.default_dr_cb = valobj;
+                Py_INCREF(self->u.Producer.default_dr_cb);
 
-		return 1;
+                return 1;
 
         } else if (!strcmp(name, "delivery.report.only.error")) {
                 /* Since we allocate msgstate for each produced message
@@ -2231,7 +2231,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
                 return 1;
         }
 
-	return 0; /* Not handled */
+        return 0; /* Not handled */
 }
 
 
@@ -2241,24 +2241,24 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      const char *name, PyObject *valobj) {
+                                      const char *name, PyObject *valobj) {
 
-	if (!strcmp(name, "on_commit")) {
-		if (!PyCallable_Check(valobj)) {
-			cfl_PyErr_Format(
-				RD_KAFKA_RESP_ERR__INVALID_ARG,
-				"%s requires a callable "
-				"object", name);
-			return -1;
-		}
+        if (!strcmp(name, "on_commit")) {
+                if (!PyCallable_Check(valobj)) {
+                        cfl_PyErr_Format(
+                                RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "%s requires a callable "
+                                "object", name);
+                        return -1;
+                }
 
-		self->u.Consumer.on_commit = valobj;
-		Py_INCREF(self->u.Consumer.on_commit);
+                self->u.Consumer.on_commit = valobj;
+                Py_INCREF(self->u.Consumer.on_commit);
 
-		return 1;
-	}
+                return 1;
+        }
 
-	return 0;
+        return 0;
 }
 
 /**
@@ -2361,12 +2361,12 @@ static void common_conf_set_software (rd_kafka_conf_t *conf) {
  * an exception has been raised.
  */
 rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
-				    Handle *h,
-				    PyObject *args,
-				    PyObject *kwargs) {
-	rd_kafka_conf_t *conf;
-	Py_ssize_t pos = 0;
-	PyObject *ko, *vo;
+                                    Handle *h,
+                                    PyObject *args,
+                                    PyObject *kwargs) {
+        rd_kafka_conf_t *conf;
+        Py_ssize_t pos = 0;
+        PyObject *ko, *vo;
         PyObject *confdict = NULL;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
@@ -2425,7 +2425,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 return NULL;
         }
 
-	conf = rd_kafka_conf_new();
+        conf = rd_kafka_conf_new();
 
         /* Set software name and verison prior to applying the confdict to
          * allow even higher-level clients to override it. */
@@ -2475,42 +2475,42 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 PyDict_DelItemString(confdict, "default.topic.config");
         }
 
-	/* Convert config dict to config key-value pairs. */
-	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
-		PyObject *ks;
-		PyObject *ks8 = NULL;
-		PyObject *vs = NULL, *vs8 = NULL;
-		const char *k;
-		const char *v;
-		char errstr[256];
+        /* Convert config dict to config key-value pairs. */
+        while (PyDict_Next(confdict, &pos, &ko, &vo)) {
+                PyObject *ks;
+                PyObject *ks8 = NULL;
+                PyObject *vs = NULL, *vs8 = NULL;
+                const char *k;
+                const char *v;
+                char errstr[256];
                 int r = 0;
 
-		if (!(ks = cfl_PyObject_Unistr(ko))) {
+                if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_SetString(PyExc_TypeError,
                                         "expected configuration property name "
                                         "as type unicode string");
                         goto inner_err;
-		}
+                }
 
-		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		if (!strcmp(k, "error_cb")) {
-			if (!PyCallable_Check(vo)) {
-				PyErr_SetString(PyExc_TypeError,
-						"expected error_cb property "
-						"as a callable function");
+                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                if (!strcmp(k, "error_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected error_cb property "
+                                                "as a callable function");
                                 goto inner_err;
                         }
-			if (h->error_cb) {
-				Py_DECREF(h->error_cb);
-				h->error_cb = NULL;
-			}
-			if (vo != Py_None) {
-				h->error_cb = vo;
-				Py_INCREF(h->error_cb);
-			}
+                        if (h->error_cb) {
+                                Py_DECREF(h->error_cb);
+                                h->error_cb = NULL;
+                        }
+                        if (vo != Py_None) {
+                                h->error_cb = vo;
+                                Py_INCREF(h->error_cb);
+                        }
                         Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			continue;
+                        Py_DECREF(ks);
+                        continue;
                 } else if (!strcmp(k, "throttle_cb")) {
                         if (!PyCallable_Check(vo)) {
                                 PyErr_SetString(PyExc_ValueError,
@@ -2529,25 +2529,25 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
                         continue;
-		} else if (!strcmp(k, "stats_cb")) {
-			if (!PyCallable_Check(vo)) {
-				PyErr_SetString(PyExc_TypeError,
-						"expected stats_cb property "
-						"as a callable function");
+                } else if (!strcmp(k, "stats_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected stats_cb property "
+                                                "as a callable function");
                                 goto inner_err;
                         }
 
-			if (h->stats_cb) {
-				Py_DECREF(h->stats_cb);
-				h->stats_cb = NULL;
-			}
-			if (vo != Py_None) {
-				h->stats_cb = vo;
-				Py_INCREF(h->stats_cb);
-			}
+                        if (h->stats_cb) {
+                                Py_DECREF(h->stats_cb);
+                                h->stats_cb = NULL;
+                        }
+                        if (vo != Py_None) {
+                                h->stats_cb = vo;
+                                Py_INCREF(h->stats_cb);
+                        }
                         Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			continue;
+                        Py_DECREF(ks);
+                        continue;
                 } else if (!strcmp(k, "logger")) {
                         if (h->logger) {
                                 Py_DECREF(h->logger);
@@ -2582,23 +2582,23 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         continue;
                 }
 
-		/* Special handling for certain config keys. */
-		if (ktype == RD_KAFKA_PRODUCER)
-			r = producer_conf_set_special(h, conf, k, vo);
-		else if (ktype == RD_KAFKA_CONSUMER)
-			r = consumer_conf_set_special(h, conf, k, vo);
-		if (r == -1) {
-			/* Error */
+                /* Special handling for certain config keys. */
+                if (ktype == RD_KAFKA_PRODUCER)
+                        r = producer_conf_set_special(h, conf, k, vo);
+                else if (ktype == RD_KAFKA_CONSUMER)
+                        r = consumer_conf_set_special(h, conf, k, vo);
+                if (r == -1) {
+                        /* Error */
                         goto inner_err;
-		} else if (r == 1) {
-			/* Handled */
-			continue;
-		}
+                } else if (r == 1) {
+                        /* Handled */
+                        continue;
+                }
 
 
-		/*
-		 * Pass configuration property through to librdkafka.
-		 */
+                /*
+                 * Pass configuration property through to librdkafka.
+                 */
                 if (vo == Py_None) {
                         v = NULL;
                 } else {
@@ -2612,17 +2612,17 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         v = cfl_PyUnistr_AsUTF8(vs, &vs8);
                 }
 
-		if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
-		    RD_KAFKA_CONF_OK) {
-			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-					  "%s", errstr);
+                if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
+                    RD_KAFKA_CONF_OK) {
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                          "%s", errstr);
                         goto inner_err;
-		}
+                }
 
                 Py_XDECREF(vs8);
                 Py_XDECREF(vs);
                 Py_XDECREF(ks8);
-		Py_DECREF(ks);
+                Py_DECREF(ks);
                 continue;
 
 inner_err:
@@ -2640,8 +2640,8 @@ inner_err:
         if (h->throttle_cb)
                 rd_kafka_conf_set_throttle_cb(conf, throttle_cb);
 
-	if (h->stats_cb)
-		rd_kafka_conf_set_stats_cb(conf, stats_cb);
+        if (h->stats_cb)
+                rd_kafka_conf_set_stats_cb(conf, stats_cb);
 
         if (h->logger) {
                 /* Write logs to log queue (which is forwarded
@@ -2653,7 +2653,7 @@ inner_err:
         if (h->oauth_cb)
                 rd_kafka_conf_set_oauthbearer_token_refresh_cb(conf, oauth_cb);
 
-	rd_kafka_conf_set_opaque(conf, h);
+        rd_kafka_conf_set_opaque(conf, h);
 
 #ifdef WITH_PY_TSS
         if (PyThread_tss_create(&h->tlskey)) {
@@ -2668,7 +2668,7 @@ inner_err:
 
         h->initiated = 1;
 
-	return conf;
+        return conf;
 
 outer_err:
         Py_DECREF(confdict);
@@ -2685,10 +2685,10 @@ outer_err:
  *        possibly blocking external call.
  */
 void CallState_begin (Handle *h, CallState *cs) {
-	cs->thread_state = PyEval_SaveThread();
-	assert(cs->thread_state != NULL);
-	cs->crashed = 0;
-	cs->exception_value = NULL;
+        cs->thread_state = PyEval_SaveThread();
+        assert(cs->thread_state != NULL);
+        cs->crashed = 0;
+        cs->exception_value = NULL;
 #ifdef WITH_PY_TSS
         PyThread_tss_set(&h->tlskey, cs);
 #else
@@ -2707,20 +2707,20 @@ int CallState_end (Handle *h, CallState *cs) {
         PyThread_delete_key_value(h->tlskey);
 #endif
 
-	PyEval_RestoreThread(cs->thread_state);
+        PyEval_RestoreThread(cs->thread_state);
 
-	if (PyErr_CheckSignals() == -1)
-		return 0;
+        if (PyErr_CheckSignals() == -1)
+                return 0;
 
-	if (cs->crashed) {
-		/* Restore the saved exception if we have one */
-		if (cs->exception_value) {
-			CallState_restore_exception(cs);
-		}
-		return 0;
-	}
+        if (cs->crashed) {
+                /* Restore the saved exception if we have one */
+                if (cs->exception_value) {
+                        CallState_restore_exception(cs);
+                }
+                return 0;
+        }
 
-	return 1;
+        return 1;
 }
 
 
@@ -2734,26 +2734,26 @@ CallState *CallState_get (Handle *h) {
 #else
         cs = PyThread_get_key_value(h->tlskey);
 #endif
-	assert(cs != NULL);
-	assert(cs->thread_state != NULL);
-	PyEval_RestoreThread(cs->thread_state);
-	cs->thread_state = NULL;
-	return cs;
+        assert(cs != NULL);
+        assert(cs->thread_state != NULL);
+        PyEval_RestoreThread(cs->thread_state);
+        cs->thread_state = NULL;
+        return cs;
 }
 
 /**
  * @brief Un-locks the GIL to resume blocking external call.
  */
 void CallState_resume (CallState *cs) {
-	assert(cs->thread_state == NULL);
-	cs->thread_state = PyEval_SaveThread();
+        assert(cs->thread_state == NULL);
+        cs->thread_state = PyEval_SaveThread();
 }
 
 /**
  * @brief Indicate that call crashed.
  */
 void CallState_crash (CallState *cs) {
-	cs->crashed++;
+        cs->crashed++;
 }
 
 
@@ -3060,7 +3060,7 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
 
 
 static PyObject *libversion (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si",
+        return Py_BuildValue("si",
                 rd_kafka_version_str(),
                 rd_kafka_version());
 }
@@ -3069,7 +3069,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
  * @brief confluent-kafka-python version.
  */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("s", CFL_VERSION_STR);
+        return Py_BuildValue("s", CFL_VERSION_STR);
 }
 
 
@@ -3104,108 +3104,108 @@ typedef int32_t (*partitioner_func_t)(const rd_kafka_topic_t *rkt,
  */
 static PyObject *partitioner_helper(PyObject *args,
                                      partitioner_func_t partitioner_func) {
-	const char *key;
-	Py_ssize_t keylen;
-	int partition_count;
-	int32_t partition;
+        const char *key;
+        Py_ssize_t keylen;
+        int partition_count;
+        int32_t partition;
 
-	if (!PyArg_ParseTuple(args, "y#i", &key, &keylen, &partition_count))
-		return NULL;
+        if (!PyArg_ParseTuple(args, "y#i", &key, &keylen, &partition_count))
+                return NULL;
 
-	if (partition_count <= 0) {
-		PyErr_Format(PyExc_ValueError,
-		             "partition_count must be > 0, got %d",
-		             partition_count);
-		return NULL;
-	}
+        if (partition_count <= 0) {
+                PyErr_Format(PyExc_ValueError,
+                             "partition_count must be > 0, got %d",
+                             partition_count);
+                return NULL;
+        }
 
-	partition = partitioner_func(NULL, key, (size_t)keylen,
-	                             partition_count, NULL, NULL);
+        partition = partitioner_func(NULL, key, (size_t)keylen,
+                                     partition_count, NULL, NULL);
 
-	return cfl_PyInt_FromInt(partition);
+        return cfl_PyInt_FromInt(partition);
 }
 
 /**
  * @brief Calculate partition using Murmur2 hash (Java-compatible). Deterministic.
  */
 static PyObject *murmur2(PyObject *self, PyObject *args) {
-	return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
+        return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
 }
 
 /**
  * @brief Calculate partition using consistent hash (CRC32). Deterministic.
  */
 static PyObject *consistent(PyObject *self, PyObject *args) {
-	return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
+        return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
 }
 
 /**
  * @brief Calculate partition using FNV-1a hash. Deterministic.
  */
 static PyObject *fnv1a(PyObject *self, PyObject *args) {
-	return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
+        return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
 }
 
 
 static PyMethodDef cimpl_methods[] = {
-	{"libversion", libversion, METH_NOARGS,
-	 "  Retrieve librdkafka version string and integer\n"
-	 "\n"
-	 "  :returns: version_string\n"
-	 "  :rtype: str\n"
-	 "\n"
-	},
-	{"version", version, METH_NOARGS,
-	 "  Retrieve module version string\n"
-	 "\n"
-	 "  :returns: version_string\n"
-	 "  :rtype: str\n"
-	 "\n"
-	},
-	{"murmur2", murmur2, METH_VARARGS,
-	 "  Calculate partition using Murmur2 hash (Java-compatible).\n"
-	 "\n"
-	 "  Deterministic function using Murmur2 hashing algorithm.\n"
-	 "\n"
-	 "  :param bytes key: The message key\n"
-	 "  :param int partition_count: Number of partitions (must be > 0)\n"
-	 "  :returns: Partition ID (0 to partition_count-1)\n"
-	 "  :rtype: int\n"
-	 "  :raises ValueError: If partition_count <= 0\n"
-	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
-	 "\n"
-	 "  Example::\n"
-	 "\n"
-	 "    partition = murmur2(b\"user_12345\", 10)\n"
-	 "\n"
-	},
-	{"consistent", consistent, METH_VARARGS,
-	 "  Calculate partition using CRC32-based consistent hash.\n"
-	 "\n"
-	 "  Deterministic function using CRC32 hashing algorithm.\n"
-	 "\n"
-	 "  :param bytes key: The message key\n"
-	 "  :param int partition_count: Number of partitions (must be > 0)\n"
-	 "  :returns: Partition ID (0 to partition_count-1)\n"
-	 "  :rtype: int\n"
-	 "  :raises ValueError: If partition_count <= 0\n"
-	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
-	 "\n"
-	},
-	{"fnv1a", fnv1a, METH_VARARGS,
-	 "  Calculate partition using FNV-1a hash.\n"
-	 "\n"
-	 "  Deterministic function using FNV-1a hashing algorithm.\n"
-	 "\n"
-	 "  :param bytes key: The message key\n"
-	 "  :param int partition_count: Number of partitions (must be > 0)\n"
-	 "  :returns: Partition ID (0 to partition_count-1)\n"
-	 "  :rtype: int\n"
-	 "  :raises ValueError: If partition_count <= 0\n"
-	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
-	 "\n"
-	},
-	{ NULL }
+        {"libversion", libversion, METH_NOARGS,
+         "  Retrieve librdkafka version string and integer\n"
+         "\n"
+         "  :returns: version_string\n"
+         "  :rtype: str\n"
+         "\n"
+        },
+        {"version", version, METH_NOARGS,
+         "  Retrieve module version string\n"
+         "\n"
+         "  :returns: version_string\n"
+         "  :rtype: str\n"
+         "\n"
+        },
+        {"murmur2", murmur2, METH_VARARGS,
+         "  Calculate partition using Murmur2 hash (Java-compatible).\n"
+         "\n"
+         "  Deterministic function using Murmur2 hashing algorithm.\n"
+         "\n"
+         "  :param bytes key: The message key\n"
+         "  :param int partition_count: Number of partitions (must be > 0)\n"
+         "  :returns: Partition ID (0 to partition_count-1)\n"
+         "  :rtype: int\n"
+         "  :raises ValueError: If partition_count <= 0\n"
+         "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+         "\n"
+         "  Example::\n"
+         "\n"
+         "    partition = murmur2(b\"user_12345\", 10)\n"
+         "\n"
+        },
+        {"consistent", consistent, METH_VARARGS,
+         "  Calculate partition using CRC32-based consistent hash.\n"
+         "\n"
+         "  Deterministic function using CRC32 hashing algorithm.\n"
+         "\n"
+         "  :param bytes key: The message key\n"
+         "  :param int partition_count: Number of partitions (must be > 0)\n"
+         "  :returns: Partition ID (0 to partition_count-1)\n"
+         "  :rtype: int\n"
+         "  :raises ValueError: If partition_count <= 0\n"
+         "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+         "\n"
+        },
+        {"fnv1a", fnv1a, METH_VARARGS,
+         "  Calculate partition using FNV-1a hash.\n"
+         "\n"
+         "  Deterministic function using FNV-1a hashing algorithm.\n"
+         "\n"
+         "  :param bytes key: The message key\n"
+         "  :param int partition_count: Number of partitions (must be > 0)\n"
+         "  :returns: Partition ID (0 to partition_count-1)\n"
+         "  :rtype: int\n"
+         "  :raises ValueError: If partition_count <= 0\n"
+         "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+         "\n"
+        },
+        { NULL }
 };
 
 
@@ -3214,87 +3214,87 @@ static PyMethodDef cimpl_methods[] = {
  * @returns an updated doc string containing all error constants.
  */
 static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
-	const struct rd_kafka_err_desc *descs;
-	size_t cnt;
-	size_t i;
-	char *doc;
-	size_t dof = 0, dsize;
-	/* RST grid table column widths */
+        const struct rd_kafka_err_desc *descs;
+        size_t cnt;
+        size_t i;
+        char *doc;
+        size_t dof = 0, dsize;
+        /* RST grid table column widths */
 #define _COL1_W 50
 #define _COL2_W 100 /* Must be larger than COL1 */
-	char dash[_COL2_W], eq[_COL2_W];
+        char dash[_COL2_W], eq[_COL2_W];
 
-	rd_kafka_get_err_descs(&descs, &cnt);
+        rd_kafka_get_err_descs(&descs, &cnt);
 
-	memset(dash, '-', sizeof(dash));
-	memset(eq, '=', sizeof(eq));
+        memset(dash, '-', sizeof(dash));
+        memset(eq, '=', sizeof(eq));
 
-	/* Setup output doc buffer. */
-	dof = strlen(origdoc);
-	dsize = dof + 500 + (cnt * 200);
-	doc = malloc(dsize);
-	memcpy(doc, origdoc, dof+1);
+        /* Setup output doc buffer. */
+        dof = strlen(origdoc);
+        dsize = dof + 500 + (cnt * 200);
+        doc = malloc(dsize);
+        memcpy(doc, origdoc, dof+1);
 
-#define _PRINT(...) do {						\
-		char tmpdoc[512];					\
-		size_t _len;						\
-		_len = snprintf(tmpdoc, sizeof(tmpdoc), __VA_ARGS__);	\
-		if (_len > sizeof(tmpdoc)) _len = sizeof(tmpdoc)-1;	\
-		if (dof + _len >= dsize) {				\
-			dsize += 2;					\
-			doc = realloc(doc, dsize);			\
-		}							\
-		memcpy(doc+dof, tmpdoc, _len+1);			\
-		dof += _len;						\
-	} while (0)
+#define _PRINT(...) do {                                                \
+                char tmpdoc[512];                                        \
+                size_t _len;                                                \
+                _len = snprintf(tmpdoc, sizeof(tmpdoc), __VA_ARGS__);        \
+                if (_len > sizeof(tmpdoc)) _len = sizeof(tmpdoc)-1;        \
+                if (dof + _len >= dsize) {                                \
+                        dsize += 2;                                        \
+                        doc = realloc(doc, dsize);                        \
+                }                                                        \
+                memcpy(doc+dof, tmpdoc, _len+1);                        \
+                dof += _len;                                                \
+        } while (0)
 
-	/* Error constant table header (RST grid table) */
-	_PRINT("Error and event constants:\n\n"
-	       "+-%.*s-+-%.*s-+\n"
-	       "| %-*.*s | %-*.*s |\n"
-	       "+=%.*s=+=%.*s=+\n",
-	       _COL1_W, dash, _COL2_W, dash,
-	       _COL1_W, _COL1_W, "Constant", _COL2_W, _COL2_W, "Description",
-	       _COL1_W, eq, _COL2_W, eq);
+        /* Error constant table header (RST grid table) */
+        _PRINT("Error and event constants:\n\n"
+               "+-%.*s-+-%.*s-+\n"
+               "| %-*.*s | %-*.*s |\n"
+               "+=%.*s=+=%.*s=+\n",
+               _COL1_W, dash, _COL2_W, dash,
+               _COL1_W, _COL1_W, "Constant", _COL2_W, _COL2_W, "Description",
+               _COL1_W, eq, _COL2_W, eq);
 
-	for (i = 0 ; i < cnt ; i++) {
-		PyObject *code;
+        for (i = 0 ; i < cnt ; i++) {
+                PyObject *code;
 
-		if (!descs[i].desc)
-			continue;
+                if (!descs[i].desc)
+                        continue;
 
-		code = cfl_PyInt_FromInt(descs[i].code);
+                code = cfl_PyInt_FromInt(descs[i].code);
 
-		PyDict_SetItemString(dict, descs[i].name, code);
+                PyDict_SetItemString(dict, descs[i].name, code);
 
-		Py_DECREF(code);
+                Py_DECREF(code);
 
-		_PRINT("| %-*.*s | %-*.*s |\n"
-		       "+-%.*s-+-%.*s-+\n",
-		       _COL1_W, _COL1_W, descs[i].name,
-		       _COL2_W, _COL2_W, descs[i].desc,
-		       _COL1_W, dash, _COL2_W, dash);
-	}
+                _PRINT("| %-*.*s | %-*.*s |\n"
+                       "+-%.*s-+-%.*s-+\n",
+                       _COL1_W, _COL1_W, descs[i].name,
+                       _COL2_W, _COL2_W, descs[i].desc,
+                       _COL1_W, dash, _COL2_W, dash);
+        }
 
-	_PRINT("\n");
+        _PRINT("\n");
 
-	return doc; /* FIXME: leak */
+        return doc; /* FIXME: leak */
 }
 
 
 #ifdef PY3
 static struct PyModuleDef cimpl_moduledef = {
-	PyModuleDef_HEAD_INIT,
-	"cimpl",                                  /* m_name */
-	"Confluent's Python client for Apache Kafka (C implementation)", /* m_doc */
-	-1,                                       /* m_size */
-	cimpl_methods,                            /* m_methods */
+        PyModuleDef_HEAD_INIT,
+        "cimpl",                                  /* m_name */
+        "Confluent's Python client for Apache Kafka (C implementation)", /* m_doc */
+        -1,                                       /* m_size */
+        cimpl_methods,                            /* m_methods */
 };
 #endif
 
 
 static PyObject *_init_cimpl (void) {
-	PyObject *m;
+        PyObject *m;
 
 /* PyEval_InitThreads became deprecated in Python 3.9 and will be removed in Python 3.11.
  * Prior to Python 3.7, this call was required to initialize the GIL. */
@@ -3302,53 +3302,53 @@ static PyObject *_init_cimpl (void) {
         PyEval_InitThreads();
 #endif
 
-	if (PyType_Ready(&KafkaErrorType) < 0)
-		return NULL;
-	if (PyType_Ready(&MessageType) < 0)
-		return NULL;
-	if (PyType_Ready(&UuidType) < 0)
-		return NULL;
-	if (PyType_Ready(&TopicPartitionType) < 0)
-		return NULL;
-	if (PyType_Ready(&ProducerType) < 0)
-		return NULL;
-	if (PyType_Ready(&ConsumerType) < 0)
-		return NULL;
+        if (PyType_Ready(&KafkaErrorType) < 0)
+                return NULL;
+        if (PyType_Ready(&MessageType) < 0)
+                return NULL;
+        if (PyType_Ready(&UuidType) < 0)
+                return NULL;
+        if (PyType_Ready(&TopicPartitionType) < 0)
+                return NULL;
+        if (PyType_Ready(&ProducerType) < 0)
+                return NULL;
+        if (PyType_Ready(&ConsumerType) < 0)
+                return NULL;
         if (PyType_Ready(&AdminType) < 0)
                 return NULL;
         if (AdminTypes_Ready() < 0)
                 return NULL;
 
 #ifdef PY3
-	m = PyModule_Create(&cimpl_moduledef);
+        m = PyModule_Create(&cimpl_moduledef);
 #else
-	m = Py_InitModule3("cimpl", cimpl_methods,
-			   "Confluent's Python client for Apache Kafka (C implementation)");
+        m = Py_InitModule3("cimpl", cimpl_methods,
+                           "Confluent's Python client for Apache Kafka (C implementation)");
 #endif
-	if (!m)
-		return NULL;
+        if (!m)
+                return NULL;
 
-	Py_INCREF(&KafkaErrorType);
-	KafkaErrorType.tp_doc =
-		KafkaError_add_errs(KafkaErrorType.tp_dict,
-				    KafkaErrorType.tp_doc);
-	PyModule_AddObject(m, "KafkaError", (PyObject *)&KafkaErrorType);
+        Py_INCREF(&KafkaErrorType);
+        KafkaErrorType.tp_doc =
+                KafkaError_add_errs(KafkaErrorType.tp_dict,
+                                    KafkaErrorType.tp_doc);
+        PyModule_AddObject(m, "KafkaError", (PyObject *)&KafkaErrorType);
 
-	Py_INCREF(&MessageType);
-	PyModule_AddObject(m, "Message", (PyObject *)&MessageType);
+        Py_INCREF(&MessageType);
+        PyModule_AddObject(m, "Message", (PyObject *)&MessageType);
 
         Py_INCREF(&UuidType);
         PyModule_AddObject(m, "Uuid", (PyObject *)&UuidType);
 
-	Py_INCREF(&TopicPartitionType);
-	PyModule_AddObject(m, "TopicPartition",
-			   (PyObject *)&TopicPartitionType);
+        Py_INCREF(&TopicPartitionType);
+        PyModule_AddObject(m, "TopicPartition",
+                           (PyObject *)&TopicPartitionType);
 
-	Py_INCREF(&ProducerType);
-	PyModule_AddObject(m, "Producer", (PyObject *)&ProducerType);
+        Py_INCREF(&ProducerType);
+        PyModule_AddObject(m, "Producer", (PyObject *)&ProducerType);
 
-	Py_INCREF(&ConsumerType);
-	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
+        Py_INCREF(&ConsumerType);
+        PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
         Py_INCREF(&AdminType);
         PyModule_AddObject(m, "_AdminClientImpl", (PyObject *)&AdminType);
@@ -3356,40 +3356,40 @@ static PyObject *_init_cimpl (void) {
         AdminTypes_AddObjects(m);
 
 #if PY_VERSION_HEX >= 0x02070000
-	KafkaException = PyErr_NewExceptionWithDoc(
-		"cimpl.KafkaException",
-		"Kafka exception that wraps the :py:class:`KafkaError` "
-		"class.\n"
-		"\n"
-		"Use ``exception.args[0]`` to extract the "
-		":py:class:`KafkaError` object\n"
-		"\n",
-		NULL, NULL);
+        KafkaException = PyErr_NewExceptionWithDoc(
+                "cimpl.KafkaException",
+                "Kafka exception that wraps the :py:class:`KafkaError` "
+                "class.\n"
+                "\n"
+                "Use ``exception.args[0]`` to extract the "
+                ":py:class:`KafkaError` object\n"
+                "\n",
+                NULL, NULL);
 #else
         KafkaException = PyErr_NewException("cimpl.KafkaException", NULL, NULL);
 #endif
-	Py_INCREF(KafkaException);
-	PyModule_AddObject(m, "KafkaException", KafkaException);
+        Py_INCREF(KafkaException);
+        PyModule_AddObject(m, "KafkaException", KafkaException);
 
-	PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE", RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
-	PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME", RD_KAFKA_TIMESTAMP_CREATE_TIME);
-	PyModule_AddIntConstant(m, "TIMESTAMP_LOG_APPEND_TIME", RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME);
+        PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE", RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
+        PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME", RD_KAFKA_TIMESTAMP_CREATE_TIME);
+        PyModule_AddIntConstant(m, "TIMESTAMP_LOG_APPEND_TIME", RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME);
 
         PyModule_AddIntConstant(m, "OFFSET_BEGINNING", RD_KAFKA_OFFSET_BEGINNING);
         PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
 
-	return m;
+        return m;
 }
 
 
 #ifdef PY3
 PyMODINIT_FUNC PyInit_cimpl (void) {
-	return _init_cimpl();
+        return _init_cimpl();
 }
 #else
 PyMODINIT_FUNC initcimpl (void) {
-	_init_cimpl();
+        _init_cimpl();
 }
 #endif
