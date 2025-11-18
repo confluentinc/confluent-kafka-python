@@ -16,10 +16,10 @@
 # limitations under the License.
 #
 
-from confluent_kafka.cimpl import Producer
-import inspect
 import asyncio
+import inspect
 
+from confluent_kafka.cimpl import Producer
 from confluent_kafka.error import KeySerializationError, ValueSerializationError
 from confluent_kafka.serialization import MessageField, SerializationContext
 
@@ -28,10 +28,7 @@ ASYNC_PRODUCER_POLL_INTERVAL: int = 0.2
 
 class AsyncProducer(Producer):
     def __init__(
-        self,
-        conf: dict,
-        loop: asyncio.AbstractEventLoop = None,
-        poll_interval: int = ASYNC_PRODUCER_POLL_INTERVAL
+        self, conf: dict, loop: asyncio.AbstractEventLoop = None, poll_interval: int = ASYNC_PRODUCER_POLL_INTERVAL
     ):
         super().__init__(conf)
 
@@ -41,10 +38,7 @@ class AsyncProducer(Producer):
         self._poll_task = None
         self._waiters: int = 0
 
-    async def produce(
-            self, topic, value=None, key=None, partition=-1,
-            on_delivery=None, timestamp=0, headers=None
-    ):
+    async def produce(self, topic, value=None, key=None, partition=-1, on_delivery=None, timestamp=0, headers=None):
         fut = self._loop.create_future()
         self._waiters += 1
         try:
@@ -54,10 +48,7 @@ class AsyncProducer(Producer):
             def wrapped_on_delivery(err, msg):
                 if on_delivery is not None:
                     if inspect.iscoroutinefunction(on_delivery):
-                        asyncio.run_coroutine_threadsafe(
-                            on_delivery(err, msg),
-                            self._loop
-                        )
+                        asyncio.run_coroutine_threadsafe(on_delivery(err, msg), self._loop)
                     else:
                         self._loop.call_soon_threadsafe(on_delivery, err, msg)
 
@@ -73,7 +64,7 @@ class AsyncProducer(Producer):
                 headers=headers,
                 partition=partition,
                 timestamp=timestamp,
-                on_delivery=wrapped_on_delivery
+                on_delivery=wrapped_on_delivery,
             )
             return await fut
         finally:
@@ -95,9 +86,7 @@ class TestAsyncSerializingProducer(AsyncProducer):
 
         super(TestAsyncSerializingProducer, self).__init__(conf_copy)
 
-    async def produce(
-            self, topic, key=None, value=None, partition=-1,
-            on_delivery=None, timestamp=0, headers=None):
+    async def produce(self, topic, key=None, value=None, partition=-1, on_delivery=None, timestamp=0, headers=None):
         ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:
             try:
@@ -112,9 +101,5 @@ class TestAsyncSerializingProducer(AsyncProducer):
                 raise ValueSerializationError(se)
 
         return await super().produce(
-            topic, value, key,
-            headers=headers,
-            partition=partition,
-            timestamp=timestamp,
-            on_delivery=on_delivery
+            topic, value, key, headers=headers, partition=partition, timestamp=timestamp, on_delivery=on_delivery
         )

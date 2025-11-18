@@ -18,7 +18,7 @@
 
 from typing import Optional
 
-from confluent_kafka.cimpl import KafkaException, KafkaError, Message
+from confluent_kafka.cimpl import KafkaError, KafkaException, Message
 from confluent_kafka.serialization import SerializationError
 
 
@@ -35,8 +35,9 @@ class _KafkaClientError(KafkaException):
         by the broker.
     """
 
-    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None,
-                 kafka_message: Optional[Message] = None) -> None:
+    def __init__(
+        self, kafka_error: KafkaError, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None
+    ) -> None:
         super(_KafkaClientError, self).__init__(kafka_error)
         self.exception = exception
         self.kafka_message = kafka_message
@@ -68,8 +69,9 @@ class ConsumeError(_KafkaClientError):
 
     """
 
-    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None,
-                 kafka_message: Optional[Message] = None) -> None:
+    def __init__(
+        self, kafka_error: KafkaError, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None
+    ) -> None:
         super(ConsumeError, self).__init__(kafka_error, exception, kafka_message)
 
 
@@ -89,7 +91,9 @@ class KeyDeserializationError(ConsumeError, SerializationError):
     def __init__(self, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None) -> None:
         super(KeyDeserializationError, self).__init__(
             KafkaError(KafkaError._KEY_DESERIALIZATION, str(exception)),
-            exception=exception, kafka_message=kafka_message)
+            exception=exception,
+            kafka_message=kafka_message,
+        )
 
 
 class ValueDeserializationError(ConsumeError, SerializationError):
@@ -108,7 +112,9 @@ class ValueDeserializationError(ConsumeError, SerializationError):
     def __init__(self, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None) -> None:
         super(ValueDeserializationError, self).__init__(
             KafkaError(KafkaError._VALUE_DESERIALIZATION, str(exception)),
-            exception=exception, kafka_message=kafka_message)
+            exception=exception,
+            kafka_message=kafka_message,
+        )
 
 
 class ProduceError(_KafkaClientError):
@@ -135,8 +141,8 @@ class KeySerializationError(ProduceError, SerializationError):
 
     def __init__(self, exception: Optional[Exception] = None) -> None:
         super(KeySerializationError, self).__init__(
-            KafkaError(KafkaError._KEY_SERIALIZATION, str(exception)),
-            exception=exception)
+            KafkaError(KafkaError._KEY_SERIALIZATION, str(exception)), exception=exception
+        )
 
 
 class ValueSerializationError(ProduceError, SerializationError):
@@ -149,5 +155,5 @@ class ValueSerializationError(ProduceError, SerializationError):
 
     def __init__(self, exception: Optional[Exception] = None) -> None:
         super(ValueSerializationError, self).__init__(
-            KafkaError(KafkaError._VALUE_SERIALIZATION, str(exception)),
-            exception=exception)
+            KafkaError(KafkaError._VALUE_SERIALIZATION, str(exception)), exception=exception
+        )

@@ -15,16 +15,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
 
 from concurrent.futures import ThreadPoolExecutor, wait
 
+import pytest
+
 from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
-from confluent_kafka.schema_registry.schema_registry_client import Schema, \
-    SchemaRegistryClient
-from tests.schema_registry.conftest import USERINFO, \
-    SCHEMA_ID, SCHEMA, SUBJECTS, COUNTER, VERSION, VERSIONS
+from confluent_kafka.schema_registry.schema_registry_client import Schema, SchemaRegistryClient
+from tests.schema_registry.conftest import COUNTER, SCHEMA, SCHEMA_ID, SUBJECTS, USERINFO, VERSION, VERSIONS
 
 """
     Basic SchemaRegistryClient API functionality tests.
@@ -55,13 +54,11 @@ def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
         bool: True if the schema's match else False
 
     """
-    return all([schema1.schema_str == schema2.schema_str,
-                schema1.schema_type == schema2.schema_type])
+    return all([schema1.schema_str == schema2.schema_str, schema1.schema_type == schema2.schema_type])
 
 
 def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
-    conf = {'url': TEST_URL,
-            'basic.auth.user.info': "user:secret"}
+    conf = {'url': TEST_URL, 'basic.auth.user.info': "user:secret"}
     sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="401 Unauthorized"):
@@ -69,8 +66,7 @@ def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
 
 
 def test_basic_auth_authorized(mock_schema_registry, load_avsc):
-    conf = {'url': TEST_URL,
-            'basic.auth.user.info': USERINFO}
+    conf = {'url': TEST_URL, 'basic.auth.user.info': USERINFO}
     sr = SchemaRegistryClient(conf)
 
     result = sr.get_subjects()
@@ -127,8 +123,7 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
     sr = SchemaRegistryClient(conf)
     schema = load_avsc('basic_schema.avsc')
 
-    count_before = COUNTER['POST'].get(
-        '/subjects/test-cache/versions', 0)
+    count_before = COUNTER['POST'].get('/subjects/test-cache/versions', 0)
 
     # Caching only starts after the first response is handled.
     # A possible improvement would be to add request caching to the http client
@@ -144,8 +139,7 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
             fs.append(executor.submit(register))
     wait(fs)
 
-    count_after = COUNTER['POST'].get(
-        '/subjects/test-cache/versions')
+    count_after = COUNTER['POST'].get('/subjects/test-cache/versions')
 
     assert count_after - count_before == 1
 
@@ -174,8 +168,7 @@ def test_get_schema_cache(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
 
-    count_before = COUNTER['GET'].get(
-        '/schemas/ids/47', 0)
+    count_before = COUNTER['GET'].get('/schemas/ids/47', 0)
 
     # Caching only starts after the first response is handled.
     # A possible improvement would be to add request caching to the http client
@@ -191,8 +184,7 @@ def test_get_schema_cache(mock_schema_registry):
             fs.append(executor.submit(get))
     wait(fs)
 
-    count_after = COUNTER['GET'].get(
-        '/schemas/ids/47')
+    count_after = COUNTER['GET'].get('/schemas/ids/47')
 
     assert count_after - count_before == 1
 
@@ -465,11 +457,9 @@ def test_schema_equivilence(load_avsc):
         ('conflict', 1, False),
         ('test-key', 'latest', True),
         ('test-key', 1, True),
-    ]
+    ],
 )
-def test_test_compatibility_no_error(
-    mock_schema_registry, load_avsc, subject_name, version, expected_compatibility
-):
+def test_test_compatibility_no_error(mock_schema_registry, load_avsc, subject_name, version, expected_compatibility):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
@@ -485,7 +475,7 @@ def test_test_compatibility_no_error(
         ('invalid', 'latest', 'Invalid Schema', 422, 42201),
         ('invalid', '422', 'Invalid version', 422, 42202),
         ('notfound', 404, 'Version not found', 404, 40402),
-    ]
+    ],
 )
 def test_test_compatibility_with_error(
     mock_schema_registry, load_avsc, subject_name, version, match_str, status_code, error_code
@@ -538,7 +528,7 @@ def test_get_mode(mock_schema_registry):
     [
         ('invalid_mode', 'Invalid mode', 422, 42204),
         ('operation_not_permitted', 'Operation not permitted', 422, 42205),
-    ]
+    ],
 )
 def test_update_mode_with_error(mock_schema_registry, subject_name, match_str, status_code, error_code):
     conf = {'url': TEST_URL}

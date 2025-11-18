@@ -32,9 +32,7 @@ def kafka_cluster_cp_7_0_1():
     for the invalid schema passed to test_api_get_register_schema_invalid
     """
     for fixture in kafka_cluster_fixture(
-        brokers_env="BROKERS_7_0_1",
-        sr_url_env="SR_URL_7_0_1",
-        trivup_cluster_conf={'cp_version': '7.0.1'}
+        brokers_env="BROKERS_7_0_1", sr_url_env="SR_URL_7_0_1", trivup_cluster_conf={'cp_version': '7.0.1'}
     ):
         yield fixture
 
@@ -103,9 +101,9 @@ def test_api_register_schema_incompatible(kafka_cluster, load_file):
 
     sr.register_schema(subject, schema1)
 
-    with pytest.raises(SchemaRegistryError, match="Schema being registered is"
-                                                  " incompatible with an"
-                                                  " earlier schema") as e:
+    with pytest.raises(
+        SchemaRegistryError, match="Schema being registered is" " incompatible with an" " earlier schema"
+    ) as e:
         # The default Schema Registry compatibility type is BACKWARD.
         # this allows 1) fields to be deleted, 2) optional fields to
         # be added. schema2 adds non-optional fields to schema1, so
@@ -195,16 +193,14 @@ def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     assert e.value.error_code == 40401
 
 
-@pytest.mark.parametrize("kafka_cluster_name, http_status_code, error_code", [
-    ["kafka_cluster_cp_7_0_1", 500, 500],
-    ["kafka_cluster", 422, 42201],
-])
-def test_api_get_register_schema_invalid(
-        kafka_cluster_name,
-        http_status_code,
-        error_code,
-        load_file,
-        request):
+@pytest.mark.parametrize(
+    "kafka_cluster_name, http_status_code, error_code",
+    [
+        ["kafka_cluster_cp_7_0_1", 500, 500],
+        ["kafka_cluster", 422, 42201],
+    ],
+)
+def test_api_get_register_schema_invalid(kafka_cluster_name, http_status_code, error_code, load_file, request):
     """
     Attempts to obtain registration information with an invalid schema
     with different CP versions.
@@ -244,8 +240,7 @@ def test_api_get_subjects(kafka_cluster, load_file):
     """
     sr = kafka_cluster.schema_registry()
 
-    avscs = ['basic_schema.avsc', 'primitive_string.avsc',
-             'primitive_bool.avsc', 'primitive_float.avsc']
+    avscs = ['basic_schema.avsc', 'primitive_string.avsc', 'primitive_bool.avsc', 'primitive_float.avsc']
 
     subjects = []
     for avsc in avscs:
@@ -276,8 +271,7 @@ def test_api_get_subject_versions(kafka_cluster, load_file):
     subject = _subject_name("list-version-test")
     sr.set_compatibility(level="NONE")
 
-    avscs = ['basic_schema.avsc', 'primitive_string.avsc',
-             'primitive_bool.avsc', 'primitive_float.avsc']
+    avscs = ['basic_schema.avsc', 'primitive_string.avsc', 'primitive_bool.avsc', 'primitive_float.avsc']
 
     schemas = []
     for avsc in avscs:
@@ -373,9 +367,7 @@ def test_api_get_subject_version_invalid(kafka_cluster, load_file):
     subject = _subject_name('test-get_subject')
     sr.register_schema(subject, schema)
 
-    with pytest.raises(SchemaRegistryError,
-                       match="The specified version .*is not"
-                       " a valid version id.*") as e:
+    with pytest.raises(SchemaRegistryError, match="The specified version .*is not" " a valid version id.*") as e:
         sr.get_version(subject, version='a')
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
@@ -466,10 +458,7 @@ def test_api_subject_config_update(kafka_cluster, load_file):
     subject = str(uuid1())
 
     sr.register_schema(subject, schema)
-    sr.set_compatibility(
-        subject_name=subject,
-        level="FULL_TRANSITIVE"
-    )
+    sr.set_compatibility(subject_name=subject, level="FULL_TRANSITIVE")
 
     assert sr.get_compatibility(subject_name=subject) == "FULL_TRANSITIVE"
 
@@ -483,8 +472,7 @@ def test_api_config_invalid(kafka_cluster):
     """
     sr = kafka_cluster.schema_registry()
 
-    with pytest.raises(SchemaRegistryError, match="Invalid compatibility"
-                                                  " level") as e:
+    with pytest.raises(SchemaRegistryError, match="Invalid compatibility" " level") as e:
         sr.set_compatibility(level="INVALID")
     e.value.http_status_code = 422
     e.value.error_code = 42203

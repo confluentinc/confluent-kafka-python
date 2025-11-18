@@ -1,12 +1,14 @@
 """
 Ducktape tests for transactions in async producer and consumer.
 """
-import uuid
+
 import asyncio
+import uuid
+
 from ducktape.tests.test import Test
 
 from tests.ducktape.consumer_strategy import AsyncConsumerStrategy, SyncConsumerStrategy
-from tests.ducktape.producer_strategy import SyncProducerStrategy, AsyncProducerStrategy
+from tests.ducktape.producer_strategy import AsyncProducerStrategy, SyncProducerStrategy
 from tests.ducktape.services.kafka import KafkaClient
 
 
@@ -31,7 +33,7 @@ class TransactionsTest(Test):
         overrides = {
             'transactional.id': f'{producer_type}-tx-producer-{uuid.uuid4()}',
             'acks': 'all',
-            'enable.idempotence': True
+            'enable.idempotence': True,
         }
 
         if producer_type == "sync":
@@ -88,6 +90,7 @@ class TransactionsTest(Test):
 
     def test_commit_transaction(self):
         """Committed transactional messages must be visible to read_committed consumer."""
+
         async def run():
             topic = self._new_topic()
             producer = self._create_transactional_producer("async")
@@ -116,6 +119,7 @@ class TransactionsTest(Test):
                 assert len(seen) == 5, f"expected 5 committed messages, got {len(seen)}"
             finally:
                 await consumer.close()
+
         asyncio.run(run())
 
     def test_produce_after_abort_transaction(self):
@@ -124,6 +128,7 @@ class TransactionsTest(Test):
         Transactional producers can only produce within transaction boundaries.
         After abort_transaction(), there is no active transaction, so produce() must fail.
         """
+
         async def run():
             topic = self._new_topic()
             producer = self._create_transactional_producer("async")
@@ -155,6 +160,7 @@ class TransactionsTest(Test):
 
     def test_abort_transaction_then_retry_commit(self):
         """Aborted messages must be invisible, and retrying with new transaction must only commit visible results."""
+
         async def run():
             topic = self._new_topic()
             producer = self._create_transactional_producer("async")
@@ -199,10 +205,12 @@ class TransactionsTest(Test):
                 assert all(not s.startswith('a') for s in seen), f"should not see aborted values, saw {seen}"
             finally:
                 await consumer.close()
+
         asyncio.run(run())
 
     def test_send_offsets_to_transaction(self):
         """Offsets committed atomically with produced results using send_offsets_to_transaction."""
+
         async def run():
             input_topic = self._new_topic()
             output_topic = self._new_topic()
@@ -263,10 +271,12 @@ class TransactionsTest(Test):
                     assert comm.offset >= pos.offset, f"committed {comm.offset} < position {pos.offset}"
             finally:
                 await consumer.close()
+
         asyncio.run(run())
 
     def test_commit_multiple_topics_partitions(self):
         """Commit atomically across multiple topics/partitions."""
+
         async def run():
             topic_a = self._new_topic(partitions=2)
             topic_b = self._new_topic(partitions=1)
@@ -295,4 +305,5 @@ class TransactionsTest(Test):
                 assert seen == expected, f"expected {expected}, saw {seen}"
             finally:
                 await consumer.close()
+
         asyncio.run(run())

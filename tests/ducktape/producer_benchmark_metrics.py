@@ -4,12 +4,14 @@ Producer benchmark metrics collection and validation for Kafka performance testi
 Implements comprehensive metrics tracking including latency percentiles,
 per-topic/partition breakdowns, memory monitoring, and batch efficiency analysis.
 """
-import time
-import statistics
-import os
+
 import json
-from typing import List, Dict, Any, Optional
+import os
+import statistics
+import time
 from collections import defaultdict
+from typing import Any, Dict, List, Optional
+
 import psutil
 
 
@@ -32,12 +34,10 @@ class MetricsCollector:
         self.message_sizes = []
 
         # Per-topic/partition metrics
-        self.topic_metrics = defaultdict(lambda: {
-            'sent': 0, 'delivered': 0, 'failed': 0, 'bytes': 0, 'latencies': []
-        })
-        self.partition_metrics = defaultdict(lambda: {
-            'sent': 0, 'delivered': 0, 'failed': 0, 'bytes': 0, 'latencies': []
-        })
+        self.topic_metrics = defaultdict(lambda: {'sent': 0, 'delivered': 0, 'failed': 0, 'bytes': 0, 'latencies': []})
+        self.partition_metrics = defaultdict(
+            lambda: {'sent': 0, 'delivered': 0, 'failed': 0, 'bytes': 0, 'latencies': []}
+        )
 
         # Memory tracking
         self.initial_memory_mb = None
@@ -171,7 +171,7 @@ class MetricsCollector:
                     'messages_delivered': metrics['delivered'],
                     'success_rate': metrics['delivered'] / metrics['sent'],
                     'avg_latency_ms': statistics.mean(metrics['latencies']) if metrics['latencies'] else 0,
-                    'total_bytes': metrics['bytes']
+                    'total_bytes': metrics['bytes'],
                 }
 
         # Per-partition metrics summary
@@ -183,7 +183,7 @@ class MetricsCollector:
                     'messages_delivered': metrics['delivered'],
                     'success_rate': metrics['delivered'] / metrics['sent'],
                     'avg_latency_ms': statistics.mean(metrics['latencies']) if metrics['latencies'] else 0,
-                    'total_bytes': metrics['bytes']
+                    'total_bytes': metrics['bytes'],
                 }
 
         return {
@@ -201,7 +201,6 @@ class MetricsCollector:
             'error_rate': error_rate,
             'success_rate': success_rate,
             'total_bytes': self.total_bytes,
-
             # Enhanced metrics
             'p50_latency_ms': p50_latency,
             'p99_latency_ms': p99_latency,
@@ -216,7 +215,7 @@ class MetricsCollector:
             'poll_count': self.poll_count,
             'buffer_full_count': self.buffer_full_count,
             'topic_metrics': topic_summary,
-            'partition_metrics': partition_summary
+            'partition_metrics': partition_summary,
         }
 
     def _percentile(self, data: List[float], percentile: float) -> float:
@@ -266,13 +265,11 @@ class MetricsBounds:
                 config = json.load(f)
 
             # Always use environment-based format
-            environment = os.getenv('BENCHMARK_ENVIRONMENT',
-                                    config.get('_default_environment', 'local'))
+            environment = os.getenv('BENCHMARK_ENVIRONMENT', config.get('_default_environment', 'local'))
             if environment not in config:
                 available_envs = [k for k in config.keys() if not k.startswith('_')]
                 raise ValueError(
-                    f"Environment '{environment}' not found in config. "
-                    f"Available environments: {available_envs}"
+                    f"Environment '{environment}' not found in config. " f"Available environments: {available_envs}"
                 )
             bounds_config = config[environment]
             print(f"Loading benchmark bounds for environment: {environment}")
@@ -313,27 +310,21 @@ def validate_metrics(metrics: Dict[str, Any], bounds: MetricsBounds) -> tuple:
 
     if metrics['p95_latency_ms'] > bounds.max_p95_latency_ms:
         violations.append(
-            f"P95 latency too high: {metrics['p95_latency_ms']:.2f}ms "
-            f"(maximum: {bounds.max_p95_latency_ms}ms)"
+            f"P95 latency too high: {metrics['p95_latency_ms']:.2f}ms " f"(maximum: {bounds.max_p95_latency_ms}ms)"
         )
 
     if metrics['error_rate'] > bounds.max_error_rate:
-        violations.append(
-            f"Error rate too high: {metrics['error_rate']:.4f} "
-            f"(maximum: {bounds.max_error_rate})"
-        )
+        violations.append(f"Error rate too high: {metrics['error_rate']:.4f} " f"(maximum: {bounds.max_error_rate})")
 
     if metrics['success_rate'] < bounds.min_success_rate:
         violations.append(
-            f"Success rate too low: {metrics['success_rate']:.4f} "
-            f"(minimum: {bounds.min_success_rate})"
+            f"Success rate too low: {metrics['success_rate']:.4f} " f"(minimum: {bounds.min_success_rate})"
         )
 
     # Enhanced validation
     if metrics['p99_latency_ms'] > bounds.max_p99_latency_ms:
         violations.append(
-            f"P99 latency too high: {metrics['p99_latency_ms']:.2f}ms "
-            f"(maximum: {bounds.max_p99_latency_ms}ms)"
+            f"P99 latency too high: {metrics['p99_latency_ms']:.2f}ms " f"(maximum: {bounds.max_p99_latency_ms}ms)"
         )
 
     if metrics['memory_growth_mb'] > bounds.max_memory_growth_mb:
@@ -344,8 +335,7 @@ def validate_metrics(metrics: Dict[str, Any], bounds: MetricsBounds) -> tuple:
 
     if metrics['buffer_full_rate'] > bounds.max_buffer_full_rate:
         violations.append(
-            f"Buffer full rate too high: {metrics['buffer_full_rate']:.3f} "
-            f"(maximum: {bounds.max_buffer_full_rate})"
+            f"Buffer full rate too high: {metrics['buffer_full_rate']:.3f} " f"(maximum: {bounds.max_buffer_full_rate})"
         )
 
     if metrics['messages_per_poll'] < bounds.min_messages_per_poll:
@@ -403,16 +393,20 @@ def print_metrics_report(metrics: Dict[str, Any], is_valid: bool, violations: Li
     if len(metrics['topic_metrics']) > 1:
         print("\nPer-Topic Metrics:")
         for topic, topic_metrics in metrics['topic_metrics'].items():
-            print(f"  {topic}: {topic_metrics['messages_delivered']} msgs, "
-                  f"{topic_metrics['success_rate']:.3f} success rate, "
-                  f"{topic_metrics['avg_latency_ms']:.2f}ms avg latency")
+            print(
+                f"  {topic}: {topic_metrics['messages_delivered']} msgs, "
+                f"{topic_metrics['success_rate']:.3f} success rate, "
+                f"{topic_metrics['avg_latency_ms']:.2f}ms avg latency"
+            )
 
     # Per-partition breakdown (if multiple partitions)
     if len(metrics['partition_metrics']) > 1:
         print("\nPer-Partition Metrics:")
         for partition, partition_metrics in metrics['partition_metrics'].items():
-            print(f"  {partition}: {partition_metrics['messages_delivered']} msgs, "
-                  f"{partition_metrics['success_rate']:.3f} success rate")
+            print(
+                f"  {partition}: {partition_metrics['messages_delivered']} msgs, "
+                f"{partition_metrics['success_rate']:.3f} success rate"
+            )
 
     # Validation results
     print(f"\nValidation: {'PASS' if is_valid else 'FAIL'}")

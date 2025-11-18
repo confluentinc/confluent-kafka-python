@@ -6,8 +6,9 @@ Unit tests for AIOProducer class.
 """
 import asyncio
 import concurrent.futures
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.experimental.aio.producer._AIOProducer import AIOProducer
@@ -24,8 +25,10 @@ class TestAIOProducer:
     @pytest.fixture
     def mock_common(self):
         with patch('confluent_kafka.experimental.aio.producer._AIOProducer._common') as mock:
+
             async def mock_async_call(executor, blocking_task, *args, **kwargs):
                 return blocking_task(*args, **kwargs)
+
             mock.async_call.side_effect = mock_async_call
             yield mock
 
@@ -37,11 +40,7 @@ class TestAIOProducer:
     async def test_constructor_behavior(self, mock_producer, mock_common, basic_config):
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
         try:
-            producer1 = AIOProducer(
-                basic_config,
-                max_workers=3,
-                executor=custom_executor
-            )
+            producer1 = AIOProducer(basic_config, max_workers=3, executor=custom_executor)
 
             assert producer1.executor is custom_executor
             assert producer1.executor._max_workers == 5
@@ -201,8 +200,10 @@ class TestAIOProducer:
         # Verify task stops and producer is closed
         assert producer._is_closed is True
         await asyncio.sleep(0.1)  # Grace period for cleanup
-        assert (producer._buffer_timeout_manager._timeout_task is None or
-                producer._buffer_timeout_manager._timeout_task.done())
+        assert (
+            producer._buffer_timeout_manager._timeout_task is None
+            or producer._buffer_timeout_manager._timeout_task.done()
+        )
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_produce(self, mock_producer, mock_common, basic_config):
@@ -221,8 +222,8 @@ class TestAIOProducer:
                 mock_msg = Mock()
                 mock_msg.topic.return_value = topic
                 mock_msg.value.return_value = (
-                    msg_data['value'].encode() if isinstance(
-                        msg_data['value'], str) else msg_data['value'])
+                    msg_data['value'].encode() if isinstance(msg_data['value'], str) else msg_data['value']
+                )
 
                 completed_produces.append((topic, msg_data['value']))
                 # Call the individual message callback
@@ -233,10 +234,7 @@ class TestAIOProducer:
         mock_producer.return_value.poll.return_value = 1
 
         # Start multiple produce operations concurrently
-        tasks = [
-            asyncio.create_task(producer.produce(topic="test", value=f"msg{i}"))
-            for i in range(3)
-        ]
+        tasks = [asyncio.create_task(producer.produce(topic="test", value=f"msg{i}")) for i in range(3)]
 
         # All tasks should complete successfully (tests real concurrency)
         results = await asyncio.gather(*tasks)
@@ -267,12 +265,7 @@ class TestAIOProducer:
 
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         try:
-            producer2 = AIOProducer(
-                basic_config,
-                executor=custom_executor,
-                batch_size=500,
-                buffer_timeout=10.0
-            )
+            producer2 = AIOProducer(basic_config, executor=custom_executor, batch_size=500, buffer_timeout=10.0)
             assert producer2.executor is custom_executor
             assert producer2._batch_size == 500
             assert hasattr(producer2, '_buffer_timeout_manager')
@@ -295,8 +288,10 @@ class TestAIOProducer:
             # Test close method
             await producer.close()
             assert producer._is_closed is True
-            assert (producer._buffer_timeout_manager._timeout_task is None or
-                    producer._buffer_timeout_manager._timeout_task.done())
+            assert (
+                producer._buffer_timeout_manager._timeout_task is None
+                or producer._buffer_timeout_manager._timeout_task.done()
+            )
 
     @pytest.mark.asyncio
     async def test_buffer_timeout_task_management(self, mock_producer, mock_common, basic_config):
@@ -312,8 +307,10 @@ class TestAIOProducer:
         # Test task stops on close
         await producer.close()
         assert producer._is_closed is True
-        assert (producer._buffer_timeout_manager._timeout_task is None or
-                producer._buffer_timeout_manager._timeout_task.done())
+        assert (
+            producer._buffer_timeout_manager._timeout_task is None
+            or producer._buffer_timeout_manager._timeout_task.done()
+        )
 
     @pytest.mark.asyncio
     async def test_buffer_timeout_behavior(self, mock_producer, mock_common, basic_config):
@@ -530,10 +527,7 @@ class TestAIOProducer:
 
         # Test large batch handling
         with patch.object(producer, '_flush_buffer') as mock_flush:
-            large_batch_tasks = [
-                producer.produce('test', f'msg{i}')
-                for i in range(150)  # Exceeds batch_size
-            ]
+            large_batch_tasks = [producer.produce('test', f'msg{i}') for i in range(150)]  # Exceeds batch_size
 
             # Should trigger flush automatically at 100
             await asyncio.gather(*large_batch_tasks)
