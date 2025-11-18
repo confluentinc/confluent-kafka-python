@@ -26,13 +26,14 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RuleMode,
     Schema,
-    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC,
     JSON_TYPE,
@@ -43,7 +44,12 @@ from confluent_kafka.schema_registry.common.json_schema import (
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.serde import BaseDeserializer, BaseSerializer, ParsedSchemaCache, SchemaId
+from confluent_kafka.schema_registry.serde import (
+    BaseDeserializer,
+    BaseSerializer,
+    ParsedSchemaCache,
+    SchemaId,
+)
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = ['_resolve_named_schema', 'JSONSerializer', 'JSONDeserializer']
@@ -79,6 +85,7 @@ def _resolve_named_schema(
                 raise TypeError("Name cannot be None")
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
+
 
 
 class JSONSerializer(BaseSerializer):
@@ -447,6 +454,7 @@ class JSONSerializer(BaseSerializer):
         return validator
 
 
+
 class JSONDeserializer(BaseDeserializer):
     """
     Deserializer for JSON encoded data with Confluent Schema Registry
@@ -606,7 +614,9 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:

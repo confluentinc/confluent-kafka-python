@@ -21,13 +21,14 @@ from typing import Any, Callable, Dict, Optional, Union, cast
 from fastavro import schemaless_reader, schemaless_writer
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RuleMode,
     Schema,
-    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.avro import (
     AVRO_TYPE,
     AvroSchema,
@@ -39,7 +40,12 @@ from confluent_kafka.schema_registry.common.avro import (
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.serde import BaseDeserializer, BaseSerializer, ParsedSchemaCache, SchemaId
+from confluent_kafka.schema_registry.serde import (
+    BaseDeserializer,
+    BaseSerializer,
+    ParsedSchemaCache,
+    SchemaId,
+)
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = [
@@ -49,7 +55,9 @@ __all__ = [
 ]
 
 
-def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient) -> Dict[str, AvroSchema]:
+def _resolve_named_schema(
+    schema: Schema, schema_registry_client: SchemaRegistryClient
+) -> Dict[str, AvroSchema]:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -72,6 +80,7 @@ def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistry
                 raise TypeError("Name cannot be None")
             named_schemas[ref.name] = parsed_schema
     return named_schemas
+
 
 
 class AvroSerializer(BaseSerializer):
@@ -425,6 +434,7 @@ class AvroSerializer(BaseSerializer):
         return parsed_schema
 
 
+
 class AvroDeserializer(BaseDeserializer):
     """
     Deserializer for Avro binary encoded data with Confluent Schema Registry
@@ -574,7 +584,9 @@ class AvroDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(

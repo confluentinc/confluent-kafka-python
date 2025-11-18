@@ -33,6 +33,7 @@ from confluent_kafka.schema_registry import (
     reference_subject_name_strategy,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.protobuf import (
     PROTOBUF_TYPE,
     _bytes,
@@ -47,7 +48,12 @@ from confluent_kafka.schema_registry.common.protobuf import (
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from confluent_kafka.schema_registry.serde import BaseDeserializer, BaseSerializer, ParsedSchemaCache, SchemaId
+from confluent_kafka.schema_registry.serde import (
+    BaseDeserializer,
+    BaseSerializer,
+    ParsedSchemaCache,
+    SchemaId,
+)
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = [
@@ -90,6 +96,7 @@ def _resolve_named_schema(
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
+
 
 
 class ProtobufSerializer(BaseSerializer):
@@ -354,7 +361,9 @@ class ProtobufSerializer(BaseSerializer):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(self, ctx: SerializationContext, file_desc: FileDescriptor) -> List[SchemaReference]:
+    def _resolve_dependencies(
+        self, ctx: SerializationContext, file_desc: FileDescriptor
+    ) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -480,6 +489,7 @@ class ProtobufSerializer(BaseSerializer):
         return fd_proto, pool
 
 
+
 class ProtobufDeserializer(BaseDeserializer):
     """
     Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
@@ -588,7 +598,9 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
