@@ -28,8 +28,8 @@ from collections import defaultdict
 import urllib3
 from requests import Session, utils
 
-from .load import loads
 from .error import ClientError
+from .load import loads
 
 # Python 2 considers int an instance of str
 try:
