@@ -31,10 +31,22 @@ else
     fix=0
 fi
 
-clang_format_version=$(${CLANG_FORMAT} --version 2>/dev/null | sed -Ee 's/.*version ([[:digit:]]+)\.[[:digit:]]+\.[[:digit:]]+.*/\1/' || echo "0")
-if [[ -z $clang_format_version ]] || [[ $clang_format_version == "0" ]] || [[ $clang_format_version -lt 10 ]] ; then
-    echo "$0: clang-format version 10 or higher required, but version '$clang_format_version' detected (or not found)" 1>&2
-    exit 1
+# Check if we have any C/C++ files to process
+has_c_files=0
+for f in "$@"; do
+    if [[ $f == *.c ]] || [[ $f == *.h ]]; then
+        has_c_files=1
+        break
+    fi
+done
+
+# Only check clang-format if we have C files to process
+if [[ $has_c_files -eq 1 ]]; then
+    clang_format_version=$(${CLANG_FORMAT} --version 2>/dev/null | sed -Ee 's/.*version ([[:digit:]]+)\.[[:digit:]]+\.[[:digit:]]+.*/\1/' || echo "0")
+    if [[ -z $clang_format_version ]] || [[ $clang_format_version == "0" ]] || [[ $clang_format_version -lt 10 ]] ; then
+        echo "$0: clang-format version 10 or higher required, but version '$clang_format_version' detected (or not found)" 1>&2
+        exit 1
+    fi
 fi
 
 # Get list of files from .formatignore to ignore formatting for.
