@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import tink
 from tink import KmsClient
 
-from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import \
-    KmsDriver, register_kms_driver
-from confluent_kafka.schema_registry.rules.encryption.localkms.local_client import \
-    LocalKmsClient
+from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import KmsDriver, register_kms_driver
+from confluent_kafka.schema_registry.rules.encryption.localkms.local_client import LocalKmsClient
 
 _PREFIX = "local-kms://"
 _SECRET = "secret"

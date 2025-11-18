@@ -164,10 +164,40 @@ pytest -q tests/integration
 
 See [tests/README.md](tests/README.md) for instructions on how to run tests.
 
-## Linting & formatting (suggested)
+## Linting & formatting
 
-- Python: `black .` and `flake8` (or `ruff`) per project configuration
-- Markdown: `markdownlint '**/*.md'`
+We use automated tools to maintain consistent code style:
+
+- **black**: Code formatter
+- **isort**: Import sorter 
+- **flake8**: Linter for code quality
+
+### Running formatting checks
+
+```bash
+# Check formatting
+make style-check
+
+# Fix formatting
+make style-fix
+
+# Check only changed files
+make style-check-changed
+make style-fix-changed
+```
+
+### Using tox
+
+```bash
+# Check formatting
+tox -e black,isort
+
+# Check linting
+tox -e flake8
+
+# Run all formatting and linting checks
+tox -e black,isort,flake8
+```
 
 ## Documentation build
 

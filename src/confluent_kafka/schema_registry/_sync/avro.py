@@ -16,27 +16,37 @@
 # limitations under the License.
 import io
 import json
-from typing import Any, Dict, Union, Optional, Callable, cast
+from typing import Any, Callable, Dict, Optional, Union, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 
-from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_loads, \
-    get_inline_tags, parse_schema_with_repo, transform, _ContextStringIO, AVRO_TYPE
+from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
+    RuleMode,
+    Schema,
+    dual_schema_id_deserializer,
+    prefix_schema_id_serializer,
+    topic_subject_name_strategy,
+)
 
-from confluent_kafka.schema_registry import (Schema,
-                                             topic_subject_name_strategy,
-                                             RuleMode,
-                                             SchemaRegistryClient,
-                                             prefix_schema_id_serializer,
-                                             dual_schema_id_deserializer)
-from confluent_kafka.schema_registry.common.schema_registry_client import \
-    RulePhase
-from confluent_kafka.serialization import (SerializationError,
-                                           SerializationContext)
+from confluent_kafka.schema_registry.common.avro import (
+    AVRO_TYPE,
+    AvroSchema,
+    _ContextStringIO,
+    _schema_loads,
+    get_inline_tags,
+    parse_schema_with_repo,
+    transform,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
-    ParsedSchemaCache, SchemaId
-
+from confluent_kafka.schema_registry.serde import (
+    BaseDeserializer,
+    BaseSerializer,
+    ParsedSchemaCache,
+    SchemaId,
+)
+from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = [
     '_resolve_named_schema',
@@ -64,8 +74,7 @@ def _resolve_named_schema(
             if referenced_schema.schema.schema_str is None:
                 raise TypeError("Schema string cannot be None")
 
-            parsed_schema = parse_schema_with_repo(
-                referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
+            parsed_schema = parse_schema_with_repo(referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
             if ref.name is None:
                 raise TypeError("Name cannot be None")
@@ -182,16 +191,26 @@ class AvroSerializer(BaseSerializer):
 
         conf (dict): AvroSerializer configuration.
     """  # noqa: E501
-    __slots__ = ['_known_subjects', '_parsed_schema', '_schema',
-                 '_schema_id', '_schema_name', '_to_dict', '_parsed_schemas']
 
-    _default_conf = {'auto.register.schemas': True,
-                     'normalize.schemas': False,
-                     'use.schema.id': None,
-                     'use.latest.version': False,
-                     'use.latest.with.metadata': None,
-                     'subject.name.strategy': topic_subject_name_strategy,
-                     'schema.id.serializer': prefix_schema_id_serializer}
+    __slots__ = [
+        '_known_subjects',
+        '_parsed_schema',
+        '_schema',
+        '_schema_id',
+        '_schema_name',
+        '_to_dict',
+        '_parsed_schemas',
+    ]
+
+    _default_conf = {
+        'auto.register.schemas': True,
+        'normalize.schemas': False,
+        'use.schema.id': None,
+        'use.latest.version': False,
+        'use.latest.with.metadata': None,
+        'subject.name.strategy': topic_subject_name_strategy,
+        'schema.id.serializer': prefix_schema_id_serializer,
+    }
 
     def __init_impl(
         self,
@@ -200,7 +219,7 @@ class AvroSerializer(BaseSerializer):
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -217,8 +236,9 @@ class AvroSerializer(BaseSerializer):
         self._parsed_schemas = ParsedSchemaCache()
 
         if to_dict is not None and not callable(to_dict):
-            raise ValueError("to_dict must be callable with the signature "
-                             "to_dict(object, SerializationContext)->dict")
+            raise ValueError(
+                "to_dict must be callable with the signature " "to_dict(object, SerializationContext)->dict"
+            )
 
         self._to_dict = to_dict
 
@@ -235,8 +255,7 @@ class AvroSerializer(BaseSerializer):
             raise ValueError("normalize.schemas must be a boolean value")
 
         self._use_schema_id = cast(Optional[int], conf_copy.pop('use.schema.id'))
-        if (self._use_schema_id is not None and
-                not isinstance(self._use_schema_id, int)):
+        if self._use_schema_id is not None and not isinstance(self._use_schema_id, int):
             raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = cast(bool, conf_copy.pop('use.latest.version'))
@@ -246,27 +265,24 @@ class AvroSerializer(BaseSerializer):
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
         self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
-        if (self._use_latest_with_metadata is not None and
-                not isinstance(self._use_latest_with_metadata, dict)):
+        if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = cast(
             Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy')
+            conf_copy.pop('subject.name.strategy'),
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
-            Callable[[bytes, Optional[SerializationContext], Any], bytes],
-            conf_copy.pop('schema.id.serializer')
+            Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
         )
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
         if len(conf_copy) > 0:
-            raise ValueError("Unrecognized properties: {}"
-                             .format(", ".join(conf_copy.keys())))
+            raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
         if schema:
             parsed_schema = self._get_parsed_schema(schema)
@@ -299,14 +315,12 @@ class AvroSerializer(BaseSerializer):
         self._parsed_schema = parsed_schema
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {},
-                           rule_conf if rule_conf else {})
+            rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
     def __call__(  # type: ignore[override]
-        self, obj: object,
-        ctx: Optional[SerializationContext] = None
+        self, obj: object, ctx: Optional[SerializationContext] = None
     ) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
 
@@ -344,11 +358,13 @@ class AvroSerializer(BaseSerializer):
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
                 registered_schema = self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas
+                )
                 self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas
+                )
                 self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
@@ -364,18 +380,28 @@ class AvroSerializer(BaseSerializer):
 
         if latest_schema is not None and ctx is not None and subject is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
-            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
-                transform(rule_ctx, parsed_schema, msg, field_transform))
-            value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
-                                        latest_schema.schema, value, get_inline_tags(parsed_schema),
-                                        field_transformer)
+
+            def field_transformer(rule_ctx, field_transform, msg):
+                return transform(rule_ctx, parsed_schema, msg, field_transform)  # noqa: E731
+
+            value = self._execute_rules(
+                ctx,
+                subject,
+                RuleMode.WRITE,
+                None,
+                latest_schema.schema,
+                value,
+                get_inline_tags(parsed_schema),
+                field_transformer,
+            )
         else:
             parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
             # Check if it's a simple bytes type
-            is_bytes = (parsed_schema == "bytes" or
-                        (isinstance(parsed_schema, dict) and parsed_schema.get("type") == "bytes"))
+            is_bytes = parsed_schema == "bytes" or (
+                isinstance(parsed_schema, dict) and parsed_schema.get("type") == "bytes"
+            )
             if is_bytes:
                 # For simple bytes type, write value directly
                 buffer = value if isinstance(value, bytes) else value.encode()
@@ -386,8 +412,8 @@ class AvroSerializer(BaseSerializer):
 
             if latest_schema is not None and ctx is not None and subject is not None:
                 buffer = self._execute_rules_with_phase(
-                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
-                    None, latest_schema.schema, buffer, None, None)
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
+                )
 
             return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
@@ -402,8 +428,7 @@ class AvroSerializer(BaseSerializer):
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
             raise TypeError("Prepared schema string cannot be None")
-        parsed_schema = parse_schema_with_repo(
-            prepared_schema.schema_str, named_schemas=named_schemas)
+        parsed_schema = parse_schema_with_repo(prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
@@ -475,13 +500,14 @@ class AvroDeserializer(BaseDeserializer):
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
     """
 
-    __slots__ = ['_reader_schema', '_from_dict', '_return_record_name',
-                 '_schema', '_parsed_schemas']
+    __slots__ = ['_reader_schema', '_from_dict', '_return_record_name', '_schema', '_parsed_schemas']
 
-    _default_conf = {'use.latest.version': False,
-                     'use.latest.with.metadata': None,
-                     'subject.name.strategy': topic_subject_name_strategy,
-                     'schema.id.deserializer': dual_schema_id_deserializer}
+    _default_conf = {
+        'use.latest.version': False,
+        'use.latest.with.metadata': None,
+        'subject.name.strategy': topic_subject_name_strategy,
+        'schema.id.deserializer': dual_schema_id_deserializer,
+    }
 
     def __init_impl(
         self,
@@ -491,7 +517,7 @@ class AvroDeserializer(BaseDeserializer):
         return_record_name: bool = False,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
     ):
         super().__init__()
         schema = None
@@ -518,27 +544,24 @@ class AvroDeserializer(BaseDeserializer):
             raise ValueError("use.latest.version must be a boolean value")
 
         self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
-        if (self._use_latest_with_metadata is not None and
-                not isinstance(self._use_latest_with_metadata, dict)):
+        if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = cast(
             Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy')
+            conf_copy.pop('subject.name.strategy'),
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_deserializer = cast(
-            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO],
-            conf_copy.pop('schema.id.deserializer')
+            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
         )
         if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
         if len(conf_copy) > 0:
-            raise ValueError("Unrecognized properties: {}"
-                             .format(", ".join(conf_copy.keys())))
+            raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
         self._reader_schema: Optional[AvroSchema]
         if schema and self._schema is not None:
@@ -547,8 +570,9 @@ class AvroDeserializer(BaseDeserializer):
             self._reader_schema = None
 
         if from_dict is not None and not callable(from_dict):
-            raise ValueError("from_dict must be callable with the signature "
-                             "from_dict(SerializationContext, dict) -> object")
+            raise ValueError(
+                "from_dict must be callable with the signature " "from_dict(SerializationContext, dict) -> object"
+            )
         self._from_dict = from_dict
 
         self._return_record_name = return_record_name
@@ -556,19 +580,18 @@ class AvroDeserializer(BaseDeserializer):
             raise ValueError("return_record_name must be a boolean value")
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {},
-                           rule_conf if rule_conf else {})
+            rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
     def __call__(
-            self, data: Optional[bytes],
-            ctx: Optional[SerializationContext] = None
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
     ) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(
-            self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.
@@ -591,10 +614,12 @@ class AvroDeserializer(BaseDeserializer):
             return None
 
         if len(data) <= 5:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
+            raise SerializationError(
+                "Expecting data framing of length 6 bytes or "
+                "more but total data size is {} bytes. This "
+                "message was not produced with a Confluent "
+                "Schema Registry serializer".format(len(data))
+            )
 
         subject = self._subject_name_func(ctx, None) if ctx else None
         latest_schema = None
@@ -607,15 +632,16 @@ class AvroDeserializer(BaseDeserializer):
         writer_schema_raw = self._get_writer_schema(schema_id, subject)
         writer_schema = self._get_parsed_schema(writer_schema_raw)
         if subject is None:
-            subject = (self._subject_name_func(ctx, writer_schema.get("name"))  # type: ignore[union-attr]
-                       if ctx else None)
+            subject = (
+                self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
+            )
             if subject is not None:
                 latest_schema = self._get_reader_schema(subject)
 
         if ctx is not None and subject is not None:
             payload = self._execute_rules_with_phase(
-                ctx, subject, RulePhase.ENCODING, RuleMode.READ,
-                None, writer_schema_raw, payload, None, None)
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None
+            )
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
@@ -634,36 +660,32 @@ class AvroDeserializer(BaseDeserializer):
             reader_schema = writer_schema
 
         # Check if it's a simple bytes type
-        is_bytes = (writer_schema == "bytes" or
-                    (isinstance(writer_schema, dict) and writer_schema.get("type") == "bytes"))
+        is_bytes = writer_schema == "bytes" or (
+            isinstance(writer_schema, dict) and writer_schema.get("type") == "bytes"
+        )
 
         if migrations and ctx is not None and subject is not None:
             if is_bytes:
                 # For simple bytes type, read payload directly
                 obj_dict = payload.read()
             else:
-                obj_dict = schemaless_reader(payload,
-                                             writer_schema,
-                                             None,
-                                             self._return_record_name)
+                obj_dict = schemaless_reader(payload, writer_schema, None, self._return_record_name)
             obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
         else:
             if is_bytes:
                 # For simple bytes type, read payload directly
                 obj_dict = payload.read()
             else:
-                obj_dict = schemaless_reader(payload,
-                                             writer_schema,
-                                             reader_schema,
-                                             self._return_record_name)
+                obj_dict = schemaless_reader(payload, writer_schema, reader_schema, self._return_record_name)
 
-        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
-            transform(rule_ctx, reader_schema, message, field_transform))
+        def field_transformer(rule_ctx, field_transform, message):
+            return transform(rule_ctx, reader_schema, message, field_transform)  # noqa: E731
+
         if ctx is not None and subject is not None:
             inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
-            obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                           reader_schema_raw, obj_dict,
-                                           inline_tags, field_transformer)
+            obj_dict = self._execute_rules(
+                ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, inline_tags, field_transformer
+            )
 
         if self._from_dict is not None:
             if ctx is None:
@@ -683,8 +705,7 @@ class AvroDeserializer(BaseDeserializer):
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
             raise TypeError("Prepared schema string cannot be None")
-        parsed_schema = parse_schema_with_repo(
-            prepared_schema.schema_str, named_schemas=named_schemas)
+        parsed_schema = parse_schema_with_repo(prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema

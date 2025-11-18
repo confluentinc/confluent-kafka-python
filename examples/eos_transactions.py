@@ -50,7 +50,7 @@ import argparse
 from base64 import b64encode
 from uuid import uuid4
 
-from confluent_kafka import Producer, Consumer, KafkaError, TopicPartition
+from confluent_kafka import Consumer, KafkaError, Producer, TopicPartition
 
 
 def process_input(msg):
@@ -78,8 +78,7 @@ def delivery_report(err, msg):
     :returns: None
     """
     if err:
-        print('Message delivery failed ({} [{}]): {}'.format(
-            msg.topic(), str(msg.partition()), err))
+        print('Message delivery failed ({} [{}]): {}'.format(msg.topic(), str(msg.partition()), err))
 
 
 def main(args):
@@ -89,16 +88,18 @@ def main(args):
     input_partition = args.input_partition
     output_topic = args.output_topic
 
-    consumer = Consumer({
-        'bootstrap.servers': brokers,
-        'group.id': group_id,
-        'auto.offset.reset': 'earliest',
-        # Do not advance committed offsets outside of the transaction.
-        # Consumer offsets are committed along with the transaction
-        # using the producer's send_offsets_to_transaction() API.
-        'enable.auto.commit': False,
-        'enable.partition.eof': True,
-    })
+    consumer = Consumer(
+        {
+            'bootstrap.servers': brokers,
+            'group.id': group_id,
+            'auto.offset.reset': 'earliest',
+            # Do not advance committed offsets outside of the transaction.
+            # Consumer offsets are committed along with the transaction
+            # using the producer's send_offsets_to_transaction() API.
+            'enable.auto.commit': False,
+            'enable.partition.eof': True,
+        }
+    )
 
     # Prior to KIP-447 being supported each input partition requires
     # its own transactional producer, so in this example we use
@@ -107,10 +108,7 @@ def main(args):
     # partition in subscribe's rebalance callback.
     consumer.assign([TopicPartition(input_topic, input_partition)])
 
-    producer = Producer({
-        'bootstrap.servers': brokers,
-        'transactional.id': 'eos_transactions.py'
-    })
+    producer = Producer({'bootstrap.servers': brokers, 'transactional.id': 'eos_transactions.py'})
 
     # Initialize producer transaction.
     producer.init_transactions()
@@ -133,8 +131,7 @@ def main(args):
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
                 eof[(topic, partition)] = True
-                print("=== Reached the end of {} [{}] at {}====".format(
-                    topic, partition, msg.offset()))
+                print("=== Reached the end of {} [{}] at {}====".format(topic, partition, msg.offset()))
 
                 if len(eof) == len(consumer.assignment()):
                     print("=== Reached end of input ===")
@@ -149,18 +146,16 @@ def main(args):
         processed_key, processed_value = process_input(msg)
 
         # produce transformed message to output topic
-        producer.produce(output_topic, processed_value, processed_key,
-                         on_delivery=delivery_report)
+        producer.produce(output_topic, processed_value, processed_key, on_delivery=delivery_report)
 
         if msg_cnt % 100 == 0:
-            print("=== Committing transaction with {} messages at input offset {} ===".format(
-                msg_cnt, msg.offset()))
+            print("=== Committing transaction with {} messages at input offset {} ===".format(msg_cnt, msg.offset()))
             # Send the consumer's position to transaction to commit
             # them along with the transaction, committing both
             # input and outputs in the same transaction is what provides EOS.
             producer.send_offsets_to_transaction(
-                consumer.position(consumer.assignment()),
-                consumer.consumer_group_metadata())
+                consumer.position(consumer.assignment()), consumer.consumer_group_metadata()
+            )
 
             # Commit the transaction
             producer.commit_transaction()
@@ -171,9 +166,7 @@ def main(args):
 
     print("=== Committing final transaction with {} messages ===".format(msg_cnt))
     # commit processed message offsets to the transaction
-    producer.send_offsets_to_transaction(
-        consumer.position(consumer.assignment()),
-        consumer.consumer_group_metadata())
+    producer.send_offsets_to_transaction(consumer.position(consumer.assignment()), consumer.consumer_group_metadata())
 
     # commit transaction
     producer.commit_transaction()
@@ -182,19 +175,16 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Exactly Once Semantics (EOS) example")
-    parser.add_argument('-b', dest="brokers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="input_topic", required=True,
-                        help="Input topic to consume from, an external " +
-                        "producer needs to produce messages to this topic")
-    parser.add_argument('-o', dest="output_topic", default="output_topic",
-                        help="Output topic")
-    parser.add_argument('-p', dest="input_partition", default=0, type=int,
-                        help="Input partition to consume from")
-    parser.add_argument('-g', dest="group_id",
-                        default="eos_example_" + str(uuid4()),
-                        help="Consumer group")
+    parser = argparse.ArgumentParser(description="Exactly Once Semantics (EOS) example")
+    parser.add_argument('-b', dest="brokers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument(
+        '-t',
+        dest="input_topic",
+        required=True,
+        help="Input topic to consume from, an external " + "producer needs to produce messages to this topic",
+    )
+    parser.add_argument('-o', dest="output_topic", default="output_topic", help="Output topic")
+    parser.add_argument('-p', dest="input_partition", default=0, type=int, help="Input partition to consume from")
+    parser.add_argument('-g', dest="group_id", default="eos_example_" + str(uuid4()), help="Consumer group")
 
     main(parser.parse_args())

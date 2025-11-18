@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from threading import Lock
+from typing import Any, Optional
+
 import jsonata
 
-from typing import Optional, Any
-
-from threading import Lock
-
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.serde import RuleExecutor, RuleContext
+from confluent_kafka.schema_registry.serde import RuleContext, RuleExecutor
 
 
 class JsonataExecutor(RuleExecutor):

@@ -21,8 +21,8 @@
 import argparse
 
 from confluent_kafka import Consumer
-from confluent_kafka.serialization import SerializationContext, MessageField
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer
+from confluent_kafka.serialization import MessageField, SerializationContext
 
 
 class User(object):
@@ -54,9 +54,7 @@ def dict_to_user(obj, ctx):
     if obj is None:
         return None
 
-    return User(name=obj['name'],
-                favorite_number=obj['favorite_number'],
-                favorite_color=obj['favorite_color'])
+    return User(name=obj['name'], favorite_number=obj['favorite_number'], favorite_color=obj['favorite_color'])
 
 
 def main(args):
@@ -86,12 +84,13 @@ def main(args):
       "required": [ "name", "favorite_number", "favorite_color" ]
     }
     """
-    json_deserializer = JSONDeserializer(schema_str,
-                                         from_dict=dict_to_user)
+    json_deserializer = JSONDeserializer(schema_str, from_dict=dict_to_user)
 
-    consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'group.id': args.group,
-                     'auto.offset.reset': "earliest"}
+    consumer_conf = {
+        'bootstrap.servers': args.bootstrap_servers,
+        'group.id': args.group,
+        'auto.offset.reset': "earliest",
+    }
 
     consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
@@ -106,12 +105,11 @@ def main(args):
             user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
 
             if user is not None:
-                print("User record {}: name: {}\n"
-                      "\tfavorite_number: {}\n"
-                      "\tfavorite_color: {}\n"
-                      .format(msg.key(), user.name,
-                              user.favorite_number,
-                              user.favorite_color))
+                print(
+                    "User record {}: name: {}\n"
+                    "\tfavorite_number: {}\n"
+                    "\tfavorite_color: {}\n".format(msg.key(), user.name, user.favorite_number, user.favorite_color)
+                )
         except KeyboardInterrupt:
             break
 
@@ -120,13 +118,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="JSONDeserializer example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_json",
-                        help="Topic name")
-    parser.add_argument('-g', dest="group", default="example_serde_json",
-                        help="Consumer group")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('-t', dest="topic", default="example_serde_json", help="Topic name")
+    parser.add_argument('-g', dest="group", default="example_serde_json", help="Consumer group")
 
     main(parser.parse_args())
