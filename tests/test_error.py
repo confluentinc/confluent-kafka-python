@@ -17,8 +17,7 @@
 #
 
 from confluent_kafka import KafkaError
-from confluent_kafka.error import ConsumeError, \
-    ProduceError
+from confluent_kafka.error import ConsumeError, ProduceError
 
 
 def test_new_consume_error_constant():
@@ -29,8 +28,7 @@ def test_new_consume_error_constant():
 
 
 def test_new_consume_error_caused_by():
-    ce = ConsumeError(KafkaError(KafkaError.INVALID_CONFIG),
-                      exception=ValueError())
+    ce = ConsumeError(KafkaError(KafkaError.INVALID_CONFIG), exception=ValueError())
 
     assert ce.code == KafkaError.INVALID_CONFIG
     assert ce.name == u'INVALID_CONFIG'
@@ -38,8 +36,7 @@ def test_new_consume_error_caused_by():
 
 
 def test_new_consume_error_custom_message():
-    ce = ConsumeError(KafkaError(KafkaError._KEY_SERIALIZATION,
-                                 "Unable to serialize key"))
+    ce = ConsumeError(KafkaError(KafkaError._KEY_SERIALIZATION, "Unable to serialize key"))
 
     assert ce.code == KafkaError._KEY_SERIALIZATION
     assert ce.name == u'_KEY_SERIALIZATION'
@@ -54,8 +51,7 @@ def test_new_produce_error_constant():
 
 
 def test_new_produce_error_caused_by():
-    pe = ProduceError(KafkaError(KafkaError.INVALID_CONFIG),
-                      exception=ValueError())
+    pe = ProduceError(KafkaError(KafkaError.INVALID_CONFIG), exception=ValueError())
 
     assert pe.code == KafkaError.INVALID_CONFIG
     assert pe.name == u'INVALID_CONFIG'
@@ -63,8 +59,7 @@ def test_new_produce_error_caused_by():
 
 
 def test_new_produce_error_custom_message():
-    pe = ProduceError(KafkaError(KafkaError._KEY_SERIALIZATION,
-                                 "Unable to serialize key"))
+    pe = ProduceError(KafkaError(KafkaError._KEY_SERIALIZATION, "Unable to serialize key"))
 
     assert pe.code == KafkaError._KEY_SERIALIZATION
     assert pe.name == u'_KEY_SERIALIZATION'

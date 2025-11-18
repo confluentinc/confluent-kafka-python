@@ -74,6 +74,7 @@ class TopicMetadata(object):
 
     This class is typically not user instantiated.
     """
+
     # The dash in "-topic" and "-error" is needed to circumvent a
     # Sphinx issue where it tries to reference the same instance variable
     # on other classes which raises a warning/error.

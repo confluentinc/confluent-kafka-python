@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import pytest
 import asyncio
 import concurrent.futures
 from unittest.mock import Mock, patch
 
-from confluent_kafka import TopicPartition, KafkaError, KafkaException
+import pytest
+
+from confluent_kafka import KafkaError, KafkaException, TopicPartition
 from confluent_kafka.experimental.aio._AIOConsumer import AIOConsumer
 
 
@@ -22,19 +23,17 @@ class TestAIOConsumer:
     def mock_common(self):
         """Mock the _common module callback wrapping."""
         with patch('confluent_kafka.experimental.aio._AIOConsumer._common') as mock:
+
             async def mock_async_call(executor, blocking_task, *args, **kwargs):
                 return blocking_task(*args, **kwargs)
+
             mock.async_call.side_effect = mock_async_call
             yield mock
 
     @pytest.fixture
     def basic_config(self):
         """Basic consumer configuration."""
-        return {
-            'bootstrap.servers': 'localhost:9092',
-            'group.id': 'test-group',
-            'auto.offset.reset': 'earliest'
-        }
+        return {'bootstrap.servers': 'localhost:9092', 'group.id': 'test-group', 'auto.offset.reset': 'earliest'}
 
     @pytest.mark.asyncio
     async def test_constructor_executor_handling(self, mock_consumer, mock_common, basic_config):
@@ -121,7 +120,7 @@ class TestAIOConsumer:
         tasks = [
             asyncio.create_task(consumer.poll(timeout=1.0)),
             asyncio.create_task(consumer.assignment()),
-            asyncio.create_task(consumer.consumer_group_metadata())
+            asyncio.create_task(consumer.consumer_group_metadata()),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -134,7 +133,7 @@ class TestAIOConsumer:
         # Mock: 2 poll calls fail
         mock_consumer.return_value.poll.side_effect = [
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
-            KafkaException(KafkaError(KafkaError._TRANSPORT))
+            KafkaException(KafkaError(KafkaError._TRANSPORT)),
         ]
         mock_consumer.return_value.assignment.return_value = []
 

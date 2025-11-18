@@ -16,22 +16,18 @@
 # limitations under the License.
 #
 import io
+
 import pytest
 
+from confluent_kafka.schema_registry import SerializationError, dual_schema_id_deserializer, header_schema_id_serializer
 from confluent_kafka.schema_registry.serde import SchemaId
-from confluent_kafka.schema_registry import (
-    dual_schema_id_deserializer,
-    header_schema_id_serializer,
-    SerializationError
-)
 
 
 def test_schema_guid():
     schema_id = SchemaId("AVRO")
-    input = bytes([
-        0x01, 0x89, 0x79, 0x17, 0x62, 0x23, 0x36, 0x41, 0x86, 0x96, 0x74, 0x29, 0x9b, 0x90,
-        0xa8, 0x02, 0xe2
-    ])
+    input = bytes(
+        [0x01, 0x89, 0x79, 0x17, 0x62, 0x23, 0x36, 0x41, 0x86, 0x96, 0x74, 0x29, 0x9B, 0x90, 0xA8, 0x02, 0xE2]
+    )
     schema_id.from_bytes(io.BytesIO(input))
     guid_str = str(schema_id.guid)
     assert guid_str == "89791762-2336-4186-9674-299b90a802e2"
@@ -41,9 +37,7 @@ def test_schema_guid():
 
 def test_schema_id():
     schema_id = SchemaId("AVRO")
-    input = bytes([
-        0x00, 0x00, 0x00, 0x00, 0x01
-    ])
+    input = bytes([0x00, 0x00, 0x00, 0x00, 0x01])
     schema_id.from_bytes(io.BytesIO(input))
     id = schema_id.id
     assert id == 1
@@ -53,10 +47,31 @@ def test_schema_id():
 
 def test_schema_guid_with_message_indexes():
     schema_id = SchemaId("PROTOBUF")
-    input = bytes([
-        0x01, 0x89, 0x79, 0x17, 0x62, 0x23, 0x36, 0x41, 0x86, 0x96, 0x74, 0x29, 0x9b, 0x90,
-        0xa8, 0x02, 0xe2, 0x06, 0x02, 0x04, 0x06
-    ])
+    input = bytes(
+        [
+            0x01,
+            0x89,
+            0x79,
+            0x17,
+            0x62,
+            0x23,
+            0x36,
+            0x41,
+            0x86,
+            0x96,
+            0x74,
+            0x29,
+            0x9B,
+            0x90,
+            0xA8,
+            0x02,
+            0xE2,
+            0x06,
+            0x02,
+            0x04,
+            0x06,
+        ]
+    )
     schema_id.from_bytes(io.BytesIO(input))
     guid_str = str(schema_id.guid)
     assert guid_str == "89791762-2336-4186-9674-299b90a802e2"
@@ -68,9 +83,7 @@ def test_schema_guid_with_message_indexes():
 
 def test_schema_id_with_message_indexes():
     schema_id = SchemaId("PROTOBUF")
-    input = bytes([
-        0x00, 0x00, 0x00, 0x00, 0x01, 0x06, 0x02, 0x04, 0x06
-    ])
+    input = bytes([0x00, 0x00, 0x00, 0x00, 0x01, 0x06, 0x02, 0x04, 0x06])
     schema_id.from_bytes(io.BytesIO(input))
     id = schema_id.id
     assert id == 1
