@@ -23,10 +23,10 @@ import orjson
 import pytest
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RegisteredSchema,
     Schema,
     SchemaReference,
-    SchemaRegistryClient,
 )
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
