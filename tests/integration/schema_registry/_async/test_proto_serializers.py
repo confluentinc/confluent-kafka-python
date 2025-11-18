@@ -16,37 +16,54 @@
 #
 import pytest
 
-from confluent_kafka import TopicPartition, KafkaException, KafkaError
+from confluent_kafka import KafkaError, KafkaException, TopicPartition
 from confluent_kafka.error import ConsumeError
-from confluent_kafka.schema_registry.protobuf import AsyncProtobufSerializer, AsyncProtobufDeserializer
-from tests.integration.schema_registry.data.proto import metadata_proto_pb2, NestedTestProto_pb2, TestProto_pb2, \
-    PublicTestProto_pb2
+from confluent_kafka.schema_registry.protobuf import AsyncProtobufDeserializer, AsyncProtobufSerializer
+from tests.integration.schema_registry.data.proto import (
+    NestedTestProto_pb2,
+    PublicTestProto_pb2,
+    TestProto_pb2,
+    metadata_proto_pb2,
+)
 from tests.integration.schema_registry.data.proto.DependencyTestProto_pb2 import DependencyMessage
 from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import ClickCas
 
 
-@pytest.mark.parametrize("pb2, data", [
-    (TestProto_pb2.TestMessage, {'test_string': "abc",
-                                 'test_bool': True,
-                                 'test_bytes': b'look at these bytes',
-                                 'test_double': 1.0,
-                                 'test_float': 12.0}),
-    (PublicTestProto_pb2.TestMessage, {'test_string': "abc",
-                                       'test_bool': True,
-                                       'test_bytes': b'look at these bytes',
-                                       'test_double': 1.0,
-                                       'test_float': 12.0}),
-    (NestedTestProto_pb2.NestedMessage, {'user_id':
-     NestedTestProto_pb2.UserId(
-         kafka_user_id='oneof_str'),
-        'is_active': True,
-        'experiments_active': ['x', 'y', '1'],
-        'status': NestedTestProto_pb2.INACTIVE,
-        'complex_type':
-            NestedTestProto_pb2.ComplexType(
-                one_id='oneof_str',
-                is_active=False)})
-])
+@pytest.mark.parametrize(
+    "pb2, data",
+    [
+        (
+            TestProto_pb2.TestMessage,
+            {
+                'test_string': "abc",
+                'test_bool': True,
+                'test_bytes': b'look at these bytes',
+                'test_double': 1.0,
+                'test_float': 12.0,
+            },
+        ),
+        (
+            PublicTestProto_pb2.TestMessage,
+            {
+                'test_string': "abc",
+                'test_bool': True,
+                'test_bytes': b'look at these bytes',
+                'test_double': 1.0,
+                'test_float': 12.0,
+            },
+        ),
+        (
+            NestedTestProto_pb2.NestedMessage,
+            {
+                'user_id': NestedTestProto_pb2.UserId(kafka_user_id='oneof_str'),
+                'is_active': True,
+                'experiments_active': ['x', 'y', '1'],
+                'status': NestedTestProto_pb2.INACTIVE,
+                'complex_type': NestedTestProto_pb2.ComplexType(one_id='oneof_str', is_active=False),
+            },
+        ),
+    ],
+)
 async def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     """
     Validates that we get the same message back that we put in.
@@ -72,12 +89,15 @@ async def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     assert [getattr(expect, k) == getattr(actual, k) for k in data.keys()]
 
 
-@pytest.mark.parametrize("pb2, expected_refs", [
-    (TestProto_pb2.TestMessage, ['google/protobuf/descriptor.proto']),
-    (NestedTestProto_pb2.NestedMessage, ['google/protobuf/timestamp.proto']),
-    (DependencyMessage, ['NestedTestProto.proto', 'PublicTestProto.proto']),
-    (ClickCas, ['metadata_proto.proto', 'common_proto.proto'])
-])
+@pytest.mark.parametrize(
+    "pb2, expected_refs",
+    [
+        (TestProto_pb2.TestMessage, ['google/protobuf/descriptor.proto']),
+        (NestedTestProto_pb2.NestedMessage, ['google/protobuf/timestamp.proto']),
+        (DependencyMessage, ['NestedTestProto.proto', 'PublicTestProto.proto']),
+        (ClickCas, ['metadata_proto.proto', 'common_proto.proto']),
+    ],
+)
 async def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
     """
     Registers multiple messages with dependencies then queries the Schema
@@ -111,10 +131,12 @@ async def test_protobuf_serializer_type_mismatch(kafka_cluster):
 
     producer = kafka_cluster.async_producer(key_serializer=serializer)
 
-    with pytest.raises(KafkaException,
-                       match=r"message must be of type <class"
-                             r" 'tests.integration.schema_registry.data.proto.TestProto_pb2.TestMessage'\> not \<class"
-                             r" 'tests.integration.schema_registry.data.proto.NestedTestProto_pb2.NestedMessage'\>"):
+    with pytest.raises(
+        KafkaException,
+        match=r"message must be of type <class"
+        r" 'tests.integration.schema_registry.data.proto.TestProto_pb2.TestMessage'\> not \<class"
+        r" 'tests.integration.schema_registry.data.proto.NestedTestProto_pb2.NestedMessage'\>",
+    ):
         await producer.produce(topic, key=pb2_2())
 
 
@@ -138,11 +160,7 @@ async def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     def dr(err, msg):
         print("dr msg {} {}".format(msg.key(), msg.value()))
 
-    await producer.produce(
-        topic,
-        key=pb2_1(test_string='abc', test_bool=True, test_bytes=b'def'),
-        partition=0
-    )
+    await producer.produce(topic, key=pb2_1(test_string='abc', test_bool=True, test_bytes=b'def'), partition=0)
     producer.flush()
 
     with pytest.raises(ConsumeError) as e:

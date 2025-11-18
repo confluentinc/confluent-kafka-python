@@ -9,18 +9,19 @@
 # tries to install these versions on its own.
 #
 
-import platform
-import sys
 import os
-import tomllib
-import urllib.request
+import platform
 import re
 import shutil
-
+import sys
+import tomllib
+import urllib.request
 
 cibuildwheel_version = sys.argv[1]
-config_url = "https://raw.githubusercontent.com/pypa/cibuildwheel/" + \
-    f"v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+config_url = (
+    "https://raw.githubusercontent.com/pypa/cibuildwheel/"
+    + f"v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+)
 print(f"Config URL is '{config_url}'")
 
 response = urllib.request.urlopen(config_url).read()

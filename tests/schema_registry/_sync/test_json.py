@@ -23,9 +23,10 @@ import orjson
 import pytest
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
+    RegisteredSchema,
     Schema,
     SchemaReference,
-    SchemaRegistryClient, RegisteredSchema,
 )
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -37,11 +38,15 @@ def test_json_deserializer_referenced_schema_no_schema_registry_client(load_avsc
     Ensures that the deserializer raises a ValueError if a referenced schema is provided but no schema registry
     client is provided.
     """
-    schema = Schema(load_avsc("order_details.json"), 'JSON',
-                    [SchemaReference("http://example.com/customer.schema.json", "customer", 1)])
+    schema = Schema(
+        load_avsc("order_details.json"),
+        'JSON',
+        [SchemaReference("http://example.com/customer.schema.json", "customer", 1)],
+    )
     with pytest.raises(
-            ValueError,
-            match="""schema_registry_client must be provided if "schema_str" is a Schema instance with references"""):
+        ValueError,
+        match="""schema_registry_client must be provided if "schema_str" is a Schema instance with references""",
+    ):
         JSONDeserializer(schema, schema_registry_client=None)
 
 
@@ -70,16 +75,12 @@ def test_custom_json_encoder():
     # Create mock SchemaRegistryClient
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
-        schema_id=1,
-        guid=None,
-        schema=Schema(schema_str),
-        subject="topic-name-value",
-        version=1)
+        schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
+    )
 
     # Use orjson.dumps as the custom encoder
     serializer = JSONSerializer(
-        schema_str, mock_schema_registry_client, json_encode=orjson.dumps,
-        rule_registry=RuleRegistry()
+        schema_str, mock_schema_registry_client, json_encode=orjson.dumps, rule_registry=RuleRegistry()
     )
 
     result = serializer(test_data, ctx)
@@ -109,9 +110,7 @@ def test_custom_json_decoder():
         decoded = orjson.loads(data)
         return {k.upper(): v for k, v in decoded.items()}
 
-    deserializer = JSONDeserializer(
-        schema_str, json_decode=custom_decoder,
-        rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder, rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     result = deserializer(test_data, ctx)
 
@@ -135,11 +134,8 @@ def test_custom_encoder_decoder_chain():
 
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
-        schema_id=1,
-        guid=None,
-        schema=Schema(schema_str),
-        subject="topic-name-value",
-        version=1)
+        schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
+    )
 
     def custom_encoder(obj):
         return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
@@ -148,14 +144,9 @@ def test_custom_encoder_decoder_chain():
         return orjson.loads(data)
 
     serializer = JSONSerializer(
-        schema_str,
-        mock_schema_registry_client,
-        json_encode=custom_encoder,
-        rule_registry=RuleRegistry()
+        schema_str, mock_schema_registry_client, json_encode=custom_encoder, rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(
-        schema_str, json_decode=custom_decoder,
-        rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder, rule_registry=RuleRegistry())
 
     # Serialize then deserialize
     encoded = serializer(test_data, ctx)
@@ -183,11 +174,8 @@ def test_custom_encoding_with_complex_data():
     test_data = {"nested": {"array": [1, 2, 3], "string": "test"}}
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
-        schema_id=1,
-        guid=None,
-        schema=Schema(schema_str),
-        subject="topic-name-value",
-        version=1)
+        schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
+    )
 
     def custom_encoder(obj):
         return json.dumps(obj, indent=2)
@@ -196,14 +184,9 @@ def test_custom_encoding_with_complex_data():
         return json.loads(data)
 
     serializer = JSONSerializer(
-        schema_str,
-        mock_schema_registry_client,
-        json_encode=custom_encoder,
-        rule_registry=RuleRegistry()
+        schema_str, mock_schema_registry_client, json_encode=custom_encoder, rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(
-        schema_str, json_decode=custom_decoder,
-        rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder, rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     encoded = serializer(test_data, ctx)
     decoded = deserializer(encoded, ctx)

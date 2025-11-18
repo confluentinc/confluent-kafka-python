@@ -138,7 +138,7 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         char errstr[512];
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -579,7 +579,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -727,7 +727,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -842,7 +842,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -968,7 +968,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -1107,7 +1107,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -1279,7 +1279,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -1441,7 +1441,7 @@ static PyObject *Admin_create_acls (Handle *self, PyObject *args, PyObject *kwar
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -1565,7 +1565,7 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -1682,7 +1682,7 @@ static PyObject *Admin_delete_acls (Handle *self, PyObject *args, PyObject *kwar
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -1851,7 +1851,7 @@ PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kw
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -1942,7 +1942,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -2111,7 +2111,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2365,7 +2365,7 @@ PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2493,7 +2493,7 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2586,7 +2586,7 @@ PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs
                 goto err;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2663,7 +2663,7 @@ PyObject *Admin_delete_consumer_groups (Handle *self, PyObject *args, PyObject *
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2784,7 +2784,7 @@ PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObj
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2928,7 +2928,7 @@ PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyOb
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3064,7 +3064,7 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3151,7 +3151,7 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3250,7 +3250,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3357,7 +3357,7 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
                 return NULL;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 

@@ -5,24 +5,24 @@ This module contains strategy classes that encapsulate the different consumer
 implementations (sync vs async) with consistent interfaces for testing.
 """
 
-import time
 import asyncio
 import json
 import os
+import time
+
 from confluent_kafka import Consumer
 from confluent_kafka.experimental.aio import AIOConsumer
-from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, SchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroDeserializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONDeserializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufDeserializer
 from confluent_kafka.schema_registry._sync.json_schema import JSONDeserializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufDeserializer
 from confluent_kafka.schema_registry.avro import AvroDeserializer
-from confluent_kafka.schema_registry._async.json_schema import AsyncJSONDeserializer
-from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufDeserializer
-from confluent_kafka.schema_registry._async.avro import AsyncAvroDeserializer
-from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.serialization import (
-    StringDeserializer,
-    SerializationContext,
     MessageField,
+    SerializationContext,
+    StringDeserializer,
 )
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 
@@ -183,9 +183,7 @@ class ConsumerStrategy:
         elif deserialization_type == "protobuf":
             return PublicTestProto_pb2.TestMessage
         else:
-            raise ValueError(
-                f"Unsupported deserialization type: {deserialization_type}"
-            )
+            raise ValueError(f"Unsupported deserialization type: {deserialization_type}")
 
     def _record_message_metrics(self, msg, latency_ms):
         """Shared metrics recording logic"""
@@ -222,9 +220,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
         schema = self._get_schemas(deserialization_type)
 
         if deserialization_type == "avro":
-            value_deserializer = AvroDeserializer(
-                schema_registry_client=sr_client, schema_str=json.dumps(schema)
-            )
+            value_deserializer = AvroDeserializer(schema_registry_client=sr_client, schema_str=json.dumps(schema))
         elif deserialization_type == "json":
             value_deserializer = JSONDeserializer(json.dumps(schema))
         elif deserialization_type == "protobuf":
@@ -232,9 +228,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
 
         return key_deserializer, value_deserializer
 
-    def _deserialize_message(
-        self, msg, key_deserializer, value_deserializer, topic_name, message_count
-    ):
+    def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
         """Sync deserialization logic"""
         if not (key_deserializer or value_deserializer):
             return msg
@@ -254,8 +248,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
             # Log successful deserialization for first few messages
             if message_count < 5:
                 self.logger.debug(
-                    f"Deserialized message {message_count}: "
-                    f"key={deserialized_key}, value={deserialized_value}"
+                    f"Deserialized message {message_count}: " f"key={deserialized_key}, value={deserialized_value}"
                 )
 
             return DeserializedMessage(msg, deserialized_key, deserialized_value)
@@ -288,9 +281,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
         serialization_type=None,
     ):
         # Initialize deserializers if using Schema Registry
-        key_deserializer, value_deserializer = self.build_deserializers(
-            serialization_type
-        )
+        key_deserializer, value_deserializer = self.build_deserializers(serialization_type)
 
         consumer = self.create_consumer()
 
@@ -302,18 +293,14 @@ class SyncConsumerStrategy(ConsumerStrategy):
 
             while time.time() - start_time < test_duration:
                 consume_start = time.time()
-                messages = consumer.consume(
-                    num_messages=self.batch_size, timeout=timeout
-                )
+                messages = consumer.consume(num_messages=self.batch_size, timeout=timeout)
                 consume_end = time.time()
 
                 consume_latency_ms = (consume_end - consume_start) * 1000
 
                 if self.metrics:
                     self.metrics.record_api_call(consume_latency_ms)
-                    self.metrics.record_batch_operation(
-                        len(messages) if messages else 0
-                    )
+                    self.metrics.record_batch_operation(len(messages) if messages else 0)
 
                 if not messages:
                     if self.metrics:
@@ -340,9 +327,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
                     consumed_container.append(msg)
                     messages_consumed += 1
                     batch_consumed += 1
-                    self._record_message_metrics(
-                        msg, consume_latency_ms / max(len(messages), 1)
-                    )
+                    self._record_message_metrics(msg, consume_latency_ms / max(len(messages), 1))
 
         finally:
             consumer.close()
@@ -358,9 +343,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
         serialization_type=None,
     ):
         # Initialize deserializers if using Schema Registry
-        key_deserializer, value_deserializer = self.build_deserializers(
-            serialization_type
-        )
+        key_deserializer, value_deserializer = self.build_deserializers(serialization_type)
 
         consumer = self.create_consumer()
 
@@ -431,9 +414,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
 
         return key_deserializer, value_deserializer
 
-    async def _deserialize_message(
-        self, msg, key_deserializer, value_deserializer, topic_name, message_count
-    ):
+    async def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
         """Async deserialization logic"""
         if not (key_deserializer or value_deserializer):
             return msg
@@ -492,9 +473,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
     ):
         async def async_consume():
             # Initialize deserializers if using Schema Registry
-            key_deserializer, value_deserializer = await self.build_deserializers(
-                serialization_type
-            )
+            key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
 
             config_overrides = getattr(self, "config_overrides", None)
             consumer = self.create_consumer(config_overrides)
@@ -507,18 +486,14 @@ class AsyncConsumerStrategy(ConsumerStrategy):
 
                 while time.time() - start_time < test_duration:
                     consume_start = time.time()
-                    messages = await consumer.consume(
-                        num_messages=self.batch_size, timeout=timeout
-                    )
+                    messages = await consumer.consume(num_messages=self.batch_size, timeout=timeout)
                     consume_end = time.time()
 
                     consume_latency_ms = (consume_end - consume_start) * 1000
 
                     if self.metrics:
                         self.metrics.record_api_call(consume_latency_ms)
-                        self.metrics.record_batch_operation(
-                            len(messages) if messages else 0
-                        )
+                        self.metrics.record_batch_operation(len(messages) if messages else 0)
 
                     if not messages:
                         if self.metrics:
@@ -545,9 +520,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                         consumed_container.append(msg)
                         messages_consumed += 1
                         batch_consumed += 1
-                        self._record_message_metrics(
-                            msg, consume_latency_ms / max(len(messages), 1)
-                        )
+                        self._record_message_metrics(msg, consume_latency_ms / max(len(messages), 1))
 
             finally:
                 await consumer.close()
@@ -567,9 +540,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
     ):
         async def async_poll():
             # Initialize deserializers if using Schema Registry
-            key_deserializer, value_deserializer = await self.build_deserializers(
-                serialization_type
-            )
+            key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
 
             config_overrides = getattr(self, "config_overrides", None)
             consumer = self.create_consumer(config_overrides)

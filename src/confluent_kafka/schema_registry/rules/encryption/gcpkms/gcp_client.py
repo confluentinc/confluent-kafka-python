@@ -16,10 +16,9 @@
 
 from typing import Optional
 
+import tink
 from google.cloud import kms_v1
 from google.oauth2 import service_account
-
-import tink
 from tink import aead
 from tink.integration.gcpkms import GcpKmsClient
 from tink.integration.gcpkms._gcp_kms_client import _GcpKmsAead
@@ -30,9 +29,7 @@ GCP_KEYURI_PREFIX = 'gcp-kms://'
 class _GcpKmsClient(GcpKmsClient):
     """Basic GCP client for AEAD."""
 
-    def __init__(
-        self, key_uri: Optional[str], credentials: Optional[service_account.Credentials]
-    ) -> None:
+    def __init__(self, key_uri: Optional[str], credentials: Optional[service_account.Credentials]) -> None:
         """Creates a new GcpKmsClient that is bound to the key specified in 'key_uri'.
 
         Uses the specified credentials when communicating with the KMS.
@@ -53,8 +50,7 @@ class _GcpKmsClient(GcpKmsClient):
             self._key_uri = key_uri
         else:
             raise tink.TinkError('Invalid key_uri.')
-        self._client = kms_v1.KeyManagementServiceClient(
-            credentials=credentials)
+        self._client = kms_v1.KeyManagementServiceClient(credentials=credentials)
 
     def does_support(self, key_uri: str) -> bool:
         """Returns true iff this client supports KMS key specified in 'key_uri'.
@@ -79,11 +75,8 @@ class _GcpKmsClient(GcpKmsClient):
           An Aead object.
         """
         if self._key_uri and self._key_uri != key_uri:
-            raise tink.TinkError(
-                'This client is bound to %s and cannot use key %s'
-                % (self._key_uri, key_uri)
-            )
+            raise tink.TinkError('This client is bound to %s and cannot use key %s' % (self._key_uri, key_uri))
         if not key_uri.startswith(GCP_KEYURI_PREFIX):
             raise tink.TinkError('Invalid key_uri.')
-        key_id = key_uri[len(GCP_KEYURI_PREFIX):]
+        key_id = key_uri[len(GCP_KEYURI_PREFIX) :]
         return _GcpKmsAead(self._client, key_id)

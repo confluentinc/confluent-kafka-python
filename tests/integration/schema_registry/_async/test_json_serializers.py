@@ -16,12 +16,11 @@
 # limitations under the License.
 #
 import pytest
-from confluent_kafka import TopicPartition
 
+from confluent_kafka import TopicPartition
 from confluent_kafka.error import ConsumeError, ValueSerializationError
-from confluent_kafka.schema_registry import SchemaReference, Schema, AsyncSchemaRegistryClient
-from confluent_kafka.schema_registry.json_schema import (AsyncJSONSerializer,
-                                                         AsyncJSONDeserializer)
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, Schema, SchemaReference
+from confluent_kafka.schema_registry.json_schema import AsyncJSONDeserializer, AsyncJSONSerializer
 
 
 class _TestProduct(object):
@@ -34,14 +33,16 @@ class _TestProduct(object):
         self.location = location
 
     def __eq__(self, other):
-        return all([
-            self.product_id == other.product_id,
-            self.name == other.name,
-            self.price == other.price,
-            self.tags == other.tags,
-            self.dimensions == other.dimensions,
-            self.location == other.location
-        ])
+        return all(
+            [
+                self.product_id == other.product_id,
+                self.name == other.name,
+                self.price == other.price,
+                self.tags == other.tags,
+                self.dimensions == other.dimensions,
+                self.location == other.location,
+            ]
+        )
 
 
 class _TestCustomer(object):
@@ -50,10 +51,7 @@ class _TestCustomer(object):
         self.id = id
 
     def __eq__(self, other):
-        return all([
-            self.name == other.name,
-            self.id == other.id
-        ])
+        return all([self.name == other.name, self.id == other.id])
 
 
 class _TestOrderDetails(object):
@@ -62,10 +60,7 @@ class _TestOrderDetails(object):
         self.customer = customer
 
     def __eq__(self, other):
-        return all([
-            self.id == other.id,
-            self.customer == other.customer
-        ])
+        return all([self.id == other.id, self.customer == other.customer])
 
 
 class _TestOrder(object):
@@ -74,10 +69,7 @@ class _TestOrder(object):
         self.product = product
 
     def __eq__(self, other):
-        return all([
-            self.order_details == other.order_details,
-            self.product == other.product
-        ])
+        return all([self.order_details == other.order_details, self.product == other.product])
 
 
 class _TestReferencedProduct(object):
@@ -86,10 +78,7 @@ class _TestReferencedProduct(object):
         self.product = product
 
     def __eq__(self, other):
-        return all([
-            self.name == other.name,
-            self.product == other.product
-        ])
+        return all([self.name == other.name, self.product == other.product])
 
 
 def _testProduct_to_dict(product_obj, ctx):
@@ -106,12 +95,14 @@ def _testProduct_to_dict(product_obj, ctx):
         dict: product_obj as a dictionary.
 
     """
-    return {"productId": product_obj.product_id,
-            "productName": product_obj.name,
-            "price": product_obj.price,
-            "tags": product_obj.tags,
-            "dimensions": product_obj.dimensions,
-            "warehouseLocation": product_obj.location}
+    return {
+        "productId": product_obj.product_id,
+        "productName": product_obj.name,
+        "price": product_obj.price,
+        "tags": product_obj.tags,
+        "dimensions": product_obj.dimensions,
+        "warehouseLocation": product_obj.location,
+    }
 
 
 def _testCustomer_to_dict(customer_obj, ctx):
@@ -128,8 +119,7 @@ def _testCustomer_to_dict(customer_obj, ctx):
         dict: customer_obj as a dictionary.
 
     """
-    return {"name": customer_obj.name,
-            "id": customer_obj.id}
+    return {"name": customer_obj.name, "id": customer_obj.id}
 
 
 def _testOrderDetails_to_dict(orderdetails_obj, ctx):
@@ -146,8 +136,7 @@ def _testOrderDetails_to_dict(orderdetails_obj, ctx):
         dict: orderdetails_obj as a dictionary.
 
     """
-    return {"id": orderdetails_obj.id,
-            "customer": _testCustomer_to_dict(orderdetails_obj.customer, ctx)}
+    return {"id": orderdetails_obj.id, "customer": _testCustomer_to_dict(orderdetails_obj.customer, ctx)}
 
 
 def _testOrder_to_dict(order_obj, ctx):
@@ -164,8 +153,10 @@ def _testOrder_to_dict(order_obj, ctx):
         dict: order_obj as a dictionary.
 
     """
-    return {"order_details": _testOrderDetails_to_dict(order_obj.order_details, ctx),
-            "product": _testProduct_to_dict(order_obj.product, ctx)}
+    return {
+        "order_details": _testOrderDetails_to_dict(order_obj.order_details, ctx),
+        "product": _testProduct_to_dict(order_obj.product, ctx),
+    }
 
 
 def _testProduct_from_dict(product_dict, ctx):
@@ -182,12 +173,14 @@ def _testProduct_from_dict(product_dict, ctx):
         _TestProduct: product_obj instance.
 
     """
-    return _TestProduct(product_dict['productId'],
-                        product_dict['productName'],
-                        product_dict['price'],
-                        product_dict['tags'],
-                        product_dict['dimensions'],
-                        product_dict['warehouseLocation'])
+    return _TestProduct(
+        product_dict['productId'],
+        product_dict['productName'],
+        product_dict['price'],
+        product_dict['tags'],
+        product_dict['dimensions'],
+        product_dict['warehouseLocation'],
+    )
 
 
 def _testCustomer_from_dict(customer_dict, ctx):
@@ -204,8 +197,7 @@ def _testCustomer_from_dict(customer_dict, ctx):
         _TestCustomer: customer_obj instance.
 
     """
-    return _TestCustomer(customer_dict['name'],
-                         customer_dict['id'])
+    return _TestCustomer(customer_dict['name'], customer_dict['id'])
 
 
 def _testOrderDetails_from_dict(orderdetails_dict, ctx):
@@ -222,8 +214,7 @@ def _testOrderDetails_from_dict(orderdetails_dict, ctx):
         _TestOrderDetails: orderdetails_obj instance.
 
     """
-    return _TestOrderDetails(orderdetails_dict['id'],
-                             _testCustomer_from_dict(orderdetails_dict['customer'], ctx))
+    return _TestOrderDetails(orderdetails_dict['id'], _testCustomer_from_dict(orderdetails_dict['customer'], ctx))
 
 
 def _testOrder_from_dict(order_dict, ctx):
@@ -240,8 +231,10 @@ def _testOrder_from_dict(order_dict, ctx):
         _TestOrder: order_obj instance.
 
     """
-    return _TestOrder(_testOrderDetails_from_dict(order_dict['order_details'], ctx),
-                      _testProduct_from_dict(order_dict['product'], ctx))
+    return _TestOrder(
+        _testOrderDetails_from_dict(order_dict['order_details'], ctx),
+        _testProduct_from_dict(order_dict['product'], ctx),
+    )
 
 
 async def test_json_record_serialization(kafka_cluster, load_file):
@@ -266,19 +259,14 @@ async def test_json_record_serialization(kafka_cluster, load_file):
 
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    record = {"productId": 1,
-              "productName": "An ice sculpture",
-              "price": 12.50,
-              "tags": ["cold", "ice"],
-              "dimensions": {
-                  "length": 7.0,
-                  "width": 12.0,
-                  "height": 9.5
-              },
-              "warehouseLocation": {
-                  "latitude": -78.75,
-                  "longitude": 20.4
-              }}
+    record = {
+        "productId": 1,
+        "productName": "An ice sculpture",
+        "price": 12.50,
+        "tags": ["cold", "ice"],
+        "dimensions": {"length": 7.0, "width": 12.0, "height": 9.5},
+        "warehouseLocation": {"latitude": -78.75, "longitude": 20.4},
+    }
 
     await producer.produce(topic, value=record, partition=0)
     producer.flush()
@@ -312,13 +300,9 @@ async def test_json_record_serialization_incompatible(kafka_cluster, load_file):
     value_serializer = await AsyncJSONSerializer(schema_str, sr)
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    record = {"contractorId": 1,
-              "contractorName": "David Davidson",
-              "contractRate": 1250,
-              "trades": ["mason"]}
+    record = {"contractorId": 1, "contractorName": "David Davidson", "contractRate": 1250, "trades": ["mason"]}
 
-    with pytest.raises(ValueSerializationError,
-                       match=r"(.*) is a required property"):
+    with pytest.raises(ValueSerializationError, match=r"(.*) is a required property"):
         await producer.produce(topic, value=record, partition=0)
 
 
@@ -337,22 +321,18 @@ async def test_json_record_serialization_custom(kafka_cluster, load_file):
 
     schema_str = load_file("product.json")
     value_serializer = await AsyncJSONSerializer(schema_str, sr, to_dict=_testProduct_to_dict)
-    value_deserializer = await AsyncJSONDeserializer(
-        schema_str,
-        from_dict=_testProduct_from_dict
-    )
+    value_deserializer = await AsyncJSONDeserializer(schema_str, from_dict=_testProduct_from_dict)
 
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    record = _TestProduct(product_id=1,
-                          name="The ice sculpture",
-                          price=12.50,
-                          tags=["cold", "ice"],
-                          dimensions={"length": 7.0,
-                                      "width": 12.0,
-                                      "height": 9.5},
-                          location={"latitude": -78.75,
-                                    "longitude": 20.4})
+    record = _TestProduct(
+        product_id=1,
+        name="The ice sculpture",
+        price=12.50,
+        tags=["cold", "ice"],
+        dimensions={"length": 7.0, "width": 12.0, "height": 9.5},
+        location={"latitude": -78.75, "longitude": 20.4},
+    )
 
     await producer.produce(topic, value=record, partition=0)
     producer.flush()
@@ -363,8 +343,7 @@ async def test_json_record_serialization_custom(kafka_cluster, load_file):
     msg = await consumer.poll()
     actual = msg.value()
 
-    assert all([getattr(actual, attribute) == getattr(record, attribute)
-                for attribute in vars(record)])
+    assert all([getattr(actual, attribute) == getattr(record, attribute) for attribute in vars(record)])
 
 
 async def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
@@ -388,10 +367,7 @@ async def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
 
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    record = {"contractorId": 2,
-              "contractorName": "Magnus Edenhill",
-              "contractRate": 30,
-              "trades": ["pickling"]}
+    record = {"contractorId": 2, "contractorName": "Magnus Edenhill", "contractRate": 30, "trades": ["pickling"]}
 
     await producer.produce(topic, value=record, partition=0)
     producer.flush()
@@ -399,21 +375,30 @@ async def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
     consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    with pytest.raises(
-            ConsumeError,
-            match="'productId' is a required property"):
+    with pytest.raises(ConsumeError, match="'productId' is a required property"):
         await consumer.poll()
 
 
 async def _register_referenced_schemas(sr: AsyncSchemaRegistryClient, load_file):
     await sr.register_schema("product", Schema(load_file("product.json"), 'JSON'))
     await sr.register_schema("customer", Schema(load_file("customer.json"), 'JSON'))
-    await sr.register_schema("order_details", Schema(load_file("order_details.json"), 'JSON', [
-        SchemaReference("http://example.com/customer.schema.json", "customer", 1)]))
+    await sr.register_schema(
+        "order_details",
+        Schema(
+            load_file("order_details.json"),
+            'JSON',
+            [SchemaReference("http://example.com/customer.schema.json", "customer", 1)],
+        ),
+    )
 
-    order_schema = Schema(load_file("order.json"), 'JSON',
-                          [SchemaReference("http://example.com/order_details.schema.json", "order_details", 1),
-                           SchemaReference("http://example.com/product.schema.json", "product", 1)])
+    order_schema = Schema(
+        load_file("order.json"),
+        'JSON',
+        [
+            SchemaReference("http://example.com/order_details.schema.json", "order_details", 1),
+            SchemaReference("http://example.com/product.schema.json", "product", 1),
+        ],
+    )
     return order_schema
 
 
@@ -421,19 +406,14 @@ async def test_json_reference(kafka_cluster, load_file):
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
-    product = {"productId": 1,
-               "productName": "An ice sculpture",
-               "price": 12.50,
-               "tags": ["cold", "ice"],
-               "dimensions": {
-                   "length": 7.0,
-                   "width": 12.0,
-                   "height": 9.5
-               },
-               "warehouseLocation": {
-                   "latitude": -78.75,
-                   "longitude": 20.4
-               }}
+    product = {
+        "productId": 1,
+        "productName": "An ice sculpture",
+        "price": 12.50,
+        "tags": ["cold", "ice"],
+        "dimensions": {"length": 7.0, "width": 12.0, "height": 9.5},
+        "warehouseLocation": {"latitude": -78.75, "longitude": 20.4},
+    }
     customer = {"name": "John Doe", "id": 1}
     order_details = {"id": 1, "customer": customer}
     order = {"order_details": order_details, "product": product}
@@ -460,15 +440,14 @@ async def test_json_reference_custom(kafka_cluster, load_file):
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
-    product = _TestProduct(product_id=1,
-                           name="The ice sculpture",
-                           price=12.50,
-                           tags=["cold", "ice"],
-                           dimensions={"length": 7.0,
-                                       "width": 12.0,
-                                       "height": 9.5},
-                           location={"latitude": -78.75,
-                                     "longitude": 20.4})
+    product = _TestProduct(
+        product_id=1,
+        name="The ice sculpture",
+        price=12.50,
+        tags=["cold", "ice"],
+        dimensions={"length": 7.0, "width": 12.0, "height": 9.5},
+        location={"latitude": -78.75, "longitude": 20.4},
+    )
     customer = _TestCustomer(name="John Doe", id=1)
     order_details = _TestOrderDetails(id=1, customer=customer)
     order = _TestOrder(order_details=order_details, product=product)
