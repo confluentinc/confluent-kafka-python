@@ -110,16 +110,33 @@ for f in $*; do
     fi
 
     if [[ $fix == 0 || $check == 1 ]]; then
+        file_has_errors=0
+        
+        # Show progress
+        if [[ $fix == 0 ]]; then
+            echo -n "[$file_num/$file_count] Checking $f... " 1>&2
+        fi
+        
         # Check for tabs
         if grep -q $'\t' "$f" ; then
             echo "$f: contains tabs: convert to 8 spaces instead"
+            file_has_errors=1
             ret=1
         fi
 
         # Check style
         if [[ $lang == c ]]; then
-            if ! ${CLANG_FORMAT} --style="$style" --Werror --dry-run "$f" ; then
+            set +e
+            clang_output=$(${CLANG_FORMAT} --style="$style" --Werror --dry-run "$f" 2>&1)
+            clang_exit=$?
+            set -e
+            if [[ $clang_exit -ne 0 ]]; then
+                # Output clang-format errors if any
+                if [[ -n "$clang_output" ]]; then
+                    echo "$clang_output" 1>&2
+                fi
                 echo "$f: had style errors ($stylename): see clang-format output above"
+                file_has_errors=1
                 ret=1
             fi
         elif [[ $lang == py ]]; then
@@ -131,6 +148,7 @@ for f in $*; do
             if [[ $isort_exit -ne 0 ]]; then
                 echo "$f: import sorting issues (isort)" 1>&2
                 echo "$isort_check" | head -10 1>&2
+                file_has_errors=1
                 ret=1
             fi
             # Check with black
@@ -141,20 +159,31 @@ for f in $*; do
             if [[ $black_exit -ne 0 ]]; then
                 echo "$f: formatting issues (black)" 1>&2
                 echo "$black_check" | head -10 1>&2
+                file_has_errors=1
                 ret=1
             fi
             # Also run flake8 for linting (not formatting)
             set +e
-            python3 -m flake8 "$f"
+            flake8_output=$(python3 -m flake8 "$f" 2>&1)
             flake8_exit=$?
             set -e
             if [[ $flake8_exit -ne 0 ]]; then
+                # Output flake8 errors
+                if [[ -n "$flake8_output" ]]; then
+                    echo "$flake8_output" 1>&2
+                fi
                 echo "$f: had linting errors (flake8): see flake8 output above"
                 if [[ $fix == 1 ]]; then
                     extra_info="Error: black/isort could not fix all linting errors, fix the flake8 errors manually and run again."
                 fi
+                file_has_errors=1
                 ret=1
             fi
+        fi
+        
+        # Show OK if no errors found
+        if [[ $fix == 0 ]] && [[ $file_has_errors -eq 0 ]]; then
+            echo "OK" 1>&2
         fi
     fi
 
