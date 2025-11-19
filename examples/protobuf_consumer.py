@@ -32,20 +32,22 @@ import argparse
 
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
+
 from confluent_kafka import Consumer
-from confluent_kafka.serialization import SerializationContext, MessageField
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
+from confluent_kafka.serialization import MessageField, SerializationContext
 
 
 def main(args):
     topic = args.topic
 
-    protobuf_deserializer = ProtobufDeserializer(user_pb2.User,
-                                                 {'use.deprecated.format': False})
+    protobuf_deserializer = ProtobufDeserializer(user_pb2.User, {'use.deprecated.format': False})
 
-    consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'group.id': args.group,
-                     'auto.offset.reset': "earliest"}
+    consumer_conf = {
+        'bootstrap.servers': args.bootstrap_servers,
+        'group.id': args.group,
+        'auto.offset.reset': "earliest",
+    }
 
     consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
@@ -60,13 +62,12 @@ def main(args):
             user = protobuf_deserializer(msg.value(), SerializationContext(topic, MessageField.VALUE))
 
             if user is not None:
-                print("User record {}:\n"
-                      "\tname: {}\n"
-                      "\tfavorite_number: {}\n"
-                      "\tfavorite_color: {}\n"
-                      .format(msg.key(), user.name,
-                              user.favorite_number,
-                              user.favorite_color))
+                print(
+                    "User record {}:\n"
+                    "\tname: {}\n"
+                    "\tfavorite_number: {}\n"
+                    "\tfavorite_color: {}\n".format(msg.key(), user.name, user.favorite_number, user.favorite_color)
+                )
         except KeyboardInterrupt:
             break
 
@@ -75,13 +76,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="ProtobufDeserializer example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_protobuf",
-                        help="Topic name")
-    parser.add_argument('-g', dest="group", default="example_serde_protobuf",
-                        help="Consumer group")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('-t', dest="topic", default="example_serde_protobuf", help="Topic name")
+    parser.add_argument('-g', dest="group", default="example_serde_protobuf", help="Consumer group")
 
     main(parser.parse_args())

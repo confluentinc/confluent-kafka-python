@@ -18,25 +18,25 @@
 import io
 from typing import Optional
 
+from ..serialization import MessageField, SerializationContext, SerializationError
 from .schema_registry_client import (
-  ConfigCompatibilityLevel,
-  Metadata,
-  MetadataProperties,
-  MetadataTags,
-  RegisteredSchema,
-  Rule,
-  RuleKind,
-  RuleMode,
-  RuleParams,
-  RuleSet,
-  Schema,
-  SchemaRegistryClient,
-  AsyncSchemaRegistryClient,
-  SchemaRegistryError,
-  SchemaReference,
-  ServerConfig
+    AsyncSchemaRegistryClient,
+    ConfigCompatibilityLevel,
+    Metadata,
+    MetadataProperties,
+    MetadataTags,
+    RegisteredSchema,
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    Schema,
+    SchemaReference,
+    SchemaRegistryClient,
+    SchemaRegistryError,
+    ServerConfig,
 )
-from ..serialization import SerializationError, MessageField, SerializationContext
 
 _KEY_SCHEMA_ID = "__key_schema_id"
 _VALUE_SCHEMA_ID = "__value_schema_id"
@@ -46,29 +46,29 @@ _MAGIC_BYTE_V0 = _MAGIC_BYTE
 _MAGIC_BYTE_V1 = 1
 
 __all__ = [
-  "ConfigCompatibilityLevel",
-  "Metadata",
-  "MetadataProperties",
-  "MetadataTags",
-  "RegisteredSchema",
-  "Rule",
-  "RuleKind",
-  "RuleMode",
-  "RuleParams",
-  "RuleSet",
-  "Schema",
-  "SchemaRegistryClient",
-  "AsyncSchemaRegistryClient",
-  "SchemaRegistryError",
-  "SchemaReference",
-  "ServerConfig",
-  "topic_subject_name_strategy",
-  "topic_record_subject_name_strategy",
-  "record_subject_name_strategy",
-  "header_schema_id_serializer",
-  "prefix_schema_id_serializer",
-  "dual_schema_id_deserializer",
-  "prefix_schema_id_deserializer"
+    "ConfigCompatibilityLevel",
+    "Metadata",
+    "MetadataProperties",
+    "MetadataTags",
+    "RegisteredSchema",
+    "Rule",
+    "RuleKind",
+    "RuleMode",
+    "RuleParams",
+    "RuleSet",
+    "Schema",
+    "SchemaRegistryClient",
+    "AsyncSchemaRegistryClient",
+    "SchemaRegistryError",
+    "SchemaReference",
+    "ServerConfig",
+    "topic_subject_name_strategy",
+    "topic_record_subject_name_strategy",
+    "record_subject_name_strategy",
+    "header_schema_id_serializer",
+    "prefix_schema_id_serializer",
+    "dual_schema_id_deserializer",
+    "prefix_schema_id_deserializer",
 ]
 
 
@@ -95,8 +95,8 @@ def topic_subject_name_strategy(ctx: Optional[SerializationContext], record_name
 
 
 def topic_record_subject_name_strategy(
-        ctx: Optional[SerializationContext],
-        record_name: Optional[str]) -> Optional[str]:
+    ctx: Optional[SerializationContext], record_name: Optional[str]
+) -> Optional[str]:
     """
     Constructs a subject name in the form of {topic}-{record_name}.
 

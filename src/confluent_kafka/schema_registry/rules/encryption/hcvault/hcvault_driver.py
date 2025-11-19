@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from tink import KmsClient
 
-from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_client import \
-    HcVaultKmsClient
-from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import \
-    KmsDriver, register_kms_driver
+from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_client import HcVaultKmsClient
+from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import KmsDriver, register_kms_driver
 
 _PREFIX = "hcvault://"
 _TOKEN_ID = "token.id"

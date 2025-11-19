@@ -25,9 +25,9 @@ from uuid import uuid4
 from six.moves import input
 
 from confluent_kafka import Producer
-from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 
 
 class User(object):
@@ -67,9 +67,7 @@ def user_to_dict(user, ctx):
     """
 
     # User._address must not be serialized; omit from dict
-    return dict(name=user.name,
-                favorite_number=user.favorite_number,
-                favorite_color=user.favorite_color)
+    return dict(name=user.name, favorite_number=user.favorite_number, favorite_color=user.favorite_color)
 
 
 def delivery_report(err, msg):
@@ -93,8 +91,11 @@ def delivery_report(err, msg):
     if err is not None:
         print("Delivery failed for User record {}: {}".format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -117,9 +118,7 @@ def main(args):
 
     # Use context manager for SchemaRegistryClient to ensure proper cleanup
     with SchemaRegistryClient(schema_registry_conf) as schema_registry_client:
-        avro_serializer = AvroSerializer(schema_registry_client,
-                                         schema_str,
-                                         user_to_dict)
+        avro_serializer = AvroSerializer(schema_registry_client, schema_str, user_to_dict)
 
         string_serializer = StringSerializer('utf_8')
 
@@ -136,14 +135,18 @@ def main(args):
                     user_address = input("Enter address: ")
                     user_favorite_number = int(input("Enter favorite number: "))
                     user_favorite_color = input("Enter favorite color: ")
-                    user = User(name=user_name,
-                                address=user_address,
-                                favorite_color=user_favorite_color,
-                                favorite_number=user_favorite_number)
-                    producer.produce(topic=topic,
-                                     key=string_serializer(str(uuid4())),
-                                     value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
-                                     on_delivery=delivery_report)
+                    user = User(
+                        name=user_name,
+                        address=user_address,
+                        favorite_color=user_favorite_color,
+                        favorite_number=user_favorite_number,
+                    )
+                    producer.produce(
+                        topic=topic,
+                        key=string_serializer(str(uuid4())),
+                        value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
+                        on_delivery=delivery_report,
+                    )
                 except KeyboardInterrupt:
                     break
                 except ValueError:
@@ -154,16 +157,17 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="AvroSerializer example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('--sr-api-key', dest="sr_api_key", default=None,
-                        help="Confluent Cloud Schema Registry API key (optional)")
-    parser.add_argument('--sr-api-secret', dest="sr_api_secret", default=None,
-                        help="Confluent Cloud Schema Registry API secret (optional)")
-    parser.add_argument('-t', dest="topic", default="example_serde_avro",
-                        help="Topic name")
-    parser.add_argument('-p', dest="specific", default="true",
-                        help="Avro specific record")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument(
+        '--sr-api-key', dest="sr_api_key", default=None, help="Confluent Cloud Schema Registry API key (optional)"
+    )
+    parser.add_argument(
+        '--sr-api-secret',
+        dest="sr_api_secret",
+        default=None,
+        help="Confluent Cloud Schema Registry API secret (optional)",
+    )
+    parser.add_argument('-t', dest="topic", default="example_serde_avro", help="Topic name")
+    parser.add_argument('-p', dest="specific", default="true", help="Avro specific record")
     main(parser.parse_args())
