@@ -20,33 +20,38 @@ import json
 
 import pytest
 
-from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, \
-    Schema, Metadata, MetadataProperties, header_schema_id_serializer
-from confluent_kafka.schema_registry.json_schema import AsyncJSONSerializer, \
-    AsyncJSONDeserializer
+from confluent_kafka.schema_registry import (
+    AsyncSchemaRegistryClient,
+    Metadata,
+    MetadataProperties,
+    Schema,
+    header_schema_id_serializer,
+)
+from confluent_kafka.schema_registry.json_schema import AsyncJSONDeserializer, AsyncJSONSerializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
-from confluent_kafka.schema_registry.rules.cel.cel_field_executor import \
-    CelFieldExecutor
-from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
-    AwsKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
-    AzureKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor, EncryptionExecutor
-from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
-    GcpKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
-    HcVaultKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import \
-    LocalKmsDriver
-from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
-    JsonataExecutor
-from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
-    Rule, RuleKind, RuleMode, SchemaReference, RuleParams, ServerConfig
+from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
+from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
+    EncryptionExecutor,
+    FieldEncryptionExecutor,
+)
+from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
+from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import JsonataExecutor
+from confluent_kafka.schema_registry.schema_registry_client import (
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    SchemaReference,
+    ServerConfig,
+)
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
+from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 from tests.schema_registry._async.test_avro_serdes import FakeClock
-
 
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
@@ -100,17 +105,10 @@ async def test_json_basic_serialization():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -137,17 +135,10 @@ async def test_json_basic_failing_validation():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -158,10 +149,7 @@ async def test_json_basic_failing_validation():
 async def test_json_guid_in_header():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
-    ser_conf = {
-        'auto.register.schemas': True,
-        'schema.id.serializer': header_schema_id_serializer
-    }
+    ser_conf = {'auto.register.schemas': True, 'schema.id.serializer': header_schema_id_serializer}
     obj = {
         'intField': 123,
         'doubleField': 45.67,
@@ -174,17 +162,10 @@ async def test_json_guid_in_header():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
@@ -211,17 +192,10 @@ async def test_json_basic_deserialization_no_client():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -243,33 +217,21 @@ async def test_json_serialize_nested():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    obj = {
-        'nested': nested
-    }
+    obj = {'nested': nested}
     schema = {
         "type": "object",
         "properties": {
             "otherField": {
                 "type": "object",
                 "properties": {
-                    "intField": {
-                        "type": "integer"
-                    },
-                    "doubleField": {
-                        "type": "number"
-                    },
-                    "stringField": {
-                        "type": "string"
-                    },
-                    "booleanField": {
-                        "type": "boolean"
-                    },
-                    "bytesField": {
-                        "type": "string"
-                    }
-                }
+                    "intField": {"type": "integer"},
+                    "doubleField": {"type": "number"},
+                    "stringField": {"type": "string"},
+                    "booleanField": {"type": "boolean"},
+                    "bytesField": {"type": "string"},
+                },
             }
-        }
+        },
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -292,33 +254,19 @@ async def test_json_serialize_references():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    obj = {
-        'otherField': referenced
-    }
+    obj = {'otherField': referenced}
     ref_schema = {
         "type": "object",
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     await client.register_schema('ref', Schema(json.dumps(ref_schema), "JSON"))
-    schema = {
-        "type": "object",
-        "properties": {
-            "otherField": {"$ref": "ref"}
-        }
-    }
+    schema = {"type": "object", "properties": {"otherField": {"$ref": "ref"}}}
     refs = [SchemaReference('ref', 'ref', 1)]
     await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'JSON', refs))
 
@@ -340,17 +288,10 @@ async def test_json_cel_condition():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -364,15 +305,9 @@ async def test_json_cel_condition():
         "message.stringField == 'hi'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -399,17 +334,10 @@ async def test_json_cel_condition_fail():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -423,15 +351,9 @@ async def test_json_cel_condition_fail():
         "message.stringField != 'hi'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -457,17 +379,10 @@ async def test_json_cel_condition_ignore_fail():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -481,15 +396,9 @@ async def test_json_cel_condition_ignore_fail():
         "message.stringField != 'hi'",
         None,
         "NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -516,17 +425,10 @@ async def test_json_cel_field_transform():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -540,15 +442,9 @@ async def test_json_cel_field_transform():
         "name == 'stringField' ; value + '-suffix'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -582,17 +478,10 @@ async def test_json_cel_field_transform_with_nullable():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": ["string", "null"],
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": ["string", "null"], "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -606,15 +495,9 @@ async def test_json_cel_field_transform_with_nullable():
         "name == 'stringField' ; value + '-suffix'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -650,28 +533,18 @@ async def test_json_cel_field_transform_with_def():
             "Address": {
                 "additionalProperties": False,
                 "properties": {
-                    "doornumber": {
-                        "type": "integer"
-                    },
-                    "doorpin": {
-                        "confluent:tags": ["PII"],
-                        "type": "string"
-                    }
+                    "doornumber": {"type": "integer"},
+                    "doorpin": {"confluent:tags": ["PII"], "type": "string"},
                 },
-                "type": "object"
+                "type": "object",
             }
         },
         "properties": {
-            "address": {
-                "$ref": "#/definitions/Address"
-            },
-            "name": {
-                "confluent:tags": ["PII"],
-                "type": "string"
-            }
+            "address": {"$ref": "#/definitions/Address"},
+            "name": {"confluent:tags": ["PII"], "type": "string"},
         },
         "title": "Sample Event",
-        "type": "object"
+        "type": "object",
     }
 
     rule = Rule(
@@ -685,34 +558,16 @@ async def test_json_cel_field_transform_with_def():
         "value + '-suffix'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        'name': 'bob',
-        'address': {
-            'doornumber': 123,
-            'doorpin': '1234'
-        }
-    }
+    obj = {'name': 'bob', 'address': {'doornumber': 123, 'doorpin': '1234'}}
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
-    obj2 = {
-        'name': 'bob-suffix',
-        'address': {
-            'doornumber': 123,
-            'doorpin': '1234-suffix'
-        }
-    }
+    obj2 = {'name': 'bob-suffix', 'address': {'doornumber': 123, 'doorpin': '1234-suffix'}}
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
     newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
@@ -725,30 +580,10 @@ async def test_json_cel_field_transform_complex():
     schema = {
         "type": "object",
         "properties": {
-            "arrayField": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            },
-            "objectField": {
-                "type": "object",
-                "properties": {
-                    "stringField": {"type": "string"}
-                }
-            },
-            "unionField": {
-                "oneOf": [
-                    {
-                        "type": "null"
-                    },
-                    {
-                        "type": "string"
-                    }
-                ],
-                "confluent:tags": ["PII"]
-            }
-        }
+            "arrayField": {"type": "array", "items": {"type": "string"}},
+            "objectField": {"type": "object", "properties": {"stringField": {"type": "string"}}},
+            "unionField": {"oneOf": [{"type": "null"}, {"type": "string"}], "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -762,33 +597,19 @@ async def test_json_cel_field_transform_complex():
         "typeName == 'STRING' ; value + '-suffix'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        'arrayField': ['a', 'b', 'c'],
-        'objectField': {
-            'stringField': 'hello'
-        },
-        'unionField': 'world'
-    }
+    obj = {'arrayField': ['a', 'b', 'c'], 'objectField': {'stringField': 'hello'}, 'unionField': 'world'}
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['a-suffix', 'b-suffix', 'c-suffix'],
-        'objectField': {
-            'stringField': 'hello-suffix'
-        },
-        'unionField': 'world-suffix'
+        'objectField': {'stringField': 'hello-suffix'},
+        'unionField': 'world-suffix',
     }
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
     newobj = await deser(obj_bytes, ser_ctx)
@@ -802,30 +623,10 @@ async def test_json_cel_field_transform_complex_with_none():
     schema = {
         "type": "object",
         "properties": {
-            "arrayField": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            },
-            "objectField": {
-                "type": "object",
-                "properties": {
-                    "stringField": {"type": "string"}
-                }
-            },
-            "unionField": {
-                "oneOf": [
-                    {
-                        "type": "null"
-                    },
-                    {
-                        "type": "string"
-                    }
-                ],
-                "confluent:tags": ["PII"]
-            }
-        }
+            "arrayField": {"type": "array", "items": {"type": "string"}},
+            "objectField": {"type": "object", "properties": {"stringField": {"type": "string"}}},
+            "unionField": {"oneOf": [{"type": "null"}, {"type": "string"}], "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -839,33 +640,19 @@ async def test_json_cel_field_transform_complex_with_none():
         "typeName == 'STRING' ; value + '-suffix'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        'arrayField': ['a', 'b', 'c'],
-        'objectField': {
-            'stringField': 'hello'
-        },
-        'unionField': None
-    }
+    obj = {'arrayField': ['a', 'b', 'c'], 'objectField': {'stringField': 'hello'}, 'unionField': None}
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['a-suffix', 'b-suffix', 'c-suffix'],
-        'objectField': {
-            'stringField': 'hello-suffix'
-        },
-        'unionField': None
+        'objectField': {'stringField': 'hello-suffix'},
+        'unionField': None,
     }
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
     newobj = await deser(obj_bytes, ser_ctx)
@@ -881,17 +668,10 @@ async def test_json_cel_field_condition():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -905,15 +685,9 @@ async def test_json_cel_field_condition():
         "name == 'stringField' ; value == 'hi'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -940,17 +714,10 @@ async def test_json_cel_field_condition_fail():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -964,15 +731,9 @@ async def test_json_cel_field_condition_fail():
         "name == 'stringField' ; value != 'hi'",
         None,
         None,
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -1000,17 +761,10 @@ async def test_json_encryption():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -1020,23 +774,13 @@ async def test_json_encryption():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -1073,17 +817,10 @@ async def test_json_payloadencryption():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"type": "string", "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -1093,23 +830,13 @@ async def test_json_payloadencryption():
         RuleMode.WRITEREAD,
         "ENCRYPT_PAYLOAD",
         None,
-        RuleParams({
-            "encrypt.kek.name": "kek1",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, None, [rule])))
 
     obj = {
         'intField': 123,
@@ -1141,24 +868,10 @@ async def test_json_encryption_with_union():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "oneOf": [
-                    {
-                        "type": "null"
-                    },
-                    {
-                        "type": "string"
-                    }
-                ],
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"oneOf": [{"type": "null"}, {"type": "string"}], "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
 
     rule = Rule(
@@ -1168,23 +881,13 @@ async def test_json_encryption_with_union():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1-union",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1-union", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         'intField': 123,
@@ -1219,68 +922,31 @@ async def test_json_encryption_with_union_of_refs():
     schema = {
         "type": "object",
         "properties": {
-            "messageType": {
-                "type": "string"
-            },
-            "version": {
-                "type": "string"
-            },
+            "messageType": {"type": "string"},
+            "version": {"type": "string"},
             "payload": {
                 "type": "object",
-                "oneOf": [
-                    {
-                        "$ref": "#/$defs/authentication_request"
-                    },
-                    {
-                        "$ref": "#/$defs/authentication_status"
-                    }
-                ]
-            }
+                "oneOf": [{"$ref": "#/$defs/authentication_request"}, {"$ref": "#/$defs/authentication_status"}],
+            },
         },
-        "required": [
-            "payload",
-            "messageType",
-            "version"
-        ],
+        "required": ["payload", "messageType", "version"],
         "$defs": {
             "authentication_request": {
                 "properties": {
-                    "messageId": {
-                        "type": "string",
-                        "confluent:tags": ["PII"]
-                    },
-                    "timestamp": {
-                        "type": "integer",
-                        "minimum": 0
-                    },
-                    "requestId": {
-                        "type": "string"
-                    }
+                    "messageId": {"type": "string", "confluent:tags": ["PII"]},
+                    "timestamp": {"type": "integer", "minimum": 0},
+                    "requestId": {"type": "string"},
                 },
-                "required": [
-                    "messageId",
-                    "timestamp"
-                ]
+                "required": ["messageId", "timestamp"],
             },
             "authentication_status": {
                 "properties": {
-                    "messageId": {
-                        "type": "string",
-                        "confluent:tags": ["PII"]
-                    },
-                    "authType": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    }
+                    "messageId": {"type": "string", "confluent:tags": ["PII"]},
+                    "authType": {"type": ["string", "null"]},
                 },
-                "required": [
-                    "messageId",
-                    "authType"
-                ]
-            }
-        }
+                "required": ["messageId", "authType"],
+            },
+        },
     }
 
     rule = Rule(
@@ -1290,31 +956,18 @@ async def test_json_encryption_with_union_of_refs():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
     obj = {
         "messageType": "authentication_request",
         "version": "1.0",
-        "payload": {
-            "messageId": "12345",
-            "timestamp": 1757410647
-        }
+        "payload": {"messageId": "12345", "timestamp": 1757410647},
     }
 
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
@@ -1344,33 +997,14 @@ async def test_json_encryption_with_references():
         "properties": {
             "intField": {"type": "integer"},
             "doubleField": {"type": "number"},
-            "stringField": {
-                "oneOf": [
-                    {
-                        "type": "null"
-                    },
-                    {
-                        "type": "string"
-                    }
-                ],
-                "confluent:tags": ["PII"]
-            },
+            "stringField": {"oneOf": [{"type": "null"}, {"type": "string"}], "confluent:tags": ["PII"]},
             "booleanField": {"type": "boolean"},
-            "bytesField": {
-                "type": "string",
-                "contentEncoding": "base64",
-                "confluent:tags": ["PII"]
-            }
-        }
+            "bytesField": {"type": "string", "contentEncoding": "base64", "confluent:tags": ["PII"]},
+        },
     }
     await client.register_schema('ref', Schema(json.dumps(schema), "JSON"))
 
-    schema = {
-        "type": "object",
-        "properties": {
-            "otherField": {"$ref": "ref"}
-        }
-    }
+    schema = {"type": "object", "properties": {"otherField": {"$ref": "ref"}}}
     refs = [SchemaReference('ref', 'ref', 1)]
     rule = Rule(
         "test-encrypt",
@@ -1379,23 +1013,13 @@ async def test_json_encryption_with_references():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1-ref",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1-ref", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        refs,
-        None,
-        RuleSet(None, [rule])
-    ))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", refs, None, RuleSet(None, [rule])))
 
     nested = {
         'intField': 123,
@@ -1404,9 +1028,7 @@ async def test_json_encryption_with_references():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    obj = {
-        'otherField': nested
-    }
+    obj = {'otherField': nested}
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1432,132 +1054,78 @@ async def test_json_jsonata_fully_compatible():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
 
-    await client.set_config(_SUBJECT, ServerConfig(
-        compatibility_group='application.version'
-    ))
+    await client.set_config(_SUBJECT, ServerConfig(compatibility_group='application.version'))
 
     schema = {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "name": {"type": "string", "confluent:tags": ["PII"]},
             "size": {"type": "number"},
-            "version": {"type": "integer"}
-        }
+            "version": {"type": "integer"},
+        },
     }
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        Metadata(
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            json.dumps(schema),
+            "JSON",
+            [],
+            Metadata(None, MetadataProperties({"application.version": "v1"}), None),
             None,
-            MetadataProperties({"application.version": "v1"}),
-            None
         ),
-        None
-    ))
+    )
 
     schema = {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "name": {"type": "string", "confluent:tags": ["PII"]},
             "height": {"type": "number"},
-            "version": {"type": "integer"}
-        }
+            "version": {"type": "integer"},
+        },
     }
 
     rule1 = Rule(
-        "rule1",
-        "",
-        RuleKind.TRANSFORM,
-        RuleMode.UPGRADE,
-        "JSONATA",
-        None,
-        None,
-        rule1_to_2,
-        None,
-        None,
-        False
+        "rule1", "", RuleKind.TRANSFORM, RuleMode.UPGRADE, "JSONATA", None, None, rule1_to_2, None, None, False
     )
     rule2 = Rule(
-        "rule2",
-        "",
-        RuleKind.TRANSFORM,
-        RuleMode.DOWNGRADE,
-        "JSONATA",
-        None,
-        None,
-        rule2_to_1,
-        None,
-        None,
-        False
+        "rule2", "", RuleKind.TRANSFORM, RuleMode.DOWNGRADE, "JSONATA", None, None, rule2_to_1, None, None, False
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        Metadata(
-            None,
-            MetadataProperties({"application.version": "v2"}),
-            None
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            json.dumps(schema),
+            "JSON",
+            [],
+            Metadata(None, MetadataProperties({"application.version": "v2"}), None),
+            RuleSet([rule1, rule2], None),
         ),
-        RuleSet([rule1, rule2], None)
-    ))
+    )
 
     schema = {
         "type": "object",
         "properties": {
-            "name": {
-                "type": "string",
-                "confluent:tags": ["PII"]
-            },
+            "name": {"type": "string", "confluent:tags": ["PII"]},
             "length": {"type": "number"},
-            "version": {"type": "integer"}
-        }
+            "version": {"type": "integer"},
+        },
     }
 
     rule3 = Rule(
-        "rule3",
-        "",
-        RuleKind.TRANSFORM,
-        RuleMode.UPGRADE,
-        "JSONATA",
-        None,
-        None,
-        rule2_to_3,
-        None,
-        None,
-        False
+        "rule3", "", RuleKind.TRANSFORM, RuleMode.UPGRADE, "JSONATA", None, None, rule2_to_3, None, None, False
     )
     rule4 = Rule(
-        "rule4",
-        "",
-        RuleKind.TRANSFORM,
-        RuleMode.DOWNGRADE,
-        "JSONATA",
-        None,
-        None,
-        rule3_to_2,
-        None,
-        None,
-        False
+        "rule4", "", RuleKind.TRANSFORM, RuleMode.DOWNGRADE, "JSONATA", None, None, rule3_to_2, None, None, False
     )
-    await client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "JSON",
-        [],
-        Metadata(
-            None,
-            MetadataProperties({"application.version": "v3"}),
-            None
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            json.dumps(schema),
+            "JSON",
+            [],
+            Metadata(None, MetadataProperties({"application.version": "v3"}), None),
+            RuleSet([rule3, rule4], None),
         ),
-        RuleSet([rule3, rule4], None)
-    ))
+    )
 
     obj = {
         'name': 'alice',
@@ -1578,9 +1146,7 @@ async def test_json_jsonata_fully_compatible():
     ser_conf = {
         'auto.register.schemas': False,
         'use.latest.version': False,
-        'use.latest.with.metadata': {
-            'application.version': 'v1'
-        }
+        'use.latest.with.metadata': {'application.version': 'v1'},
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1591,9 +1157,7 @@ async def test_json_jsonata_fully_compatible():
     ser_conf = {
         'auto.register.schemas': False,
         'use.latest.version': False,
-        'use.latest.with.metadata': {
-            'application.version': 'v2'
-        }
+        'use.latest.with.metadata': {'application.version': 'v2'},
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1604,9 +1168,7 @@ async def test_json_jsonata_fully_compatible():
     ser_conf = {
         'auto.register.schemas': False,
         'use.latest.version': False,
-        'use.latest.with.metadata': {
-            'application.version': 'v3'
-        }
+        'use.latest.with.metadata': {'application.version': 'v3'},
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1616,29 +1178,17 @@ async def test_json_jsonata_fully_compatible():
 
 
 async def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
-    deser_conf = {
-        'use.latest.with.metadata': {
-            'application.version': 'v1'
-        }
-    }
+    deser_conf = {'use.latest.with.metadata': {'application.version': 'v1'}}
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
     newobj = await deser(obj_bytes, ser_ctx)
     assert obj == newobj
 
-    deser_conf = {
-        'use.latest.with.metadata': {
-            'application.version': 'v2'
-        }
-    }
+    deser_conf = {'use.latest.with.metadata': {'application.version': 'v2'}}
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
     newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
-    deser_conf = {
-        'use.latest.with.metadata': {
-            'application.version': 'v3'
-        }
-    }
+    deser_conf = {'use.latest.with.metadata': {'application.version': 'v3'}}
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
     newobj = await deser(obj_bytes, ser_ctx)
     assert obj3 == newobj

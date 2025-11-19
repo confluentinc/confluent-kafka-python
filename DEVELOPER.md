@@ -55,7 +55,24 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 
    ```bash
    python3 -c "import confluent_kafka; print('Setup successful!')"
-   ```
+
+#### Local Setup with UV
+
+Alternative setup instructions tested with python 3.11
+
+```bash
+# Modify pyproject.toml to require python version >=3.11
+# This fixes the cel-python dependency conflict
+uv venv --python 3.11
+source .venv/bin/activate
+
+uv sync --extra dev --extra tests
+uv pip install trivup setuptools
+pytest tests/
+
+# When making changes, change project.version in pyproject.toml before re-running:
+uv sync --extra dev --extra tests
+```
 
 <!-- markdownlint-enable MD029 -->
 
@@ -164,10 +181,40 @@ pytest -q tests/integration
 
 See [tests/README.md](tests/README.md) for instructions on how to run tests.
 
-## Linting & formatting (suggested)
+## Linting & formatting
 
-- Python: `black .` and `flake8` (or `ruff`) per project configuration
-- Markdown: `markdownlint '**/*.md'`
+We use automated tools to maintain consistent code style:
+
+- **black**: Code formatter
+- **isort**: Import sorter 
+- **flake8**: Linter for code quality
+
+### Running formatting checks
+
+```bash
+# Check formatting
+make style-check
+
+# Fix formatting
+make style-fix
+
+# Check only changed files
+make style-check-changed
+make style-fix-changed
+```
+
+### Using tox
+
+```bash
+# Check formatting
+tox -e black,isort
+
+# Check linting
+tox -e flake8
+
+# Run all formatting and linting checks
+tox -e black,isort,flake8
+```
 
 ## Documentation build
 

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, NamedTuple, Sequence, Any, Optional
 import asyncio
+from typing import Any, Dict, NamedTuple, Optional, Sequence
 
 
 # Create immutable MessageBatch value object using modern typing
@@ -23,10 +23,11 @@ class MessageBatch(NamedTuple):
     This represents a group of messages destined for the same topic and partition,
     along with their associated futures for delivery confirmation.
     """
-    topic: str                                    # Target topic for this batch
-    messages: Sequence[Dict[str, Any]]            # Prepared message dictionaries
-    futures: Sequence[asyncio.Future[Any]]        # Futures to resolve on delivery
-    partition: int = -1                           # Target partition for this batch (-1 = RD_KAFKA_PARTITION_UA)
+
+    topic: str  # Target topic for this batch
+    messages: Sequence[Dict[str, Any]]  # Prepared message dictionaries
+    futures: Sequence[asyncio.Future[Any]]  # Futures to resolve on delivery
+    partition: int = -1  # Target partition for this batch (-1 = RD_KAFKA_PARTITION_UA)
 
     @property
     def size(self) -> int:
@@ -44,7 +45,7 @@ def create_message_batch(
     messages: Sequence[Dict[str, Any]],
     futures: Sequence[asyncio.Future[Any]],
     callbacks: Optional[Any] = None,
-    partition: int = -1
+    partition: int = -1,
 ) -> MessageBatch:
     """Create an immutable MessageBatch from sequences
 
@@ -65,5 +66,5 @@ def create_message_batch(
         topic=topic,
         messages=tuple(messages) if not isinstance(messages, tuple) else messages,
         futures=tuple(futures) if not isinstance(futures, tuple) else futures,
-        partition=partition
+        partition=partition,
     )

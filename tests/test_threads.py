@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Producer
 import threading
 import time
+
+from confluent_kafka import Producer
+
 try:
-    from queue import Queue, Empty
+    from queue import Empty, Queue
 except ImportError:
-    from Queue import Queue, Empty
+    from Queue import Empty, Queue
 
 
-class IntendedException (Exception):
+class IntendedException(Exception):
     pass
 
 
@@ -35,11 +37,10 @@ def thread_run(myid, p, q):
 
 
 def test_thread_safety():
-    """ Basic thread safety tests. """
+    """Basic thread safety tests."""
 
     q = Queue()
-    p = Producer({'socket.timeout.ms': 10,
-                  'message.timeout.ms': 10})
+    p = Producer({'socket.timeout.ms': 10, 'message.timeout.ms': 10})
 
     threads = list()
     for i in range(1, 5):

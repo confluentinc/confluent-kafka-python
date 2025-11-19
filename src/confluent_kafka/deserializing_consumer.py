@@ -18,12 +18,11 @@
 
 from typing import Any, Dict, List, Optional
 
-from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
-from .error import (ConsumeError,
-                    KeyDeserializationError,
-                    ValueDeserializationError)
-from .serialization import (SerializationContext,
-                            MessageField)
+from confluent_kafka.cimpl import Consumer as _ConsumerImpl
+from confluent_kafka.cimpl import Message
+
+from .error import ConsumeError, KeyDeserializationError, ValueDeserializationError
+from .serialization import MessageField, SerializationContext
 
 
 class DeserializingConsumer(_ConsumerImpl):

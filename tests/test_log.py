@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
-from io import StringIO
 import logging
+from io import StringIO
 
 import confluent_kafka
-import confluent_kafka.avro
 import confluent_kafka.admin
-
+import confluent_kafka.avro
 from tests.common import TestConsumer
 from tests.common.schema_registry import TestAvroConsumer
 
@@ -33,15 +32,13 @@ def _setup_string_buffer_logger(name):
 
 
 def test_logging_consumer():
-    """ Tests that logging works """
+    """Tests that logging works"""
 
     logger = logging.getLogger('consumer')
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('consumer')
     logger.addFilter(f)
-    kc = TestConsumer({'group.id': 'test',
-                       'debug': 'all'},
-                      logger=logger)
+    kc = TestConsumer({'group.id': 'test', 'debug': 'all'}, logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
@@ -51,17 +48,16 @@ def test_logging_consumer():
 
 
 def test_logging_avro_consumer():
-    """ Tests that logging works """
+    """Tests that logging works"""
 
     logger = logging.getLogger('avroconsumer')
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('avroconsumer')
     logger.addFilter(f)
 
-    kc = TestAvroConsumer({'schema.registry.url': 'http://example.com',
-                           'group.id': 'test',
-                           'debug': 'all'},
-                          logger=logger)
+    kc = TestAvroConsumer(
+        {'schema.registry.url': 'http://example.com', 'group.id': 'test', 'debug': 'all'}, logger=logger
+    )
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
@@ -71,7 +67,7 @@ def test_logging_avro_consumer():
 
 
 def test_logging_producer():
-    """ Tests that logging works """
+    """Tests that logging works"""
 
     logger = logging.getLogger('producer')
     logger.setLevel(logging.DEBUG)
@@ -87,16 +83,14 @@ def test_logging_producer():
 
 
 def test_logging_avro_producer():
-    """ Tests that logging works """
+    """Tests that logging works"""
 
     logger = logging.getLogger('avroproducer')
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('avroproducer')
     logger.addFilter(f)
 
-    p = confluent_kafka.avro.AvroProducer({'schema.registry.url': 'http://example.com',
-                                           'debug': 'all'},
-                                          logger=logger)
+    p = confluent_kafka.avro.AvroProducer({'schema.registry.url': 'http://example.com', 'debug': 'all'}, logger=logger)
 
     while f.cnt == 0:
         p.poll(timeout=0.5)
@@ -105,7 +99,7 @@ def test_logging_avro_producer():
 
 
 def test_logging_constructor():
-    """ Verify different forms of constructors """
+    """Verify different forms of constructors"""
 
     for how in ['dict', 'dict+kwarg', 'kwarg']:
         logger = logging.getLogger('producer: ' + how)
@@ -136,8 +130,7 @@ def test_producer_logger_logging_in_given_format():
 
     stringBuffer, logger = _setup_string_buffer_logger('Producer')
 
-    p = confluent_kafka.Producer(
-        {"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
+    p = confluent_kafka.Producer({"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
     val = 1
     while val > 0:
         val = p.flush()
@@ -153,8 +146,7 @@ def test_consumer_logger_logging_in_given_format():
 
     stringBuffer, logger = _setup_string_buffer_logger('Consumer')
 
-    c = TestConsumer(
-        {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
+    c = TestConsumer({"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
     c.poll(0)
 
     logMessage = stringBuffer.getvalue().strip()
@@ -169,8 +161,7 @@ def test_admin_logger_logging_in_given_format_when_provided_in_conf():
 
     stringBuffer, logger = _setup_string_buffer_logger('Admin')
 
-    admin_client = confluent_kafka.admin.AdminClient(
-        {"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
+    admin_client = confluent_kafka.admin.AdminClient({"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
     admin_client.poll(0)
 
     logMessage = stringBuffer.getvalue().strip()
@@ -184,8 +175,7 @@ def test_admin_logger_logging_in_given_format_when_provided_as_admin_client_argu
 
     stringBuffer, logger = _setup_string_buffer_logger('Admin')
 
-    admin_client = confluent_kafka.admin.AdminClient(
-        {"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
+    admin_client = confluent_kafka.admin.AdminClient({"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
     admin_client.poll(0)
 
     logMessage = stringBuffer.getvalue().strip()

@@ -9,9 +9,9 @@ import confluent_kafka
 
 
 def build_doctree(tree, prefix, parent):
-    """ Build doctree dict with format:
-          dict key = full class/type name (e.g, "confluent_kafka.Message.timestamp")
-          value = object
+    """Build doctree dict with format:
+    dict key = full class/type name (e.g, "confluent_kafka.Message.timestamp")
+    value = object
     """
     for n in dir(parent):
         if n.startswith('__') or n == 'cimpl':
@@ -40,8 +40,7 @@ def build_doctree(tree, prefix, parent):
 
 
 def test_verify_docs():
-    """ Make sure all exported functions, classes, etc, have proper docstrings
-    """
+    """Make sure all exported functions, classes, etc, have proper docstrings"""
 
     tree = defaultdict(list)
     build_doctree(tree, 'confluent_kafka.', confluent_kafka)

@@ -15,12 +15,12 @@
 # limitations under the License.
 
 import asyncio
-import sys
-from confluent_kafka.experimental.aio import AIOProducer
-from confluent_kafka.experimental.aio import AIOConsumer
-import random
 import logging
+import random
 import signal
+import sys
+
+from confluent_kafka.experimental.aio import AIOConsumer, AIOProducer
 
 # This example demonstrates comprehensive AsyncIO usage patterns with Kafka:
 # - Event loop safe callbacks that don't block the loop
@@ -52,15 +52,17 @@ async def stats_cb(stats_json_str):
 
 def configure_common(conf):
     bootstrap_servers = sys.argv[1]
-    conf.update({
-        'bootstrap.servers': bootstrap_servers,
-        'logger': logger,
-        'debug': 'conf',
-        'error_cb': error_cb,
-        'throttle_cb': throttle_cb,
-        'stats_cb': stats_cb,
-        'statistics.interval.ms': 5000,
-    })
+    conf.update(
+        {
+            'bootstrap.servers': bootstrap_servers,
+            'logger': logger,
+            'debug': 'conf',
+            'error_cb': error_cb,
+            'throttle_cb': throttle_cb,
+            'stats_cb': stats_cb,
+            'statistics.interval.ms': 5000,
+        }
+    )
 
     return conf
 
@@ -69,10 +71,7 @@ async def run_producer():
     topic = sys.argv[2]
     # AsyncIO Pattern: Non-blocking producer with thread pool
     # max_workers=5 creates a ThreadPoolExecutor for offloading blocking librdkafka calls
-    producer = AIOProducer(configure_common(
-        {
-            'transactional.id': 'producer1'
-        }), max_workers=5)
+    producer = AIOProducer(configure_common({'transactional.id': 'producer1'}), max_workers=5)
 
     # AsyncIO Pattern: Async transaction lifecycle
     # All transaction operations are awaitable and won't block the event loop
@@ -87,11 +86,9 @@ async def run_producer():
             # AsyncIO Pattern: Batched async produce with concurrent futures
             # Creates 100 concurrent produce operations, each returning a Future
             # that resolves when the message is delivered or fails
-            produce_futures = [await producer.produce(
-                                 topic=topic,
-                                 key=f'testkey{i}',
-                                 value=f'testvalue{i}')
-                               for i in range(10)]
+            produce_futures = [
+                await producer.produce(topic=topic, key=f'testkey{i}', value=f'testvalue{i}') for i in range(10)
+            ]
 
             logger.info(f"Produced {len(produce_futures)} messages")
             # Force a flush of the local buffer to ensure messages will be in flight before awaiting their delivery
@@ -99,10 +96,7 @@ async def run_producer():
             await producer.flush()
             # Wait for all produce operations to complete concurrently
             for msg in await asyncio.gather(*produce_futures):
-                logger.info(
-                    'Produced to: {} [{}] @ {}'.format(msg.topic(),
-                                                       msg.partition(),
-                                                       msg.offset()))
+                logger.info('Produced to: {} [{}] @ {}'.format(msg.topic(), msg.partition(), msg.offset()))
 
             # AsyncIO Pattern: Non-blocking transaction commit
             await producer.commit_transaction()
@@ -126,14 +120,17 @@ async def run_consumer():
     group_id = f'{topic}_{random.randint(1, 1000)}'
     # AsyncIO Pattern: Non-blocking consumer with manual offset management
     # Callbacks will be scheduled on the event loop automatically
-    consumer = AIOConsumer(configure_common(
-        {
-            'group.id': group_id,
-            'auto.offset.reset': 'latest',
-            'enable.auto.commit': 'false',  # Manual commit for precise control
-            'enable.auto.offset.store': 'false',  # Manual offset storage
-            'partition.assignment.strategy': 'cooperative-sticky',
-        }))
+    consumer = AIOConsumer(
+        configure_common(
+            {
+                'group.id': group_id,
+                'auto.offset.reset': 'latest',
+                'enable.auto.commit': 'false',  # Manual commit for precise control
+                'enable.auto.offset.store': 'false',  # Manual offset storage
+                'partition.assignment.strategy': 'cooperative-sticky',
+            }
+        )
+    )
 
     # AsyncIO Pattern: Async rebalance callbacks
     # These callbacks can perform async operations safely within the event loop
@@ -147,7 +144,9 @@ async def run_consumer():
         await consumer.resume(partitions)
 
     async def on_revoke(consumer, partitions):
-        logger.debug(f'before on_revoke {partitions}', )
+        logger.debug(
+            f'before on_revoke {partitions}',
+        )
         try:
             # AsyncIO Pattern: Non-blocking commit during rebalance
             await consumer.commit()  # Ensure offsets are committed before losing partitions
@@ -159,13 +158,15 @@ async def run_consumer():
         logger.debug(f'on_lost {partitions}')
 
     try:
-        await consumer.subscribe([topic],
-                                 on_assign=on_assign,
-                                 on_revoke=on_revoke,
-                                 # Remember to set a on_lost callback
-                                 # if you're committing on revocation
-                                 # as lost partitions cannot be committed
-                                 on_lost=on_lost)
+        await consumer.subscribe(
+            [topic],
+            on_assign=on_assign,
+            on_revoke=on_revoke,
+            # Remember to set a on_lost callback
+            # if you're committing on revocation
+            # as lost partitions cannot be committed
+            on_lost=on_lost,
+        )
         i = 0
         while running:
             # AsyncIO Pattern: Non-blocking message polling
@@ -217,6 +218,7 @@ async def main():
     consumer_task = asyncio.create_task(run_consumer())
     # Wait for both tasks to complete (or be cancelled by signal)
     await asyncio.gather(producer_task, consumer_task)
+
 
 try:
     asyncio.run(main())

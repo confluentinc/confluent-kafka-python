@@ -20,8 +20,9 @@
 # Reads lines from stdin and sends to Kafka.
 #
 
-from confluent_kafka import Producer
 import sys
+
+from confluent_kafka import Producer
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
@@ -45,8 +46,7 @@ if __name__ == '__main__':
         if err:
             sys.stderr.write('%% Message failed delivery: %s\n' % err)
         else:
-            sys.stderr.write('%% Message delivered to %s [%d] @ %d\n' %
-                             (msg.topic(), msg.partition(), msg.offset()))
+            sys.stderr.write('%% Message delivered to %s [%d] @ %d\n' % (msg.topic(), msg.partition(), msg.offset()))
 
     # Read lines from stdin, produce each line to Kafka
     for line in sys.stdin:
@@ -55,8 +55,7 @@ if __name__ == '__main__':
             p.produce(topic, line.rstrip(), callback=delivery_callback)
 
         except BufferError:
-            sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' %
-                             len(p))
+            sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' % len(p))
 
         # Serve delivery callback queue.
         # NOTE: Since produce() is an asynchronous API this poll() call

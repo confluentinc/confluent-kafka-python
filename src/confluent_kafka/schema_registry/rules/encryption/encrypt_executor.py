@@ -16,23 +16,32 @@ import base64
 import io
 import logging
 import time
-from typing import Optional, Tuple, Any, List
+from typing import Any, List, Optional, Tuple
 
-from tink import aead, daead, KmsClient, kms_client_from_uri, \
-    register_kms_client, TinkError
+from tink import KmsClient, TinkError, aead, daead, kms_client_from_uri, register_kms_client
 from tink.core import Registry
-from tink.proto import tink_pb2, aes_siv_pb2
+from tink.proto import aes_siv_pb2, tink_pb2
 
-from confluent_kafka.schema_registry import SchemaRegistryError, RuleMode, \
-    _MAGIC_BYTE_V0
+from confluent_kafka.schema_registry import _MAGIC_BYTE_V0, RuleMode, SchemaRegistryError
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import \
-    DekRegistryClient, Kek, KekId, DekId, Dek, DekAlgorithm
-from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import \
-    get_kms_driver, KmsDriver
-from confluent_kafka.schema_registry.serde import RuleContext, \
-    RuleError, RuleExecutor, FieldType, FieldRuleExecutor, FieldTransform, \
-    FieldContext
+from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
+    Dek,
+    DekAlgorithm,
+    DekId,
+    DekRegistryClient,
+    Kek,
+    KekId,
+)
+from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import KmsDriver, get_kms_driver
+from confluent_kafka.schema_registry.serde import (
+    FieldContext,
+    FieldRuleExecutor,
+    FieldTransform,
+    FieldType,
+    RuleContext,
+    RuleError,
+    RuleExecutor,
+)
 
 log = logging.getLogger(__name__)
 
@@ -93,8 +102,7 @@ class EncryptionExecutor(RuleExecutor):
         cryptor = self._get_cryptor(ctx)
         kek_name = self._get_kek_name(ctx)
         dek_expiry_days = self._get_dek_expiry_days(ctx)
-        transform = EncryptionExecutorTransform(
-            self, cryptor, kek_name, dek_expiry_days)
+        transform = EncryptionExecutorTransform(self, cryptor, kek_name, dek_expiry_days)
         return transform
 
     def close(self):
@@ -172,9 +180,7 @@ class Cryptor:
 
     def encrypt(self, dek: bytes, plaintext: bytes, associated_data: bytes) -> bytes:
         key_data = tink_pb2.KeyData(
-            type_url=self.key_template.type_url,
-            value=dek,
-            key_material_type=tink_pb2.KeyData.SYMMETRIC
+            type_url=self.key_template.type_url, value=dek, key_material_type=tink_pb2.KeyData.SYMMETRIC
         )
         if self.is_deterministic:
             primitive = self.registry.primitive(key_data, daead.DeterministicAead)
@@ -185,9 +191,7 @@ class Cryptor:
 
     def decrypt(self, dek: bytes, ciphertext: bytes, associated_data: bytes) -> bytes:
         key_data = tink_pb2.KeyData(
-            type_url=self.key_template.type_url,
-            value=dek,
-            key_material_type=tink_pb2.KeyData.SYMMETRIC
+            type_url=self.key_template.type_url, value=dek, key_material_type=tink_pb2.KeyData.SYMMETRIC
         )
         if self.is_deterministic:
             primitive = self.registry.primitive(key_data, daead.DeterministicAead)
@@ -234,11 +238,14 @@ class EncryptionExecutorTransform(object):
             if kek is None:
                 raise RuleError(f"no kek found for {self._kek_name} during produce")
         if kms_type and kek.kms_type != kms_type:
-            raise RuleError(f"found {self._kek_name} with kms type {kek.kms_type} "
-                            f"which differs from rule kms type {kms_type}")
+            raise RuleError(
+                f"found {self._kek_name} with kms type {kek.kms_type} " f"which differs from rule kms type {kms_type}"
+            )
         if kms_key_id and kek.kms_key_id != kms_key_id:
-            raise RuleError(f"found {self._kek_name} with kms key id {kek.kms_key_id} "
-                            f"which differs from rule kms key id {kms_key_id}")
+            raise RuleError(
+                f"found {self._kek_name} with kms key id {kek.kms_key_id} "
+                f"which differs from rule kms key id {kms_key_id}"
+            )
         return kek
 
     def _retrieve_kek_from_registry(self, kek_id: KekId) -> Optional[Kek]:
@@ -251,10 +258,7 @@ class EncryptionExecutorTransform(object):
                 return None
             raise RuleError(f"could not get kek {kek_id.name}") from e
 
-    def _store_kek_to_registry(
-        self, kek_id: KekId, kms_type: str,
-        kms_key_id: str, shared: bool
-    ) -> Optional[Kek]:
+    def _store_kek_to_registry(self, kek_id: KekId, kms_type: str, kms_key_id: str, shared: bool) -> Optional[Kek]:
         if self._executor.client is None:
             raise RuleError("client not configured")
         try:
@@ -270,13 +274,7 @@ class EncryptionExecutorTransform(object):
         if version is None or version == 0:
             version = 1
         # TODO: fallback value for name?
-        dek_id = DekId(
-            kek.name,  # type: ignore[arg-type]
-            ctx.subject,
-            version,
-            self._cryptor.dek_format,
-            is_read
-        )
+        dek_id = DekId(kek.name, ctx.subject, version, self._cryptor.dek_format, is_read)  # type: ignore[arg-type]
         dek = self._retrieve_dek_from_registry(dek_id)
         is_expired = self._is_expired(ctx, dek)
         primitive = None
@@ -301,8 +299,12 @@ class EncryptionExecutorTransform(object):
             except RuleError as e:
                 if dek is None:
                     raise e
-                log.warning("failed to create dek for %s, subject %s, version %d, using existing dek",
-                            kek.name, ctx.subject, new_version)
+                log.warning(
+                    "failed to create dek for %s, subject %s, version %d, using existing dek",
+                    kek.name,
+                    ctx.subject,
+                    new_version,
+                )
         key_bytes = dek.get_key_material_bytes()
         if key_bytes is None:
             if primitive is None:
@@ -336,8 +338,7 @@ class EncryptionExecutorTransform(object):
                 version = 1
             if self._executor.client is None:
                 raise RuleError("client not configured")
-            dek = self._executor.client.get_dek(
-                key.kek_name, key.subject, key.algorithm, version, key.deleted)
+            dek = self._executor.client.get_dek(key.kek_name, key.subject, key.algorithm, version, key.deleted)
             return dek if dek and dek.encrypted_key_material else None
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 404:
@@ -350,11 +351,8 @@ class EncryptionExecutorTransform(object):
             if self._executor.client is None:
                 raise RuleError("client not configured")
             dek = self._executor.client.register_dek(
-                key.kek_name,
-                key.subject,
-                encrypted_dek_str,  # type: ignore[arg-type]
-                key.algorithm,
-                key.version)
+                key.kek_name, key.subject, encrypted_dek_str, key.algorithm, key.version  # type: ignore[arg-type]
+            )
             return dek
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 409:
@@ -363,10 +361,12 @@ class EncryptionExecutorTransform(object):
 
     def _is_expired(self, ctx: RuleContext, dek: Optional[Dek]) -> bool:
         now = self._executor.clock.now()
-        return (ctx.rule_mode != RuleMode.READ
-                and self._dek_expiry_days > 0
-                and dek is not None
-                and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days)  # type: ignore[operator]
+        return (
+            ctx.rule_mode != RuleMode.READ
+            and self._dek_expiry_days > 0
+            and dek is not None
+            and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days
+        )  # type: ignore[operator]
 
     def transform(self, ctx: RuleContext, field_type: FieldType, field_value: Any) -> Any:
         if field_value is None:
@@ -454,8 +454,7 @@ class AeadWrapper(aead.Aead):
                 aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
                 return aead.encrypt(plaintext, associated_data)
             except Exception as e:
-                log.warning("failed to encrypt with kek %s and kms key id %s",
-                            self._kek.name, kms_key_id)
+                log.warning("failed to encrypt with kek %s and kms key id %s", self._kek.name, kms_key_id)
                 if index == len(self._kms_key_ids) - 1:
                     raise RuleError(f"failed to encrypt with all KEKs for {self._kek.name}") from e
         raise RuleError("No KEK found for encryption")
@@ -468,8 +467,7 @@ class AeadWrapper(aead.Aead):
                 aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
                 return aead.decrypt(ciphertext, associated_data)
             except Exception as e:
-                log.warning("failed to decrypt with kek %s and kms key id %s",
-                            self._kek.name, kms_key_id)
+                log.warning("failed to decrypt with kek %s and kms key id %s", self._kek.name, kms_key_id)
                 if index == len(self._kms_key_ids) - 1:
                     raise RuleError(f"failed to decrypt with all KEKs for {self._kek.name}") from e
         raise RuleError("No KEK found for decryption")

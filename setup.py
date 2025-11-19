@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import os
-from setuptools import setup
-from setuptools import Extension
 import platform
+
+from setuptools import Extension, setup
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 mod_dir = os.path.join(work_dir, 'src', 'confluent_kafka')
@@ -16,13 +16,17 @@ if platform.system() == 'Windows':
 else:
     librdkafka_libname = 'rdkafka'
 
-module = Extension('confluent_kafka.cimpl',
-                   libraries=[librdkafka_libname],
-                   sources=[os.path.join(ext_dir, 'confluent_kafka.c'),
-                            os.path.join(ext_dir, 'Producer.c'),
-                            os.path.join(ext_dir, 'Consumer.c'),
-                            os.path.join(ext_dir, 'Metadata.c'),
-                            os.path.join(ext_dir, 'AdminTypes.c'),
-                            os.path.join(ext_dir, 'Admin.c')])
+module = Extension(
+    'confluent_kafka.cimpl',
+    libraries=[librdkafka_libname],
+    sources=[
+        os.path.join(ext_dir, 'confluent_kafka.c'),
+        os.path.join(ext_dir, 'Producer.c'),
+        os.path.join(ext_dir, 'Consumer.c'),
+        os.path.join(ext_dir, 'Metadata.c'),
+        os.path.join(ext_dir, 'AdminTypes.c'),
+        os.path.join(ext_dir, 'Admin.c'),
+    ],
+)
 
 setup(ext_modules=[module])
