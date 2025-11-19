@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
-import os
-import re
-import sys
 import argparse
 import difflib
+import os
+import re
+import subprocess
+import sys
+import tempfile
 
 # List of directories to convert from async to sync
 # Each tuple contains the async directory and its sync counterpart
@@ -34,11 +36,9 @@ SUBS = [
     ('import asyncio', ''),
     ('asyncio.sleep', 'time.sleep'),
     ('._async.', '._sync.'),
-
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
-
     ('async def', 'def'),
     ('await ', ''),
     ('aclose', 'close'),
@@ -60,22 +60,13 @@ IMPORT_CLEANUP_SUBS = [
     (r',\s*Coroutine', ''),
 ]
 
-COMPILED_IMPORT_CLEANUP_SUBS = [
-    (re.compile(regex), repl)
-    for regex, repl in IMPORT_CLEANUP_SUBS
-]
+COMPILED_IMPORT_CLEANUP_SUBS = [(re.compile(regex), repl) for regex, repl in IMPORT_CLEANUP_SUBS]
 
 # Compile type hint patterns without word boundaries
-COMPILED_TYPE_HINT_SUBS = [
-    (re.compile(regex), repl)
-    for regex, repl in TYPE_HINT_SUBS
-]
+COMPILED_TYPE_HINT_SUBS = [(re.compile(regex), repl) for regex, repl in TYPE_HINT_SUBS]
 
 # Compile regular patterns with word boundaries
-COMPILED_SUBS = [
-    (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)
-    for regex, repl in SUBS
-]
+COMPILED_SUBS = [(re.compile(r'(^|\b)' + regex + r'($|\b)'), repl) for regex, repl in SUBS]
 
 USED_SUBS = set()
 
@@ -110,6 +101,10 @@ def unasync_file(in_path, out_path):
 def unasync_file_check(in_path, out_path):
     """Check if the sync file matches the expected generated content.
 
+    This function generates the expected sync content from the async file,
+    formats it using isort and black (to match the project's style),
+    and compares it to the actual sync file.
+
     Args:
         in_path: Path to the async file
         out_path: Path to the sync file
@@ -118,12 +113,33 @@ def unasync_file_check(in_path, out_path):
         bool: True if files match, False if they don't
 
     Raises:
-        ValueError: If there's an error reading the files
+        ValueError: If there's an error reading the files or formatting
     """
     try:
         with open(in_path, "r") as in_file:
             async_content = in_file.read()
             expected_content = "".join(unasync_line(line) for line in async_content.splitlines(keepends=True))
+
+        # Format the expected content to match how it would be formatted after generation
+        # Write to a temp file in project root so pyproject.toml is found, format it, then read it back
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        # Create temp file in project root so black/isort can find pyproject.toml
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', dir=project_root, delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            tmp_file.write(expected_content)
+
+        try:
+            # Format using isort and black (same as style-format.sh does)
+            # Use relative path from project root so pyproject.toml config is found
+            tmp_rel_path = os.path.relpath(tmp_path, project_root)
+            subprocess.run(['python3', '-m', 'isort', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
+            subprocess.run(['python3', '-m', 'black', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
+
+            with open(tmp_path, "r") as formatted_file:
+                expected_content = formatted_file.read()
+        finally:
+            os.unlink(tmp_path)
 
         with open(out_path, "r") as out_file:
             actual_content = out_file.read()
@@ -134,7 +150,7 @@ def unasync_file_check(in_path, out_path):
                 actual_content.splitlines(keepends=True),
                 fromfile=in_path,
                 tofile=out_path,
-                n=3  # Show 3 lines of context
+                n=3,  # Show 3 lines of context
             )
             print(''.join(diff))
             return False
@@ -228,17 +244,40 @@ def unasync(dir_pairs=None, check=False):
 
         print("\n✅ Generated sync code from async code.")
 
+        print("Formatting generated _sync files...")
+        # Format all generated _sync files
+        sync_files = []
+        for async_dir, sync_dir in dir_pairs:
+            for root, dirs, files in os.walk(sync_dir):
+                for file in files:
+                    if file.endswith('.py'):
+                        sync_files.append(os.path.join(root, file))
+        if sync_files:
+            # Find project root
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(script_dir)
+            style_script = os.path.join(script_dir, 'style-format.sh')
+            if os.path.exists(style_script):
+                # Make sure the script is executable
+                os.chmod(style_script, 0o755)
+                rel_sync_files = [os.path.relpath(f, project_root) if os.path.isabs(f) else f for f in sync_files]
+                result = subprocess.run(
+                    ['bash', style_script, '--fix'] + rel_sync_files, cwd=project_root, capture_output=True, text=True
+                )
+                if result.returncode == 0:
+                    print("✅ Formatted generated _sync files.")
+                else:
+                    print(f"⚠️  Warning: Formatting had issues: {result.stderr}")
+            else:
+                print("⚠️  Warning: style-format.sh not found, skipping formatting.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert async code to sync code')
     parser.add_argument(
-        '--check',
-        action='store_true',
-        help='Exit with non-zero status if sync directory has any differences')
-    parser.add_argument(
-        '--file',
-        type=str,
-        help='Convert a single file instead of all directories')
+        '--check', action='store_true', help='Exit with non-zero status if sync directory has any differences'
+    )
+    parser.add_argument('--file', type=str, help='Convert a single file instead of all directories')
     args = parser.parse_args()
 
     if args.file:

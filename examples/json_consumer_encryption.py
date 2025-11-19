@@ -20,28 +20,16 @@
 
 import argparse
 
-from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor
-
-from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import \
-    LocalKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
-    HcVaultKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
-    GcpKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
-    AzureKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
-    AwsKmsDriver
-
 from confluent_kafka import Consumer
-from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer
+from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
+from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
+from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
+from confluent_kafka.serialization import MessageField, SerializationContext
 
 
 class User(object):
@@ -73,9 +61,7 @@ def dict_to_user(obj, ctx):
     if obj is None:
         return None
 
-    return User(name=obj['name'],
-                favorite_number=obj['favorite_number'],
-                favorite_color=obj['favorite_color'])
+    return User(name=obj['name'], favorite_number=obj['favorite_number'], favorite_color=obj['favorite_color'])
 
 
 def main(args):
@@ -100,14 +86,13 @@ def main(args):
     # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
     # Alternatively, the KMS credentials can be set via environment variables
 
-    json_deserializer = JSONDeserializer(schema_str,
-                                         dict_to_user,
-                                         schema_registry_client,
-                                         rule_conf=rule_conf)
+    json_deserializer = JSONDeserializer(schema_str, dict_to_user, schema_registry_client, rule_conf=rule_conf)
 
-    consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'group.id': args.group,
-                     'auto.offset.reset': "earliest"}
+    consumer_conf = {
+        'bootstrap.servers': args.bootstrap_servers,
+        'group.id': args.group,
+        'auto.offset.reset': "earliest",
+    }
 
     consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
@@ -122,12 +107,11 @@ def main(args):
             user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
 
             if user is not None:
-                print("User record {}: name: {}\n"
-                      "\tfavorite_number: {}\n"
-                      "\tfavorite_color: {}\n"
-                      .format(msg.key(), user.name,
-                              user.favorite_number,
-                              user.favorite_color))
+                print(
+                    "User record {}: name: {}\n"
+                    "\tfavorite_number: {}\n"
+                    "\tfavorite_color: {}\n".format(msg.key(), user.name, user.favorite_number, user.favorite_color)
+                )
         except KeyboardInterrupt:
             break
 
@@ -136,13 +120,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="JSONDeserializer example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_json",
-                        help="Topic name")
-    parser.add_argument('-g', dest="group", default="example_serde_json",
-                        help="Consumer group")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('-t', dest="topic", default="example_serde_json", help="Topic name")
+    parser.add_argument('-g', dest="group", default="example_serde_json", help="Consumer group")
 
     main(parser.parse_args())

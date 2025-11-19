@@ -21,18 +21,18 @@
 #
 
 import struct
-
 import unittest
 from sys import version_info
 
 if version_info >= (3,):
     from unittest.mock import patch
 
-from tests.avro import data_gen
-from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
-from confluent_kafka import avro
 from pyflakes.test.harness import skipIf
+
+from confluent_kafka import avro
+from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
+from tests.avro import data_gen
+from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 
 
 class TestMessageSerializer(unittest.TestCase):
@@ -80,8 +80,7 @@ class TestMessageSerializer(unittest.TestCase):
             message = self.ms.encode_record_with_schema(topic, basic, record)
             self.assertMessageIsSame(message, record, schema_id)
 
-    @skipIf(version_info < (3,),
-            'unittest.mock.patch not available in Python 2')
+    @skipIf(version_info < (3,), 'unittest.mock.patch not available in Python 2')
     def test_encode_record_with_schema_sets_writers_cache_once(self):
         topic = 'test'
         basic = avro.loads(data_gen.BASIC_SCHEMA)

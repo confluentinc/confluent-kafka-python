@@ -16,10 +16,11 @@
 # limitations under the License.
 #
 
-from attrs import define as _attrs_define
-from typing import Optional, List
+from typing import List, Optional
 
-from confluent_kafka.schema_registry.serde import RuleExecutor, RuleAction
+from attrs import define as _attrs_define
+
+from confluent_kafka.schema_registry.serde import RuleAction, RuleExecutor
 
 
 @_attrs_define(frozen=True)

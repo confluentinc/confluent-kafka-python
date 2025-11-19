@@ -16,12 +16,12 @@ import asyncio
 import logging
 import time
 import weakref
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     # Import only for type checking to avoid circular dependency
-    from ._producer_batch_processor import ProducerBatchManager
     from ._kafka_batch_executor import ProducerBatchExecutor
+    from ._producer_batch_processor import ProducerBatchManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +37,7 @@ class BufferTimeoutManager:
     """
 
     def __init__(
-        self,
-        batch_processor: "ProducerBatchManager",
-        kafka_executor: "ProducerBatchExecutor",
-        timeout: float
+        self, batch_processor: "ProducerBatchManager", kafka_executor: "ProducerBatchExecutor", timeout: float
     ) -> None:
         """Initialize the buffer timeout manager
 
@@ -118,7 +115,7 @@ class BufferTimeoutManager:
 
             # Check if buffer has been inactive for too long
             time_since_activity = time.time() - manager._last_activity
-            if (time_since_activity >= manager._timeout):
+            if time_since_activity >= manager._timeout:
 
                 try:
                     # Flush the buffer due to timeout

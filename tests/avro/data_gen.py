@@ -49,10 +49,7 @@ BASIC_SCHEMA = load_schema_file(os.path.join(avsc_dir, 'basic_schema.avsc'))
 
 
 def create_basic_item(i):
-    return {
-        'name': random.choice(NAMES) + '-' + str(i),
-        'number': random.choice(AGES)
-    }
+    return {'name': random.choice(NAMES) + '-' + str(i), 'number': random.choice(AGES)}
 
 
 BASIC_ITEMS = list(map(create_basic_item, range(1, 20)))
@@ -80,7 +77,7 @@ def _write_items(base_name, schema_str, items):
         for i in items:
             writer.append(i)
     writer.close
-    return (avro_file)
+    return avro_file
 
 
 def write_basic_items(base_name):
