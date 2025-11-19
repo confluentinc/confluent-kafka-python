@@ -82,6 +82,13 @@ typedef struct {
 
 static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason);
 
+static PyObject *
+KafkaError_reduce (PyObject *self, PyObject *Py_UNUSED(ignored))
+{
+    KafkaError *error = (KafkaError*)self;
+    return Py_BuildValue("O(isiii)", Py_TYPE(error), error->code, error->str, error->fatal, error->retriable, error->txn_requires_abort);
+}
+
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
 	return cfl_PyInt_FromInt(self->code);
 }
@@ -119,6 +126,8 @@ KafkaError_txn_requires_abort (KafkaError *self, PyObject *ignore) {
 
 
 static PyMethodDef KafkaError_methods[] = {
+    { "__reduce__", (PyCFunction)KafkaError_reduce, METH_NOARGS,
+      " Function for serializing KafkaError using the pickle protocol."},
 	{ "code", (PyCFunction)KafkaError_code, METH_NOARGS,
 	  "  Returns the error/event code for comparison to"
 	  "KafkaError.<ERR_CONSTANTS>.\n"
@@ -292,7 +301,7 @@ static int KafkaError_init0 (PyObject *selfobj, PyObject *args,
 
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.KafkaError",      /*tp_name*/
+	"confluent_kafka.cimpl.KafkaError",      /*tp_name*/
 	sizeof(KafkaError),    /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)KafkaError_dealloc, /*tp_dealloc*/
@@ -823,7 +832,7 @@ static PySequenceMethods Message_seq_methods = {
 
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Message",         /*tp_name*/
+	"confluent_kafka.cimpl.Message",         /*tp_name*/
 	sizeof(Message),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Message_dealloc, /*tp_dealloc*/
@@ -1308,7 +1317,7 @@ static long TopicPartition_hash (TopicPartition *self) {
 
 PyTypeObject TopicPartitionType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.TopicPartition",         /*tp_name*/
+	"confluent_kafka.cimpl.TopicPartition",         /*tp_name*/
 	sizeof(TopicPartition),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)TopicPartition_dealloc, /*tp_dealloc*/
@@ -3357,7 +3366,7 @@ static PyObject *_init_cimpl (void) {
 
 #if PY_VERSION_HEX >= 0x02070000
 	KafkaException = PyErr_NewExceptionWithDoc(
-		"cimpl.KafkaException",
+		"confluent_kafka.cimpl.KafkaException",
 		"Kafka exception that wraps the :py:class:`KafkaError` "
 		"class.\n"
 		"\n"
@@ -3366,7 +3375,7 @@ static PyObject *_init_cimpl (void) {
 		"\n",
 		NULL, NULL);
 #else
-        KafkaException = PyErr_NewException("cimpl.KafkaException", NULL, NULL);
+        KafkaException = PyErr_NewException("confluent_kafka.cimpl.KafkaException", NULL, NULL);
 #endif
 	Py_INCREF(KafkaException);
 	PyModule_AddObject(m, "KafkaException", KafkaException);
