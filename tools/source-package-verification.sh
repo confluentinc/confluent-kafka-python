@@ -5,6 +5,7 @@
 #
 set -e
 
+pip install --upgrade pip
 pip install -r requirements/requirements-tests-install.txt
 pip install -U build
 
@@ -55,6 +56,10 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         tools/style-format.sh $all_files || exit 1
         echo "Building documentation ..."
         flake8 --exclude ./_venv,*_pb2.py,./build
+
+        echo "Running mypy type checking ..."
+        python3.11 -m mypy src/confluent_kafka
+
         pip install -r requirements/requirements-docs.txt
         make docs
 
