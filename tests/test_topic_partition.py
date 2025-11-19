@@ -4,24 +4,30 @@ from confluent_kafka import TopicPartition
 
 
 def test_sort():
-    """ TopicPartition sorting (rich comparator) """
+    """TopicPartition sorting (rich comparator)"""
 
     # sorting uses the comparator
-    correct = [TopicPartition('topic1', 3),
-               TopicPartition('topic3', 0),
-               TopicPartition('topicA', 5),
-               TopicPartition('topicA', 5)]
+    correct = [
+        TopicPartition('topic1', 3),
+        TopicPartition('topic3', 0),
+        TopicPartition('topicA', 5),
+        TopicPartition('topicA', 5),
+    ]
 
-    tps = sorted([TopicPartition('topicA', 5),
-                  TopicPartition('topic3', 0),
-                  TopicPartition('topicA', 5),
-                  TopicPartition('topic1', 3)])
+    tps = sorted(
+        [
+            TopicPartition('topicA', 5),
+            TopicPartition('topic3', 0),
+            TopicPartition('topicA', 5),
+            TopicPartition('topic1', 3),
+        ]
+    )
 
     assert correct == tps
 
 
 def test_cmp():
-    """ TopicPartition comparator """
+    """TopicPartition comparator"""
 
     assert TopicPartition('aa', 19002) > TopicPartition('aa', 0)
     assert TopicPartition('aa', 13) >= TopicPartition('aa', 12)

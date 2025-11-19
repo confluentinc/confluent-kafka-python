@@ -2,10 +2,12 @@
 Kafka client wrapper for Ducktape tests
 Assumes Kafka is already running on localhost:9092
 """
+
 import time
+
 from ducktape.services.service import Service
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions
+from confluent_kafka.admin import AdminClient, NewPartitions, NewTopic
 
 
 class KafkaClient(Service):
@@ -41,8 +43,7 @@ class KafkaClient(Service):
 
             # Try to get cluster metadata to verify connection
             metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
-            self.logger.info("Successfully connected to Kafka. Available topics: %s",
-                             list(metadata.topics.keys()))
+            self.logger.info("Successfully connected to Kafka. Available topics: %s", list(metadata.topics.keys()))
             return True
         except Exception as e:
             self.logger.error("Failed to connect to Kafka: %s", e)
@@ -53,14 +54,11 @@ class KafkaClient(Service):
         try:
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
 
-            topic_config = NewTopic(
-                topic=topic,
-                num_partitions=partitions,
-                replication_factor=replication_factor
-            )
+            topic_config = NewTopic(topic=topic, num_partitions=partitions, replication_factor=replication_factor)
 
-            self.logger.info("Creating topic: %s (partitions=%d, replication=%d)",
-                             topic, partitions, replication_factor)
+            self.logger.info(
+                "Creating topic: %s (partitions=%d, replication=%d)", topic, partitions, replication_factor
+            )
 
             # Create topic
             fs = admin_client.create_topics([topic_config])
@@ -108,8 +106,7 @@ class KafkaClient(Service):
                 self.logger.info("Topic '%s' is ready after %.2fs", topic_name, total_wait)
                 return True
 
-            self.logger.debug("Topic '%s' not found, waiting %.2fs (total: %.2fs)",
-                              topic_name, wait_time, total_wait)
+            self.logger.debug("Topic '%s' not found, waiting %.2fs (total: %.2fs)", topic_name, wait_time, total_wait)
             time.sleep(wait_time)
             total_wait += wait_time
 

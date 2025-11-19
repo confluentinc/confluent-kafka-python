@@ -193,6 +193,7 @@ blocks:
       prologue:
         commands:
           - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
+          - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
       jobs:
         - name: Build and Tests with 'classic' group protocol
           commands:

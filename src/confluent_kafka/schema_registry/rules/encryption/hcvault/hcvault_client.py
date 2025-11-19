@@ -17,7 +17,6 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import hvac
-
 import tink
 from tink import aead
 from tink.integration.hcvault import new_aead
@@ -29,8 +28,12 @@ class HcVaultKmsClient(tink.KmsClient):
     """Basic HashiCorp Vault client for AEAD."""
 
     def __init__(
-        self, key_uri: str, token: Optional[str], ns: Optional[str] = None,
-        role_id: Optional[str] = None, secret_id: Optional[str] = None
+        self,
+        key_uri: str,
+        token: Optional[str],
+        ns: Optional[str] = None,
+        role_id: Optional[str] = None,
+        secret_id: Optional[str] = None,
     ) -> None:
         """Creates a new HcVaultKmsClient that is bound to the key specified in 'key_uri'.
 
@@ -50,14 +53,9 @@ class HcVaultKmsClient(tink.KmsClient):
         else:
             raise tink.TinkError('Invalid key_uri.')
 
-        parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX):])
+        parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX) :])
         vault_url = parsed.scheme + '://' + parsed.netloc
-        self._client = hvac.Client(
-            url=vault_url,
-            token=token,
-            namespace=ns,
-            verify=False
-        )
+        self._client = hvac.Client(url=vault_url, token=token, namespace=ns, verify=False)
         if role_id and secret_id and self._client is not None:
             self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 
@@ -84,12 +82,9 @@ class HcVaultKmsClient(tink.KmsClient):
           An Aead object.
         """
         if self._key_uri and self._key_uri != key_uri:
-            raise tink.TinkError(
-                'This client is bound to %s and cannot use key %s'
-                % (self._key_uri, key_uri)
-            )
+            raise tink.TinkError('This client is bound to %s and cannot use key %s' % (self._key_uri, key_uri))
         if not key_uri.startswith(VAULT_KEYURI_PREFIX):
             raise tink.TinkError('Invalid key_uri.')
-        key_id = key_uri[len(VAULT_KEYURI_PREFIX):]
+        key_id = key_uri[len(VAULT_KEYURI_PREFIX) :]
         parsed = urlparse(key_id)
         return new_aead(parsed.path, self._client)

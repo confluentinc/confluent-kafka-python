@@ -6,14 +6,15 @@ This module tests the KafkaBatchExecutor class to ensure proper
 Kafka batch execution and partial failure handling.
 """
 
-from confluent_kafka.experimental.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
-import confluent_kafka
 import asyncio
+import concurrent.futures
+import os
+import sys
 import unittest
 from unittest.mock import Mock, patch
-import sys
-import os
-import concurrent.futures
+
+import confluent_kafka
+from confluent_kafka.experimental.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))

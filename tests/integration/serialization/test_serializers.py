@@ -18,19 +18,25 @@
 
 import pytest
 
-from confluent_kafka.serialization import (DoubleSerializer,
-                                           IntegerSerializer,
-                                           StringDeserializer,
-                                           DoubleDeserializer,
-                                           IntegerDeserializer,
-                                           StringSerializer)
+from confluent_kafka.serialization import (
+    DoubleDeserializer,
+    DoubleSerializer,
+    IntegerDeserializer,
+    IntegerSerializer,
+    StringDeserializer,
+    StringSerializer,
+)
 
 
-@pytest.mark.parametrize("serializer, deserializer, data",
-                         [(DoubleSerializer(), DoubleDeserializer(), 6.21682154508147),
-                          (IntegerSerializer(), IntegerDeserializer(), 4124),
-                          (DoubleSerializer(), DoubleDeserializer(), None),
-                          (IntegerSerializer(), IntegerDeserializer(), None)])
+@pytest.mark.parametrize(
+    "serializer, deserializer, data",
+    [
+        (DoubleSerializer(), DoubleDeserializer(), 6.21682154508147),
+        (IntegerSerializer(), IntegerDeserializer(), 4124),
+        (DoubleSerializer(), DoubleDeserializer(), None),
+        (IntegerSerializer(), IntegerDeserializer(), None),
+    ],
+)
 def test_numeric_serialization(kafka_cluster, serializer, deserializer, data):
     """
     Tests basic serialization/deserialization of numeric types.
@@ -61,10 +67,7 @@ def test_numeric_serialization(kafka_cluster, serializer, deserializer, data):
     consumer.close()
 
 
-@pytest.mark.parametrize("data, codec",
-                         [(u'Jämtland', 'utf_8'),
-                          (u'Härjedalen', 'utf_16'),
-                          (None, 'utf_32')])
+@pytest.mark.parametrize("data, codec", [(u'Jämtland', 'utf_8'), (u'Härjedalen', 'utf_16'), (None, 'utf_32')])
 def test_string_serialization(kafka_cluster, data, codec):
     """
     Tests basic unicode serialization/deserialization functionality
@@ -95,15 +98,30 @@ def test_string_serialization(kafka_cluster, data, codec):
     consumer.close()
 
 
-@pytest.mark.parametrize("key_serializer, value_serializer, key_deserializer, value_deserializer, key, value",  # noqa: E501
-                         [(DoubleSerializer(), StringSerializer('utf_8'),
-                           DoubleDeserializer(), StringDeserializer(),
-                           -31.2168215450814477, u'Jämtland'),
-                          (StringSerializer('utf_16'), DoubleSerializer(),
-                           StringDeserializer('utf_16'), DoubleDeserializer(),
-                           u'Härjedalen', 1.2168215450814477)])
-def test_mixed_serialization(kafka_cluster, key_serializer, value_serializer,
-                             key_deserializer, value_deserializer, key, value):
+@pytest.mark.parametrize(
+    "key_serializer, value_serializer, key_deserializer, value_deserializer, key, value",  # noqa: E501
+    [
+        (
+            DoubleSerializer(),
+            StringSerializer('utf_8'),
+            DoubleDeserializer(),
+            StringDeserializer(),
+            -31.2168215450814477,
+            u'Jämtland',
+        ),
+        (
+            StringSerializer('utf_16'),
+            DoubleSerializer(),
+            StringDeserializer('utf_16'),
+            DoubleDeserializer(),
+            u'Härjedalen',
+            1.2168215450814477,
+        ),
+    ],
+)
+def test_mixed_serialization(
+    kafka_cluster, key_serializer, value_serializer, key_deserializer, value_deserializer, key, value
+):
     """
     Tests basic mixed serializer/deserializer functionality.
 
@@ -121,13 +139,11 @@ def test_mixed_serialization(kafka_cluster, key_serializer, value_serializer,
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-numeric")
 
-    producer = kafka_cluster.producer(key_serializer=key_serializer,
-                                      value_serializer=value_serializer)
+    producer = kafka_cluster.producer(key_serializer=key_serializer, value_serializer=value_serializer)
     producer.produce(topic, key=key, value=value)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(key_deserializer=key_deserializer,
-                                      value_deserializer=value_deserializer)
+    consumer = kafka_cluster.consumer(key_deserializer=key_deserializer, value_deserializer=value_deserializer)
     consumer.subscribe([topic])
 
     msg = consumer.poll()
