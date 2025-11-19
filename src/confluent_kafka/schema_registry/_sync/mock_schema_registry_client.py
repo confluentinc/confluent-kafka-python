@@ -18,11 +18,11 @@
 import uuid
 from collections import defaultdict
 from threading import Lock
-from typing import List, Dict, Optional, Union, Literal
+from typing import Dict, List, Literal, Optional, Union
 
-from .schema_registry_client import SchemaRegistryClient
 from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
 from ..error import SchemaRegistryError
+from .schema_registry_client import SchemaRegistryClient
 
 
 class _SchemaStore(object):
@@ -43,7 +43,7 @@ class _SchemaStore(object):
                 guid=registered_schema.guid,
                 schema=registered_schema.schema,
                 subject=registered_schema.subject,
-                version=registered_schema.version
+                version=registered_schema.version,
             )
             self.schema_id_index[rs.schema_id] = rs
             self.schema_guid_index[rs.guid] = rs
@@ -61,11 +61,7 @@ class _SchemaStore(object):
             rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
 
-    def get_registered_schema_by_schema(
-        self,
-        subject_name: str,
-        schema: Schema
-    ) -> Optional[RegisteredSchema]:
+    def get_registered_schema_by_schema(self, subject_name: str, schema: Schema) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 for rs in self.subject_schemas[subject_name]:
@@ -94,17 +90,18 @@ class _SchemaStore(object):
             return None
 
     def get_latest_with_metadata(
-        self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: Optional[str] = None
+        self, subject_name: str, metadata: Dict[str, str], deleted: bool = False, fmt: Optional[str] = None
     ) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 rs: RegisteredSchema
                 for rs in self.subject_schemas[subject_name]:
-                    if (rs.schema
-                            and rs.schema.metadata
-                            and rs.schema.metadata.properties
-                            and metadata.items() <= rs.schema.metadata.properties.properties.items()):
+                    if (
+                        rs.schema
+                        and rs.schema.metadata
+                        and rs.schema.metadata.properties
+                        and metadata.items() <= rs.schema.metadata.properties.properties.items()
+                    ):
                         return rs
             return None
 
@@ -151,17 +148,14 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         super().__init__(conf)
         self._store = _SchemaStore()
 
-    def register_schema(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False
-    ) -> int:
+    def register_schema(self, subject_name: str, schema: 'Schema', normalize_schemas: bool = False) -> int:
         registered_schema = self.register_schema_full_response(
-            subject_name, schema, normalize_schemas=normalize_schemas)
+            subject_name, schema, normalize_schemas=normalize_schemas
+        )
         return registered_schema.schema_id  # type: ignore[return-value]
 
     def register_schema_full_response(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False
+        self, subject_name: str, schema: 'Schema', normalize_schemas: bool = False
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
         if registered_schema is not None:
@@ -171,11 +165,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         latest_version = 1 if latest_schema is None or latest_schema.version is None else latest_schema.version + 1
 
         registered_schema = RegisteredSchema(
-            schema_id=1,
-            guid=str(uuid.uuid4()),
-            schema=schema,
-            subject=subject_name,
-            version=latest_version
+            schema_id=1, guid=str(uuid.uuid4()), schema=schema, subject=subject_name, version=latest_version
         )
 
         registered_schema = self._store.set(registered_schema)
@@ -183,8 +173,11 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return registered_schema
 
     def get_schema(
-        self, schema_id: int, subject_name: Optional[str] = None,
-        fmt: Optional[str] = None, reference_format: Optional[str] = None
+        self,
+        schema_id: int,
+        subject_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
     ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
         if schema is not None:
@@ -192,9 +185,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_schema_by_guid(
-        self, guid: str, fmt: Optional[str] = None
-    ) -> 'Schema':
+    def get_schema_by_guid(self, guid: str, fmt: Optional[str] = None) -> 'Schema':
         schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema
@@ -202,8 +193,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def lookup_schema(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
+        self,
+        subject_name: str,
+        schema: 'Schema',
+        normalize_schemas: bool = False,
+        fmt: Optional[str] = None,
+        deleted: bool = False,
     ) -> 'RegisteredSchema':
 
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
@@ -213,8 +208,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_subjects(
-        self, subject_prefix: Optional[str] = None, deleted: bool = False,
-        deleted_only: bool = False, offset: int = 0, limit: int = -1
+        self,
+        subject_prefix: Optional[str] = None,
+        deleted: bool = False,
+        deleted_only: bool = False,
+        offset: int = 0,
+        limit: int = -1,
     ) -> List[str]:
         """
         Note: Mock implementation does not support deleted/deleted_only parameters
@@ -245,8 +244,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_latest_with_metadata(
-        self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: Optional[str] = None
+        self, subject_name: str, metadata: Dict[str, str], deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_with_metadata(subject_name, metadata)
         if registered_schema is not None:
@@ -255,8 +253,11 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_version(
-        self, subject_name: str, version: Union[int, Literal["latest"]] = "latest",
-        deleted: bool = False, fmt: Optional[str] = None
+        self,
+        subject_name: str,
+        version: Union[int, Literal["latest"]] = "latest",
+        deleted: bool = False,
+        fmt: Optional[str] = None,
     ) -> 'RegisteredSchema':
         if version == "latest":
             registered_schema = self._store.get_latest_version(subject_name)
@@ -268,8 +269,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_versions(
-        self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
-        offset: int = 0, limit: int = -1
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
         Note: Mock implementation does not support deleted/deleted_only parameters

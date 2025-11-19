@@ -15,10 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from uuid import uuid1
 
-from confluent_kafka import TopicPartition, OFFSET_BEGINNING, KafkaException, KafkaError
+import pytest
+
+from confluent_kafka import OFFSET_BEGINNING, KafkaError, KafkaException, TopicPartition
 
 
 def test_incremental_assign(kafka_cluster):
@@ -26,9 +27,7 @@ def test_incremental_assign(kafka_cluster):
     Test incremental_assign and incremental_unassign
     """
 
-    consumer_conf = {'group.id': str(uuid1()),
-                     'enable.auto.commit': 'false',
-                     'auto.offset.reset': 'error'}
+    consumer_conf = {'group.id': str(uuid1()), 'enable.auto.commit': 'false', 'auto.offset.reset': 'error'}
 
     topic1 = kafka_cluster.create_topic_and_wait_propogation("topic1")
     topic2 = kafka_cluster.create_topic_and_wait_propogation("topic2")
@@ -49,8 +48,7 @@ def test_incremental_assign(kafka_cluster):
     # should not be possible to incrementally assign to the same partition twice.
     with pytest.raises(KafkaException) as exc_info:
         consumer.incremental_assign([TopicPartition(topic1, 0, OFFSET_BEGINNING)])
-    assert exc_info.value.args[0].code() == KafkaError._CONFLICT, \
-        "Expected _CONFLICT, not {}".format(exc_info)
+    assert exc_info.value.args[0].code() == KafkaError._CONFLICT, "Expected _CONFLICT, not {}".format(exc_info)
 
     consumer.incremental_assign([TopicPartition(topic2, 0, OFFSET_BEGINNING)])
     msg2 = consumer.poll(10)
@@ -87,7 +85,6 @@ def test_incremental_assign(kafka_cluster):
     # should not be possible to incrementally unassign from a partition not in the current assignment
     with pytest.raises(KafkaException) as exc_info:
         consumer.incremental_unassign([TopicPartition(topic1, 0)])
-    assert exc_info.value.args[0].code() == KafkaError._INVALID_ARG, \
-        "Expected _INVALID_ARG, not {}".format(exc_info)
+    assert exc_info.value.args[0].code() == KafkaError._INVALID_ARG, "Expected _INVALID_ARG, not {}".format(exc_info)
 
     consumer.unassign()

@@ -15,8 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 from enum import Enum
+
+import pytest
+
 from confluent_kafka import ConsumerGroupType, KafkaException
 from tests.common import TestUtils
 
@@ -74,34 +76,30 @@ class Operation(Enum):
 
 
 def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(
-        kafka_cluster, partition_assignment_strategy):
+    kafka_cluster, partition_assignment_strategy
+):
     """
     Test consumer upgrade and downgrade.
     """
     topic_name_prefix = f"{topic_prefix}_{partition_assignment_strategy}"
-    topic = kafka_cluster.create_topic_and_wait_propogation(topic_name_prefix,
-                                                            {
-                                                                "num_partitions": number_of_partitions
-                                                            })
+    topic = kafka_cluster.create_topic_and_wait_propogation(topic_name_prefix, {"num_partitions": number_of_partitions})
     admin_client = kafka_cluster.admin()
 
-    consumer_conf = {'group.id': topic,
-                     'auto.offset.reset': 'earliest'}
+    consumer_conf = {'group.id': topic, 'auto.offset.reset': 'earliest'}
     consumer_conf_classic = {
         'group.protocol': 'classic',
         'partition.assignment.strategy': partition_assignment_strategy,
-        **consumer_conf
+        **consumer_conf,
     }
-    consumer_conf_consumer = {
-        'group.protocol': 'consumer',
-        **consumer_conf
-    }
+    consumer_conf_consumer = {'group.protocol': 'consumer', **consumer_conf}
 
-    test_scenarios = [(Operation.ADD, consumer_conf_classic, ConsumerGroupType.CLASSIC),
-                      (Operation.ADD, consumer_conf_consumer, ConsumerGroupType.CONSUMER),
-                      (Operation.REMOVE, None, ConsumerGroupType.CONSUMER),
-                      (Operation.ADD, consumer_conf_classic, ConsumerGroupType.CONSUMER),
-                      (Operation.REMOVE, None, ConsumerGroupType.CLASSIC)]
+    test_scenarios = [
+        (Operation.ADD, consumer_conf_classic, ConsumerGroupType.CLASSIC),
+        (Operation.ADD, consumer_conf_consumer, ConsumerGroupType.CONSUMER),
+        (Operation.REMOVE, None, ConsumerGroupType.CONSUMER),
+        (Operation.ADD, consumer_conf_classic, ConsumerGroupType.CONSUMER),
+        (Operation.REMOVE, None, ConsumerGroupType.CLASSIC),
+    ]
     consumers = []
 
     for operation, conf, expected_protocol in test_scenarios:
@@ -120,8 +118,9 @@ def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(
     kafka_cluster.delete_topic(topic)
 
 
-@pytest.mark.skipif(not TestUtils.use_group_protocol_consumer(),
-                    reason="Skipping test as group protocol consumer is not enabled")
+@pytest.mark.skipif(
+    not TestUtils.use_group_protocol_consumer(), reason="Skipping test as group protocol consumer is not enabled"
+)
 def test_consumer_upgrade_downgrade(kafka_cluster):
     perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(kafka_cluster, 'roundrobin')
     perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(kafka_cluster, 'range')

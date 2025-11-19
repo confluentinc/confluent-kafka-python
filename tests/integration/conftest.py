@@ -17,35 +17,39 @@
 #
 
 import os
+
 import pytest
 
 from tests.common import TestUtils
-from tests.integration.cluster_fixture import TrivupFixture
-from tests.integration.cluster_fixture import ByoFixture
+from tests.integration.cluster_fixture import ByoFixture, TrivupFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': True,
-                           'debug': True,
-                           'cp_version': '7.6.0',
-                           'kraft': TestUtils.use_kraft(),
-                           'version': TestUtils.broker_version(),
-                           'broker_conf': TestUtils.broker_conf()}
+    trivup_fixture_conf = {
+        'with_sr': True,
+        'debug': True,
+        'cp_version': '7.6.0',
+        'kraft': TestUtils.use_kraft(),
+        'version': TestUtils.broker_version(),
+        'broker_conf': TestUtils.broker_conf(),
+    }
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
 
 def create_sasl_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': False,
-                           'version': TestUtils.broker_version(),
-                           'sasl_mechanism': "PLAIN",
-                           'kraft': TestUtils.use_kraft(),
-                           'sasl_users': 'sasl_user=sasl_user',
-                           'debug': True,
-                           'cp_version': 'latest',
-                           'broker_conf': TestUtils.broker_conf()}
+    trivup_fixture_conf = {
+        'with_sr': False,
+        'version': TestUtils.broker_version(),
+        'sasl_mechanism': "PLAIN",
+        'kraft': TestUtils.use_kraft(),
+        'sasl_users': 'sasl_user=sasl_user',
+        'debug': True,
+        'cp_version': 'latest',
+        'broker_conf': TestUtils.broker_conf(),
+    }
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
@@ -57,11 +61,7 @@ def create_byo_cluster(conf):
     return ByoFixture(conf)
 
 
-def kafka_cluster_fixture(
-    brokers_env="BROKERS",
-    sr_url_env="SR_URL",
-    trivup_cluster_conf={}
-):
+def kafka_cluster_fixture(brokers_env="BROKERS", sr_url_env="SR_URL", trivup_cluster_conf={}):
     """
     If BROKERS environment variable is set to a CSV list of bootstrap servers
     an existing cluster is used.
@@ -87,9 +87,7 @@ def kafka_cluster_fixture(
         cluster.stop()
 
 
-def sasl_cluster_fixture(
-    trivup_cluster_conf={}
-):
+def sasl_cluster_fixture(trivup_cluster_conf={}):
     """
     If BROKERS environment variable is set to a CSV list of bootstrap servers
     an existing cluster is used.
@@ -123,4 +121,5 @@ def load_file():
     def get_handle(name):
         with open(os.path.join(work_dir, 'schema_registry', 'data', name)) as fd:
             return fd.read()
+
     return get_handle
