@@ -12,3 +12,7 @@ pytest_cov
 pluggy<1.6.0
 pytest-asyncio
 async-timeout
+
+# Formatting tools
+black>=24.0.0
+isort>=7.0.0

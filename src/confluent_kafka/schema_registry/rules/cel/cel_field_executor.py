@@ -17,10 +17,8 @@ from typing import Any
 from celpy import celtypes
 
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor, \
-    msg_to_cel, field_value_to_cel
-from confluent_kafka.schema_registry.serde import RuleContext, \
-    FieldRuleExecutor, FieldTransform, FieldContext
+from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor, field_value_to_cel, msg_to_cel
+from confluent_kafka.schema_registry.serde import FieldContext, FieldRuleExecutor, FieldTransform, RuleContext
 
 
 class CelFieldExecutor(FieldRuleExecutor):

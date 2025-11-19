@@ -57,8 +57,8 @@
  * Per-message state.
  */
 struct Producer_msgstate {
-	Handle   *self;
-	PyObject *dr_cb;
+        Handle   *self;
+        PyObject *dr_cb;
 };
 
 
@@ -68,24 +68,24 @@ struct Producer_msgstate {
  */
 static __inline struct Producer_msgstate *
 Producer_msgstate_new (Handle *self,
-		       PyObject *dr_cb) {
-	struct Producer_msgstate *msgstate;
+                       PyObject *dr_cb) {
+        struct Producer_msgstate *msgstate;
 
-	msgstate = calloc(1, sizeof(*msgstate));
-	msgstate->self = self;
+        msgstate = calloc(1, sizeof(*msgstate));
+        msgstate->self = self;
 
-	if (dr_cb) {
-		msgstate->dr_cb = dr_cb;
-		Py_INCREF(dr_cb);
-	}
-	return msgstate;
+        if (dr_cb) {
+                msgstate->dr_cb = dr_cb;
+                Py_INCREF(dr_cb);
+        }
+        return msgstate;
 }
 
 static __inline void
 Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
-	if (msgstate->dr_cb)
-		Py_DECREF(msgstate->dr_cb);
-	free(msgstate);
+        if (msgstate->dr_cb)
+                Py_DECREF(msgstate->dr_cb);
+        free(msgstate);
 }
 
 
@@ -103,7 +103,7 @@ static int Producer_clear (Handle *self) {
 }
 
 static void Producer_dealloc (Handle *self) {
-	PyObject_GC_UnTrack(self);
+        PyObject_GC_UnTrack(self);
 
         Producer_clear0(self);
 
@@ -118,70 +118,70 @@ static void Producer_dealloc (Handle *self) {
 
         Handle_clear(self);
 
-	Py_TYPE(self)->tp_free((PyObject *)self);
+        Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static int Producer_traverse (Handle *self,
-			      visitproc visit, void *arg) {
-	if (self->u.Producer.default_dr_cb)
-		Py_VISIT(self->u.Producer.default_dr_cb);
+                              visitproc visit, void *arg) {
+        if (self->u.Producer.default_dr_cb)
+                Py_VISIT(self->u.Producer.default_dr_cb);
 
-	Handle_traverse(self, visit, arg);
+        Handle_traverse(self, visit, arg);
 
-	return 0;
+        return 0;
 }
 
 
 static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
-			   void *opaque) {
-	struct Producer_msgstate *msgstate = rkm->_private;
-	Handle *self = opaque;
-	CallState *cs;
-	PyObject *args;
-	PyObject *result;
-	PyObject *msgobj;
+                           void *opaque) {
+        struct Producer_msgstate *msgstate = rkm->_private;
+        Handle *self = opaque;
+        CallState *cs;
+        PyObject *args;
+        PyObject *result;
+        PyObject *msgobj;
 
-	if (!msgstate)
-		return;
+        if (!msgstate)
+                return;
 
-	cs = CallState_get(self);
+        cs = CallState_get(self);
 
-	if (!msgstate->dr_cb) {
-		/* No callback defined */
-		goto done;
-	}
+        if (!msgstate->dr_cb) {
+                /* No callback defined */
+                goto done;
+        }
 
         /* Skip callback if delivery.report.only.error=true */
         if (self->u.Producer.dr_only_error && !rkm->err)
                 goto done;
 
-	msgobj = Message_new0(self, rkm);
+        msgobj = Message_new0(self, rkm);
 
         args = Py_BuildValue("(OO)", ((Message *)msgobj)->error, msgobj);
 
-	Py_DECREF(msgobj);
+        Py_DECREF(msgobj);
 
-	if (!args) {
-		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
-				 "Unable to build callback args");
-		CallState_crash(cs);
-		goto done;
-	}
+        if (!args) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                 "Unable to build callback args");
+                CallState_crash(cs);
+                goto done;
+        }
 
-	result = PyObject_CallObject(msgstate->dr_cb, args);
-	Py_DECREF(args);
+        result = PyObject_CallObject(msgstate->dr_cb, args);
+        Py_DECREF(args);
 
-	if (result)
-		Py_DECREF(result);
-	else {
-		CallState_fetch_exception(cs);
-		CallState_crash(cs);
-		rd_kafka_yield(rk);
-	}
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_fetch_exception(cs);
+                CallState_crash(cs);
+                rd_kafka_yield(rk);
+        }
 
  done:
-	Producer_msgstate_destroy(msgstate);
-	CallState_resume(cs);
+        Producer_msgstate_destroy(msgstate);
+        CallState_resume(cs);
 }
 
 
@@ -225,9 +225,9 @@ Producer_produce0 (Handle *self,
         if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL)))
                 return RD_KAFKA_RESP_ERR__INVALID_ARG;
 
-	if (rd_kafka_produce(rkt, partition, RD_KAFKA_MSG_F_COPY,
-			     (void *)value, value_len,
-			     (void *)key, key_len, opaque) == -1)
+        if (rd_kafka_produce(rkt, partition, RD_KAFKA_MSG_F_COPY,
+                             (void *)value, value_len,
+                             (void *)key, key_len, opaque) == -1)
                 err = rd_kafka_last_error();
 
         rd_kafka_topic_destroy(rkt);
@@ -238,36 +238,36 @@ Producer_produce0 (Handle *self,
 
 
 static PyObject *Producer_produce (Handle *self, PyObject *args,
-				       PyObject *kwargs) {
-	const char *topic, *value = NULL, *key = NULL;
+                                       PyObject *kwargs) {
+        const char *topic, *value = NULL, *key = NULL;
         Py_ssize_t value_len = 0, key_len = 0;
-	int partition = RD_KAFKA_PARTITION_UA;
-	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
+        int partition = RD_KAFKA_PARTITION_UA;
+        PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
-	struct Producer_msgstate *msgstate;
+        struct Producer_msgstate *msgstate;
 #ifdef RD_KAFKA_V_HEADERS
     rd_kafka_headers_t *rd_headers = NULL;
 #endif
 
-	static char *kws[] = { "topic",
-			       "value",
-			       "key",
-			       "partition",
-			       "callback",
-			       "on_delivery", /* Alias */
+        static char *kws[] = { "topic",
+                               "value",
+                               "key",
+                               "partition",
+                               "callback",
+                               "on_delivery", /* Alias */
                    "timestamp",
                    "headers",
-			       NULL };
+                               NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOLO"
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+                                         "s|z#z#iOOLO"
                                          , kws,
-					 &topic, &value, &value_len,
-					 &key, &key_len, &partition,
-					 &dr_cb, &dr_cb2,
+                                         &topic, &value, &value_len,
+                                         &key, &key_len, &partition,
+                                         &dr_cb, &dr_cb2,
                      &timestamp, &headers))
-		return NULL;
+                return NULL;
 
 #if !HAVE_PRODUCEV
         if (timestamp) {
@@ -299,20 +299,20 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 #endif
 
 
-	if (dr_cb2 && !dr_cb) /* Alias */
-		dr_cb = dr_cb2;
+        if (dr_cb2 && !dr_cb) /* Alias */
+                dr_cb = dr_cb2;
 
-	if (!dr_cb || dr_cb == Py_None)
-		dr_cb = self->u.Producer.default_dr_cb;
+        if (!dr_cb || dr_cb == Py_None)
+                dr_cb = self->u.Producer.default_dr_cb;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
-	/* Create msgstate if necessary, may return NULL if no callbacks
-	 * are wanted. */
-	msgstate = Producer_msgstate_new(self, dr_cb);
+        /* Create msgstate if necessary, may return NULL if no callbacks
+         * are wanted. */
+        msgstate = Producer_msgstate_new(self, dr_cb);
 
         /* Produce message */
 #if HAVE_PRODUCEV
@@ -332,21 +332,21 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 #endif
 
         if (err) {
-		if (msgstate)
-			Producer_msgstate_destroy(msgstate);
+                if (msgstate)
+                        Producer_msgstate_destroy(msgstate);
 
-		if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL)
-			PyErr_Format(PyExc_BufferError,
-				     "%s", rd_kafka_err2str(err));
+                if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL)
+                        PyErr_Format(PyExc_BufferError,
+                                     "%s", rd_kafka_err2str(err));
                 else
-			cfl_PyErr_Format(err,
-					 "Unable to produce message: %s",
-					 rd_kafka_err2str(err));
+                        cfl_PyErr_Format(err,
+                                         "Unable to produce message: %s",
+                                         rd_kafka_err2str(err));
 
-		return NULL;
-	}
+                return NULL;
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
@@ -356,40 +356,40 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
  * of events served.
  */
 static int Producer_poll0 (Handle *self, int tmout) {
-	int r;
-	CallState cs;
+        int r;
+        CallState cs;
 
-	CallState_begin(self, &cs);
+        CallState_begin(self, &cs);
 
-	r = rd_kafka_poll(self->rk, tmout);
+        r = rd_kafka_poll(self->rk, tmout);
 
-	if (!CallState_end(self, &cs)) {
-		return -1;
-	}
+        if (!CallState_end(self, &cs)) {
+                return -1;
+        }
 
-	return r;
+        return r;
 }
 
 
 static PyObject *Producer_poll (Handle *self, PyObject *args,
-				    PyObject *kwargs) {
+                                    PyObject *kwargs) {
         double tmout = -1.0;
-	int r;
-	static char *kws[] = { "timeout", NULL };
+        int r;
+        static char *kws[] = { "timeout", NULL };
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
-	r = Producer_poll0(self, cfl_timeout_ms(tmout));
-	if (r == -1)
-		return NULL;
+        r = Producer_poll0(self, cfl_timeout_ms(tmout));
+        if (r == -1)
+                return NULL;
 
-	return cfl_PyInt_FromInt(r);
+        return cfl_PyInt_FromInt(r);
 }
 
 
@@ -404,10 +404,10 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
         err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
@@ -683,10 +683,10 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                 return cfl_PyInt_FromInt(0);
         }
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         /* Allocate arrays for librdkafka messages and msgstates */
         rkmessages = calloc(message_cnt, sizeof(*rkmessages));
@@ -735,10 +735,10 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
 
@@ -761,10 +761,10 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
 static PyObject *Producer_begin_transaction (Handle *self) {
         rd_kafka_error_t *error;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         error = rd_kafka_begin_transaction(self->rk);
 
@@ -832,10 +832,10 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
 
@@ -863,10 +863,10 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
 
@@ -900,10 +900,10 @@ static void *Producer_purge (Handle *self, PyObject *args,
                                          &in_queue, &in_flight, &blocking))
                 return NULL;
 
-	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
 
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
@@ -920,160 +920,158 @@ static void *Producer_purge (Handle *self, PyObject *args,
                 return NULL;
         }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 static PyObject *Producer_enter (Handle *self) {
-	Py_INCREF(self);
-	return (PyObject *)self;
+        Py_INCREF(self);
+        return (PyObject *)self;
 }
 
 static PyObject *Producer_exit (Handle *self, PyObject *args) {
-	PyObject *exc_type, *exc_value, *exc_traceback;
-	rd_kafka_resp_err_t err;
-	CallState cs;
+        PyObject *exc_type, *exc_value, *exc_traceback;
 
-	if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
-			      &exc_type, &exc_value, &exc_traceback))
-		return NULL;
+        if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+                              &exc_type, &exc_value, &exc_traceback))
+                return NULL;
 
-    Producer_close(self, (PyObject *)NULL, (PyObject *)NULL);
+        Producer_close(self, (PyObject *)NULL, (PyObject *)NULL);
 
-	/* Return None to propagate any exceptions from the with block */
-	Py_RETURN_NONE;
+        /* Return None to propagate any exceptions from the with block */
+        Py_RETURN_NONE;
 }
 
 
 static PyMethodDef Producer_methods[] = {
-	{ "produce", (PyCFunction)Producer_produce,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: produce(topic, [value], [key], [partition], [on_delivery], [timestamp], [headers])\n"
-	  "\n"
-	  "  Produce message to topic.\n"
-	  "  This is an asynchronous operation, an application may use the "
-	  "``callback`` (alias ``on_delivery``) argument to pass a function "
-	  "(or lambda) that will be called from :py:func:`poll()` when the "
-	  "message has been successfully delivered or permanently fails delivery.\n"
+        { "produce", (PyCFunction)Producer_produce,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: produce(topic, [value], [key], [partition], [on_delivery], [timestamp], [headers])\n"
+          "\n"
+          "  Produce message to topic.\n"
+          "  This is an asynchronous operation, an application may use the "
+          "``callback`` (alias ``on_delivery``) argument to pass a function "
+          "(or lambda) that will be called from :py:func:`poll()` when the "
+          "message has been successfully delivered or permanently fails delivery.\n"
       "\n"
       "  Currently message headers are not supported on the message returned to the "
       "callback. The ``msg.headers()`` will return None even if the original message "
       "had headers set.\n"
-	  "\n"
-	  "  :param str topic: Topic to produce message to\n"
-	  "  :param str|bytes value: Message payload\n"
-	  "  :param str|bytes key: Message key\n"
-	  "  :param int partition: Partition to produce to, else uses the "
-	  "configured built-in partitioner.\n"
-	  "  :param func on_delivery(err,msg): Delivery report callback to call "
-	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
-	  "failed delivery\n"
+          "\n"
+          "  :param str topic: Topic to produce message to\n"
+          "  :param str|bytes value: Message payload\n"
+          "  :param str|bytes key: Message key\n"
+          "  :param int partition: Partition to produce to, else uses the "
+          "configured built-in partitioner.\n"
+          "  :param func on_delivery(err,msg): Delivery report callback to call "
+          "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
+          "failed delivery\n"
           "  :param int timestamp: Message timestamp (CreateTime) in milliseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
-	  "\n"
+          "\n"
           "  :param dict|list headers: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
-	  "  :rtype: None\n"
-	  "  :raises BufferError: if the internal producer message queue is "
-	  "full (``queue.buffering.max.messages`` exceeded)\n"
-	  "  :raises KafkaException: for other errors, see exception code\n"
+          "  :rtype: None\n"
+          "  :raises BufferError: if the internal producer message queue is "
+          "full (``queue.buffering.max.messages`` exceeded)\n"
+          "  :raises KafkaException: for other errors, see exception code\n"
           "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
-	  "\n"
-	},
+          "\n"
+        },
 
-	{ "poll", (PyCFunction)Producer_poll, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: poll([timeout])\n"
-	  "\n"
-	  "  Polls the producer for events and calls the corresponding "
-	  "callbacks (if registered).\n"
-	  "\n"
-	  "  Callbacks:\n"
-	  "\n"
-	  "  - ``on_delivery`` callbacks from :py:func:`produce()`\n"
-	  "  - ...\n"
-	  "\n"
-	  "  :param float timeout: Maximum time to block waiting for events. (Seconds)\n"
-	  "  :returns: Number of events processed (callbacks served)\n"
-	  "  :rtype: int\n"
-	  "\n"
-	},
-	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
+        { "poll", (PyCFunction)Producer_poll, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: poll([timeout])\n"
+          "\n"
+          "  Polls the producer for events and calls the corresponding "
+          "callbacks (if registered).\n"
+          "\n"
+          "  Callbacks:\n"
+          "\n"
+          "  - ``on_delivery`` callbacks from :py:func:`produce()`\n"
+          "  - ...\n"
+          "\n"
+          "  :param float timeout: Maximum time to block waiting for events. (Seconds)\n"
+          "  :returns: Number of events processed (callbacks served)\n"
+          "  :rtype: int\n"
+          "\n"
+        },
+        { "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: close()\n"
           "\n"
-	  "   Request to close the producer on demand.\n"
-	  "\n"
-      "  :rtype: bool\n"
-      "  :returns: True if producer close requested successfully, False otherwise\n"
-      "\n"
-	},
-	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
+          "   Request to close the producer on demand.\n"
+          "\n"
+          "  :rtype: bool\n"
+          "  :returns: True if producer close requested successfully, False otherwise\n"
+          "\n"
+        },
+        { "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: flush([timeout])\n"
           "\n"
-	  "   Wait for all messages in the Producer queue to be delivered.\n"
-	  "   This is a convenience method that calls :py:func:`poll()` until "
-	  ":py:func:`len()` is zero or the optional timeout elapses.\n"
-	  "\n"
+          "   Wait for all messages in the Producer queue to be delivered.\n"
+          "   This is a convenience method that calls :py:func:`poll()` until "
+          ":py:func:`len()` is zero or the optional timeout elapses.\n"
+          "\n"
           "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4). (Seconds)\n"
           "  :returns: Number of messages still in queue.\n"
           "\n"
-	  ".. note:: See :py:func:`poll()` for a description on what "
-	  "callbacks may be triggered.\n"
-	  "\n"
-	},
+          ".. note:: See :py:func:`poll()` for a description on what "
+          "callbacks may be triggered.\n"
+          "\n"
+        },
 
-	{ "produce_batch", (PyCFunction)Producer_produce_batch, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: produce_batch(topic, messages, [partition], [on_delivery])\n"
-	  "\n"
-	  "  Produce a batch of messages to topic.\n"
-	  "  This is an asynchronous operation that efficiently sends multiple messages\n"
-	  "  in a single batch, reducing overhead compared to individual produce() calls.\n"
-	  "\n"
-	  "  Each message in the batch can have individual delivery callbacks, or a\n"
-	  "  single callback can be applied to all messages in the batch.\n"
-	  "\n"
-	  "  :param str topic: Topic to produce messages to\n"
-	  "  :param list messages: List of message dictionaries. Each message dict can contain:\n"
-	  "    - 'value' (str|bytes): Message payload (optional)\n"
-	  "    - 'key' (str|bytes): Message key (optional)\n"
-	  "    - 'partition' (int): Specific partition (optional, overrides batch partition)\n"
-	  "    - 'timestamp' (int): Message timestamp in milliseconds (optional)\n"
-	  "    - 'callback' (func): Per-message delivery callback (optional)\n"
-	  "  :param int partition: Default partition for all messages (optional)\n"
-	  "  :param func on_delivery(err,msg): Default delivery callback for all messages\n"
-	  "  :returns: Number of messages successfully queued for producing\n"
-	  "  :rtype: int\n"
-	  "\n"
-	  "  :raises TypeError: if messages is not a list or message format is invalid\n"
-	  "  :raises BufferError: if the internal producer message queue is full\n"
-	  "  :raises KafkaException: for other errors\n"
-	  "\n"
-	  "  .. note:: Message headers are not currently supported in batch mode due to\n"
-	  "            librdkafka API limitations. Use individual produce() calls if headers are needed.\n"
-	  "\n"
-	  "  .. note:: Failed messages will have an '_error' field added to their dict\n"
-	  "            containing the error information.\n"
-	  "\n"
-	  "  Example::\n"
-	  "\n"
-	  "    messages = [\n"
-	  "        {'value': 'message 1', 'key': 'key1'},\n"
-	  "        {'value': 'message 2', 'key': 'key2', 'partition': 1},\n"
-	  "        {'value': 'message 3', 'callback': my_callback}\n"
-	  "    ]\n"
-	  "    count = producer.produce_batch('my-topic', messages)\n"
-	  "    print(f'Successfully queued {count} messages')\n"
-	  "\n"
-	},
-	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
+        { "produce_batch", (PyCFunction)Producer_produce_batch, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: produce_batch(topic, messages, [partition], [on_delivery])\n"
+          "\n"
+          "  Produce a batch of messages to topic.\n"
+          "  This is an asynchronous operation that efficiently sends multiple messages\n"
+          "  in a single batch, reducing overhead compared to individual produce() calls.\n"
+          "\n"
+          "  Each message in the batch can have individual delivery callbacks, or a\n"
+          "  single callback can be applied to all messages in the batch.\n"
+          "\n"
+          "  :param str topic: Topic to produce messages to\n"
+          "  :param list messages: List of message dictionaries. Each message dict can contain:\n"
+          "    - 'value' (str|bytes): Message payload (optional)\n"
+          "    - 'key' (str|bytes): Message key (optional)\n"
+          "    - 'partition' (int): Specific partition (optional, overrides batch partition)\n"
+          "    - 'timestamp' (int): Message timestamp in milliseconds (optional)\n"
+          "    - 'callback' (func): Per-message delivery callback (optional)\n"
+          "  :param int partition: Default partition for all messages (optional)\n"
+          "  :param func on_delivery(err,msg): Default delivery callback for all messages\n"
+          "  :returns: Number of messages successfully queued for producing\n"
+          "  :rtype: int\n"
+          "\n"
+          "  :raises TypeError: if messages is not a list or message format is invalid\n"
+          "  :raises BufferError: if the internal producer message queue is full\n"
+          "  :raises KafkaException: for other errors\n"
+          "\n"
+          "  .. note:: Message headers are not currently supported in batch mode due to\n"
+          "            librdkafka API limitations. Use individual produce() calls if headers are needed.\n"
+          "\n"
+          "  .. note:: Failed messages will have an '_error' field added to their dict\n"
+          "            containing the error information.\n"
+          "\n"
+          "  Example::\n"
+          "\n"
+          "    messages = [\n"
+          "        {'value': 'message 1', 'key': 'key1'},\n"
+          "        {'value': 'message 2', 'key': 'key2', 'partition': 1},\n"
+          "        {'value': 'message 3', 'callback': my_callback}\n"
+          "    ]\n"
+          "    count = producer.produce_batch('my-topic', messages)\n"
+          "    print(f'Successfully queued {count} messages')\n"
+          "\n"
+        },
+        { "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: purge([in_queue=True], [in_flight=True], [blocking=True])\n"
           "\n"
-	  "   Purge messages currently handled by the producer instance.\n"
-	  "   The application will need to call poll() or flush() "
-	  "afterwards to serve the delivery report callbacks of the purged messages.\n"
-	  "\n"
-	  "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
-	  "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
-	  "  :param: bool blocking: If set to False, will not wait on background thread queue "
-	  "purging to finish. By default, true.\n"
+          "   Purge messages currently handled by the producer instance.\n"
+          "   The application will need to call poll() or flush() "
+          "afterwards to serve the delivery report callbacks of the purged messages.\n"
           "\n"
-	},
+          "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
+          "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
+          "  :param: bool blocking: If set to False, will not wait on background thread queue "
+          "purging to finish. By default, true.\n"
+          "\n"
+        },
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
         },
@@ -1260,14 +1258,14 @@ static PyMethodDef Producer_methods[] = {
 
 
 static Py_ssize_t Producer__len__ (Handle *self) {
-	if (!self->rk)
-		return 0;
-	return rd_kafka_outq_len(self->rk);
+        if (!self->rk)
+                return 0;
+        return rd_kafka_outq_len(self->rk);
 }
 
 
 static PySequenceMethods Producer_seq_methods = {
-	(lenfunc)Producer__len__ /* sq_length */
+        (lenfunc)Producer__len__ /* sq_length */
 };
 
 static int Producer__bool__ (Handle *self) {
@@ -1332,27 +1330,27 @@ static PyObject *Producer_new (PyTypeObject *type, PyObject *args,
 
 
 PyTypeObject ProducerType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Producer",        /*tp_name*/
-	sizeof(Handle),      /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)Producer_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	0,                         /*tp_repr*/
-	&Producer_num_methods,     /*tp_as_number*/
-	&Producer_seq_methods,     /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.Producer",        /*tp_name*/
+        sizeof(Handle),      /*tp_basicsize*/
+        0,                         /*tp_itemsize*/
+        (destructor)Producer_dealloc, /*tp_dealloc*/
+        0,                         /*tp_print*/
+        0,                         /*tp_getattr*/
+        0,                         /*tp_setattr*/
+        0,                         /*tp_compare*/
+        0,                         /*tp_repr*/
+        &Producer_num_methods,     /*tp_as_number*/
+        &Producer_seq_methods,     /*tp_as_sequence*/
+        0,                         /*tp_as_mapping*/
+        0,                         /*tp_hash */
+        0,                         /*tp_call*/
+        0,                         /*tp_str*/
+        0,                         /*tp_getattro*/
+        0,                         /*tp_setattro*/
+        0,                         /*tp_as_buffer*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
         "Asynchronous Kafka Producer\n"
         "\n"
         ".. py:function:: Producer(config)\n"
@@ -1364,25 +1362,25 @@ PyTypeObject ProducerType = {
         "\n"
         ".. py:function:: __len__(self)\n"
         "\n"
-	"  Producer implements __len__ that can be used as len(producer) to obtain number of messages waiting.\n"
+        "  Producer implements __len__ that can be used as len(producer) to obtain number of messages waiting.\n"
         "  :returns: Number of messages and Kafka protocol requests waiting to be delivered to broker.\n"
         "  :rtype: int\n"
         "\n", /*tp_doc*/
-	(traverseproc)Producer_traverse, /* tp_traverse */
-	(inquiry)Producer_clear, /* tp_clear */
-	0,		           /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	Producer_methods,      /* tp_methods */
-	0,                         /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
+        (traverseproc)Producer_traverse, /* tp_traverse */
+        (inquiry)Producer_clear, /* tp_clear */
+        0,                           /* tp_richcompare */
+        0,                           /* tp_weaklistoffset */
+        0,                           /* tp_iter */
+        0,                           /* tp_iternext */
+        Producer_methods,      /* tp_methods */
+        0,                         /* tp_members */
+        0,                         /* tp_getset */
+        0,                         /* tp_base */
+        0,                         /* tp_dict */
+        0,                         /* tp_descr_get */
+        0,                         /* tp_descr_set */
+        0,                         /* tp_dictoffset */
         Producer_init,             /* tp_init */
-	0,                         /* tp_alloc */
-	Producer_new           /* tp_new */
+        0,                         /* tp_alloc */
+        Producer_new           /* tp_new */
 };

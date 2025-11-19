@@ -40,26 +40,26 @@
 
 
 static void Consumer_clear0 (Handle *self) {
-	if (self->u.Consumer.on_assign) {
-		Py_DECREF(self->u.Consumer.on_assign);
-		self->u.Consumer.on_assign = NULL;
-	}
-	if (self->u.Consumer.on_revoke) {
-		Py_DECREF(self->u.Consumer.on_revoke);
-		self->u.Consumer.on_revoke = NULL;
-	}
-	if (self->u.Consumer.on_lost) {
-		Py_DECREF(self->u.Consumer.on_lost);
-		self->u.Consumer.on_lost = NULL;
-	}
-	if (self->u.Consumer.on_commit) {
-		Py_DECREF(self->u.Consumer.on_commit);
-		self->u.Consumer.on_commit = NULL;
-	}
-	if (self->u.Consumer.rkqu) {
-	        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
-	        self->u.Consumer.rkqu = NULL;
-	}
+        if (self->u.Consumer.on_assign) {
+                Py_DECREF(self->u.Consumer.on_assign);
+                self->u.Consumer.on_assign = NULL;
+        }
+        if (self->u.Consumer.on_revoke) {
+                Py_DECREF(self->u.Consumer.on_revoke);
+                self->u.Consumer.on_revoke = NULL;
+        }
+        if (self->u.Consumer.on_lost) {
+                Py_DECREF(self->u.Consumer.on_lost);
+                self->u.Consumer.on_lost = NULL;
+        }
+        if (self->u.Consumer.on_commit) {
+                Py_DECREF(self->u.Consumer.on_commit);
+                self->u.Consumer.on_commit = NULL;
+        }
+        if (self->u.Consumer.rkqu) {
+                rd_kafka_queue_destroy(self->u.Consumer.rkqu);
+                self->u.Consumer.rkqu = NULL;
+        }
 }
 
 static int Consumer_clear (Handle *self) {
@@ -69,7 +69,7 @@ static int Consumer_clear (Handle *self) {
 }
 
 static void Consumer_dealloc (Handle *self) {
-	PyObject_GC_UnTrack(self);
+        PyObject_GC_UnTrack(self);
 
         Consumer_clear0(self);
 
@@ -90,19 +90,19 @@ static void Consumer_dealloc (Handle *self) {
 }
 
 static int Consumer_traverse (Handle *self,
-			      visitproc visit, void *arg) {
-	if (self->u.Consumer.on_assign)
-		Py_VISIT(self->u.Consumer.on_assign);
-	if (self->u.Consumer.on_revoke)
-		Py_VISIT(self->u.Consumer.on_revoke);
-	if (self->u.Consumer.on_lost)
-		Py_VISIT(self->u.Consumer.on_lost);
-	if (self->u.Consumer.on_commit)
-		Py_VISIT(self->u.Consumer.on_commit);
+                              visitproc visit, void *arg) {
+        if (self->u.Consumer.on_assign)
+                Py_VISIT(self->u.Consumer.on_assign);
+        if (self->u.Consumer.on_revoke)
+                Py_VISIT(self->u.Consumer.on_revoke);
+        if (self->u.Consumer.on_lost)
+                Py_VISIT(self->u.Consumer.on_lost);
+        if (self->u.Consumer.on_commit)
+                Py_VISIT(self->u.Consumer.on_commit);
 
-	Handle_traverse(self, visit, arg);
+        Handle_traverse(self, visit, arg);
 
-	return 0;
+        return 0;
 }
 
 
@@ -111,130 +111,130 @@ static int Consumer_traverse (Handle *self,
 
 
 static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
-					 PyObject *kwargs) {
+                                         PyObject *kwargs) {
 
-	rd_kafka_topic_partition_list_t *topics;
-	static char *kws[] = { "topics", "on_assign", "on_revoke", "on_lost", NULL };
-	PyObject *tlist, *on_assign = NULL, *on_revoke = NULL, *on_lost = NULL;
-	Py_ssize_t pos = 0;
-	rd_kafka_resp_err_t err;
+        rd_kafka_topic_partition_list_t *topics;
+        static char *kws[] = { "topics", "on_assign", "on_revoke", "on_lost", NULL };
+        PyObject *tlist, *on_assign = NULL, *on_revoke = NULL, *on_lost = NULL;
+        Py_ssize_t pos = 0;
+        rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
-					 &tlist, &on_assign, &on_revoke, &on_lost))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
+                                         &tlist, &on_assign, &on_revoke, &on_lost))
+                return NULL;
 
-	if (!PyList_Check(tlist)) {
-		PyErr_Format(PyExc_TypeError,
-			     "expected list of topic unicode strings");
-		return NULL;
-	}
+        if (!PyList_Check(tlist)) {
+                PyErr_Format(PyExc_TypeError,
+                             "expected list of topic unicode strings");
+                return NULL;
+        }
 
-	if (on_assign && !PyCallable_Check(on_assign)) {
-		PyErr_Format(PyExc_TypeError,
-			     "on_assign expects a callable");
-		return NULL;
-	}
+        if (on_assign && !PyCallable_Check(on_assign)) {
+                PyErr_Format(PyExc_TypeError,
+                             "on_assign expects a callable");
+                return NULL;
+        }
 
-	if (on_revoke && !PyCallable_Check(on_revoke)) {
-		PyErr_Format(PyExc_TypeError,
-			     "on_revoke expects a callable");
-		return NULL;
-	}
+        if (on_revoke && !PyCallable_Check(on_revoke)) {
+                PyErr_Format(PyExc_TypeError,
+                             "on_revoke expects a callable");
+                return NULL;
+        }
 
-	if (on_lost && !PyCallable_Check(on_lost)) {
-		PyErr_Format(PyExc_TypeError,
-			     "on_lost expects a callable");
-		return NULL;
-	}
+        if (on_lost && !PyCallable_Check(on_lost)) {
+                PyErr_Format(PyExc_TypeError,
+                             "on_lost expects a callable");
+                return NULL;
+        }
 
-	topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
-	for (pos = 0 ; pos < PyList_Size(tlist) ; pos++) {
-		PyObject *o = PyList_GetItem(tlist, pos);
-		PyObject *uo, *uo8;
-		if (!(uo = cfl_PyObject_Unistr(o))) {
-			PyErr_Format(PyExc_TypeError,
-				     "expected list of unicode strings");
-			rd_kafka_topic_partition_list_destroy(topics);
-			return NULL;
-		}
-		rd_kafka_topic_partition_list_add(topics,
-						  cfl_PyUnistr_AsUTF8(uo, &uo8),
-						  RD_KAFKA_PARTITION_UA);
+        topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
+        for (pos = 0 ; pos < PyList_Size(tlist) ; pos++) {
+                PyObject *o = PyList_GetItem(tlist, pos);
+                PyObject *uo, *uo8;
+                if (!(uo = cfl_PyObject_Unistr(o))) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected list of unicode strings");
+                        rd_kafka_topic_partition_list_destroy(topics);
+                        return NULL;
+                }
+                rd_kafka_topic_partition_list_add(topics,
+                                                  cfl_PyUnistr_AsUTF8(uo, &uo8),
+                                                  RD_KAFKA_PARTITION_UA);
                 Py_XDECREF(uo8);
-		Py_DECREF(uo);
-	}
+                Py_DECREF(uo);
+        }
 
-	err = rd_kafka_subscribe(self->rk, topics);
+        err = rd_kafka_subscribe(self->rk, topics);
 
-	rd_kafka_topic_partition_list_destroy(topics);
+        rd_kafka_topic_partition_list_destroy(topics);
 
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Failed to set subscription: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to set subscription: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
-	/*
-	 * Update rebalance callbacks
-	 */
-	if (self->u.Consumer.on_assign) {
-		Py_DECREF(self->u.Consumer.on_assign);
-		self->u.Consumer.on_assign = NULL;
-	}
-	if (on_assign) {
-		self->u.Consumer.on_assign = on_assign;
-		Py_INCREF(self->u.Consumer.on_assign);
-	}
+        /*
+         * Update rebalance callbacks
+         */
+        if (self->u.Consumer.on_assign) {
+                Py_DECREF(self->u.Consumer.on_assign);
+                self->u.Consumer.on_assign = NULL;
+        }
+        if (on_assign) {
+                self->u.Consumer.on_assign = on_assign;
+                Py_INCREF(self->u.Consumer.on_assign);
+        }
 
-	if (self->u.Consumer.on_revoke) {
-		Py_DECREF(self->u.Consumer.on_revoke);
-		self->u.Consumer.on_revoke = NULL;
-	}
-	if (on_revoke) {
-		self->u.Consumer.on_revoke = on_revoke;
-		Py_INCREF(self->u.Consumer.on_revoke);
-	}
+        if (self->u.Consumer.on_revoke) {
+                Py_DECREF(self->u.Consumer.on_revoke);
+                self->u.Consumer.on_revoke = NULL;
+        }
+        if (on_revoke) {
+                self->u.Consumer.on_revoke = on_revoke;
+                Py_INCREF(self->u.Consumer.on_revoke);
+        }
 
-	if (self->u.Consumer.on_lost) {
-		Py_DECREF(self->u.Consumer.on_lost);
-		self->u.Consumer.on_lost = NULL;
-	}
-	if (on_lost) {
-		self->u.Consumer.on_lost = on_lost;
-		Py_INCREF(self->u.Consumer.on_lost);
-	}
+        if (self->u.Consumer.on_lost) {
+                Py_DECREF(self->u.Consumer.on_lost);
+                self->u.Consumer.on_lost = NULL;
+        }
+        if (on_lost) {
+                self->u.Consumer.on_lost = on_lost;
+                Py_INCREF(self->u.Consumer.on_lost);
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
 static PyObject *Consumer_unsubscribe (Handle *self,
-					   PyObject *ignore) {
+                                           PyObject *ignore) {
 
-	rd_kafka_resp_err_t err;
+        rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	err = rd_kafka_unsubscribe(self->rk);
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Failed to remove subscription: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        err = rd_kafka_unsubscribe(self->rk);
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to remove subscription: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
@@ -243,8 +243,8 @@ static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -268,56 +268,56 @@ static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
 
 static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 
-	rd_kafka_topic_partition_list_t *c_parts;
-	rd_kafka_resp_err_t err;
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!(c_parts = py_to_c_parts(tlist)))
-		return NULL;
+        if (!(c_parts = py_to_c_parts(tlist)))
+                return NULL;
 
-	self->u.Consumer.rebalance_assigned++;
+        self->u.Consumer.rebalance_assigned++;
 
-	err = rd_kafka_assign(self->rk, c_parts);
+        err = rd_kafka_assign(self->rk, c_parts);
 
-	rd_kafka_topic_partition_list_destroy(c_parts);
+        rd_kafka_topic_partition_list_destroy(c_parts);
 
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Failed to set assignment: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to set assignment: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
 static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
-	rd_kafka_resp_err_t err;
+        rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	self->u.Consumer.rebalance_assigned++;
+        self->u.Consumer.rebalance_assigned++;
 
-	err = rd_kafka_assign(self->rk, NULL);
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Failed to remove assignment: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        err = rd_kafka_assign(self->rk, NULL);
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to remove assignment: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
@@ -327,8 +327,8 @@ static PyObject *Consumer_incremental_unassign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -358,8 +358,8 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -461,53 +461,53 @@ Consumer_offset_commit_return_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 static PyObject *Consumer_commit (Handle *self, PyObject *args,
                                   PyObject *kwargs) {
-	rd_kafka_resp_err_t err;
-	PyObject *msg = NULL, *offsets = NULL, *async_o = NULL;
-	rd_kafka_topic_partition_list_t *c_offsets;
-	int async = 1;
-	static char *kws[] = { "message", "offsets",
+        rd_kafka_resp_err_t err;
+        PyObject *msg = NULL, *offsets = NULL, *async_o = NULL;
+        rd_kafka_topic_partition_list_t *c_offsets;
+        int async = 1;
+        static char *kws[] = { "message", "offsets",
                                "async", "asynchronous", NULL };
         rd_kafka_queue_t *rkqu = NULL;
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
-					 &msg, &offsets, &async_o, &async_o))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
+                                         &msg, &offsets, &async_o, &async_o))
+                return NULL;
 
-	if (msg && offsets) {
-		PyErr_SetString(PyExc_ValueError,
-				"message and offsets are mutually exclusive");
-		return NULL;
-	}
+        if (msg && offsets) {
+                PyErr_SetString(PyExc_ValueError,
+                                "message and offsets are mutually exclusive");
+                return NULL;
+        }
 
-	if (async_o)
-		async = PyObject_IsTrue(async_o);
+        if (async_o)
+                async = PyObject_IsTrue(async_o);
 
 
-	if (offsets) {
+        if (offsets) {
 
-		if (!(c_offsets = py_to_c_parts(offsets)))
-			return NULL;
-	} else if (msg) {
-		Message *m;
+                if (!(c_offsets = py_to_c_parts(offsets)))
+                        return NULL;
+        } else if (msg) {
+                Message *m;
                 PyObject *uo8;
                 rd_kafka_topic_partition_t *rktpar;
 
-		if (PyObject_Type((PyObject *)msg) !=
-		    (PyObject *)&MessageType) {
-			PyErr_Format(PyExc_TypeError,
-				     "expected %s", MessageType.tp_name);
-			return NULL;
-		}
+                if (PyObject_Type((PyObject *)msg) !=
+                    (PyObject *)&MessageType) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected %s", MessageType.tp_name);
+                        return NULL;
+                }
 
-		m = (Message *)msg;
+                m = (Message *)msg;
 
                 if (m->error != Py_None) {
                         PyObject *error = Message_error(m, NULL);
@@ -519,18 +519,18 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
                         return NULL;
                 }
 
-		c_offsets = rd_kafka_topic_partition_list_new(1);
-		rktpar = rd_kafka_topic_partition_list_add(
-			        c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-			        m->partition);
+                c_offsets = rd_kafka_topic_partition_list_new(1);
+                rktpar = rd_kafka_topic_partition_list_add(
+                                c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
+                                m->partition);
                 rktpar->offset =m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                         m->leader_epoch);
                 Py_XDECREF(uo8);
 
-	} else {
-		c_offsets = NULL;
-	}
+        } else {
+                c_offsets = NULL;
+        }
 
         if (async) {
                 /* Async mode: Use consumer queue for offset commit
@@ -594,60 +594,60 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 
 
 static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
-						PyObject *kwargs) {
+                                                PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
-	PyErr_Format(PyExc_NotImplementedError,
-		     "Consumer store_offsets require "
-		     "confluent-kafka-python built for librdkafka "
-		     "version >=v0.11.0 (librdkafka runtime 0x%x, "
-		     "buildtime 0x%x)",
-		     rd_kafka_version(), RD_KAFKA_VERSION);
-	return NULL;
+        PyErr_Format(PyExc_NotImplementedError,
+                     "Consumer store_offsets require "
+                     "confluent-kafka-python built for librdkafka "
+                     "version >=v0.11.0 (librdkafka runtime 0x%x, "
+                     "buildtime 0x%x)",
+                     rd_kafka_version(), RD_KAFKA_VERSION);
+        return NULL;
 #else
-	rd_kafka_resp_err_t err;
-	PyObject *msg = NULL, *offsets = NULL;
-	rd_kafka_topic_partition_list_t *c_offsets;
-	static char *kws[] = { "message", "offsets", NULL };
+        rd_kafka_resp_err_t err;
+        PyObject *msg = NULL, *offsets = NULL;
+        rd_kafka_topic_partition_list_t *c_offsets;
+        static char *kws[] = { "message", "offsets", NULL };
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
-					 &msg, &offsets))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
+                                         &msg, &offsets))
+                return NULL;
 
-	if (msg && offsets) {
-		PyErr_SetString(PyExc_ValueError,
-				"message and offsets are mutually exclusive");
-		return NULL;
-	}
+        if (msg && offsets) {
+                PyErr_SetString(PyExc_ValueError,
+                                "message and offsets are mutually exclusive");
+                return NULL;
+        }
 
-	if (!msg && !offsets) {
-		PyErr_SetString(PyExc_ValueError,
-				"expected either message or offsets");
-		return NULL;
-	}
+        if (!msg && !offsets) {
+                PyErr_SetString(PyExc_ValueError,
+                                "expected either message or offsets");
+                return NULL;
+        }
 
-	if (offsets) {
+        if (offsets) {
 
-		if (!(c_offsets = py_to_c_parts(offsets)))
-			return NULL;
-	} else {
-		Message *m;
-		PyObject *uo8;
+                if (!(c_offsets = py_to_c_parts(offsets)))
+                        return NULL;
+        } else {
+                Message *m;
+                PyObject *uo8;
                 rd_kafka_topic_partition_t *rktpar;
 
-		if (PyObject_Type((PyObject *)msg) !=
-		    (PyObject *)&MessageType) {
-			PyErr_Format(PyExc_TypeError,
-				     "expected %s", MessageType.tp_name);
-			return NULL;
-		}
+                if (PyObject_Type((PyObject *)msg) !=
+                    (PyObject *)&MessageType) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected %s", MessageType.tp_name);
+                        return NULL;
+                }
 
-		m = (Message *)msg;
+                m = (Message *)msg;
 
                 if (m->error != Py_None) {
                         PyObject *error = Message_error(m, NULL);
@@ -659,121 +659,121 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
                         return NULL;
                 }
 
-		c_offsets = rd_kafka_topic_partition_list_new(1);
-		rktpar = rd_kafka_topic_partition_list_add(
-			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-			m->partition);
+                c_offsets = rd_kafka_topic_partition_list_new(1);
+                rktpar = rd_kafka_topic_partition_list_add(
+                        c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
+                        m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                         m->leader_epoch);
-		Py_XDECREF(uo8);
-	}
+                Py_XDECREF(uo8);
+        }
 
 
-	err = rd_kafka_offsets_store(self->rk, c_offsets);
-	rd_kafka_topic_partition_list_destroy(c_offsets);
+        err = rd_kafka_offsets_store(self->rk, c_offsets);
+        rd_kafka_topic_partition_list_destroy(c_offsets);
 
 
 
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "StoreOffsets failed: %s", rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "StoreOffsets failed: %s", rd_kafka_err2str(err));
+                return NULL;
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 #endif
 }
 
 
 
 static PyObject *Consumer_committed (Handle *self, PyObject *args,
-					 PyObject *kwargs) {
+                                         PyObject *kwargs) {
 
-	PyObject *plist;
-	rd_kafka_topic_partition_list_t *c_parts;
-	rd_kafka_resp_err_t err;
-	double tmout = -1.0f;
-	static char *kws[] = { "partitions", "timeout", NULL };
+        PyObject *plist;
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_resp_err_t err;
+        double tmout = -1.0f;
+        static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
-					 &plist, &tmout))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+                                         &plist, &tmout))
+                return NULL;
 
 
-	if (!(c_parts = py_to_c_parts(plist)))
-		return NULL;
+        if (!(c_parts = py_to_c_parts(plist)))
+                return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
         err = rd_kafka_committed(self->rk, c_parts, cfl_timeout_ms(tmout));
         Py_END_ALLOW_THREADS;
 
-	if (err) {
-		rd_kafka_topic_partition_list_destroy(c_parts);
-		cfl_PyErr_Format(err,
-				 "Failed to get committed offsets: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (err) {
+                rd_kafka_topic_partition_list_destroy(c_parts);
+                cfl_PyErr_Format(err,
+                                 "Failed to get committed offsets: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
 
-	plist = c_parts_to_py(c_parts);
-	rd_kafka_topic_partition_list_destroy(c_parts);
+        plist = c_parts_to_py(c_parts);
+        rd_kafka_topic_partition_list_destroy(c_parts);
 
-	return plist;
+        return plist;
 }
 
 
 static PyObject *Consumer_position (Handle *self, PyObject *args,
-					PyObject *kwargs) {
+                                        PyObject *kwargs) {
 
-	PyObject *plist;
-	rd_kafka_topic_partition_list_t *c_parts;
-	rd_kafka_resp_err_t err;
-	static char *kws[] = { "partitions", NULL };
+        PyObject *plist;
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "partitions", NULL };
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
-					 &plist))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
+                                         &plist))
+                return NULL;
 
 
-	if (!(c_parts = py_to_c_parts(plist)))
-		return NULL;
+        if (!(c_parts = py_to_c_parts(plist)))
+                return NULL;
 
-	err = rd_kafka_position(self->rk, c_parts);
+        err = rd_kafka_position(self->rk, c_parts);
 
-	if (err) {
-		rd_kafka_topic_partition_list_destroy(c_parts);
-		cfl_PyErr_Format(err,
-				 "Failed to get position: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (err) {
+                rd_kafka_topic_partition_list_destroy(c_parts);
+                cfl_PyErr_Format(err,
+                                 "Failed to get position: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
 
-	plist = c_parts_to_py(c_parts);
-	rd_kafka_topic_partition_list_destroy(c_parts);
+        plist = c_parts_to_py(c_parts);
+        rd_kafka_topic_partition_list_destroy(c_parts);
 
-	return plist;
+        return plist;
 }
 
 static PyObject *Consumer_pause(Handle *self, PyObject *args,
                     PyObject *kwargs) {
 
     PyObject *plist;
-	rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_topic_partition_list_t *c_parts;
     rd_kafka_resp_err_t err;
     static char *kws[] = {"partitions", NULL};
 
@@ -791,14 +791,14 @@ static PyObject *Consumer_pause(Handle *self, PyObject *args,
                 rd_kafka_err2str(err));
         return NULL;
     }
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 static PyObject *Consumer_resume (Handle *self, PyObject *args,
                     PyObject *kwargs) {
 
     PyObject *plist;
-	rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_topic_partition_list_t *c_parts;
     rd_kafka_resp_err_t err;
     static char *kws[] = {"partitions", NULL};
 
@@ -816,7 +816,7 @@ static PyObject *Consumer_resume (Handle *self, PyObject *args,
                 rd_kafka_err2str(err));
         return NULL;
     }
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
@@ -830,7 +830,7 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -889,8 +889,8 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
         PyObject *rtup;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -936,30 +936,30 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
 static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
                                                  PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
-	PyErr_Format(PyExc_NotImplementedError,
-		     "Consumer offsets_for_times require "
-		     "confluent-kafka-python built for librdkafka "
-		     "version >=v0.11.0 (librdkafka runtime 0x%x, "
-		     "buildtime 0x%x)",
-		     rd_kafka_version(), RD_KAFKA_VERSION);
-	return NULL;
+        PyErr_Format(PyExc_NotImplementedError,
+                     "Consumer offsets_for_times require "
+                     "confluent-kafka-python built for librdkafka "
+                     "version >=v0.11.0 (librdkafka runtime 0x%x, "
+                     "buildtime 0x%x)",
+                     rd_kafka_version(), RD_KAFKA_VERSION);
+        return NULL;
 #else
 
-	PyObject *plist;
-	double tmout = -1.0f;
-	rd_kafka_topic_partition_list_t *c_parts;
-	rd_kafka_resp_err_t err;
-	static char *kws[] = { "partitions", "timeout", NULL };
+        PyObject *plist;
+        double tmout = -1.0f;
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
-					 &plist, &tmout))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+                                         &plist, &tmout))
+                return NULL;
 
         if (!(c_parts = py_to_c_parts(plist)))
                 return NULL;
@@ -994,8 +994,8 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         CallState cs;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1032,8 +1032,8 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
         char *memberid;
         PyObject *memberidobj;
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1066,20 +1066,20 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         Py_ssize_t i, n;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Id", kws,
-					 &num_messages, &tmout))
-		return NULL;
+                                         &num_messages, &tmout))
+                return NULL;
 
-	if (num_messages > 1000000) {
-	        PyErr_SetString(PyExc_ValueError,
-	                        "num_messages must be between 0 and 1000000 (1M)");
-	        return NULL;
-	}
+        if (num_messages > 1000000) {
+                PyErr_SetString(PyExc_ValueError,
+                                "num_messages must be between 0 and 1000000 (1M)");
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
 
@@ -1148,26 +1148,26 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 }
 
 static PyObject *Consumer_enter (Handle *self) {
-	Py_INCREF(self);
-	return (PyObject *)self;
+        Py_INCREF(self);
+        return (PyObject *)self;
 }
 
 static PyObject *Consumer_exit (Handle *self, PyObject *args) {
-	PyObject *exc_type, *exc_value, *exc_traceback;
+        PyObject *exc_type, *exc_value, *exc_traceback;
 
-	if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
-			      &exc_type, &exc_value, &exc_traceback))
-		return NULL;
+        if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+                              &exc_type, &exc_value, &exc_traceback))
+                return NULL;
 
-	/* Cleanup: call close() */
-	if (self->rk) {
-		PyObject *result = Consumer_close(self, NULL);
-		if (!result)
-			return NULL;
-		Py_DECREF(result);
-	}
+        /* Cleanup: call close() */
+        if (self->rk) {
+                PyObject *result = Consumer_close(self, NULL);
+                if (!result)
+                        return NULL;
+                Py_DECREF(result);
+        }
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -1176,8 +1176,8 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         PyObject *obj;
 
         if (!self->rk) {
-				PyErr_SetString(PyExc_RuntimeError,
-					ERR_MSG_CONSUMER_CLOSED);
+                                PyErr_SetString(PyExc_RuntimeError,
+                                        ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1196,44 +1196,44 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
 
 
 static PyMethodDef Consumer_methods[] = {
-	{ "subscribe", (PyCFunction)Consumer_subscribe,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None], [on_lost=None])\n"
-	  "\n"
-	  "  Set subscription to supplied list of topics\n"
-	  "  This replaces a previous subscription.\n"
+        { "subscribe", (PyCFunction)Consumer_subscribe,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None], [on_lost=None])\n"
+          "\n"
+          "  Set subscription to supplied list of topics\n"
+          "  This replaces a previous subscription.\n"
           "\n"
           "  Regexp pattern subscriptions are supported by prefixing "
           "the topic string with ``\"^\"``, e.g.::\n"
           "\n"
           "    consumer.subscribe([\"^my_topic.*\", \"^another[0-9]-?[a-z]+$\", \"not_a_regex\"])\n"
-	  "\n"
-	  "  :param list(str) topics: List of topics (strings) to subscribe to.\n"
-	  "  :param callable on_assign: callback to provide handling of "
-	  "customized offsets on completion of a successful partition "
-	  "re-assignment.\n"
-	  "  :param callable on_revoke: callback to provide handling of "
-	  "offset commits to a customized store on the start of a "
-	  "rebalance operation.\n"
-	  "  :param callable on_lost: callback to provide handling in "
-	  "the case the partition assignment has been lost. If not "
-	  "specified, lost partition events will be delivered to "
-	  "on_revoke, if specified. Partitions that have been lost may "
-	  "already be owned by other members in the group and therefore "
-	  "committing offsets, for example, may fail.\n"
-	  "\n"
-	  "  :raises KafkaException:\n"
+          "\n"
+          "  :param list(str) topics: List of topics (strings) to subscribe to.\n"
+          "  :param callable on_assign: callback to provide handling of "
+          "customized offsets on completion of a successful partition "
+          "re-assignment.\n"
+          "  :param callable on_revoke: callback to provide handling of "
+          "offset commits to a customized store on the start of a "
+          "rebalance operation.\n"
+          "  :param callable on_lost: callback to provide handling in "
+          "the case the partition assignment has been lost. If not "
+          "specified, lost partition events will be delivered to "
+          "on_revoke, if specified. Partitions that have been lost may "
+          "already be owned by other members in the group and therefore "
+          "committing offsets, for example, may fail.\n"
+          "\n"
+          "  :raises KafkaException:\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	  "\n"
-	  ".. py:function:: on_assign(consumer, partitions)\n"
-	  ".. py:function:: on_revoke(consumer, partitions)\n"
-	  ".. py:function:: on_lost(consumer, partitions)\n"
-	  "\n"
-	  "  :param Consumer consumer: Consumer instance.\n"
-	  "  :param list(TopicPartition) partitions: Absolute list of partitions being assigned or revoked.\n"
-	  "\n"
-	},
+          "\n"
+          "\n"
+          ".. py:function:: on_assign(consumer, partitions)\n"
+          ".. py:function:: on_revoke(consumer, partitions)\n"
+          ".. py:function:: on_lost(consumer, partitions)\n"
+          "\n"
+          "  :param Consumer consumer: Consumer instance.\n"
+          "  :param list(TopicPartition) partitions: Absolute list of partitions being assigned or revoked.\n"
+          "\n"
+        },
         { "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
           "  Remove current subscription.\n"
           "\n"
@@ -1241,65 +1241,65 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
-	{ "poll", (PyCFunction)Consumer_poll,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: poll([timeout=None])\n"
-	  "\n"
-	  "  Consumes a single message, calls callbacks and returns events.\n"
-	  "\n"
-	  "  The application must check the returned :py:class:`Message` "
-	  "object's :py:func:`Message.error()` method to distinguish "
-	  "between proper messages (error() returns None), or an event or "
-	  "error (see error().code() for specifics).\n"
-	  "\n"
-	  "  .. note: Callbacks may be called from this method, "
-	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
-	  "\n"
-	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (None translated into -1 in the library)). (Seconds)\n"
-	  "  :returns: A Message object or None on timeout\n"
-	  "  :rtype: :py:class:`Message` or None\n"
+        { "poll", (PyCFunction)Consumer_poll,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: poll([timeout=None])\n"
+          "\n"
+          "  Consumes a single message, calls callbacks and returns events.\n"
+          "\n"
+          "  The application must check the returned :py:class:`Message` "
+          "object's :py:func:`Message.error()` method to distinguish "
+          "between proper messages (error() returns None), or an event or "
+          "error (see error().code() for specifics).\n"
+          "\n"
+          "  .. note: Callbacks may be called from this method, "
+          "such as ``on_assign``, ``on_revoke``, et.al.\n"
+          "\n"
+          "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (None translated into -1 in the library)). (Seconds)\n"
+          "  :returns: A Message object or None on timeout\n"
+          "  :rtype: :py:class:`Message` or None\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-	{ "consume", (PyCFunction)Consumer_consume,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: consume([num_messages=1], [timeout=-1])\n"
-	  "\n"
-	  "  Consumes a list of messages (possibly empty on timeout). "
+          "\n"
+        },
+        { "consume", (PyCFunction)Consumer_consume,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: consume([num_messages=1], [timeout=-1])\n"
+          "\n"
+          "  Consumes a list of messages (possibly empty on timeout). "
           "Callbacks may be executed as a side effect of calling this method.\n"
-	  "\n"
-	  "  The application must check the returned :py:class:`Message` "
-	  "object's :py:func:`Message.error()` method to distinguish "
-	  "between proper messages (error() returns None) and errors "
+          "\n"
+          "  The application must check the returned :py:class:`Message` "
+          "object's :py:func:`Message.error()` method to distinguish "
+          "between proper messages (error() returns None) and errors "
       "for each :py:class:`Message` in the list (see error().code() "
-	  "for specifics). If the enable.partition.eof configuration "
+          "for specifics). If the enable.partition.eof configuration "
       "property is set to True, partition EOF events will also be "
       "exposed as Messages with error().code() set to "
       "_PARTITION_EOF.\n"
-	  "\n"
-	  "  .. note: Callbacks may be called from this method, "
-	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
-	  "\n"
-	  "  :param int num_messages: The maximum number of messages to return (default: 1).\n"
-	  "  :param float timeout: The maximum time to block waiting for message, event or callback (default: infinite (-1)). (Seconds)\n"
-	  "  :returns: A list of Message objects (possibly empty on timeout)\n"
-	  "  :rtype: list(Message)\n"
+          "\n"
+          "  .. note: Callbacks may be called from this method, "
+          "such as ``on_assign``, ``on_revoke``, et.al.\n"
+          "\n"
+          "  :param int num_messages: The maximum number of messages to return (default: 1).\n"
+          "  :param float timeout: The maximum time to block waiting for message, event or callback (default: infinite (-1)). (Seconds)\n"
+          "  :returns: A list of Message objects (possibly empty on timeout)\n"
+          "  :rtype: list(Message)\n"
           "  :raises RuntimeError: if called on a closed consumer\n"
           "  :raises KafkaError: in case of internal error\n"
           "  :raises ValueError: if num_messages > 1M\n"
-	  "\n"
-	},
-	{ "assign", (PyCFunction)Consumer_assign, METH_O,
-	  ".. py:function:: assign(partitions)\n"
-	  "\n"
-	  "  Set the consumer partition assignment to the provided list of "
-	  ":py:class:`TopicPartition` and start consuming.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
+          "\n"
+        },
+        { "assign", (PyCFunction)Consumer_assign, METH_O,
+          ".. py:function:: assign(partitions)\n"
+          "\n"
+          "  Set the consumer partition assignment to the provided list of "
+          ":py:class:`TopicPartition` and start consuming.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
           "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
+          "\n"
+        },
         { "incremental_assign", (PyCFunction)Consumer_incremental_assign, METH_O,
           ".. py:function:: incremental_assign(partitions)\n"
           "\n"
@@ -1318,11 +1318,11 @@ static PyMethodDef Consumer_methods[] = {
           "are none. This method may also be used outside the context of a "
           "rebalance callback.\n"
           "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
           "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
+          "\n"
+        },
         { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
           "  Removes the current partition assignment and stops consuming.\n"
           "\n"
@@ -1330,10 +1330,10 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises RuntimeError: if called on a closed consumer\n"
           "\n"
         },
-	{ "incremental_unassign", (PyCFunction)Consumer_incremental_unassign, METH_O,
-	  ".. py:function:: incremental_unassign(partitions)\n"
-	  "\n"
-	  "  Incrementally remove the provided list of :py:class:`TopicPartition` "
+        { "incremental_unassign", (PyCFunction)Consumer_incremental_unassign, METH_O,
+          ".. py:function:: incremental_unassign(partitions)\n"
+          "\n"
+          "  Incrementally remove the provided list of :py:class:`TopicPartition` "
           "from the current partition assignment. This list must not contain "
           "dupliate entries and all entries specified must be part of the "
           "current assignment. When a COOPERATIVE assignor (i.e. incremental "
@@ -1343,12 +1343,12 @@ static PyMethodDef Consumer_methods[] = {
           "callback. This method may also be used outside the context of a "
           "rebalance callback. The value of the `TopicPartition` offset field "
           "is ignored by this method.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions to remove from the current assignment.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions to remove from the current assignment.\n"
           "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
+          "\n"
+        },
         { "assignment", (PyCFunction)Consumer_assignment,
           METH_VARARGS|METH_KEYWORDS,
           "  Returns the current partition assignment.\n"
@@ -1359,98 +1359,98 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
-	{ "store_offsets", (PyCFunction)Consumer_store_offsets, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: store_offsets([message=None], [offsets=None])\n"
-	  "\n"
-	  "  Store offsets for a message or a list of offsets.\n"
-	  "\n"
-	  "  ``message`` and ``offsets`` are mutually exclusive. "
-	  "The stored offsets will be committed according to 'auto.commit.interval.ms' or manual "
-	  "offset-less :py:meth:`commit`. "
-	  "Note that 'enable.auto.offset.store' must be set to False when using this API.\n"
-	  "\n"
-	  "  :param confluent_kafka.Message message: Store message's offset+1.\n"
-	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to store.\n"
-	  "  :rtype: None\n"
-	  "  :raises: KafkaException\n"
+        { "store_offsets", (PyCFunction)Consumer_store_offsets, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: store_offsets([message=None], [offsets=None])\n"
+          "\n"
+          "  Store offsets for a message or a list of offsets.\n"
+          "\n"
+          "  ``message`` and ``offsets`` are mutually exclusive. "
+          "The stored offsets will be committed according to 'auto.commit.interval.ms' or manual "
+          "offset-less :py:meth:`commit`. "
+          "Note that 'enable.auto.offset.store' must be set to False when using this API.\n"
+          "\n"
+          "  :param confluent_kafka.Message message: Store message's offset+1.\n"
+          "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to store.\n"
+          "  :rtype: None\n"
+          "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: commit([message=None], [offsets=None], [asynchronous=True])\n"
-	  "\n"
-	  "  Commit a message or a list of offsets.\n"
-	  "\n"
-	  "  The ``message`` and ``offsets`` parameters are mutually exclusive. If neither is set, "
-	  "the current partition assignment's offsets are used instead. "
-	  "Use this method to commit offsets if you have 'enable.auto.commit' set to False.\n"
-	  "\n"
-	  "  :param confluent_kafka.Message message: Commit the message's offset+1. Note: "
+          "\n"
+        },
+        { "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: commit([message=None], [offsets=None], [asynchronous=True])\n"
+          "\n"
+          "  Commit a message or a list of offsets.\n"
+          "\n"
+          "  The ``message`` and ``offsets`` parameters are mutually exclusive. If neither is set, "
+          "the current partition assignment's offsets are used instead. "
+          "Use this method to commit offsets if you have 'enable.auto.commit' set to False.\n"
+          "\n"
+          "  :param confluent_kafka.Message message: Commit the message's offset+1. Note: "
           "By convention, committed offsets reflect the next message to be consumed, **not** "
           "the last message consumed.\n"
-	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
-	  "  :param bool asynchronous: If true, asynchronously commit, returning None immediately. "
+          "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
+          "  :param bool asynchronous: If true, asynchronously commit, returning None immediately. "
           "If False, the commit() call will block until the commit succeeds or "
           "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition should be checked for success.\n"
-	  "  :rtype: None|list(TopicPartition)\n"
-	  "  :raises: KafkaException\n"
+          "  :rtype: None|list(TopicPartition)\n"
+          "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-	{ "committed", (PyCFunction)Consumer_committed,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: committed(partitions, [timeout=None])\n"
-	  "\n"
-	  "  Retrieve committed offsets for the specified partitions.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions "
-	  "to query for stored offsets.\n"
-	  "  :param float timeout: Request timeout (seconds).\n"
-	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
-	  "  :rtype: list(TopicPartition)\n"
-	  "  :raises: KafkaException\n"
+          "\n"
+        },
+        { "committed", (PyCFunction)Consumer_committed,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: committed(partitions, [timeout=None])\n"
+          "\n"
+          "  Retrieve committed offsets for the specified partitions.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions "
+          "to query for stored offsets.\n"
+          "  :param float timeout: Request timeout (seconds).\n"
+          "  :returns: List of topic+partitions with offset and possibly error set.\n"
+          "  :rtype: list(TopicPartition)\n"
+          "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-	{ "position", (PyCFunction)Consumer_position,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: position(partitions)\n"
-	  "\n"
-	  "  Retrieve current positions (offsets) for the specified partitions.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions "
-	  "to return current offsets for. The current offset is the offset of the "
-	  "last consumed message + 1.\n"
-	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
-	  "  :rtype: list(TopicPartition)\n"
-	  "  :raises: KafkaException\n"
+          "\n"
+        },
+        { "position", (PyCFunction)Consumer_position,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: position(partitions)\n"
+          "\n"
+          "  Retrieve current positions (offsets) for the specified partitions.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions "
+          "to return current offsets for. The current offset is the offset of the "
+          "last consumed message + 1.\n"
+          "  :returns: List of topic+partitions with offset and possibly error set.\n"
+          "  :rtype: list(TopicPartition)\n"
+          "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-	{ "pause", (PyCFunction)Consumer_pause,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: pause(partitions)\n"
-	  "\n"
-	  "  Pause consumption for the provided list of partitions.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions "
-	  "to pause.\n"
-	  "  :rtype: None\n"
-	  "  :raises: KafkaException\n"
-	  "\n"
-	},
-	{ "resume", (PyCFunction)Consumer_resume,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: resume(partitions)\n"
-	  "\n"
-	  "  Resume consumption for the provided list of partitions.\n"
-	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions "
-	  "to resume.\n"
-	  "  :rtype: None\n"
-	  "  :raises: KafkaException\n"
-	  "\n"
-	},
+          "\n"
+        },
+        { "pause", (PyCFunction)Consumer_pause,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: pause(partitions)\n"
+          "\n"
+          "  Pause consumption for the provided list of partitions.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions "
+          "to pause.\n"
+          "  :rtype: None\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
+        { "resume", (PyCFunction)Consumer_resume,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: resume(partitions)\n"
+          "\n"
+          "  Resume consumption for the provided list of partitions.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: List of topic+partitions "
+          "to resume.\n"
+          "  :rtype: None\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
         { "seek", (PyCFunction)Consumer_seek,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: seek(partition)\n"
@@ -1519,22 +1519,22 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
-	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
-	  "\n"
-	  "  Close down and terminate the Kafka Consumer.\n"
-	  "\n"
-	  "  Actions performed:\n"
-	  "\n"
-	  "  - Stops consuming.\n"
-	  "  - Commits offsets, unless the consumer property 'enable.auto.commit' is set to False.\n"
-	  "  - Leaves the consumer group.\n"
-	  "\n"
-	  "  .. note: Registered callbacks may be called from this method, "
-	  "see :py:func::`poll()` for more info.\n"
-	  "\n"
-	  "  :rtype: None\n"
-	  "\n"
-	},
+        { "close", (PyCFunction)Consumer_close, METH_NOARGS,
+          "\n"
+          "  Close down and terminate the Kafka Consumer.\n"
+          "\n"
+          "  Actions performed:\n"
+          "\n"
+          "  - Stops consuming.\n"
+          "  - Commits offsets, unless the consumer property 'enable.auto.commit' is set to False.\n"
+          "  - Leaves the consumer group.\n"
+          "\n"
+          "  .. note: Registered callbacks may be called from this method, "
+          "see :py:func::`poll()` for more info.\n"
+          "\n"
+          "  :rtype: None\n"
+          "\n"
+        },
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
         },
@@ -1554,48 +1554,48 @@ static PyMethodDef Consumer_methods[] = {
           "Context manager entry." },
         { "__exit__", (PyCFunction)Consumer_exit, METH_VARARGS,
           "Context manager exit. Automatically closes the consumer." },
-	{ NULL }
+        { NULL }
 };
 
 
 static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
-				   rd_kafka_topic_partition_list_t *c_parts,
-				   void *opaque) {
-	Handle *self = opaque;
-	CallState *cs;
+                                   rd_kafka_topic_partition_list_t *c_parts,
+                                   void *opaque) {
+        Handle *self = opaque;
+        CallState *cs;
         PyObject *cb;
 
-	cs = CallState_get(self);
+        cs = CallState_get(self);
 
-	self->u.Consumer.rebalance_assigned = 0;
-	self->u.Consumer.rebalance_incremental_assigned = 0;
+        self->u.Consumer.rebalance_assigned = 0;
+        self->u.Consumer.rebalance_incremental_assigned = 0;
         self->u.Consumer.rebalance_incremental_unassigned = 0;
 
-	if ((err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS &&
+        if ((err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS &&
              self->u.Consumer.on_assign) ||
             (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
-	     self->u.Consumer.on_revoke) ||
+             self->u.Consumer.on_revoke) ||
             (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
              self->u.Consumer.on_lost &&
              rd_kafka_assignment_lost(rk))) {
 
-		PyObject *parts;
-		PyObject *args, *result;
+                PyObject *parts;
+                PyObject *args, *result;
 
-		/* Construct list of TopicPartition based on 'c_parts' */
-		parts = c_parts_to_py(c_parts);
+                /* Construct list of TopicPartition based on 'c_parts' */
+                parts = c_parts_to_py(c_parts);
 
-		args = Py_BuildValue("(OO)", self, parts);
+                args = Py_BuildValue("(OO)", self, parts);
 
-		Py_DECREF(parts);
+                Py_DECREF(parts);
 
-		if (!args) {
-			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
-					 "Unable to build callback args");
-			CallState_crash(cs);
-			CallState_resume(cs);
-			return;
-		}
+                if (!args) {
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                         "Unable to build callback args");
+                        CallState_crash(cs);
+                        CallState_resume(cs);
+                        return;
+                }
 
                 if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
                         cb = self->u.Consumer.on_assign;
@@ -1605,18 +1605,18 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
                 else /* revoke */
                         cb = self->u.Consumer.on_revoke;
 
-		result = PyObject_CallObject(cb, args);
+                result = PyObject_CallObject(cb, args);
 
-		Py_DECREF(args);
+                Py_DECREF(args);
 
-		if (result)
-			Py_DECREF(result);
-		else {
-			CallState_fetch_exception(cs);
-			CallState_crash(cs);
-			rd_kafka_yield(rk);
-		}
-	}
+                if (result)
+                        Py_DECREF(result);
+                else {
+                        CallState_fetch_exception(cs);
+                        CallState_crash(cs);
+                        rd_kafka_yield(rk);
+                }
+        }
 
         /* Fallback: librdkafka needs the rebalance_cb to call assign()
          * to synchronize state, if the user did not do this from callback,
@@ -1715,27 +1715,27 @@ static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 
 
 PyTypeObject ConsumerType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Consumer",        /*tp_name*/
-	sizeof(Handle),          /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)Consumer_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.Consumer",        /*tp_name*/
+        sizeof(Handle),          /*tp_basicsize*/
+        0,                         /*tp_itemsize*/
+        (destructor)Consumer_dealloc, /*tp_dealloc*/
+        0,                         /*tp_print*/
+        0,                         /*tp_getattr*/
+        0,                         /*tp_setattr*/
+        0,                         /*tp_compare*/
+        0,                         /*tp_repr*/
+        0,                         /*tp_as_number*/
+        0,                         /*tp_as_sequence*/
+        0,                         /*tp_as_mapping*/
+        0,                         /*tp_hash */
+        0,                         /*tp_call*/
+        0,                         /*tp_str*/
+        0,                         /*tp_getattro*/
+        0,                         /*tp_setattro*/
+        0,                         /*tp_as_buffer*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
         "A high-level Apache Kafka consumer\n"
         "\n"
         ".. py:function:: Consumer(config)\n"
@@ -1747,21 +1747,21 @@ PyTypeObject ConsumerType = {
         ":param dict config: Configuration properties. At a minimum, "
         "``group.id`` **must** be set and ``bootstrap.servers`` **should** be set."
         "\n", /*tp_doc*/
-	(traverseproc)Consumer_traverse, /* tp_traverse */
-	(inquiry)Consumer_clear, /* tp_clear */
-	0,		           /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	Consumer_methods,      /* tp_methods */
-	0,                         /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
+        (traverseproc)Consumer_traverse, /* tp_traverse */
+        (inquiry)Consumer_clear, /* tp_clear */
+        0,                           /* tp_richcompare */
+        0,                           /* tp_weaklistoffset */
+        0,                           /* tp_iter */
+        0,                           /* tp_iternext */
+        Consumer_methods,      /* tp_methods */
+        0,                         /* tp_members */
+        0,                         /* tp_getset */
+        0,                         /* tp_base */
+        0,                         /* tp_dict */
+        0,                         /* tp_descr_get */
+        0,                         /* tp_descr_set */
+        0,                         /* tp_dictoffset */
         Consumer_init,             /* tp_init */
-	0,                         /* tp_alloc */
-	Consumer_new           /* tp_new */
+        0,                         /* tp_alloc */
+        Consumer_new           /* tp_new */
 };

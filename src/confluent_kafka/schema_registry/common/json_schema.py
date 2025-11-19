@@ -1,19 +1,16 @@
-
 import decimal
-from io import BytesIO
-
 import logging
-from typing import Union, Optional, List, Set
+from io import BytesIO
+from typing import List, Optional, Set, Union
 
 import httpx
 import referencing
-from jsonschema import validate, ValidationError
+from jsonschema import ValidationError, validate
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.serde import RuleContext, FieldTransform, FieldType, \
-    RuleConditionError
+from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
 
 __all__ = [
     'JsonMessage',
@@ -63,13 +60,17 @@ class _ContextStringIO(BytesIO):
 
 def _retrieve_via_httpx(uri: str):
     response = httpx.get(uri)
-    return Resource.from_contents(
-        response.json(), default_specification=DEFAULT_SPEC)
+    return Resource.from_contents(response.json(), default_specification=DEFAULT_SPEC)
 
 
 def transform(
-    ctx: RuleContext, schema: JsonSchema, ref_registry: Registry, ref_resolver: Resolver,
-    path: str, message: JsonMessage, field_transform: FieldTransform
+    ctx: RuleContext,
+    schema: JsonSchema,
+    ref_registry: Registry,
+    ref_resolver: Resolver,
+    path: str,
+    message: JsonMessage,
+    field_transform: FieldTransform,
 ) -> Optional[JsonMessage]:
     # Only proceed to transform the message if schema is of dict type
     if message is None or schema is None or isinstance(schema, bool):
@@ -120,8 +121,8 @@ def transform(
             for prop_name, prop_schema in props.items():
                 if isinstance(prop_schema, dict):
                     _transform_field(
-                        ctx, path, prop_name, message,
-                        prop_schema, ref_registry, ref_resolver, field_transform)
+                        ctx, path, prop_name, message, prop_schema, ref_registry, ref_resolver, field_transform
+                    )
         return message
     if schema_type in (FieldType.ENUM, FieldType.STRING, FieldType.INT, FieldType.DOUBLE, FieldType.BOOLEAN):
         if field_ctx is not None:
@@ -132,18 +133,18 @@ def transform(
 
 
 def _transform_field(
-    ctx: RuleContext, path: str, prop_name: str, message: dict,
-    prop_schema: dict, ref_registry: Registry, ref_resolver: Resolver, field_transform: FieldTransform
+    ctx: RuleContext,
+    path: str,
+    prop_name: str,
+    message: dict,
+    prop_schema: dict,
+    ref_registry: Registry,
+    ref_resolver: Resolver,
+    field_transform: FieldTransform,
 ):
     full_name = path + "." + prop_name
     try:
-        ctx.enter_field(
-            message,
-            full_name,
-            prop_name,
-            get_type(prop_schema),
-            get_inline_tags(prop_schema)
-        )
+        ctx.enter_field(message, full_name, prop_name, get_type(prop_schema), get_inline_tags(prop_schema))
         value = message.get(prop_name)
         if value is not None:
             new_value = transform(ctx, prop_schema, ref_registry, ref_resolver, full_name, value, field_transform)
@@ -156,9 +157,7 @@ def _transform_field(
         ctx.exit_field()
 
 
-def _validate_subtypes(
-    schema: dict, message: JsonMessage, registry: Registry
-) -> Optional[JsonSchema]:
+def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -> Optional[JsonSchema]:
     """
     Validate the message against the subtypes.
     Args:

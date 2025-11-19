@@ -189,19 +189,19 @@ PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
  * \p err and and \p ... (string representation of error) is set on the returned
  * KafkaError object.
  */
-#define cfl_PyErr_Format(err,...) do {					\
-		PyObject *_eo = KafkaError_new0(err, __VA_ARGS__);	\
-		PyErr_SetObject(KafkaException, _eo);			\
-	} while (0)
+#define cfl_PyErr_Format(err,...) do {                                        \
+                PyObject *_eo = KafkaError_new0(err, __VA_ARGS__);        \
+                PyErr_SetObject(KafkaException, _eo);                        \
+        } while (0)
 
 /**
  * @brief Create a Python exception from an rd_kafka_error_t *
  *        and destroy it the C object when done.
  */
 #define cfl_PyErr_from_error_destroy(error) do {                        \
-		PyObject *_eo = KafkaError_new_from_error_destroy(error); \
-		PyErr_SetObject(KafkaException, _eo);			\
-	} while (0)
+                PyObject *_eo = KafkaError_new_from_error_destroy(error); \
+                PyErr_SetObject(KafkaException, _eo);                        \
+        } while (0)
 
 
 /****************************************************************************
@@ -214,11 +214,11 @@ PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
  *
  ****************************************************************************/
 typedef struct {
-	PyObject_HEAD
-	rd_kafka_t *rk;
-	PyObject *error_cb;
-	PyObject *throttle_cb;
-	PyObject *stats_cb;
+        PyObject_HEAD
+        rd_kafka_t *rk;
+        PyObject *error_cb;
+        PyObject *throttle_cb;
+        PyObject *stats_cb;
         int initiated;
 
         /* Thread-Local-Storage key */
@@ -233,30 +233,30 @@ typedef struct {
         PyObject *logger;
         PyObject *oauth_cb;
 
-	union {
-		/**
-		 * Producer
-		 */
-		struct {
-			PyObject *default_dr_cb;
+        union {
+                /**
+                 * Producer
+                 */
+                struct {
+                        PyObject *default_dr_cb;
                         int dr_only_error; /**< delivery.report.only.error */
-		} Producer;
+                } Producer;
 
-		/**
-		 * Consumer
-		 */
-		struct {
-			int rebalance_assigned;  /* Rebalance: Callback performed assign() call.*/
-			int rebalance_incremental_assigned; /* Rebalance: Callback performed incremental_assign() call.*/
-			int rebalance_incremental_unassigned; /* Rebalance: Callback performed incremental_unassign() call.*/
-			PyObject *on_assign;     /* Rebalance: on_assign callback */
-			PyObject *on_revoke;     /* Rebalance: on_revoke callback */
-			PyObject *on_lost;     /* Rebalance: on_lost callback */
-			PyObject *on_commit;     /* Commit callback */
-			rd_kafka_queue_t *rkqu;  /* Consumer queue */
+                /**
+                 * Consumer
+                 */
+                struct {
+                        int rebalance_assigned;  /* Rebalance: Callback performed assign() call.*/
+                        int rebalance_incremental_assigned; /* Rebalance: Callback performed incremental_assign() call.*/
+                        int rebalance_incremental_unassigned; /* Rebalance: Callback performed incremental_unassign() call.*/
+                        PyObject *on_assign;     /* Rebalance: on_assign callback */
+                        PyObject *on_revoke;     /* Rebalance: on_revoke callback */
+                        PyObject *on_lost;     /* Rebalance: on_lost callback */
+                        PyObject *on_commit;     /* Commit callback */
+                        rd_kafka_queue_t *rkqu;  /* Consumer queue */
 
-		} Consumer;
-	} u;
+                } Consumer;
+        } u;
 } Handle;
 
 
@@ -268,9 +268,9 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
  * @brief Current thread's state for "blocking" calls to librdkafka.
  */
 typedef struct {
-	PyThreadState *thread_state;
-	int crashed;   /* Callback crashed */
-	PyObject *exception_value;   /* Stored exception value */
+        PyThreadState *thread_state;
+        int crashed;   /* Callback crashed */
+        PyObject *exception_value;   /* Stored exception value */
 } CallState;
 
 /**
@@ -394,13 +394,13 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt);
  *
  ****************************************************************************/
 typedef struct {
-	PyObject_HEAD
-	char *topic;
-	int   partition;
-	int64_t offset;
-	int32_t leader_epoch;
-	char *metadata;
-	PyObject *error;
+        PyObject_HEAD
+        char *topic;
+        int   partition;
+        int64_t offset;
+        int32_t leader_epoch;
+        char *metadata;
+        PyObject *error;
 } TopicPartition;
 
 extern PyTypeObject TopicPartitionType;
@@ -430,9 +430,9 @@ extern PyTypeObject TopicPartitionType;
                                 * proper producer and an admin client in the
                                 * python code in some places. */
 rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
-				    Handle *h,
-				    PyObject *args,
-				    PyObject *kwargs);
+                                    Handle *h,
+                                    PyObject *args,
+                                    PyObject *kwargs);
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
@@ -474,20 +474,20 @@ rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj);
  * @brief confluent_kafka.Message object
  */
 typedef struct {
-	PyObject_HEAD
-	PyObject *topic;
-	PyObject *value;
-	PyObject *key;
-	PyObject *headers;
+        PyObject_HEAD
+        PyObject *topic;
+        PyObject *value;
+        PyObject *key;
+        PyObject *headers;
 #ifdef RD_KAFKA_V_HEADERS
-	rd_kafka_headers_t *c_headers;
+        rd_kafka_headers_t *c_headers;
 #endif
-	PyObject *error;
-	int32_t partition;
-	int64_t offset;
-	int32_t leader_epoch;
-	int64_t timestamp;
-	rd_kafka_timestamp_type_t tstype;
+        PyObject *error;
+        int32_t partition;
+        int64_t offset;
+        int32_t leader_epoch;
+        int64_t timestamp;
+        rd_kafka_timestamp_type_t tstype;
         int64_t latency;  /**< Producer: time it took to produce message */
 } Message;
 
@@ -551,7 +551,7 @@ extern PyTypeObject NewTopicType;
 
 typedef struct {
         PyObject_HEAD
-		rd_kafka_Uuid_t *cUuid;
+                rd_kafka_Uuid_t *cUuid;
 } Uuid;
 
 extern PyTypeObject UuidType;

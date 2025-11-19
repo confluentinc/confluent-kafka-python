@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
+
 from .. import cimpl as _cimpl
 
 
@@ -20,6 +21,7 @@ class ResourceType(Enum):
     """
     Enumerates the different types of Kafka resources.
     """
+
     UNKNOWN = _cimpl.RESOURCE_UNKNOWN  #: Resource type is not known or not set.
     ANY = _cimpl.RESOURCE_ANY  #: Match any resource, used for lookups.
     TOPIC = _cimpl.RESOURCE_TOPIC  #: Topic resource. Resource name is topic name.
@@ -37,6 +39,7 @@ class ResourcePatternType(Enum):
     """
     Enumerates the different types of Kafka resource patterns.
     """
+
     UNKNOWN = _cimpl.RESOURCE_PATTERN_UNKNOWN  #: Resource pattern type is not known or not set.
     ANY = _cimpl.RESOURCE_PATTERN_ANY  #: Match any resource, used for lookups.
     MATCH = _cimpl.RESOURCE_PATTERN_MATCH  #: Match: will perform pattern matching

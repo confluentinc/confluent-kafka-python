@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gc
-import pytest
 import threading
 import time
 from struct import pack
 
-from confluent_kafka import Producer, Consumer, KafkaError, KafkaException, \
-    TopicPartition
+import pytest
 
-from tests.common import TestConsumer
+from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, SerializingProducer, TopicPartition
+from confluent_kafka.avro import AvroProducer
 
 # Additional imports for batch integration tests
 from confluent_kafka.serialization import StringSerializer
-from confluent_kafka import SerializingProducer
-from confluent_kafka.avro import AvroProducer
+from tests.common import TestConsumer
 
 
 def error_cb(err):
@@ -22,16 +20,14 @@ def error_cb(err):
 
 
 def test_basic_api():
-    """ Basic API tests, these wont really do anything since there is no
-        broker configured. """
+    """Basic API tests, these wont really do anything since there is no
+    broker configured."""
 
     with pytest.raises(TypeError) as ex:
         p = Producer()
     assert ex.match('expected configuration dict')
 
-    p = Producer({'socket.timeout.ms': 10,
-                  'error_cb': error_cb,
-                  'message.timeout.ms': 10})
+    p = Producer({'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10})
 
     p.produce('mytopic')
     p.produce('mytopic', value='somedata', key='a key')
@@ -42,8 +38,7 @@ def test_basic_api():
         assert err.code() == KafkaError._MSG_TIMED_OUT
         print('message latency', msg.latency())
 
-    p.produce(topic='another_topic', value='testing', partition=9,
-              callback=on_delivery)
+    p.produce(topic='another_topic', value='testing', partition=9, callback=on_delivery)
 
     p.poll(0.001)
 
@@ -59,19 +54,15 @@ def test_basic_api():
 
 
 def test_produce_timestamp():
-    """ Test produce() with timestamp arg """
-    p = Producer({'socket.timeout.ms': 10,
-                  'error_cb': error_cb,
-                  'message.timeout.ms': 10})
+    """Test produce() with timestamp arg"""
+    p = Producer({'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10})
     p.produce('mytopic', timestamp=1234567)
     p.flush()
 
 
 def test_produce_headers():
-    """ Test produce() with timestamp arg """
-    p = Producer({'socket.timeout.ms': 10,
-                  'error_cb': error_cb,
-                  'message.timeout.ms': 10})
+    """Test produce() with timestamp arg"""
+    p = Producer({'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10})
 
     binval = pack('hhl', 1, 2, 3)
 
@@ -83,15 +74,14 @@ def test_produce_headers():
         [('binaryval', binval)],
         [('alreadyutf8', u'Småland'.encode('utf-8'))],
         [('isunicode', 'Jämtland')],
-
         {'headerkey': 'headervalue'},
         {'dupkey': 'dupvalue', 'empty': '', 'dupkey': 'dupvalue'},  # noqa: F601
         {'dupkey': 'dupvalue', 'dupkey': 'diffvalue'},  # noqa: F601
         {'key_with_null_value': None},
         {'binaryval': binval},
         {'alreadyutf8': u'Småland'.encode('utf-8')},
-        {'isunicode': 'Jämtland'}
-        ]
+        {'isunicode': 'Jämtland'},
+    ]
 
     for headers in headers_to_test:
         print('headers', type(headers), headers)
@@ -102,7 +92,7 @@ def test_produce_headers():
         p.produce('mytopic', value='somedata', key='a key', headers=('a', 'b'))
 
     with pytest.raises(TypeError):
-        p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])
+        p.produce('mytopic', value='somedata', key='a key', headers=['malformed_header'])
 
     with pytest.raises(TypeError):
         p.produce('mytopic', value='somedata', headers={'anint': 1234})
@@ -111,12 +101,10 @@ def test_produce_headers():
 
 
 def test_produce_headers_should_work():
-    """ Test produce() with headers works, however
+    """Test produce() with headers works, however
     NOTE headers are not supported in batch mode and silently ignored
     """
-    p = Producer({'socket.timeout.ms': 10,
-                  'error_cb': error_cb,
-                  'message.timeout.ms': 10})
+    p = Producer({'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10})
 
     # Headers should work with current librdkafka version
     try:
@@ -197,7 +185,7 @@ def test_set_invalid_partitioner_murmur():
 
 
 def test_transaction_api():
-    """ Excercise the transactional API """
+    """Excercise the transactional API"""
     p = Producer({"transactional.id": "test"})
 
     with pytest.raises(KafkaException) as ex:
@@ -220,8 +208,7 @@ def test_transaction_api():
     consumer.close()
 
     with pytest.raises(KafkaException) as ex:
-        p.send_offsets_to_transaction([TopicPartition("topic", 0, 123)],
-                                      group_metadata)
+        p.send_offsets_to_transaction([TopicPartition("topic", 0, 123)], group_metadata)
     assert ex.value.args[0].code() == KafkaError._CONFLICT
     assert ex.value.args[0].retriable() is True
     assert ex.value.args[0].fatal() is False
@@ -249,9 +236,7 @@ def test_purge():
     Verify that when we have a higher message.timeout.ms timeout, we can use purge()
     to stop waiting for messages and get delivery reports
     """
-    p = Producer(
-        {"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000}
-    )  # 30 seconds
+    p = Producer({"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000})  # 30 seconds
 
     # Hack to detect on_delivery was called because inner functions can modify nonlocal objects.
     # When python2 support is dropped, we can use the "nonlocal" keyword instead
@@ -302,7 +287,7 @@ def test_produce_batch_basic_types_and_data():
         {'value': 'unicode: 你好', 'key': b'mixed_key'},
         {'value': None, 'key': None},
         {'value': b'', 'key': ''},
-        {}
+        {},
     ]
     count = producer.produce_batch('test-topic', basic_messages)
     assert count == 6
@@ -330,7 +315,7 @@ def test_produce_batch_basic_types_and_data():
     partition_messages = [
         {'value': b'default_partition'},
         {'value': b'specific_partition', 'partition': 1},
-        {'value': b'another_partition', 'partition': 2}
+        {'value': b'another_partition', 'partition': 2},
     ]
     count = producer.produce_batch('test-topic', partition_messages, partition=0)
     assert count == 3
@@ -363,7 +348,7 @@ def test_produce_batch_encoding_and_unicode():
         {'value': 'Здравствуй', 'key': 'ключ'},
         {'value': '\x00\x01\x02', 'key': 'control'},
         {'value': 'UTF-8: 你好'.encode('utf-8'), 'key': b'bytes_utf8'},
-        {'value': b'\x80\x81\x82', 'key': 'binary'}
+        {'value': b'\x80\x81\x82', 'key': 'binary'},
     ]
     count = producer.produce_batch('test-topic', unicode_messages)
     assert count == len(unicode_messages)
@@ -381,7 +366,7 @@ def test_produce_batch_scalability_and_limits():
     large_messages = [
         {'value': large_payload, 'key': b'large1'},
         {'value': b'small', 'key': b'small1'},
-        {'value': large_payload, 'key': b'large2'}
+        {'value': large_payload, 'key': b'large2'},
     ]
     count = producer.produce_batch('test-topic', large_messages)
     assert count >= 0
@@ -409,17 +394,20 @@ def test_produce_batch_scalability_and_limits():
     assert count == 1
 
 
-@pytest.mark.parametrize("invalid_input,expected_error", [
-    ("not_a_list", "messages must be a list"),
-    ({'not': 'list'}, "messages must be a list"),
-    ([{'value': b'good'}, "not_dict", {'value': b'good2'}], "Message at index 1 must be a dict"),
-    ([{'value': 123}], "Message value at index 0 must be bytes or str"),
-    ([{'value': b'good', 'key': ['invalid']}], "Message key at index 0 must be bytes or str"),
-    ([{'value': b'good', 'partition': "invalid"}], "Message partition at index 0 must be int"),
-    ([{'value': b'test', 'partition': -2}], None),  # Negative partition
-    ([{'value': b'test', 'partition': 2147483647}], None),  # Max int32
-    ([{'value': b'test', 'partition': 999999}], None),  # Very large partition
-])
+@pytest.mark.parametrize(
+    "invalid_input,expected_error",
+    [
+        ("not_a_list", "messages must be a list"),
+        ({'not': 'list'}, "messages must be a list"),
+        ([{'value': b'good'}, "not_dict", {'value': b'good2'}], "Message at index 1 must be a dict"),
+        ([{'value': 123}], "Message value at index 0 must be bytes or str"),
+        ([{'value': b'good', 'key': ['invalid']}], "Message key at index 0 must be bytes or str"),
+        ([{'value': b'good', 'partition': "invalid"}], "Message partition at index 0 must be int"),
+        ([{'value': b'test', 'partition': -2}], None),  # Negative partition
+        ([{'value': b'test', 'partition': 2147483647}], None),  # Max int32
+        ([{'value': b'test', 'partition': 999999}], None),  # Very large partition
+    ],
+)
 def test_produce_batch_input_validation(invalid_input, expected_error):
     """Test input validation and message field validation."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
@@ -431,11 +419,17 @@ def test_produce_batch_input_validation(invalid_input, expected_error):
         with pytest.raises((TypeError, ValueError), match=expected_error):
             producer.produce_batch('test-topic', invalid_input)
 
-    messages_with_extras = [{
-        'value': b'normal', 'key': b'normal', 'partition': 0,
-        'callback': lambda err, msg: None,
-        'extra_field': 'should_be_ignored', 'another_extra': 123, '_private': 'user_private_field',
-    }]
+    messages_with_extras = [
+        {
+            'value': b'normal',
+            'key': b'normal',
+            'partition': 0,
+            'callback': lambda err, msg: None,
+            'extra_field': 'should_be_ignored',
+            'another_extra': 123,
+            '_private': 'user_private_field',
+        }
+    ]
     count = producer.produce_batch('test-topic', messages_with_extras)
     assert count == 1
 
@@ -486,10 +480,7 @@ def test_produce_batch_argument_validation():
 
 def test_produce_batch_partial_failures():
     """Test partial failure scenarios and error annotation."""
-    small_queue_producer = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'queue.buffering.max.messages': 5
-    })
+    small_queue_producer = Producer({'bootstrap.servers': 'localhost:9092', 'queue.buffering.max.messages': 5})
 
     try:
         for i in range(10):
@@ -505,11 +496,9 @@ def test_produce_batch_partial_failures():
     successful_count = len(messages) - len(failed_messages)
     assert successful_count == count
 
-    restrictive_producer = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'queue.buffering.max.messages': 1,
-        'message.max.bytes': 1000
-    })
+    restrictive_producer = Producer(
+        {'bootstrap.servers': 'localhost:9092', 'queue.buffering.max.messages': 1, 'message.max.bytes': 1000}
+    )
 
     mixed_size_messages = [
         {'value': b'small'},
@@ -552,7 +541,7 @@ def test_produce_batch_callback_mechanisms():
         {'value': b'msg2'},
         {'value': b'msg3', 'callback': callback2},
         {'value': b'msg4'},
-        {'value': b'msg5', 'callback': exception_callback}
+        {'value': b'msg5', 'callback': exception_callback},
     ]
 
     count = producer.produce_batch('test-topic', messages, on_delivery=global_callback)
@@ -632,7 +621,7 @@ def test_produce_batch_exception_propagation():
     messages = [
         {'value': b'normal_msg'},
         {'value': b'exception_msg', 'callback': exception_callback_2},
-        {'value': b'another_normal_msg'}
+        {'value': b'another_normal_msg'},
     ]
     count = producer.produce_batch('test-topic', messages)
     assert count == 3
@@ -653,7 +642,7 @@ def test_produce_batch_exception_propagation():
 
     multi_messages = [
         {'value': b'error1', 'callback': multi_exception_callback},
-        {'value': b'error2', 'callback': multi_exception_callback}
+        {'value': b'error2', 'callback': multi_exception_callback},
     ]
     count = producer.produce_batch('test-topic', multi_messages)
     assert count == 2
@@ -739,10 +728,7 @@ def test_produce_batch_race_conditions():
                 contention_data['counter'] += 1
                 shared_value = contention_data['counter']
 
-                messages = [
-                    {'value': f'race_t{thread_id}_b{batch_num}_m{i}_{shared_value}'.encode()}
-                    for i in range(3)
-                ]
+                messages = [{'value': f'race_t{thread_id}_b{batch_num}_m{i}_{shared_value}'.encode()} for i in range(3)]
 
                 contention_data['messages'].extend(messages)
                 count = race_producer.produce_batch('test-topic', messages)
@@ -775,12 +761,14 @@ def test_produce_batch_memory_stress():
 
     nested_messages = []
     for i in range(500):
-        nested_messages.append({
-            'value': f'nested_{i}'.encode(),
-            'key': f'key_{i}'.encode(),
-            'partition': i % 10,
-            'callback': lambda err, msg: None
-        })
+        nested_messages.append(
+            {
+                'value': f'nested_{i}'.encode(),
+                'key': f'key_{i}'.encode(),
+                'partition': i % 10,
+                'callback': lambda err, msg: None,
+            }
+        )
     count = producer.produce_batch('test-topic', nested_messages)
     assert count >= 0
 
@@ -809,7 +797,7 @@ def test_produce_batch_memory_critical():
 
     messages = [
         {'value': b'destruction_test_1', 'callback': destruction_callback},
-        {'value': b'destruction_test_2', 'callback': destruction_callback}
+        {'value': b'destruction_test_2', 'callback': destruction_callback},
     ]
     count = temp_producer.produce_batch('test-topic', messages)
     assert count == 2
@@ -822,10 +810,7 @@ def test_produce_batch_memory_critical():
     memory_pressure_batches = []
     try:
         for i in range(5):
-            large_messages = [
-                {'value': b'x' * 5000}
-                for j in range(50)
-            ]
+            large_messages = [{'value': b'x' * 5000} for j in range(50)]
             count = producer.produce_batch(f'memory-pressure-topic-{i}', large_messages)
             memory_pressure_batches.append(count)
 
@@ -888,10 +873,7 @@ def test_produce_batch_resource_management():
 def test_produce_batch_client_side_limits():
     """Test client-side queue limits and message handling."""
     # Test queue buffer limits (client-side behavior)
-    producer_small_queue = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'queue.buffering.max.messages': 2
-    })
+    producer_small_queue = Producer({'bootstrap.servers': 'localhost:9092', 'queue.buffering.max.messages': 2})
 
     # Fill up the queue first
     try:
@@ -943,10 +925,9 @@ def test_produce_batch_api_compatibility():
     assert count == 2
 
     # Test SerializingProducer compatibility (API presence)
-    serializing_producer = SerializingProducer({
-        'bootstrap.servers': 'localhost:9092',
-        'value.serializer': StringSerializer('utf_8')
-    })
+    serializing_producer = SerializingProducer(
+        {'bootstrap.servers': 'localhost:9092', 'value.serializer': StringSerializer('utf_8')}
+    )
 
     # Test if produce_batch method exists and behaves consistently
     if hasattr(serializing_producer, 'produce_batch'):
@@ -961,10 +942,9 @@ def test_produce_batch_api_compatibility():
 
     # Test AvroProducer API compatibility
     try:
-        avro_producer = AvroProducer({
-            'bootstrap.servers': 'localhost:9092',
-            'schema.registry.url': 'http://localhost:8081'
-        })
+        avro_producer = AvroProducer(
+            {'bootstrap.servers': 'localhost:9092', 'schema.registry.url': 'http://localhost:8081'}
+        )
 
         # Just test that the method exists and can be called
         has_batch_method = hasattr(avro_producer, 'produce_batch')
@@ -990,12 +970,14 @@ def test_callback_exception_no_system_error():
         delivery_reports.append((err, msg))
         raise RuntimeError("Test exception from delivery_cb")
 
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',  # Will cause delivery failures
-        'socket.timeout.ms': 100,
-        'message.timeout.ms': 10,  # Very short timeout to trigger delivery failure quickly
-        'on_delivery': delivery_cb_that_raises
-    })
+    producer = Producer(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',  # Will cause delivery failures
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10,  # Very short timeout to trigger delivery failure quickly
+            'on_delivery': delivery_cb_that_raises,
+        }
+    )
 
     # Produce a message - this will trigger delivery report callback when it fails
     producer.produce('test-topic', value='test-message')
@@ -1027,11 +1009,9 @@ def test_core_callbacks_exception_different_types():
         raise RuntimeError("RuntimeError from error_cb")
 
     # Test error_cb exceptions - these should be triggered by connection failure
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_kafka_exception
-    })
+    producer = Producer(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_kafka_exception}
+    )
 
     with pytest.raises(KafkaException) as exc_info:
         producer.produce('test-topic', value='test-message')
@@ -1039,11 +1019,9 @@ def test_core_callbacks_exception_different_types():
     assert "KafkaException from error_cb" in str(exc_info.value)
 
     # Test error_cb with ValueError
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_value_error
-    })
+    producer = Producer(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_value_error}
+    )
 
     with pytest.raises(ValueError) as exc_info:
         producer.produce('test-topic', value='test-message')
@@ -1051,11 +1029,9 @@ def test_core_callbacks_exception_different_types():
     assert "ValueError from error_cb" in str(exc_info.value)
 
     # Test error_cb with RuntimeError
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_runtime_error
-    })
+    producer = Producer(
+        {'bootstrap.servers': 'nonexistent-broker:9092', 'socket.timeout.ms': 100, 'error_cb': error_cb_runtime_error}
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         producer.produce('test-topic', value='test-message')
@@ -1084,15 +1060,17 @@ def test_multiple_callbacks_exception_no_system_error():
         callbacks_called.append('delivery_cb')
         raise RuntimeError("Test exception from delivery_cb")
 
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'statistics.interval.ms': 100,
-        'error_cb': error_cb_that_raises,
-        'throttle_cb': throttle_cb_that_raises,
-        'stats_cb': stats_cb_that_raises,
-        'on_delivery': delivery_cb_that_raises
-    })
+    producer = Producer(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'statistics.interval.ms': 100,
+            'error_cb': error_cb_that_raises,
+            'throttle_cb': throttle_cb_that_raises,
+            'stats_cb': stats_cb_that_raises,
+            'on_delivery': delivery_cb_that_raises,
+        }
+    )
 
     # This should trigger multiple callbacks
     with pytest.raises(RuntimeError) as exc_info:
@@ -1111,12 +1089,14 @@ def test_delivery_callback_exception_different_message_types():
         raise RuntimeError("Test exception from delivery_cb")
 
     # Test with string message
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'message.timeout.ms': 10,
-        'on_delivery': delivery_cb_that_raises
-    })
+    producer = Producer(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10,
+            'on_delivery': delivery_cb_that_raises,
+        }
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         producer.produce('test-topic', value='string-message')
@@ -1125,12 +1105,14 @@ def test_delivery_callback_exception_different_message_types():
     assert "Test exception from delivery_cb" in str(exc_info.value)
 
     # Test with bytes message
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'message.timeout.ms': 10,
-        'on_delivery': delivery_cb_that_raises
-    })
+    producer = Producer(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10,
+            'on_delivery': delivery_cb_that_raises,
+        }
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         producer.produce('test-topic', value=b'bytes-message')
@@ -1145,12 +1127,14 @@ def test_callback_exception_with_producer_methods():
     def delivery_cb_that_raises(err, msg):
         raise RuntimeError("Test exception from delivery_cb")
 
-    producer = Producer({
-        'bootstrap.servers': 'nonexistent-broker:9092',
-        'socket.timeout.ms': 100,
-        'message.timeout.ms': 10,
-        'on_delivery': delivery_cb_that_raises
-    })
+    producer = Producer(
+        {
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10,
+            'on_delivery': delivery_cb_that_raises,
+        }
+    )
 
     # Test with flush method - this should trigger the callback
     with pytest.raises(RuntimeError) as exc_info:
@@ -1162,11 +1146,7 @@ def test_callback_exception_with_producer_methods():
 
 def test_producer_context_manager_basic():
     """Test basic Producer context manager usage and return value"""
-    config = {
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
 
     # Test __enter__ returns self
     producer = Producer(config)
@@ -1187,11 +1167,7 @@ def test_producer_context_manager_basic():
 
 def test_producer_context_manager_exception_propagation():
     """Test exceptions propagate and producer is cleaned up"""
-    config = {
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
 
     # Test exception propagation
     exception_caught = False
@@ -1212,11 +1188,7 @@ def test_producer_context_manager_exception_propagation():
 
 def test_producer_context_manager_exit_with_exceptions():
     """Test __exit__ properly handles exception arguments"""
-    config = {
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
 
     producer = Producer(config)
     producer.produce('mytopic', value=b'test')
@@ -1237,11 +1209,7 @@ def test_producer_context_manager_exit_with_exceptions():
 
 def test_producer_context_manager_after_exit():
     """Test Producer behavior after context manager exit"""
-    config = {
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
 
     # Normal exit
     with Producer(config) as producer:
@@ -1276,11 +1244,7 @@ def test_producer_context_manager_after_exit():
 
 def test_producer_context_manager_multiple_instances():
     """Test Producer context manager with multiple instances"""
-    config = {
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    config = {'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
 
     # Test multiple sequential instances
     with Producer(config) as producer1:
@@ -1319,7 +1283,7 @@ def test_producer_context_manager_with_callbacks():
         'bootstrap.servers': 'localhost:9092',
         'socket.timeout.ms': 10,
         'error_cb': error_cb,
-        'message.timeout.ms': 10
+        'message.timeout.ms': 10,
     }
 
     delivered = []
@@ -1328,9 +1292,7 @@ def test_producer_context_manager_with_callbacks():
         delivered.append((err, msg))
 
     with Producer(config) as producer:
-        producer.produce('mytopic',
-                         value=b'test message',
-                         callback=on_delivery)
+        producer.produce('mytopic', value=b'test message', callback=on_delivery)
         producer.poll(0)
         # Context manager should flush, triggering callbacks
 
@@ -1347,9 +1309,11 @@ def test_producer_context_manager_with_callbacks():
         pass  # Message delivered successfully
     else:
         # Error case - broker unavailable or connection failed
-        assert err.code() in (KafkaError._MSG_TIMED_OUT, KafkaError._TRANSPORT,
-                              KafkaError._TIMED_OUT), \
-            f"Expected success (err=None) or timeout/transport error, got {err.code()}"
+        assert err.code() in (
+            KafkaError._MSG_TIMED_OUT,
+            KafkaError._TRANSPORT,
+            KafkaError._TIMED_OUT,
+        ), f"Expected success (err=None) or timeout/transport error, got {err.code()}"
 
 
 def test_uninitialized_producer_methods():
@@ -1358,6 +1322,7 @@ def test_uninitialized_producer_methods():
     This test verifies issue #1590 fix - prevents SEGV when subclassing Producer
     without calling super().__init__().
     """
+
     class UninitializedProducer(Producer):
         def __init__(self, config):
             # Don't call super().__init__() - leaves self->rk as NULL
