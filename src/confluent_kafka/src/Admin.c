@@ -2434,8 +2434,8 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
         int topics_cnt = 0;
         int i = 0;
 
-        static char *kws[] = {"future",
-                             "topic_names",
+        static char *kws[] = {"topic_names",
+                             "future",
                              /* options */
                              "request_timeout",
                              "include_authorized_operations",
@@ -2799,10 +2799,15 @@ PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObj
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support listing only 1 consumer groups offset information");
+        if (PyList_Check(request)) {
+                if ((int)PyList_Size(request) != 1) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "Currently we support listing only 1 consumer groups offset inforation");
+                        goto err;
+                }
+        } else {
+                PyErr_SetString(PyExc_TypeError,
+                        "Expected 'request' to be a list");
                 goto err;
         }
 
@@ -2943,10 +2948,15 @@ PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyOb
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support alter consumer groups offset request for 1 group only");
+        if (PyList_Check(request)) {
+                if ((int)PyList_Size(request) != 1) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "Currently we support alter consumer groups offset request for 1 group only");
+                        goto err;
+                }
+        } else {
+                PyErr_SetString(PyExc_TypeError,
+                        "Expected 'request' to be a list");
                 goto err;
         }
 
