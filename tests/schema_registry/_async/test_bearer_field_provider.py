@@ -15,12 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
 import time
 from unittest.mock import AsyncMock, patch
 
-from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncOAuthClient, AsyncSchemaRegistryClient
-from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncCustomOAuthClient
+import pytest
+
+from confluent_kafka.schema_registry._async.schema_registry_client import (
+    AsyncSchemaRegistryClient,
+    _AsyncCustomOAuthClient,
+    _AsyncOAuthClient,
+)
 from confluent_kafka.schema_registry.common.schema_registry_client import _StaticFieldProvider
 from confluent_kafka.schema_registry.error import OAuthTokenError
 
@@ -38,8 +42,11 @@ TEST_TOKEN = 'token123'
 TEST_CLUSTER = 'lsrc-cluster'
 TEST_POOL = 'pool-id'
 TEST_FUNCTION = custom_oauth_function
-TEST_CONFIG = {'bearer.auth.token': TEST_TOKEN, 'bearer.auth.logical.cluster': TEST_CLUSTER,
-               'bearer.auth.identity.pool.id': TEST_POOL}
+TEST_CONFIG = {
+    'bearer.auth.token': TEST_TOKEN,
+    'bearer.auth.logical.cluster': TEST_CLUSTER,
+    'bearer.auth.identity.pool.id': TEST_POOL,
+}
 TEST_URL = 'http://SchemaRegistry:65534'
 
 
@@ -78,8 +85,10 @@ async def test_get_token():
 async def test_generate_token_retry_logic():
     oauth_client = _AsyncOAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 5, 1000, 20000)
 
-    with (patch("confluent_kafka.schema_registry._async.schema_registry_client.asyncio.sleep") as mock_sleep,
-          patch("confluent_kafka.schema_registry._async.schema_registry_client.full_jitter") as mock_jitter):
+    with (
+        patch("confluent_kafka.schema_registry._async.schema_registry_client.asyncio.sleep") as mock_sleep,
+        patch("confluent_kafka.schema_registry._async.schema_registry_client.full_jitter") as mock_jitter,
+    ):
 
         with pytest.raises(OAuthTokenError):
             await oauth_client.generate_access_token()
@@ -105,33 +114,38 @@ async def test_bearer_field_headers_missing():
     async def empty_custom(config):
         return {}
 
-    conf = {'url': TEST_URL,
-            'bearer.auth.credentials.source': 'CUSTOM',
-            'bearer.auth.custom.provider.function': empty_custom,
-            'bearer.auth.custom.provider.config': TEST_CONFIG}
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'CUSTOM',
+        'bearer.auth.custom.provider.function': empty_custom,
+        'bearer.auth.custom.provider.config': TEST_CONFIG,
+    }
 
-    headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
-                         " application/vnd.schemaregistry+json,"
-                         " application/json"}
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
 
     client = AsyncSchemaRegistryClient(conf)
 
-    with pytest.raises(ValueError, match=r"Missing required bearer auth fields, "
-                                         r"needs to be set in config or custom function: (.*)"):
+    with pytest.raises(
+        ValueError, match=r"Missing required bearer auth fields, " r"needs to be set in config or custom function: (.*)"
+    ):
         await client._rest_client.handle_bearer_auth(headers)
 
 
 async def test_bearer_field_headers_valid():
-    conf = {'url': TEST_URL,
-            'bearer.auth.credentials.source': 'CUSTOM',
-            'bearer.auth.custom.provider.function': TEST_FUNCTION,
-            'bearer.auth.custom.provider.config': TEST_CONFIG}
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'CUSTOM',
+        'bearer.auth.custom.provider.function': TEST_FUNCTION,
+        'bearer.auth.custom.provider.config': TEST_CONFIG,
+    }
 
     client = AsyncSchemaRegistryClient(conf)
 
-    headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
-                         " application/vnd.schemaregistry+json,"
-                         " application/json"}
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
 
     await client._rest_client.handle_bearer_auth(headers)
 

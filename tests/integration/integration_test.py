@@ -18,26 +18,27 @@
 #
 
 
-""" Test script for confluent_kafka module """
+"""Test script for confluent_kafka module"""
 
+import gc
+import json
 import os
+import re
+import struct
+import sys
 import time
 import uuid
-import sys
-import json
-import gc
-import struct
-import re
+
 import pytest
 
 import confluent_kafka
-
 from tests.common import TestConsumer
 from tests.common.schema_registry import TestAvroConsumer
 
 try:
     # Memory tracker
     from pympler import tracker
+
     with_pympler = True
 except Exception:
     with_pympler = False
@@ -45,6 +46,7 @@ except Exception:
 
 try:
     from progress.bar import Bar
+
     with_progress = True
 except ImportError:
     with_progress = False
@@ -78,22 +80,26 @@ DrOnlyTestSuccess_gced = 0
 
 # Shared between producer and consumer tests and used to verify
 # that consumed headers are what was actually produced.
-produce_headers = [('foo1', 'bar'),
-                   ('foo1', 'bar2'),
-                   ('foo2', b'1'),
-                   (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
-                   ('nullheader', None),
-                   ('empty', ''),
-                   ('foobin', struct.pack('hhl', 10, 20, 30))]
+produce_headers = [
+    ('foo1', 'bar'),
+    ('foo1', 'bar2'),
+    ('foo2', b'1'),
+    (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
+    ('nullheader', None),
+    ('empty', ''),
+    ('foobin', struct.pack('hhl', 10, 20, 30)),
+]
 
 # Identical to produce_headers but with proper binary typing
-expected_headers = [('foo1', b'bar'),
-                    ('foo1', b'bar2'),
-                    ('foo2', b'1'),
-                    (u'Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
-                    ('nullheader', None),
-                    ('empty', b''),
-                    ('foobin', struct.pack('hhl', 10, 20, 30))]
+expected_headers = [
+    ('foo1', b'bar'),
+    ('foo1', b'bar2'),
+    ('foo2', b'1'),
+    (u'Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
+    ('nullheader', None),
+    ('empty', b''),
+    ('foobin', struct.pack('hhl', 10, 20, 30)),
+]
 
 
 def error_cb(err):
@@ -124,7 +130,7 @@ def abort_on_missing_configuration(name):
 
 
 class MyTestDr(object):
-    """ Producer: Delivery report callback """
+    """Producer: Delivery report callback"""
 
     def __init__(self, silent=False):
         super(MyTestDr, self).__init__()
@@ -135,35 +141,34 @@ class MyTestDr(object):
     @staticmethod
     def _delivery(err, msg, silent=False):
         if err:
-            print('Message delivery failed (%s [%s]): %s' %
-                  (msg.topic(), str(msg.partition()), err))
+            print('Message delivery failed (%s [%s]): %s' % (msg.topic(), str(msg.partition()), err))
             return 0
         else:
             if not silent:
-                print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
-                      (msg.topic(), msg.partition(), msg.offset(),
-                       msg.latency(), msg.value()))
+                print(
+                    'Message delivered to %s [%s] at offset [%s] in %.3fs: %s'
+                    % (msg.topic(), msg.partition(), msg.offset(), msg.latency(), msg.value())
+                )
             return 1
 
     def delivery(self, err, msg):
         if err:
-            print('Message delivery failed (%s [%s]): %s' %
-                  (msg.topic(), str(msg.partition()), err))
+            print('Message delivery failed (%s [%s]): %s' % (msg.topic(), str(msg.partition()), err))
             return
         elif not self.silent:
-            print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.latency(), msg.value()))
+            print(
+                'Message delivered to %s [%s] at offset [%s] in %.3fs: %s'
+                % (msg.topic(), msg.partition(), msg.offset(), msg.latency(), msg.value())
+            )
         self.msgs_delivered += 1
         self.bytes_delivered += len(msg)
 
 
 def verify_producer():
-    """ Verify basic Producer functionality """
+    """Verify basic Producer functionality"""
 
     # Producer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb}
+    conf = {'bootstrap.servers': bootstrap_servers, 'error_cb': error_cb}
 
     # Create producer
     p = confluent_kafka.Producer(conf)
@@ -175,15 +180,12 @@ def verify_producer():
     p.produce(topic, 'Hello Python!', headers=headers)
     p.produce(topic, key='Just a key and headers', headers=headers)
     p.produce(topic, key='Just a key')
-    p.produce(topic, partition=1, value='Strictly for partition 1',
-              key='mykey', headers=headers)
+    p.produce(topic, partition=1, value='Strictly for partition 1', key='mykey', headers=headers)
 
     # Produce more messages, now with delivery report callbacks in various forms.
     mydr = MyTestDr()
-    p.produce(topic, value='This one has a dr callback',
-              callback=mydr.delivery)
-    p.produce(topic, value='This one has a lambda',
-              callback=lambda err, msg: MyTestDr._delivery(err, msg))
+    p.produce(topic, value='This one has a dr callback', callback=mydr.delivery)
+    p.produce(topic, value='This one has a lambda', callback=lambda err, msg: MyTestDr._delivery(err, msg))
     p.produce(topic, value='This one has neither')
 
     # Try producing with a timestamp
@@ -195,8 +197,7 @@ def verify_producer():
 
     # Produce even more messages
     for i in range(0, 10):
-        p.produce(topic, value='Message #%d' % i, key=str(i),
-                  callback=mydr.delivery)
+        p.produce(topic, value='Message #%d' % i, key=str(i), callback=mydr.delivery)
         p.poll(0)
 
     print('Waiting for %d messages to be delivered' % len(p))
@@ -227,23 +228,23 @@ def test_producer_dr_only_error():
     this test must be run from the integration tests rather than
     the unit tests.
     """
-    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
-                                  'broker.address.family': 'v4',
-                                  "delivery.report.only.error": True})
+    p = confluent_kafka.Producer(
+        {"bootstrap.servers": bootstrap_servers, 'broker.address.family': 'v4', "delivery.report.only.error": True}
+    )
 
     class DrOnlyTestErr(object):
         def __init__(self):
             self.remaining = 1
 
         def handle_err(self, err, msg):
-            """ This delivery handler should only get called for errored msgs """
+            """This delivery handler should only get called for errored msgs"""
             assert "BAD:" in msg.value().decode('utf-8')
             assert err is not None
             self.remaining -= 1
 
     class DrOnlyTestSuccess(object):
         def handle_success(self, err, msg):
-            """ This delivery handler should never get called """
+            """This delivery handler should never get called"""
             # FIXME: Can we verify that it is actually garbage collected?
             assert "GOOD:" in msg.value().decode('utf-8')
             assert err is None
@@ -257,12 +258,14 @@ def test_producer_dr_only_error():
     print('only.error: Verifying delivery.report.only.error')
 
     state = DrOnlyTestErr()
-    p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
-              partition=99, on_delivery=state.handle_err)
+    p.produce(
+        topic, "BAD: This message will make not make it".encode('utf-8'), partition=99, on_delivery=state.handle_err
+    )
 
     not_called_state = DrOnlyTestSuccess()
-    p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
-              on_delivery=not_called_state.handle_success)
+    p.produce(
+        topic, "GOOD: This message will make make it".encode('utf-8'), on_delivery=not_called_state.handle_success
+    )
 
     # Garbage collection should not kick in yet for not_called_state
     # since there is a on_delivery reference to it.
@@ -282,10 +285,8 @@ def test_producer_dr_only_error():
 
 
 def verify_producer_performance(with_dr_cb=True):
-    """ Time how long it takes to produce and delivery X messages """
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'linger.ms': 500,
-            'error_cb': error_cb}
+    """Time how long it takes to produce and delivery X messages"""
+    conf = {'bootstrap.servers': bootstrap_servers, 'linger.ms': 500, 'error_cb': error_cb}
 
     p = confluent_kafka.Producer(conf)
 
@@ -334,10 +335,16 @@ def verify_producer_performance(with_dr_cb=True):
     if bar is not None:
         bar.finish()
 
-    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
-           msgs_produced / t_produce_spent,
-           (bytecnt / t_produce_spent) / (1024 * 1024)))
+    print(
+        '# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s'
+        % (
+            msgs_produced,
+            bytecnt / (1024 * 1024),
+            t_produce_spent,
+            msgs_produced / t_produce_spent,
+            (bytecnt / t_produce_spent) / (1024 * 1024),
+        )
+    )
     print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
     print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
@@ -345,10 +352,16 @@ def verify_producer_performance(with_dr_cb=True):
     p.flush()
     t_delivery_spent = time.time() - t_produce_start
 
-    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
-           msgs_produced / t_produce_spent,
-           (bytecnt / t_produce_spent) / (1024 * 1024)))
+    print(
+        '# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s'
+        % (
+            msgs_produced,
+            bytecnt / (1024 * 1024),
+            t_produce_spent,
+            msgs_produced / t_produce_spent,
+            (bytecnt / t_produce_spent) / (1024 * 1024),
+        )
+    )
 
     # Fake numbers if not using a dr_cb
     if not with_dr_cb:
@@ -356,26 +369,33 @@ def verify_producer_performance(with_dr_cb=True):
         dr.msgs_delivered = msgs_produced
         dr.bytes_delivered = bytecnt
 
-    print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (dr.msgs_delivered, dr.bytes_delivered / (1024 * 1024), t_delivery_spent,
-           dr.msgs_delivered / t_delivery_spent,
-           (dr.bytes_delivered / t_delivery_spent) / (1024 * 1024)))
-    print('# post-produce delivery wait took %.3fs' %
-          (t_delivery_spent - t_produce_spent))
+    print(
+        '# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s'
+        % (
+            dr.msgs_delivered,
+            dr.bytes_delivered / (1024 * 1024),
+            t_delivery_spent,
+            dr.msgs_delivered / t_delivery_spent,
+            (dr.bytes_delivered / t_delivery_spent) / (1024 * 1024),
+        )
+    )
+    print('# post-produce delivery wait took %.3fs' % (t_delivery_spent - t_produce_spent))
 
 
 def verify_consumer():
-    """ Verify basic Consumer functionality """
+    """Verify basic Consumer functionality"""
 
     # Consumer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': 'test.py',
-            'session.timeout.ms': 6000,
-            'enable.auto.commit': False,
-            'on_commit': print_commit_result,
-            'error_cb': error_cb,
-            'auto.offset.reset': 'earliest',
-            'enable.partition.eof': True}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'group.id': 'test.py',
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'on_commit': print_commit_result,
+        'error_cb': error_cb,
+        'auto.offset.reset': 'earliest',
+        'enable.partition.eof': True,
+    }
 
     # Create consumer
     c = TestConsumer(conf)
@@ -409,8 +429,7 @@ def verify_consumer():
 
         if msg.error():
             if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                print('Reached end of %s [%d] at offset %d' %
-                      (msg.topic(), msg.partition(), msg.offset()))
+                print('Reached end of %s [%d] at offset %d' % (msg.topic(), msg.partition(), msg.offset()))
                 eof_reached[(msg.topic(), msg.partition())] = True
                 if len(eof_reached) == len(c.assignment()):
                     print('EOF reached for all assigned partitions: exiting')
@@ -427,14 +446,15 @@ def verify_consumer():
         msg.set_headers([('foo', 'bar')])
         assert msg.headers() == [('foo', 'bar')]
 
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s headers=%s' %
-              (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp, headers))
+        print(
+            '%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s headers=%s'
+            % (msg.topic(), msg.partition(), msg.offset(), msg.key(), msg.value(), tstype, timestamp, headers)
+        )
 
         if first_msg is None:
             first_msg = msg
 
-        if (msgcnt == 11):
+        if msgcnt == 11:
             parts = c.assignment()
             print('Pausing partitions briefly')
             c.pause(parts)
@@ -449,9 +469,10 @@ def verify_consumer():
         elif (msg.offset() % 4) == 0:
             offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-            assert offsets[0].offset == msg.offset() + 1, \
-                'expected offset %d to be committed, not %s' % \
-                (msg.offset(), offsets)
+            assert offsets[0].offset == msg.offset() + 1, 'expected offset %d to be committed, not %s' % (
+                msg.offset(),
+                offsets,
+            )
             print('Sync committed offset: %s' % offsets)
 
         msgcnt += 1
@@ -460,8 +481,9 @@ def verify_consumer():
             break
 
     assert example_headers, "We should have received at least one header"
-    assert example_headers == expected_headers, \
-        "example header mismatch:\n{}\nexpected:\n{}".format(example_headers, expected_headers)
+    assert example_headers == expected_headers, "example header mismatch:\n{}\nexpected:\n{}".format(
+        example_headers, expected_headers
+    )
 
     # Get current assignment
     assignment = c.assignment()
@@ -497,13 +519,15 @@ def verify_consumer():
 
 
 def verify_consumer_performance():
-    """ Verify Consumer performance """
+    """Verify Consumer performance"""
 
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': uuid.uuid1(),
-            'session.timeout.ms': 6000,
-            'error_cb': error_cb,
-            'auto.offset.reset': 'earliest'}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'group.id': uuid.uuid1(),
+        'session.timeout.ms': 6000,
+        'error_cb': error_cb,
+        'auto.offset.reset': 'earliest',
+    }
 
     c = TestConsumer(conf)
 
@@ -528,8 +552,7 @@ def verify_consumer_performance():
     print('Will now consume %d messages' % max_msgcnt)
 
     if with_progress:
-        bar = Bar('Consuming', max=max_msgcnt,
-                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+        bar = Bar('Consuming', max=max_msgcnt, suffix='%(index)d/%(max)d [%(eta_td)s]')
     else:
         bar = None
 
@@ -538,8 +561,7 @@ def verify_consumer_performance():
 
         msg = c.poll(timeout=20.0)
         if msg is None:
-            raise Exception('Stalled at %d/%d message, no new messages for 20s' %
-                            (msgcnt, max_msgcnt))
+            raise Exception('Stalled at %d/%d message, no new messages for 20s' % (msgcnt, max_msgcnt))
 
         if msg.error():
             raise confluent_kafka.KafkaException(msg.error())
@@ -560,22 +582,22 @@ def verify_consumer_performance():
 
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
-        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+        print(
+            '%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s'
+            % (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent, (bytecnt / t_spent) / (1024 * 1024))
+        )
 
     print('closing consumer')
     c.close()
 
 
 def verify_consumer_seek(c, seek_to_msg):
-    """ Seek to message and verify the next consumed message matches.
-        Must only be performed on an actively consuming consumer. """
+    """Seek to message and verify the next consumed message matches.
+    Must only be performed on an actively consuming consumer."""
 
-    tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
-                                        seek_to_msg.partition(),
-                                        seek_to_msg.offset(),
-                                        leader_epoch=seek_to_msg.leader_epoch())
+    tp = confluent_kafka.TopicPartition(
+        seek_to_msg.topic(), seek_to_msg.partition(), seek_to_msg.offset(), leader_epoch=seek_to_msg.leader_epoch()
+    )
     print('seek: Seeking to %s' % tp)
     c.seek(tp)
 
@@ -589,28 +611,26 @@ def verify_consumer_seek(c, seek_to_msg):
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
             continue
 
-        print('seek: message at offset %d (epoch %d)' %
-              (msg.offset(), msg.leader_epoch()))
-        assert msg.offset() == seek_to_msg.offset() and \
-            msg.leader_epoch() == seek_to_msg.leader_epoch(), \
-            ('expected message at offset %d (epoch %d), ' % (seek_to_msg.offset(),
-                                                             seek_to_msg.leader_epoch())) + \
-            ('not %d (epoch %d)' % (msg.offset(),
-                                    msg.leader_epoch()))
+        print('seek: message at offset %d (epoch %d)' % (msg.offset(), msg.leader_epoch()))
+        assert msg.offset() == seek_to_msg.offset() and msg.leader_epoch() == seek_to_msg.leader_epoch(), (
+            'expected message at offset %d (epoch %d), ' % (seek_to_msg.offset(), seek_to_msg.leader_epoch())
+        ) + ('not %d (epoch %d)' % (msg.offset(), msg.leader_epoch()))
         break
 
 
 def verify_batch_consumer():
-    """ Verify basic batch Consumer functionality """
+    """Verify basic batch Consumer functionality"""
 
     # Consumer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': 'test.py',
-            'session.timeout.ms': 6000,
-            'enable.auto.commit': False,
-            'on_commit': print_commit_result,
-            'error_cb': error_cb,
-            'auto.offset.reset': 'earliest'}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'group.id': 'test.py',
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'on_commit': print_commit_result,
+        'error_cb': error_cb,
+        'auto.offset.reset': 'earliest',
+    }
 
     # Create consumer
     c = TestConsumer(conf)
@@ -635,9 +655,10 @@ def verify_batch_consumer():
                 continue
 
             tstype, timestamp = msg.timestamp()
-            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value(), tstype, timestamp))
+            print(
+                '%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s'
+                % (msg.topic(), msg.partition(), msg.offset(), msg.key(), msg.value(), tstype, timestamp)
+            )
 
             if (msg.offset() % 5) == 0:
                 # Async commit
@@ -645,9 +666,10 @@ def verify_batch_consumer():
             elif (msg.offset() % 4) == 0:
                 offsets = c.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-                assert offsets[0].offset == msg.offset() + 1, \
-                    'expected offset %d to be committed, not %s' % \
-                    (msg.offset(), offsets)
+                assert offsets[0].offset == msg.offset() + 1, 'expected offset %d to be committed, not %s' % (
+                    msg.offset(),
+                    offsets,
+                )
                 print('Sync committed offset: %s' % offsets)
 
             msgcnt += 1
@@ -679,13 +701,15 @@ def verify_batch_consumer():
 
 
 def verify_batch_consumer_performance():
-    """ Verify batch Consumer performance """
+    """Verify batch Consumer performance"""
 
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': uuid.uuid1(),
-            'session.timeout.ms': 6000,
-            'error_cb': error_cb,
-            'auto.offset.reset': 'earliest'}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'group.id': uuid.uuid1(),
+        'session.timeout.ms': 6000,
+        'error_cb': error_cb,
+        'auto.offset.reset': 'earliest',
+    }
 
     c = TestConsumer(conf)
 
@@ -711,8 +735,7 @@ def verify_batch_consumer_performance():
     print('Will now consume %d messages' % max_msgcnt)
 
     if with_progress:
-        bar = Bar('Consuming', max=max_msgcnt,
-                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+        bar = Bar('Consuming', max=max_msgcnt, suffix='%(index)d/%(max)d [%(eta_td)s]')
     else:
         bar = None
 
@@ -739,9 +762,10 @@ def verify_batch_consumer_performance():
 
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
-        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+        print(
+            '%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s'
+            % (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent, (bytecnt / t_spent) / (1024 * 1024))
+        )
 
     print('closing consumer')
     c.close()
@@ -771,18 +795,24 @@ def verify_schema_registry_client():
 
 
 def verify_avro():
-    base_conf = {'bootstrap.servers': bootstrap_servers,
-                 'error_cb': error_cb,
-                 'api.version.fallback.ms': 0,
-                 'broker.version.fallback': '0.11.0.0',
-                 'schema.registry.url': schema_registry_url}
+    base_conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'error_cb': error_cb,
+        'api.version.fallback.ms': 0,
+        'broker.version.fallback': '0.11.0.0',
+        'schema.registry.url': schema_registry_url,
+    }
 
-    consumer_conf = dict(base_conf, **{
-        'group.id': 'test.py',
-        'session.timeout.ms': 6000,
-        'enable.auto.commit': False,
-        'on_commit': print_commit_result,
-        'auto.offset.reset': 'earliest'})
+    consumer_conf = dict(
+        base_conf,
+        **{
+            'group.id': 'test.py',
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'on_commit': print_commit_result,
+            'auto.offset.reset': 'earliest',
+        },
+    )
 
     run_avro_loop(base_conf, consumer_conf)
 
@@ -791,14 +821,18 @@ def verify_avro_https(mode_conf):
     if mode_conf is None:
         abort_on_missing_configuration('avro-https')
 
-    base_conf = dict(mode_conf, **{'bootstrap.servers': bootstrap_servers,
-                                   'error_cb': error_cb})
+    base_conf = dict(mode_conf, **{'bootstrap.servers': bootstrap_servers, 'error_cb': error_cb})
 
-    consumer_conf = dict(base_conf, **{'group.id': generate_group_id(),
-                                       'session.timeout.ms': 6000,
-                                       'enable.auto.commit': False,
-                                       'on_commit': print_commit_result,
-                                       'auto.offset.reset': 'earliest'})
+    consumer_conf = dict(
+        base_conf,
+        **{
+            'group.id': generate_group_id(),
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'on_commit': print_commit_result,
+            'auto.offset.reset': 'earliest',
+        },
+    )
 
     run_avro_loop(base_conf, consumer_conf)
 
@@ -812,31 +846,31 @@ def verify_avro_basic_auth(mode_conf):
 
     url_conf = {
         'schema.registry.basic.auth.credentials.source': 'URL',
-        'schema.registry.url': str(re.sub("(^https?://)", f"\\1{credentials}@", url))
+        'schema.registry.url': str(re.sub("(^https?://)", f"\\1{credentials}@", url)),
     }
 
     user_info = {
         'schema.registry.basic.auth.credentials.source': 'USER_INFO',
-        'schema.registry.basic.auth.user.info': credentials
+        'schema.registry.basic.auth.user.info': credentials,
     }
 
     sasl_inherit = {
         'schema.registry.basic.auth.credentials.source': 'sasl_inherit',
         'schema.registry.sasl.username': mode_conf.get('sasl.username'),
-        'schema.registry.sasl.password': mode_conf.get('sasl.password')
+        'schema.registry.sasl.password': mode_conf.get('sasl.password'),
     }
 
-    base_conf = {
-        'bootstrap.servers': bootstrap_servers,
-        'error_cb': error_cb,
-        'schema.registry.url': url
-    }
+    base_conf = {'bootstrap.servers': bootstrap_servers, 'error_cb': error_cb, 'schema.registry.url': url}
 
-    consumer_conf = dict({'group.id': generate_group_id(),
-                          'session.timeout.ms': 6000,
-                          'enable.auto.commit': False,
-                          'auto.offset.reset': 'earliest'
-                          }, **base_conf)
+    consumer_conf = dict(
+        {
+            'group.id': generate_group_id(),
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'auto.offset.reset': 'earliest',
+        },
+        **base_conf,
+    )
 
     print('-' * 10, 'Verifying basic auth source USER_INFO', '-' * 10)
     run_avro_loop(dict(base_conf, **user_info), dict(consumer_conf, **user_info))
@@ -850,6 +884,7 @@ def verify_avro_basic_auth(mode_conf):
 
 def run_avro_loop(producer_conf, consumer_conf):
     from confluent_kafka import avro
+
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
 
     p = avro.AvroProducer(producer_conf)
@@ -896,9 +931,10 @@ def run_avro_loop(producer_conf, consumer_conf):
             continue
 
         tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-              (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp))
+        print(
+            '%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s'
+            % (msg.topic(), msg.partition(), msg.offset(), msg.key(), msg.value(), tstype, timestamp)
+        )
 
         # omit empty Avro fields from payload for comparison
         record_key = msg.key()
@@ -922,14 +958,16 @@ def run_avro_loop(producer_conf, consumer_conf):
 
 
 def verify_throttle_cb():
-    """ Verify throttle_cb is invoked
-        This test requires client quotas be configured.
-        See tests/README.md for more information
+    """Verify throttle_cb is invoked
+    This test requires client quotas be configured.
+    See tests/README.md for more information
     """
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'linger.ms': 500,
-            'client.id': 'throttled_client',
-            'throttle_cb': throttle_cb}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'linger.ms': 500,
+        'client.id': 'throttled_client',
+        'throttle_cb': throttle_cb,
+    }
 
     p = confluent_kafka.Producer(conf)
 
@@ -974,7 +1012,7 @@ def verify_throttle_cb():
 
 
 def verify_stats_cb():
-    """ Verify stats_cb """
+    """Verify stats_cb"""
 
     def stats_cb(stats_json_str):
         global good_stats_cb_result
@@ -982,17 +1020,18 @@ def verify_stats_cb():
         if topic in stats_json['topics']:
             app_offset = stats_json['topics'][topic]['partitions']['0']['app_offset']
             if app_offset > 0:
-                print("# app_offset stats for topic %s partition 0: %d" %
-                      (topic, app_offset))
+                print("# app_offset stats for topic %s partition 0: %d" % (topic, app_offset))
                 good_stats_cb_result = True
 
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': uuid.uuid1(),
-            'session.timeout.ms': 6000,
-            'error_cb': error_cb,
-            'stats_cb': stats_cb,
-            'statistics.interval.ms': 200,
-            'auto.offset.reset': 'earliest'}
+    conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'group.id': uuid.uuid1(),
+        'session.timeout.ms': 6000,
+        'error_cb': error_cb,
+        'stats_cb': stats_cb,
+        'statistics.interval.ms': 200,
+        'auto.offset.reset': 'earliest',
+    }
 
     c = TestConsumer(conf)
     c.subscribe([topic])
@@ -1004,8 +1043,7 @@ def verify_stats_cb():
     print('Will now consume %d messages' % max_msgcnt)
 
     if with_progress:
-        bar = Bar('Consuming', max=max_msgcnt,
-                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+        bar = Bar('Consuming', max=max_msgcnt, suffix='%(index)d/%(max)d [%(eta_td)s]')
     else:
         bar = None
 
@@ -1014,8 +1052,7 @@ def verify_stats_cb():
 
         msg = c.poll(timeout=20.0)
         if msg is None:
-            raise Exception('Stalled at %d/%d message, no new messages for 20s' %
-                            (msgcnt, max_msgcnt))
+            raise Exception('Stalled at %d/%d message, no new messages for 20s' % (msgcnt, max_msgcnt))
 
         if msg.error():
             raise confluent_kafka.KafkaException(msg.error())
@@ -1036,9 +1073,10 @@ def verify_stats_cb():
 
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
-        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+        print(
+            '%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s'
+            % (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent, (bytecnt / t_spent) / (1024 * 1024))
+        )
 
     print('closing consumer')
     c.close()
@@ -1065,14 +1103,19 @@ def verify_topic_metadata(client, exp_topics, *args, **kwargs):
                 continue
 
             if len(md.topics[exptopic].partitions) < exppartcnt:
-                print("Topic {} partition count not yet updated ({} != expected {}): retrying".format(
-                    exptopic, len(md.topics[exptopic].partitions), exppartcnt))
+                print(
+                    "Topic {} partition count not yet updated ({} != expected {}): retrying".format(
+                        exptopic, len(md.topics[exptopic].partitions), exppartcnt
+                    )
+                )
                 do_retry += 1
                 continue
 
-            assert len(md.topics[exptopic].partitions) == exppartcnt, \
-                "Expected {} partitions for topic {}, not {}".format(
-                    exppartcnt, exptopic, md.topics[exptopic].partitions)
+            assert (
+                len(md.topics[exptopic].partitions) == exppartcnt
+            ), "Expected {} partitions for topic {}, not {}".format(
+                exppartcnt, exptopic, md.topics[exptopic].partitions
+            )
 
         if do_retry == 0:
             return  # All topics okay.
@@ -1086,33 +1129,35 @@ def verify_avro_explicit_read_schema():
     from confluent_kafka import avro
 
     """ verify that reading Avro with explicit reader schema works"""
-    base_conf = {'bootstrap.servers': bootstrap_servers,
-                 'error_cb': error_cb,
-                 'schema.registry.url': schema_registry_url}
+    base_conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'error_cb': error_cb,
+        'schema.registry.url': schema_registry_url,
+    }
 
-    consumer_conf = dict(base_conf, **{
-        'group.id': 'test.py',
-        'session.timeout.ms': 6000,
-        'enable.auto.commit': False,
-        'on_commit': print_commit_result,
-        'auto.offset.reset': 'earliest',
-        'schema.registry.url': schema_registry_url})
+    consumer_conf = dict(
+        base_conf,
+        **{
+            'group.id': 'test.py',
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'on_commit': print_commit_result,
+            'auto.offset.reset': 'earliest',
+            'schema.registry.url': schema_registry_url,
+        },
+    )
 
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
     writer_schema = avro.load(os.path.join(avsc_dir, "user_v1.avsc"))
     reader_schema = avro.load(os.path.join(avsc_dir, "user_v2.avsc"))
 
-    user_value1 = {
-        "name": " Rogers Nelson"
-    }
+    user_value1 = {"name": " Rogers Nelson"}
 
-    user_value2 = {
-        "name": "Kenny Loggins"
-    }
+    user_value2 = {"name": "Kenny Loggins"}
 
     combinations = [
         dict(key=user_value1, key_schema=writer_schema, value=user_value2, value_schema=writer_schema),
-        dict(key=user_value2, key_schema=writer_schema, value=user_value1, value_schema=writer_schema)
+        dict(key=user_value2, key_schema=writer_schema, value=user_value1, value_schema=writer_schema),
     ]
     avro_topic = topic + str(uuid.uuid4())
 
@@ -1137,10 +1182,10 @@ def verify_avro_explicit_read_schema():
         msgcount += 1
         # Avro schema projection should return the two fields not present in the writer schema
         try:
-            assert (msg.key().get('favorite_number') == 42)
-            assert (msg.key().get('favorite_color') == "purple")
-            assert (msg.value().get('favorite_number') == 42)
-            assert (msg.value().get('favorite_color') == "purple")
+            assert msg.key().get('favorite_number') == 42
+            assert msg.key().get('favorite_color') == "purple"
+            assert msg.value().get('favorite_number') == 42
+            assert msg.value().get('favorite_color') == "purple"
             print("success: schema projection worked for explicit reader schema")
         except KeyError:
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
@@ -1165,7 +1210,7 @@ test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-http
 
 
 def print_usage(exitcode, reason=None):
-    """ Print usage and exit with exitcode """
+    """Print usage and exit with exitcode"""
     if reason is not None:
         print('Error: %s' % reason)
     print('Usage: %s [options] <testconf>' % sys.argv[0])
@@ -1266,8 +1311,12 @@ if __name__ == '__main__':
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https(testconf.get('avro-https', None))
         key_with_password_conf = testconf.get("avro-https-key-with-password", None)
-        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
-              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+        print(
+            '=' * 30,
+            'Verifying AVRO with HTTPS Flow with Password',
+            'Protected Private Key of Cached-Schema-Registry-Client',
+            '=' * 30,
+        )
         verify_avro_https(key_with_password_conf)
         print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
         try:

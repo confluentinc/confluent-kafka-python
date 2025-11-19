@@ -20,9 +20,10 @@
 # Context managers ensure proper cleanup of resources when exiting the 'with' block.
 #
 
-from confluent_kafka import Producer, Consumer, KafkaError
-from confluent_kafka.admin import AdminClient, NewTopic
 import sys
+
+from confluent_kafka import Consumer, KafkaError, Producer
+from confluent_kafka.admin import AdminClient, NewTopic
 
 
 def main():
@@ -71,12 +72,7 @@ def main():
         # Produce some messages
         for i in range(5):
             value = f'Message {i} from context manager example'
-            producer.produce(
-                topic,
-                key=f'key-{i}',
-                value=value.encode('utf-8'),
-                callback=delivery_callback
-            )
+            producer.produce(topic, key=f'key-{i}', value=value.encode('utf-8'), callback=delivery_callback)
             # Poll for delivery callbacks
             producer.poll(0)
 
@@ -91,7 +87,7 @@ def main():
     consumer_conf = {
         'bootstrap.servers': broker,
         'group.id': 'context-manager-example-group',
-        'auto.offset.reset': 'earliest'
+        'auto.offset.reset': 'earliest',
     }
 
     with Consumer(consumer_conf) as consumer:
@@ -114,9 +110,11 @@ def main():
                         print(f'Consumer error: {msg.error()}')
                         break
 
-                print(f'Consumed message: key={msg.key().decode("utf-8")}, '
-                      f'value={msg.value().decode("utf-8")}, '
-                      f'partition={msg.partition()}, offset={msg.offset()}')
+                print(
+                    f'Consumed message: key={msg.key().decode("utf-8")}, '
+                    f'value={msg.value().decode("utf-8")}, '
+                    f'partition={msg.partition()}, offset={msg.offset()}'
+                )
                 msg_count += 1
         except KeyboardInterrupt:
             print('Consumer interrupted by user')

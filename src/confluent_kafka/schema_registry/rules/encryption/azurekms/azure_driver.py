@@ -11,17 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from azure.core.credentials import TokenCredential
-from azure.identity import DefaultAzureCredential, ClientSecretCredential
-
+from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from tink import KmsClient
 
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_client import \
-    AzureKmsClient
-from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import \
-    KmsDriver, register_kms_driver
+from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_client import AzureKmsClient
+from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import KmsDriver, register_kms_driver
 
 _PREFIX = "azure-kms://"
 _TENANT_ID = 'tenant.id'

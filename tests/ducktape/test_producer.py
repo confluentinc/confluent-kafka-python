@@ -4,17 +4,18 @@ Assumes Kafka is already running on localhost:9092
 """
 
 import time
-from ducktape.tests.test import Test
-from ducktape.mark import matrix
 
-from tests.ducktape.services.kafka import KafkaClient
+from ducktape.mark import matrix
+from ducktape.tests.test import Test
+
 from tests.ducktape.producer_benchmark_metrics import (
-    MetricsCollector,
     MetricsBounds,
-    validate_metrics,
+    MetricsCollector,
     print_metrics_report,
+    validate_metrics,
 )
-from tests.ducktape.producer_strategy import SyncProducerStrategy, AsyncProducerStrategy
+from tests.ducktape.producer_strategy import AsyncProducerStrategy, SyncProducerStrategy
+from tests.ducktape.services.kafka import KafkaClient
 
 
 class SimpleProducerTest(Test):
@@ -31,10 +32,7 @@ class SimpleProducerTest(Test):
         self.logger.info("Verifying connection to external Kafka at localhost:9092")
 
         if not self.kafka.verify_connection():
-            raise Exception(
-                "Cannot connect to Kafka at localhost:9092. "
-                "Please ensure Kafka is running."
-            )
+            raise Exception("Cannot connect to Kafka at localhost:9092. " "Please ensure Kafka is running.")
 
         self.logger.info("Successfully connected to Kafka")
 
@@ -43,9 +41,7 @@ class SimpleProducerTest(Test):
         if producer_type == "sync":
             strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
         else:  # async
-            strategy = AsyncProducerStrategy(
-                self.kafka.bootstrap_servers(), self.logger
-            )
+            strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
 
         # Store config overrides for later use in create_producer
         strategy.config_overrides = config_overrides
@@ -64,8 +60,7 @@ class SimpleProducerTest(Test):
         # Wait for topic to be available with retry logic
         topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
         assert topic_ready, (
-            f"Topic {topic_name} was not created within timeout. "
-            f"Available topics: {self.kafka.list_topics()}"
+            f"Topic {topic_name} was not created within timeout. " f"Available topics: {self.kafka.list_topics()}"
         )
 
         # Initialize metrics collection and bounds
@@ -78,9 +73,7 @@ class SimpleProducerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(
-            f"Testing {producer_type} producer for {test_duration} seconds"
-        )
+        self.logger.info(f"Testing {producer_type} producer for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
@@ -118,23 +111,17 @@ class SimpleProducerTest(Test):
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
         assert len(delivered_messages) > 0, "No messages were delivered"
-        assert (
-            metrics_summary["messages_delivered"] > 0
-        ), "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
-                "Performance bounds validation failed: %s", "; ".join(violations)
-            )
+            self.logger.error("Performance bounds validation failed: %s", "; ".join(violations))
             assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
-        self.logger.info(
-            "Successfully completed basic production test with comprehensive metrics"
-        )
+        self.logger.info("Successfully completed basic production test with comprehensive metrics")
 
     @matrix(producer_type=["sync", "async"])
     def test_basic_produce_with_transaction(self, producer_type):
@@ -149,17 +136,14 @@ class SimpleProducerTest(Test):
         # Wait for topic to be available with retry logic
         topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
         assert topic_ready, (
-            f"Topic {topic_name} was not created within timeout. "
-            f"Available topics: {self.kafka.list_topics()}"
+            f"Topic {topic_name} was not created within timeout. " f"Available topics: {self.kafka.list_topics()}"
         )
 
         # Initialize metrics collection and bounds
         metrics = MetricsCollector()
         import os
 
-        config_path = os.path.join(
-            os.path.dirname(__file__), "transaction_benchmark_bounds.json"
-        )
+        config_path = os.path.join(os.path.dirname(__file__), "transaction_benchmark_bounds.json")
         bounds = MetricsBounds.from_config_file(config_path)
 
         # Create appropriate producer strategy
@@ -168,9 +152,7 @@ class SimpleProducerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(
-            f"Testing {producer_type} producer for {test_duration} seconds"
-        )
+        self.logger.info(f"Testing {producer_type} producer for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
@@ -203,31 +185,23 @@ class SimpleProducerTest(Test):
         is_valid, violations = validate_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        self.logger.info(
-            f"=== {producer_type.upper()} PRODUCER WITH TRANSACTION METRICS REPORT ==="
-        )
+        self.logger.info(f"=== {producer_type.upper()} PRODUCER WITH TRANSACTION METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
         assert len(delivered_messages) > 0, "No messages were delivered"
-        assert (
-            metrics_summary["messages_delivered"] > 0
-        ), "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
-                "Performance bounds validation failed: %s", "; ".join(violations)
-            )
+            self.logger.error("Performance bounds validation failed: %s", "; ".join(violations))
             assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
-        self.logger.info(
-            "Successfully completed basic production test with comprehensive metrics with transaction"
-        )
+        self.logger.info("Successfully completed basic production test with comprehensive metrics with transaction")
 
     @matrix(producer_type=["sync", "async"], test_duration=[2, 5, 10])
     def test_produce_multiple_batches(self, producer_type, test_duration):
@@ -255,9 +229,7 @@ class SimpleProducerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(
-            f"Testing {producer_type} producer with batches for {test_duration} seconds"
-        )
+        self.logger.info(f"Testing {producer_type} producer with batches for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
@@ -292,9 +264,7 @@ class SimpleProducerTest(Test):
         final_metrics = strategy.get_final_metrics()
 
         # Print comprehensive metrics report
-        self.logger.info(
-            f"=== {producer_type.upper()} BATCH TEST ({test_duration}s) METRICS REPORT ==="
-        )
+        self.logger.info(f"=== {producer_type.upper()} BATCH TEST ({test_duration}s) METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
         if final_metrics:
@@ -302,25 +272,15 @@ class SimpleProducerTest(Test):
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
                 self.logger.info("=== Producer Built-in Metrics ===")
-                self.logger.info(
-                    f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s"
-                )
-                self.logger.info(
-                    f"Success Rate: {producer_metrics_summary['success_rate']:.3f}"
-                )
-                self.logger.info(
-                    f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec"
-                )
-                self.logger.info(
-                    f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms"
-                )
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
         assert len(delivered_messages) > 0, "No messages were delivered"
-        assert (
-            metrics_summary["messages_delivered"] > 0
-        ), "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -339,9 +299,7 @@ class SimpleProducerTest(Test):
             test_duration,
         )
 
-    @matrix(
-        producer_type=["sync", "async"], compression_type=["none", "gzip", "snappy"]
-    )
+    @matrix(producer_type=["sync", "async"], compression_type=["none", "gzip", "snappy"])
     def test_produce_with_compression(self, producer_type, compression_type):
         """Test compression throughput with comprehensive metrics and bounds validation"""
 
@@ -381,9 +339,7 @@ class SimpleProducerTest(Test):
                 "snappy": 25,  # Poll every 25 messages for snappy (moderate)
                 "none": 50,  # Poll every 50 messages for none (standard)
             }
-        poll_interval = polling_config.get(
-            compression_type, 50 if producer_type == "sync" else 100
-        )
+        poll_interval = polling_config.get(compression_type, 50 if producer_type == "sync" else 100)
 
         strategy = self.create_producer(producer_type, compression_config)
         strategy.poll_interval = poll_interval
@@ -392,8 +348,7 @@ class SimpleProducerTest(Test):
         strategy.metrics = metrics
 
         self.logger.info(
-            f"Testing {producer_type} producer with {compression_type} compression "
-            f"for {test_duration} seconds"
+            f"Testing {producer_type} producer with {compression_type} compression " f"for {test_duration} seconds"
         )
         self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
@@ -433,9 +388,7 @@ class SimpleProducerTest(Test):
         final_metrics = strategy.get_final_metrics()
 
         # Print comprehensive metrics report
-        self.logger.info(
-            f"=== {producer_type.upper()} COMPRESSION TEST ({compression_type}) METRICS REPORT ==="
-        )
+        self.logger.info(f"=== {producer_type.upper()} COMPRESSION TEST ({compression_type}) METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
         if final_metrics:
@@ -443,25 +396,15 @@ class SimpleProducerTest(Test):
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
                 self.logger.info("=== Producer Built-in Metrics ===")
-                self.logger.info(
-                    f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s"
-                )
-                self.logger.info(
-                    f"Success Rate: {producer_metrics_summary['success_rate']:.3f}"
-                )
-                self.logger.info(
-                    f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec"
-                )
-                self.logger.info(
-                    f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms"
-                )
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
         assert len(delivered_messages) > 0, "No messages were delivered"
-        assert (
-            metrics_summary["messages_delivered"] > 0
-        ), "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
         assert metrics_summary["send_throughput_msg_per_sec"] > 5, (
             f"Send throughput too low for {compression_type}: "
             f"{metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -475,8 +418,7 @@ class SimpleProducerTest(Test):
                 "; ".join(violations),
             )
             assert False, (
-                f"Performance bounds validation failed for {compression_type} compression: "
-                f"{'; '.join(violations)}"
+                f"Performance bounds validation failed for {compression_type} compression: " f"{'; '.join(violations)}"
             )
 
         self.logger.info(
@@ -484,12 +426,8 @@ class SimpleProducerTest(Test):
             compression_type,
         )
 
-    @matrix(
-        producer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"]
-    )
-    def test_basic_produce_with_schema_registry(
-        self, producer_type, serialization_type
-    ):
+    @matrix(producer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    def test_basic_produce_with_schema_registry(self, producer_type, serialization_type):
         """
         Test producer with Schema Registry serialization.
 
@@ -550,9 +488,7 @@ class SimpleProducerTest(Test):
                     if serialization_type == "json":
                         test_bytes = f"bytes{i}"  # JSON uses string for bytes
                     else:
-                        test_bytes = f"bytes{i}".encode(
-                            "utf-8"
-                        )  # Avro uses actual bytes
+                        test_bytes = f"bytes{i}".encode("utf-8")  # Avro uses actual bytes
 
                     message_value = {
                         "test_string": f"User{i}",
@@ -599,29 +535,21 @@ class SimpleProducerTest(Test):
         metrics_summary = metrics.get_summary()
         is_valid, violations = validate_metrics(metrics_summary, bounds)
 
-        self.logger.info(
-            f"=== {producer_type.upper()} {serialization_type.upper()} SR METRICS REPORT ==="
-        )
+        self.logger.info(f"=== {producer_type.upper()} {serialization_type.upper()} SR METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
         assert messages_sent > 0, "No messages were sent"
         assert len(delivered_messages) > 0, "No messages were delivered"
-        assert (
-            metrics_summary["messages_delivered"] > 0
-        ), "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         if not is_valid:
-            self.logger.error(
-                "Performance bounds validation failed: %s", "; ".join(violations)
-            )
+            self.logger.error("Performance bounds validation failed: %s", "; ".join(violations))
             assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
-        self.logger.info(
-            "Successfully completed SR production test with comprehensive metrics"
-        )
+        self.logger.info("Successfully completed SR production test with comprehensive metrics")
 
     def tearDown(self):
         """Clean up test environment"""

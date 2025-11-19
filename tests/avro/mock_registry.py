@@ -20,16 +20,14 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 
-import sys
 import json
 import re
+import sys
+from threading import Event, Thread
 
-from threading import Thread, Event
-
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
 from confluent_kafka.avro.error import ClientError
-
+from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 
 if sys.version_info[0] < 3:
     import BaseHTTPServer as HTTPSERVER
@@ -60,12 +58,9 @@ class MockServer(HTTPSERVER.HTTPServer, object):
             'GET': [
                 (r"/schemas/ids/(\d+)", 'get_schema_by_id'),
                 (r"/subjects/(\w+)/versions/(\d+)", 'get_by_version'),
-                (r"/subjects/(\w+)/versions/latest", 'get_latest')
+                (r"/subjects/(\w+)/versions/latest", 'get_latest'),
             ],
-            'POST': [
-                (r"/subjects/(\w+)/versions", 'register'),
-                (r"/subjects/(\w+)", 'get_version')
-            ]
+            'POST': [(r"/subjects/(\w+)/versions", 'register'), (r"/subjects/(\w+)", 'get_version')],
         }
 
     def _send_response(self, resp, status, body):
@@ -76,10 +71,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         resp.finish()
 
     def _create_error(self, msg, status=400, err_code=1):
-        return (status, {
-            "error_code": err_code,
-            "message": msg
-        })
+        return (status, {"error_code": err_code, "message": msg})
 
     def _run_routes(self, req):
         self.add_count((req.command, req.path))
@@ -100,9 +92,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema = self.registry.get_by_id(schema_id)
         if not schema:
             return self._create_error("schema not found", 404)
-        result = {
-            "schema": str(schema)
-        }
+        result = {"schema": str(schema)}
         return (200, result)
 
     def _get_identity_schema(self, avro_schema):
@@ -150,12 +140,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
             return self._create_error("Not found", 404)
         schema_id = self.registry.get_id_for_schema(subject, avro_schema)
 
-        result = {
-            "schema": str(avro_schema),
-            "subject": subject,
-            "id": schema_id,
-            "version": version
-        }
+        result = {"schema": str(avro_schema), "subject": subject, "id": schema_id, "version": version}
         return (200, result)
 
     def get_latest(self, req, groups):
@@ -163,12 +148,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema_id, avro_schema, version = self.registry.get_latest_schema(subject)
         if schema_id is None:
             return self._create_error("Not found", 404)
-        result = {
-            "schema": str(avro_schema),
-            "subject": subject,
-            "id": schema_id,
-            "version": version
-        }
+        result = {"schema": str(avro_schema), "subject": subject, "id": schema_id, "version": version}
         return (200, result)
 
     def get_by_version(self, req, groups):
@@ -178,12 +158,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema_id, avro_schema, version = self.registry.get_by_version(subject, version)
         if schema_id is None:
             return self._create_error("Not found", 404)
-        result = {
-            "schema": json.dumps(avro_schema.to_json()),
-            "subject": subject,
-            "id": schema_id,
-            "version": version
-        }
+        result = {"schema": json.dumps(avro_schema.to_json()), "subject": subject, "id": schema_id, "version": version}
         return (200, result)
 
     def add_count(self, path):

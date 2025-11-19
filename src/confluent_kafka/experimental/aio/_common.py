@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import asyncio
+import concurrent.futures
 import functools
 import logging
-import concurrent.futures
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
 T = TypeVar('T')
@@ -23,11 +23,7 @@ T = TypeVar('T')
 
 class AsyncLogger:
 
-    def __init__(
-        self,
-        loop: asyncio.AbstractEventLoop,
-        logger: logging.Logger
-    ) -> None:
+    def __init__(self, loop: asyncio.AbstractEventLoop, logger: logging.Logger) -> None:
         self.loop = loop
         self.logger = logger
 
@@ -39,43 +35,32 @@ def wrap_callback(
     loop: asyncio.AbstractEventLoop,
     callback: Callable[..., Any],
     edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
-    edit_kwargs: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
+    edit_kwargs: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
 ) -> Callable[..., Any]:
     def ret(*args: Any, **kwargs: Any) -> Any:
         if edit_args:
             args = edit_args(args)
         if edit_kwargs:
             kwargs = edit_kwargs(kwargs)
-        f = asyncio.run_coroutine_threadsafe(
-            callback(*args, **kwargs), loop
-        )
+        f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
         return f.result()
+
     return ret
 
 
-def wrap_conf_callback(
-    loop: asyncio.AbstractEventLoop,
-    conf: Dict[str, Any],
-    name: str
-) -> None:
+def wrap_conf_callback(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any], name: str) -> None:
     if name in conf:
         cb = conf[name]
         conf[name] = wrap_callback(loop, cb)
 
 
-def wrap_conf_logger(
-    loop: asyncio.AbstractEventLoop,
-    conf: Dict[str, Any]
-) -> None:
+def wrap_conf_logger(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any]) -> None:
     if 'logger' in conf:
         conf['logger'] = AsyncLogger(loop, conf['logger'])
 
 
 async def async_call(
-    executor: concurrent.futures.Executor,
-    blocking_task: Callable[..., T],
-    *args: Any,
-    **kwargs: Any
+    executor: concurrent.futures.Executor, blocking_task: Callable[..., T], *args: Any, **kwargs: Any
 ) -> T:
     """Helper function for blocking operations that need ThreadPool execution
 
@@ -87,18 +72,14 @@ async def async_call(
     Returns:
         Result of the blocking function execution
     """
-    return (await asyncio.gather(
-        asyncio.get_running_loop().run_in_executor(
-            executor,
-            functools.partial(blocking_task, *args, **kwargs)
+    return (
+        await asyncio.gather(
+            asyncio.get_running_loop().run_in_executor(executor, functools.partial(blocking_task, *args, **kwargs))
         )
-    ))[0]
+    )[0]
 
 
-def wrap_common_callbacks(
-    loop: asyncio.AbstractEventLoop,
-    conf: Dict[str, Any]
-) -> None:
+def wrap_common_callbacks(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any]) -> None:
     wrap_conf_callback(loop, conf, 'error_cb')
     wrap_conf_callback(loop, conf, 'throttle_cb')
     wrap_conf_callback(loop, conf, 'stats_cb')

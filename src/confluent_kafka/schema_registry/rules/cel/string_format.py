@@ -44,10 +44,12 @@ class StringFormat:
     def format(self, fmt: celtypes.Value, args: celtypes.Value) -> celpy.Result:
         if not isinstance(fmt, celtypes.StringType):
             return celpy.native_to_cel(  # type: ignore[attr-defined]
-                celpy.new_error("format() requires a string as the first argument"))  # type: ignore[attr-defined]
+                celpy.new_error("format() requires a string as the first argument")
+            )  # type: ignore[attr-defined]
         if not isinstance(args, celtypes.ListType):
             return celpy.native_to_cel(  # type: ignore[attr-defined]
-                celpy.new_error("format() requires a list as the second argument"))  # type: ignore[attr-defined]
+                celpy.new_error("format() requires a list as the second argument")
+            )  # type: ignore[attr-defined]
         # printf style formatting
         i = 0
         j = 0

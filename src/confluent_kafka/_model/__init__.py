@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
 from enum import Enum
+from typing import List, Optional
+
 from .. import cimpl
 from ..cimpl import TopicPartition
 
@@ -74,6 +75,7 @@ class ConsumerGroupState(Enum):
     Note that the state :py:attr:`UNKOWN` (typo one) is deprecated and will be removed in
     future major release. Use :py:attr:`UNKNOWN` instead.
     """
+
     #: State is not known or not set
     UNKNOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
     #: .. deprecated:: 2.3.0
@@ -104,6 +106,7 @@ class ConsumerGroupType(Enum):
     Values:
     -------
     """
+
     #: Type is not known or not set
     UNKNOWN = cimpl.CONSUMER_GROUP_TYPE_UNKNOWN
     #: Consumer Type

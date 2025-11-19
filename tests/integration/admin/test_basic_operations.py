@@ -16,10 +16,17 @@
 import struct
 import time
 
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
-from confluent_kafka.admin import (NewPartitions, ConfigResource,
-                                   AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType)
+from confluent_kafka import ConsumerGroupState, ConsumerGroupTopicPartitions, KafkaError, TopicPartition
+from confluent_kafka.admin import (
+    AclBinding,
+    AclBindingFilter,
+    AclOperation,
+    AclPermissionType,
+    ConfigResource,
+    NewPartitions,
+    ResourcePatternType,
+    ResourceType,
+)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -27,32 +34,53 @@ topic_prefix = "test-topic"
 
 # Shared between producer and consumer tests and used to verify
 # that consumed headers are what was actually produced.
-produce_headers = [('foo1', 'bar'),
-                   ('foo1', 'bar2'),
-                   ('foo2', b'1'),
-                   (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
-                   ('nullheader', None),
-                   ('empty', ''),
-                   ('foobin', struct.pack('hhl', 10, 20, 30))]
+produce_headers = [
+    ('foo1', 'bar'),
+    ('foo1', 'bar2'),
+    ('foo2', b'1'),
+    (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
+    ('nullheader', None),
+    ('empty', ''),
+    ('foobin', struct.pack('hhl', 10, 20, 30)),
+]
 
 
 def verify_commit_result(err, partitions):
     assert err is not None
 
 
-def verify_admin_acls(admin_client,
-                      topic,
-                      group):
+def verify_admin_acls(admin_client, topic, group):
 
     #
     # Add three ACLs
     #
-    acl_binding_1 = AclBinding(ResourceType.TOPIC, topic, ResourcePatternType.LITERAL,
-                               "User:test-user-1", "*", AclOperation.READ, AclPermissionType.ALLOW)
-    acl_binding_2 = AclBinding(ResourceType.TOPIC, topic, ResourcePatternType.PREFIXED,
-                               "User:test-user-2", "*", AclOperation.WRITE, AclPermissionType.DENY)
-    acl_binding_3 = AclBinding(ResourceType.GROUP, group, ResourcePatternType.PREFIXED,
-                               "User:test-user-2", "*", AclOperation.ALL, AclPermissionType.ALLOW)
+    acl_binding_1 = AclBinding(
+        ResourceType.TOPIC,
+        topic,
+        ResourcePatternType.LITERAL,
+        "User:test-user-1",
+        "*",
+        AclOperation.READ,
+        AclPermissionType.ALLOW,
+    )
+    acl_binding_2 = AclBinding(
+        ResourceType.TOPIC,
+        topic,
+        ResourcePatternType.PREFIXED,
+        "User:test-user-2",
+        "*",
+        AclOperation.WRITE,
+        AclPermissionType.DENY,
+    )
+    acl_binding_3 = AclBinding(
+        ResourceType.GROUP,
+        group,
+        ResourcePatternType.PREFIXED,
+        "User:test-user-2",
+        "*",
+        AclOperation.ALL,
+        AclPermissionType.ALLOW,
+    )
 
     fs = admin_client.create_acls([acl_binding_1, acl_binding_2, acl_binding_3])
     for acl_binding, f in fs.items():
@@ -60,20 +88,24 @@ def verify_admin_acls(admin_client,
 
     time.sleep(1)
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.PREFIXED,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter3 = AclBindingFilter(ResourceType.TOPIC, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter4 = AclBindingFilter(ResourceType.GROUP, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
+    acl_binding_filter1 = AclBindingFilter(
+        ResourceType.ANY, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
+    acl_binding_filter2 = AclBindingFilter(
+        ResourceType.ANY, None, ResourcePatternType.PREFIXED, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
+    acl_binding_filter3 = AclBindingFilter(
+        ResourceType.TOPIC, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
+    acl_binding_filter4 = AclBindingFilter(
+        ResourceType.GROUP, None, ResourcePatternType.ANY, None, None, AclOperation.ANY, AclPermissionType.ANY
+    )
 
     expected_acl_bindings = [acl_binding_1, acl_binding_2, acl_binding_3]
     acl_bindings = admin_client.describe_acls(acl_binding_filter1).result()
-    assert sorted(acl_bindings) == sorted(expected_acl_bindings), \
-        "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings,
-                                                                   expected_acl_bindings)
+    assert sorted(acl_bindings) == sorted(
+        expected_acl_bindings
+    ), "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings, expected_acl_bindings)
 
     #
     # Delete the ACLs with PREFIXED
@@ -81,9 +113,9 @@ def verify_admin_acls(admin_client,
     expected_acl_bindings = [acl_binding_2, acl_binding_3]
     fs = admin_client.delete_acls([acl_binding_filter2])
     deleted_acl_bindings = sorted(fs[acl_binding_filter2].result())
-    assert deleted_acl_bindings == expected_acl_bindings, \
-        "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
-                                                                         expected_acl_bindings)
+    assert (
+        deleted_acl_bindings == expected_acl_bindings
+    ), "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings, expected_acl_bindings)
 
     time.sleep(1)
 
@@ -95,9 +127,9 @@ def verify_admin_acls(admin_client,
     fs = admin_client.delete_acls(delete_acl_binding_filters)
     for acl_binding, expected in zip(delete_acl_binding_filters, expected_acl_bindings):
         deleted_acl_bindings = sorted(fs[acl_binding].result())
-        assert deleted_acl_bindings == expected, \
-            "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
-                                                                             expected)
+        assert deleted_acl_bindings == expected, "Deleted ACL bindings don't match, actual {} expected {}".format(
+            deleted_acl_bindings, expected
+        )
 
     time.sleep(1)
 
@@ -106,9 +138,9 @@ def verify_admin_acls(admin_client,
     #
     expected_acl_bindings = []
     acl_bindings = admin_client.describe_acls(acl_binding_filter1).result()
-    assert acl_bindings == expected_acl_bindings, \
-        "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings,
-                                                                   expected_acl_bindings)
+    assert acl_bindings == expected_acl_bindings, "ACL bindings don't match, actual: {} expected: {}".format(
+        acl_bindings, expected_acl_bindings
+    )
 
 
 def verify_topic_metadata(client, exp_topics, *args, **kwargs):
@@ -132,14 +164,19 @@ def verify_topic_metadata(client, exp_topics, *args, **kwargs):
                 continue
 
             if len(md.topics[exptopic].partitions) < exppartcnt:
-                print("Topic {} partition count not yet updated ({} != expected {}): retrying".format(
-                    exptopic, len(md.topics[exptopic].partitions), exppartcnt))
+                print(
+                    "Topic {} partition count not yet updated ({} != expected {}): retrying".format(
+                        exptopic, len(md.topics[exptopic].partitions), exppartcnt
+                    )
+                )
                 do_retry += 1
                 continue
 
-            assert len(md.topics[exptopic].partitions) == exppartcnt, \
-                "Expected {} partitions for topic {}, not {}".format(
-                    exppartcnt, exptopic, md.topics[exptopic].partitions)
+            assert (
+                len(md.topics[exptopic].partitions) == exppartcnt
+            ), "Expected {} partitions for topic {}, not {}".format(
+                exppartcnt, exptopic, md.topics[exptopic].partitions
+            )
 
         if do_retry == 0:
             return  # All topics okay.
@@ -165,12 +202,13 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
     assert is_any_message_consumed
 
     # Alter Consumer Group Offsets check
-    alter_group_topic_partitions = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
-                                                                                   topic_partition.partition,
-                                                                                   0),
-                                            res.topic_partitions))
-    alter_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
-                                                                       alter_group_topic_partitions)
+    alter_group_topic_partitions = list(
+        map(
+            lambda topic_partition: TopicPartition(topic_partition.topic, topic_partition.partition, 0),
+            res.topic_partitions,
+        )
+    )
+    alter_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id, alter_group_topic_partitions)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
     af = afs[group_id]
     ares = af.result()
@@ -182,11 +220,13 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.offset == 0
 
     # List Consumer Group Offsets check with group name and partitions
-    list_group_topic_partitions = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
-                                                                                  topic_partition.partition),
-                                           ares.topic_partitions))
-    list_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
-                                                                      list_group_topic_partitions)
+    list_group_topic_partitions = list(
+        map(
+            lambda topic_partition: TopicPartition(topic_partition.topic, topic_partition.partition),
+            ares.topic_partitions,
+        )
+    )
+    list_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id, list_group_topic_partitions)
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
     lf = lfs[group_id]
     lres = lf.result()
@@ -208,14 +248,15 @@ def test_basic_operations(kafka_cluster):
     # Second iteration: create topic.
     #
     for validate in (True, False):
-        our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
-                                                                    {
-                                                                        "num_partitions": num_partitions,
-                                                                        "config": topic_config,
-                                                                        "replication_factor": 1,
-                                                                    },
-                                                                    validate_only=validate
-                                                                    )
+        our_topic = kafka_cluster.create_topic_and_wait_propogation(
+            topic_prefix,
+            {
+                "num_partitions": num_partitions,
+                "config": topic_config,
+                "replication_factor": 1,
+            },
+            validate_only=validate,
+        )
 
     admin_client = kafka_cluster.admin()
 
@@ -230,9 +271,9 @@ def test_basic_operations(kafka_cluster):
     # Increase the partition count
     #
     num_partitions += 3
-    fs = admin_client.create_partitions([NewPartitions(our_topic,
-                                                       new_total_count=num_partitions)],
-                                        operation_timeout=10.0)
+    fs = admin_client.create_partitions(
+        [NewPartitions(our_topic, new_total_count=num_partitions)], operation_timeout=10.0
+    )
 
     for topic2, f in fs.items():
         f.result()  # trigger exception if there was an error
@@ -254,12 +295,14 @@ def test_basic_operations(kafka_cluster):
 
     def consume_messages(group_id, num_messages=None):
         # Consume messages
-        conf = {'group.id': group_id,
-                'session.timeout.ms': 6000,
-                'enable.auto.commit': False,
-                'on_commit': verify_commit_result,
-                'auto.offset.reset': 'earliest',
-                'enable.partition.eof': True}
+        conf = {
+            'group.id': group_id,
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'on_commit': verify_commit_result,
+            'auto.offset.reset': 'earliest',
+            'enable.partition.eof': True,
+        }
         c = kafka_cluster.consumer(conf)
         c.subscribe([our_topic])
         eof_reached = dict()
@@ -279,8 +322,7 @@ def test_basic_operations(kafka_cluster):
             except ConsumeError as e:
                 if e.code == KafkaError._PARTITION_EOF:
                     msg = e.kafka_message
-                    print('Reached end of %s [%d] at offset %d' % (
-                          msg.topic(), msg.partition(), msg.offset()))
+                    print('Reached end of %s [%d] at offset %d' % (msg.topic(), msg.partition(), msg.offset()))
                     eof_reached[(msg.topic(), msg.partition())] = True
                     if len(eof_reached) == len(c.assignment()):
                         print('EOF reached for all assigned partitions: exiting')
@@ -328,8 +370,9 @@ def test_basic_operations(kafka_cluster):
             entry = configs.get(key, None)
             assert entry is not None, "Config {} not found in returned configs".format(key)
 
-            assert entry.value == str(expvalue), \
-                "Config {} with value {} does not match expected value {}".format(key, entry, expvalue)
+            assert entry.value == str(expvalue), "Config {} with value {} does not match expected value {}".format(
+                key, entry, expvalue
+            )
 
     #
     # Get current topic config

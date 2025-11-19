@@ -18,8 +18,7 @@ from azure.core.credentials import TokenCredential
 from azure.keyvault.keys.crypto import CryptographyClient, EncryptionAlgorithm
 from tink import aead
 
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_aead import \
-    AzureKmsAead
+from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_aead import AzureKmsAead
 
 AZURE_KEYURI_PREFIX = 'azure-kms://'
 
@@ -27,9 +26,7 @@ AZURE_KEYURI_PREFIX = 'azure-kms://'
 class AzureKmsClient(tink.KmsClient):
     """Basic Azure client for AEAD."""
 
-    def __init__(
-        self, key_uri: str, credentials: TokenCredential
-    ) -> None:
+    def __init__(self, key_uri: str, credentials: TokenCredential) -> None:
         """Creates a new AzureKmsClient that is bound to the key specified in 'key_uri'.
 
         Uses the specified credentials when communicating with the KMS.
@@ -47,7 +44,7 @@ class AzureKmsClient(tink.KmsClient):
         else:
             raise tink.TinkError('Invalid key_uri.')
 
-        key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
+        key_id = key_uri[len(AZURE_KEYURI_PREFIX) :]
         self._client = CryptographyClient(key_id, credentials)
 
     def does_support(self, key_uri: str) -> bool:
@@ -73,10 +70,7 @@ class AzureKmsClient(tink.KmsClient):
           An Aead object.
         """
         if self._key_uri and self._key_uri != key_uri:
-            raise tink.TinkError(
-                'This client is bound to %s and cannot use key %s'
-                % (self._key_uri, key_uri)
-            )
+            raise tink.TinkError('This client is bound to %s and cannot use key %s' % (self._key_uri, key_uri))
         if not key_uri.startswith(AZURE_KEYURI_PREFIX):
             raise tink.TinkError('Invalid key_uri.')
         return AzureKmsAead(self._client, EncryptionAlgorithm.rsa_oaep_256)

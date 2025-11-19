@@ -21,10 +21,12 @@
 #
 
 import unittest
+
 import pytest
 from avro import schema
-from tests.avro import data_gen
+
 from confluent_kafka import avro
+from tests.avro import data_gen
 
 
 class TestUtil(unittest.TestCase):

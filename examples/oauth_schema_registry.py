@@ -28,11 +28,13 @@ from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistr
 
 
 def main():
-    static_oauth_config = {'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
-                           'bearer.auth.credentials.source': 'STATIC_TOKEN',
-                           'bearer.auth.token': 'static-token',
-                           'bearer.auth.logical.cluster': 'lsrc-12345',
-                           'bearer.auth.identity.pool.id': 'pool-abcd'}
+    static_oauth_config = {
+        'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
+        'bearer.auth.credentials.source': 'STATIC_TOKEN',
+        'bearer.auth.token': 'static-token',
+        'bearer.auth.logical.cluster': 'lsrc-12345',
+        'bearer.auth.identity.pool.id': 'pool-abcd',
+    }
     static_oauth_sr_client = SchemaRegistryClient(static_oauth_config)
     print(static_oauth_sr_client.get_subjects())
 
@@ -44,7 +46,8 @@ def main():
         'bearer.auth.scope': 'schema_registry',
         'bearer.auth.issuer.endpoint.url': 'https://yourauthprovider.com/v1/token',
         'bearer.auth.logical.cluster': 'lsrc-12345',
-        'bearer.auth.identity.pool.id': 'pool-abcd'}
+        'bearer.auth.identity.pool.id': 'pool-abcd',
+    }
 
     client_credentials_oauth_sr_client = SchemaRegistryClient(client_credentials_oauth_config)
     print(client_credentials_oauth_sr_client.get_subjects())
@@ -52,13 +55,18 @@ def main():
     def custom_oauth_function(config):
         return config
 
-    custom_config = {'bearer.auth.token': 'example-token',
-                     'bearer.auth.logical.cluster': 'lsrc-12345', 'bearer.auth.identity.pool.id': 'pool-abcd'}
+    custom_config = {
+        'bearer.auth.token': 'example-token',
+        'bearer.auth.logical.cluster': 'lsrc-12345',
+        'bearer.auth.identity.pool.id': 'pool-abcd',
+    }
 
-    custom_sr_config = {'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
-                        'bearer.auth.credentials.source': 'CUSTOM',
-                        'bearer.auth.custom.provider.function': custom_oauth_function,
-                        'bearer.auth.custom.provider.config': custom_config}
+    custom_sr_config = {
+        'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
+        'bearer.auth.credentials.source': 'CUSTOM',
+        'bearer.auth.custom.provider.function': custom_oauth_function,
+        'bearer.auth.custom.provider.config': custom_config,
+    }
 
     custom_sr_client = SchemaRegistryClient(custom_sr_config)
     print(custom_sr_client.get_subjects())

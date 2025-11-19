@@ -20,7 +20,6 @@ import sys
 from uuid import uuid1
 
 from confluent_kafka import KafkaError
-
 from tests.common import TestConsumer
 
 
@@ -33,7 +32,7 @@ def called_by():
 
 def prefixed_error_cb(prefix):
     def error_cb(err):
-        """ Reports global/generic errors to aid in troubleshooting test failures. """
+        """Reports global/generic errors to aid in troubleshooting test failures."""
         print("[{}]: {}".format(prefix, err))
 
     return error_cb
@@ -41,10 +40,9 @@ def prefixed_error_cb(prefix):
 
 def prefixed_delivery_cb(prefix):
     def delivery_err(err, msg):
-        """ Reports failed message delivery to aid in troubleshooting test failures. """
+        """Reports failed message delivery to aid in troubleshooting test failures."""
         if err:
-            print("[{}]: Message delivery failed ({} [{}]): {}".format(
-                prefix, msg.topic(), str(msg.partition()), err))
+            print("[{}]: Message delivery failed ({} [{}]): {}".format(prefix, msg.topic(), str(msg.partition()), err))
             return
 
     return delivery_err
@@ -53,10 +51,12 @@ def prefixed_delivery_cb(prefix):
 def test_commit_transaction(kafka_cluster):
     output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
-    producer = kafka_cluster.producer({
-        'transactional.id': 'example_transactional_id',
-        'error_cb': prefixed_error_cb('test_commit_transaction'),
-    })
+    producer = kafka_cluster.producer(
+        {
+            'transactional.id': 'example_transactional_id',
+            'error_cb': prefixed_error_cb('test_commit_transaction'),
+        }
+    )
 
     producer.init_transactions()
     transactional_produce(producer, output_topic, 100)
@@ -68,10 +68,12 @@ def test_commit_transaction(kafka_cluster):
 def test_abort_transaction(kafka_cluster):
     output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
-    producer = kafka_cluster.producer({
-        'transactional.id': 'example_transactional_id',
-        'error_cb': prefixed_error_cb('test_abort_transaction'),
-    })
+    producer = kafka_cluster.producer(
+        {
+            'transactional.id': 'example_transactional_id',
+            'error_cb': prefixed_error_cb('test_abort_transaction'),
+        }
+    )
 
     producer.init_transactions()
     transactional_produce(producer, output_topic, 100)
@@ -83,10 +85,12 @@ def test_abort_transaction(kafka_cluster):
 def test_abort_retry_commit_transaction(kafka_cluster):
     output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
-    producer = kafka_cluster.producer({
-        'transactional.id': 'example_transactional_id',
-        'error_cb': prefixed_error_cb('test_abort_retry_commit_transaction'),
-    })
+    producer = kafka_cluster.producer(
+        {
+            'transactional.id': 'example_transactional_id',
+            'error_cb': prefixed_error_cb('test_abort_retry_commit_transaction'),
+        }
+    )
 
     producer.init_transactions()
     transactional_produce(producer, output_topic, 100)
@@ -102,18 +106,20 @@ def test_send_offsets_committed_transaction(kafka_cluster):
     input_topic = kafka_cluster.create_topic_and_wait_propogation("input_topic")
     output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
     error_cb = prefixed_error_cb('test_send_offsets_committed_transaction')
-    producer = kafka_cluster.producer({
-        'client.id': 'producer1',
-        'transactional.id': 'example_transactional_id',
-        'error_cb': error_cb,
-    })
+    producer = kafka_cluster.producer(
+        {
+            'client.id': 'producer1',
+            'transactional.id': 'example_transactional_id',
+            'error_cb': error_cb,
+        }
+    )
 
     consumer_conf = {
         'group.id': str(uuid1()),
         'auto.offset.reset': 'earliest',
         'enable.auto.commit': False,
         'enable.partition.eof': True,
-        'error_cb': error_cb
+        'error_cb': error_cb,
     }
     consumer_conf.update(kafka_cluster.client_conf())
     consumer = TestConsumer(consumer_conf)
@@ -132,11 +138,9 @@ def test_send_offsets_committed_transaction(kafka_cluster):
     producer.send_offsets_to_transaction(consumer_position, group_metadata)
     producer.commit_transaction()
 
-    producer2 = kafka_cluster.producer({
-        'client.id': 'producer2',
-        'transactional.id': 'example_transactional_id',
-        'error_cb': error_cb
-    })
+    producer2 = kafka_cluster.producer(
+        {'client.id': 'producer2', 'transactional.id': 'example_transactional_id', 'error_cb': error_cb}
+    )
 
     # ensure offset commits are visible prior to sending FetchOffsets request
     producer2.init_transactions()
@@ -150,8 +154,7 @@ def test_send_offsets_committed_transaction(kafka_cluster):
 
 
 def transactional_produce(producer, topic, num_messages):
-    print("=== Producing {} transactional messages to topic {}. ===".format(
-        num_messages, topic))
+    print("=== Producing {} transactional messages to topic {}. ===".format(num_messages, topic))
 
     producer.begin_transaction()
 
@@ -176,7 +179,7 @@ def read_all_msgs(consumer):
     msg_cnt = 0
     eof = {}
     print("=== Draining {} ===".format(consumer.assignment()))
-    while (True):
+    while True:
         msg = consumer.poll(timeout=1.0)
 
         if msg is None:
@@ -199,11 +202,13 @@ def read_all_msgs(consumer):
 def consume_committed(conf, topic):
     print("=== Consuming transactional messages from topic {}. ===".format(topic))
 
-    consumer_conf = {'group.id': str(uuid1()),
-                     'auto.offset.reset': 'earliest',
-                     'enable.auto.commit': False,
-                     'enable.partition.eof': True,
-                     'error_cb': prefixed_error_cb(called_by()), }
+    consumer_conf = {
+        'group.id': str(uuid1()),
+        'auto.offset.reset': 'earliest',
+        'enable.auto.commit': False,
+        'enable.partition.eof': True,
+        'error_cb': prefixed_error_cb(called_by()),
+    }
 
     consumer_conf.update(conf)
     consumer = TestConsumer(consumer_conf)
