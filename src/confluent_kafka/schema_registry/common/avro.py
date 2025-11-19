@@ -225,14 +225,14 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
 
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
     is_wrapped_union = isinstance(message, tuple) and len(message) == 2
-    is_typed_union = '-type' in message
+    is_typed_union = isinstance(message, dict) and '-type' in message
     for subschema in schema:
         try:
             if is_wrapped_union:
-                if message[0] == subschema["name"]:
+                if isinstance(subschema, dict) and subschema["name"] == message[0]:
                     return (subschema, message[1])
             elif is_typed_union:
-                if message['-type'] == subschema["name"]:
+                if isinstance(subschema, dict) and subschema["name"] == message['-type']:
                     return (subschema, message)
             else:
                 validate(message, subschema)
