@@ -282,7 +282,9 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 
 	self->u.Consumer.rebalance_assigned++;
 
+        Py_BEGIN_ALLOW_THREADS
 	err = rd_kafka_assign(self->rk, c_parts);
+        Py_END_ALLOW_THREADS
 
 	rd_kafka_topic_partition_list_destroy(c_parts);
 
@@ -309,7 +311,10 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
 	self->u.Consumer.rebalance_assigned++;
 
+        Py_BEGIN_ALLOW_THREADS
 	err = rd_kafka_assign(self->rk, NULL);
+        Py_END_ALLOW_THREADS
+
 	if (err) {
 		cfl_PyErr_Format(err,
 				 "Failed to remove assignment: %s",

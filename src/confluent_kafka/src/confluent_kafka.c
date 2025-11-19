@@ -27,6 +27,7 @@
 
 #include "confluent_kafka.h"
 
+#include <arpa/inet.h>
 #include <stdarg.h>
 
 
@@ -1963,6 +1964,38 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	return 0;
 }
 
+static int connect_cb(int sockfd, const struct sockaddr *addr, int addrlen, const char *id, void *opaque) {
+        Handle *h = opaque;
+        PyObject *so = NULL, *ao = NULL, *io = NULL, *result = NULL;
+        const struct sockaddr_in *addr_in = NULL;
+        PyGILState_STATE gil;
+
+        gil = PyGILState_Ensure();
+
+        assert(addr->sa_family == AF_INET);
+        addr_in = (const struct sockaddr_in *)addr;
+
+        so = Py_BuildValue("i", sockfd);
+        ao = Py_BuildValue("(si)",
+                           inet_ntoa(addr_in->sin_addr),
+                           ntohs(addr_in->sin_port));
+        io = Py_BuildValue("s", id);
+        result = PyObject_CallFunctionObjArgs(h->connect_cb, so, ao, io, NULL);
+        Py_DECREF(io);
+        Py_DECREF(ao);
+        Py_DECREF(so);
+
+        if (result)
+                Py_DECREF(result);
+        else {
+                rd_kafka_yield(h->rk);
+        }
+
+/* done: */
+        PyGILState_Release(gil);
+        return 0;
+}
+
 static void log_cb (const rd_kafka_t *rk, int level,
                     const char *fac, const char *buf) {
         Handle *h = rd_kafka_opaque(rk);
@@ -2579,6 +2612,24 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         }
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
+                } else if (!strcmp(k, "connect_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_ValueError,
+                                        "expected connect_cb property "
+                                        "as a callable function");
+                                goto inner_err;
+                        }
+                        if (h->connect_cb) {
+                                Py_DECREF(h->connect_cb);
+                                h->connect_cb = NULL;
+                        }
+                        if (vo != Py_None) {
+                                h->connect_cb = vo;
+                                Py_INCREF(h->connect_cb);
+                        }
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        rd_kafka_conf_set_connect_cb(conf, connect_cb);
                         continue;
                 }
 

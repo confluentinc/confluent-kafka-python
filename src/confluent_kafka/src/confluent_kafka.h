@@ -219,6 +219,7 @@ typedef struct {
 	PyObject *error_cb;
 	PyObject *throttle_cb;
 	PyObject *stats_cb;
+        PyObject *connect_cb;
         int initiated;
 
         /* Thread-Local-Storage key */
