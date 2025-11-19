@@ -18,6 +18,7 @@ from confluent_kafka.avro import AvroProducer
 
 
 def error_cb(err):
+    print ("jing liu error cb")
     print('error_cb', err)
 
 
@@ -170,6 +171,30 @@ def test_dr_msg_errstr():
     # Invalid unicode sequence
     p.produce('mytopic', "\xc2\xc2", on_delivery=handle_dr)
 
+    p.flush()
+
+
+def test_set_partitioner_cb():
+    """
+    Test ability to set custom partitioner call back
+    """
+
+    def partitioner_cb(keydata, partition_cnt):
+        print("Jing Liu partitioner cb partition_cnt", keydata)
+        return 1
+
+    p = Producer({'bootstrap.servers':'127.0.0.1:9092', "socket.timeout.ms": 10,
+                  "error_cb": error_cb, "partitioner_cb":partitioner_cb,
+                  "sticky.partitioning.linger.ms": 0})
+    try:
+        p.produce('mytopic2', "This is the message payload", "test")
+        p.produce('mytopic2', "This is the message payload 1", "test")
+        p.produce('mytopic2', "This is the message payload 2", "Test")
+    except SystemError as e:
+        print(e)
+    except KafkaException as e:
+        print(e)
+    
     p.flush()
 
 
