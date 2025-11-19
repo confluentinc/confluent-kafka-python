@@ -87,6 +87,7 @@ skip = [
     "dist",
     "tmp-build",
     "tmp-KafkaCluster",
+    ".tox",
 ]
 skip_glob = [
     "*_pb2.py",
