@@ -912,6 +912,12 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
         else
                 self->latency = -1;
 
+#ifdef RD_KAFKA_V_HEADERS
+    rd_kafka_headers_t* hdrs;
+    if (rd_kafka_message_headers(rkm, &hdrs) == RD_KAFKA_RESP_ERR_NO_ERROR)
+        self->c_headers = rd_kafka_headers_copy(hdrs);
+#endif
+
 	return (PyObject *)self;
 }
 
