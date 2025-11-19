@@ -55,7 +55,24 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 
    ```bash
    python3 -c "import confluent_kafka; print('Setup successful!')"
-   ```
+
+#### Local Setup with UV
+
+Alternative setup instructions tested with python 3.11
+
+```bash
+# Modify pyproject.toml to require python version >=3.11
+# This fixes the cel-python dependency conflict
+uv venv --python 3.11
+source .venv/bin/activate
+
+uv sync --extra dev --extra tests
+uv pip install trivup setuptools
+pytest tests/
+
+# When making changes, change project.version in pyproject.toml before re-running:
+uv sync --extra dev --extra tests
+```
 
 <!-- markdownlint-enable MD029 -->
 
