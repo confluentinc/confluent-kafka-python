@@ -174,6 +174,8 @@ def test_create_topics_api():
         a.create_topics([NewTopic("mytopic", 3, 2,
                                   config=["fails", "because not a dict"])])
 
+    fs = a.create_topics([NewTopic("mytopicDefault")])
+
 
 def test_delete_topics_api():
     """ delete_topics() tests, these wont really do anything since there is no
