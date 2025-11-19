@@ -50,9 +50,9 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
         # Run these actions and tests only in this case
         echo "Checking code formatting ..."
-        # Only check Python files (not C files) to avoid requiring clang-format in CI
-        python_files=$(git ls-tree -r --name-only HEAD | egrep '\.py$')
-        tools/style-format.sh $python_files || exit 1
+        # Check all tracked files (Python and C)
+        all_files=$(git ls-tree -r --name-only HEAD | egrep '\.(py|c|h)$')
+        tools/style-format.sh $all_files || exit 1
         echo "Building documentation ..."
         flake8 --exclude ./_venv,*_pb2.py,./build
         pip install -r requirements/requirements-docs.txt
