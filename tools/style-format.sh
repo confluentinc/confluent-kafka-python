@@ -101,6 +101,9 @@ for f in $*; do
         if [[ $lang == c ]]; then
             # Run clang-format to reformat the file
             ${CLANG_FORMAT} --style="$style" "$f" > _styletmp
+            # Move the formatted content back to the original file
+            mv _styletmp "$f"
+            echo "[$file_num/$file_count] $f: style fixed (clang-format)"
 
         else
             # Run isort and black to format the file 
