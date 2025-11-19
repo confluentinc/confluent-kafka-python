@@ -430,22 +430,22 @@ static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) 
 
         CallState_begin(self, &cs);
 
-		/* Flush any pending messages (wait indefinitely to ensure delivery) */
-		err = rd_kafka_flush(self->rk, -1);
+                /* Flush any pending messages (wait indefinitely to ensure delivery) */
+                err = rd_kafka_flush(self->rk, -1);
 
-		/* Destroy the producer (even if flush had issues) */
-		rd_kafka_destroy(self->rk);
-		self->rk = NULL;
+                /* Destroy the producer (even if flush had issues) */
+                rd_kafka_destroy(self->rk);
+                self->rk = NULL;
 
-		if (!CallState_end(self, &cs))
-			return NULL;
+                if (!CallState_end(self, &cs))
+                        return NULL;
 
-		/* If flush failed, warn but don't suppress original exception */
-		if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-			PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
-					"Producer flush failed during close: %s",
-					rd_kafka_err2str(err));
-		}
+                /* If flush failed, warn but don't suppress original exception */
+                if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                        PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+                                        "Producer flush failed during close: %s",
+                                        rd_kafka_err2str(err));
+                }
 
         Py_RETURN_TRUE;
 }

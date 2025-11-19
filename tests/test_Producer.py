@@ -1373,12 +1373,7 @@ def test_producer_close():
     """
     Ensures the producer close can be requested on demand
     """
-    conf = {
-        'debug': 'all',
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
+    conf = {'debug': 'all', 'socket.timeout.ms': 10, 'error_cb': error_cb, 'message.timeout.ms': 10}
     producer = Producer(conf)
     cb_detector = {"on_delivery_called": False}
 

@@ -15,4 +15,4 @@ async-timeout
 
 # Formatting tools
 black>=24.0.0
-isort>=7.0.0
+isort>=5.13.0
