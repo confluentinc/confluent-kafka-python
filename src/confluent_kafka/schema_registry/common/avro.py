@@ -5,7 +5,7 @@ from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
 import json
-from typing import Dict, Union, Optional, Set
+from typing import Dict, Union, Optional, Set, Tuple
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
@@ -42,6 +42,7 @@ AvroMessage = Union[
     bytes,  # 'bytes'
     list,  # 'array'
     dict,  # 'map' and 'record'
+    tuple,  # wrapped union type
 ]
 AvroSchema = Union[str, list, dict]
 
@@ -109,10 +110,13 @@ def transform(
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
     if isinstance(schema, list):
-        subschema = _resolve_union(schema, message)
+        (subschema, submessage) = _resolve_union(schema, message)
         if subschema is None:
             return message
-        return transform(ctx, subschema, message, field_transform)
+        submessage = transform(ctx, subschema, submessage, field_transform)
+        if isinstance(message, tuple) and len(message) == 2:
+            return (message[0], submessage)
+        return submessage
     elif isinstance(schema, dict):
         schema_type = schema.get("type")
         if schema_type == 'array':
@@ -219,14 +223,23 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
     return True
 
 
-def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Optional[AvroSchema]:
+def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
+    is_wrapped_union = isinstance(message, tuple) and len(message) == 2
+    is_typed_union = isinstance(message, dict) and '-type' in message
     for subschema in schema:
         try:
-            validate(message, subschema)
+            if is_wrapped_union:
+                if isinstance(subschema, dict) and subschema["name"] == message[0]:
+                    return (subschema, message[1])
+            elif is_typed_union:
+                if isinstance(subschema, dict) and subschema["name"] == message['-type']:
+                    return (subschema, message)
+            else:
+                validate(message, subschema)
+                return (subschema, message)
         except:  # noqa: E722
             continue
-        return subschema
-    return None
+    return (None, message)
 
 
 def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
