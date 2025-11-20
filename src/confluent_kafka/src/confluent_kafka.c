@@ -789,54 +789,80 @@ static PySequenceMethods Message_seq_methods = {
 };
 
 PyTypeObject MessageType = {
-    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.Message", /*tp_name*/
-    sizeof(Message),                                /*tp_basicsize*/
-    0,                                              /*tp_itemsize*/
-    (destructor)Message_dealloc,                    /*tp_dealloc*/
-    0,                                              /*tp_print*/
-    0,                                              /*tp_getattr*/
-    0,                                              /*tp_setattr*/
-    0,                                              /*tp_compare*/
-    0,                                              /*tp_repr*/
-    0,                                              /*tp_as_number*/
-    &Message_seq_methods,                           /*tp_as_sequence*/
-    0,                                              /*tp_as_mapping*/
-    0,                                              /*tp_hash */
-    0,                                              /*tp_call*/
-    0,                                              /*tp_str*/
-    PyObject_GenericGetAttr,                        /*tp_getattro*/
-    0,                                              /*tp_setattro*/
-    0,                                              /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-    "The Message object represents either a single consumed or "
-    "produced message, or an event (:py:func:`error()` is not None).\n"
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.Message",         /*tp_name*/
+	sizeof(Message),       /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)Message_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	&Message_seq_methods,  /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	PyObject_GenericGetAttr,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+	"The Message object represents either a single consumed or "
+	"produced message, or an event (:py:func:`error()` is not None).\n"
+	"\n"
+	"An application must check with :py:func:`error()` to see if the "
+	"object is a proper message (error() returns None) or an "
+	"error/event.\n"
+	"\n"
+	".. py:function:: Message([topic], [partition], [offset], [key], [value], [headers], [error], [timestamp], [latency], [leader_epoch])\n"
+	"\n"
+		"  Instantiate a Message object.\n"
+        "\n"
+	"  .. warning::"
+        "    This constructor is intended **only for testing and mock scenarios**."
+        "    Do **not** use user instantiated Message object in mainstream APIs or in production."
+        "    Using this constructor outside of test environments may result in"
+        "    unexpected behavior, security issues, or inconsistent application state.\n"
     "\n"
-    "An application must check with :py:func:`error()` to see if the "
-    "object is a proper message (error() returns None) or an "
-    "error/event.\n"
-    "\n"
-    ".. py:function:: len()\n"
-    "\n"
-    "  :returns: Message value (payload) size in bytes\n"
-    "  :rtype: int\n"
-    "\n",                           /*tp_doc*/
-    (traverseproc)Message_traverse, /* tp_traverse */
-    (inquiry)Message_clear,         /* tp_clear */
-    0,                              /* tp_richcompare */
-    0,                              /* tp_weaklistoffset */
-    0,                              /* tp_iter */
-    0,                              /* tp_iternext */
-    Message_methods,                /* tp_methods */
-    0,                              /* tp_members */
-    0,                              /* tp_getset */
-    0,                              /* tp_base */
-    0,                              /* tp_dict */
-    0,                              /* tp_descr_get */
-    0,                              /* tp_descr_set */
-    0,                              /* tp_dictoffset */
-    Message_init,                   /* tp_init */
-    0,                              /* tp_alloc */
-    Message_new                     /* tp_new */
+	"  All parameters are optional.\n"
+	"\n"
+	"  :param string topic: Topic name\n"
+	"  :param int partition: Partition number\n"
+	"  :param int offset: Message offset\n"
+	"  :param bytes key: Message key\n"
+	"  :param bytes value: Message value\n"
+	"  :param list headers: Message headers\n"
+	"  :param KafkaError error: KafkaError object\n"
+	"  :param tuple timestamp: (Timestamp type (int), Message epoch timestamp in seconds (int))\n"
+	"  :param float latency: Message latency in seconds\n"
+	"  :param int leader_epoch: Message leader epoch in seconds\n"
+	"  :rtype: Message\n"
+	"\n"
+	".. py:function:: len()\n"
+	"\n"
+	"  :returns: Message value (payload) size in bytes\n"
+	"  :rtype: int\n"
+	"\n", /*tp_doc*/
+	(traverseproc)Message_traverse,        /* tp_traverse */
+	(inquiry)Message_clear,	           /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	Message_methods,           /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	Message_init,                         /* tp_init */
+	0,                         /* tp_alloc */
+	Message_new                          /* tp_new */
 };
 
 /**
