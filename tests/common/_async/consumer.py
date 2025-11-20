@@ -15,8 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import sys
 import asyncio
+import sys
+
 if sys.version_info >= (3, 11):
     from asyncio import timeout
 else:
@@ -35,7 +36,7 @@ class AsyncConsumer(Consumer):
         self,
         conf: dict,
         loop: asyncio.AbstractEventLoop = None,
-        poll_interval_seconds: int = ASYNC_CONSUMER_POLL_INTERVAL_SECONDS
+        poll_interval_seconds: int = ASYNC_CONSUMER_POLL_INTERVAL_SECONDS,
     ):
         super().__init__(conf)
 

@@ -77,11 +77,9 @@ class MockSchemaRegistryClient(object):
         else:
             self.id_to_schema[schema_id] = schema
 
-        self._add_to_cache(self.subject_to_schema_ids,
-                           subject, schema, schema_id)
+        self._add_to_cache(self.subject_to_schema_ids, subject, schema, schema_id)
 
-        self._add_to_cache(self.subject_to_schema_versions,
-                           subject, schema, version)
+        self._add_to_cache(self.subject_to_schema_versions, subject, schema, version)
 
         if subject in self.subject_to_latest_schema:
             si, s, v = self.subject_to_latest_schema[subject]

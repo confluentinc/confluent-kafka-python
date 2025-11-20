@@ -21,9 +21,7 @@ from tink import aead
 class AzureKmsAead(aead.Aead):
     """Implements the Aead interface for Azure KMS."""
 
-    def __init__(
-        self, client: CryptographyClient, algorithm: EncryptionAlgorithm
-    ) -> None:
+    def __init__(self, client: CryptographyClient, algorithm: EncryptionAlgorithm) -> None:
         if not client:
             raise tink.TinkError('client cannot be null.')
         self.client = client

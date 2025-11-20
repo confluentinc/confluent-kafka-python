@@ -45,11 +45,19 @@ We use automated tools to maintain consistent code style:
 
 ```bash
 # Install formatting tools
-pip install flake8
+pip install black isort flake8
 
 # Check style
-flake8 src/ tests/
+make style-check
+
+# Fix style automatically
+make style-fix
 ```
+
+**Tools used:**
+- `black`: Automatic code formatter 
+- `isort`: Import statement organizer
+- `flake8`: Code linter for style and quality checks
 
 ### Naming Conventions
 
