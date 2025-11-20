@@ -35,10 +35,6 @@ T = TypeVar("T")
 class KekKmsProps:
     properties: Dict[str, str] = _attrs_field(init=False, factory=dict)
 
-    def __init__(self, properties: Dict[str, str]):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'properties', properties)
-
     def to_dict(self) -> Dict[str, Any]:
         field_dict: Dict[str, Any] = {}
         field_dict.update(self.properties)
@@ -64,27 +60,6 @@ class Kek:
     shared: Optional[bool]
     ts: Optional[int] = _attrs_field(default=None)
     deleted: Optional[bool] = _attrs_field(default=None)
-
-    def __init__(
-        self,
-        name: Optional[str] = None,
-        kms_type: Optional[str] = None,
-        kms_key_id: Optional[str] = None,
-        kms_props: Optional[KekKmsProps] = None,
-        doc: Optional[str] = None,
-        shared: Optional[bool] = None,
-        ts: Optional[int] = None,
-        deleted: Optional[bool] = None,
-    ):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'kms_type', kms_type)
-        object.__setattr__(self, 'kms_key_id', kms_key_id)
-        object.__setattr__(self, 'kms_props', kms_props)
-        object.__setattr__(self, 'doc', doc)
-        object.__setattr__(self, 'shared', shared)
-        object.__setattr__(self, 'ts', ts)
-        object.__setattr__(self, 'deleted', deleted)
 
     def to_dict(self) -> Dict[str, Any]:
         name = self.name
@@ -172,23 +147,6 @@ class CreateKekRequest:
     doc: Optional[str]
     shared: Optional[bool]
 
-    def __init__(
-        self,
-        name: Optional[str] = None,
-        kms_type: Optional[str] = None,
-        kms_key_id: Optional[str] = None,
-        kms_props: Optional[KekKmsProps] = None,
-        doc: Optional[str] = None,
-        shared: Optional[bool] = None,
-    ):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'kms_type', kms_type)
-        object.__setattr__(self, 'kms_key_id', kms_key_id)
-        object.__setattr__(self, 'kms_props', kms_props)
-        object.__setattr__(self, 'doc', doc)
-        object.__setattr__(self, 'shared', shared)
-
     def to_dict(self) -> Dict[str, Any]:
         name = self.name
 
@@ -274,27 +232,6 @@ class Dek:
     ts: Optional[int] = _attrs_field(default=None)
     deleted: Optional[bool] = _attrs_field(default=None)
     _lock: threading.Lock = _attrs_field(factory=threading.Lock, init=False, eq=False, order=False)
-
-    def __init__(
-        self,
-        kek_name: Optional[str] = None,
-        subject: Optional[str] = None,
-        version: Optional[int] = None,
-        algorithm: Optional[DekAlgorithm] = None,
-        encrypted_key_material: Optional[str] = None,
-        key_material: Optional[str] = None,
-        ts: Optional[int] = None,
-        deleted: Optional[bool] = None,
-    ):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'kek_name', kek_name)
-        object.__setattr__(self, 'subject', subject)
-        object.__setattr__(self, 'version', version)
-        object.__setattr__(self, 'algorithm', algorithm)
-        object.__setattr__(self, 'encrypted_key_material', encrypted_key_material)
-        object.__setattr__(self, 'key_material', key_material)
-        object.__setattr__(self, 'ts', ts)
-        object.__setattr__(self, 'deleted', deleted)
 
     def get_encrypted_key_material_bytes(self) -> Optional[bytes]:
         if self.encrypted_key_material is None:
@@ -405,19 +342,6 @@ class CreateDekRequest:
     algorithm: Optional[DekAlgorithm]
     encrypted_key_material: Optional[str]
 
-    def __init__(
-        self,
-        subject: Optional[str] = None,
-        version: Optional[int] = None,
-        algorithm: Optional[DekAlgorithm] = None,
-        encrypted_key_material: Optional[str] = None,
-    ):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'subject', subject)
-        object.__setattr__(self, 'version', version)
-        object.__setattr__(self, 'algorithm', algorithm)
-        object.__setattr__(self, 'encrypted_key_material', encrypted_key_material)
-
     def to_dict(self) -> Dict[str, Any]:
         subject = self.subject
 
@@ -472,11 +396,6 @@ class KekId:
     name: str
     deleted: bool
 
-    def __init__(self, name: str, deleted: bool):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'deleted', deleted)
-
 
 @_attrs_define(frozen=True)
 class DekId:
@@ -485,14 +404,6 @@ class DekId:
     version: int
     algorithm: DekAlgorithm
     deleted: bool
-
-    def __init__(self, kek_name: str, subject: str, version: int, algorithm: DekAlgorithm, deleted: bool):
-        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
-        object.__setattr__(self, 'kek_name', kek_name)
-        object.__setattr__(self, 'subject', subject)
-        object.__setattr__(self, 'version', version)
-        object.__setattr__(self, 'algorithm', algorithm)
-        object.__setattr__(self, 'deleted', deleted)
 
 
 class _KekCache(object):
