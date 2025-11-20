@@ -859,7 +859,7 @@ PyTypeObject MessageType = {
         "    Do **not** use user instantiated Message object in mainstream APIs or in production."
         "    Using this constructor outside of test environments may result in"
         "    unexpected behavior, security issues, or inconsistent application state.\n"
-        "\n"
+    "\n"
 	"  All parameters are optional.\n"
 	"\n"
 	"  :param string topic: Topic name\n"
