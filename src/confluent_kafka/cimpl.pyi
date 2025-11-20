@@ -34,9 +34,10 @@ TODO: Consider migrating to Cython in the future to eliminate this dual
 maintenance burden and get type hints directly from the implementation.
 """
 
-from typing import Any, Optional, Callable, List, Tuple, Dict, Union, overload
-from typing_extensions import Self, Literal
 import builtins
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
+
+from typing_extensions import Literal, Self
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
@@ -76,11 +77,19 @@ class KafkaException(Exception):
     args: Tuple[Any, ...]
 
 class Message:
-    def __init__(self, topic: Optional[str] = ..., partition: Optional[int] = ..., offset: Optional[int] = ...,
-                 key: Optional[bytes] = ..., value: Optional[bytes] = ...,
-                 headers: Optional[HeadersType] = ..., error: Optional[KafkaError] = ...,
-                 timestamp: Optional[Tuple[int, int]] = ..., latency: Optional[float] = ...,
-                 leader_epoch: Optional[int] = ...) -> None: ...
+    def __init__(
+        self,
+        topic: Optional[str] = ...,
+        partition: Optional[int] = ...,
+        offset: Optional[int] = ...,
+        key: Optional[bytes] = ...,
+        value: Optional[bytes] = ...,
+        headers: Optional[HeadersType] = ...,
+        error: Optional[KafkaError] = ...,
+        timestamp: Optional[Tuple[int, int]] = ...,
+        latency: Optional[float] = ...,
+        leader_epoch: Optional[int] = ...,
+    ) -> None: ...
     def topic(self) -> Optional[str]: ...
     def partition(self) -> Optional[int]: ...
     def offset(self) -> Optional[int]: ...
@@ -129,7 +138,7 @@ class Producer:
         callback: Optional[DeliveryCallback] = None,
         on_delivery: Optional[DeliveryCallback] = None,
         timestamp: int = 0,
-        headers: Optional[HeadersType] = None
+        headers: Optional[HeadersType] = None,
     ) -> None: ...
     def produce_batch(
         self,
@@ -137,25 +146,17 @@ class Producer:
         messages: List[Dict[str, Any]],
         partition: int = -1,
         callback: Optional[DeliveryCallback] = None,
-        on_delivery: Optional[DeliveryCallback] = None
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> int: ...
     def poll(self, timeout: float = -1) -> int: ...
     def flush(self, timeout: float = -1) -> int: ...
-    def purge(
-        self,
-        in_queue: bool = True,
-        in_flight: bool = True,
-        blocking: bool = True
-    ) -> None: ...
+    def purge(self, in_queue: bool = True, in_flight: bool = True, blocking: bool = True) -> None: ...
     def abort_transaction(self, timeout: float = -1) -> None: ...
     def begin_transaction(self) -> None: ...
     def commit_transaction(self, timeout: float = -1) -> None: ...
     def init_transactions(self, timeout: float = -1) -> None: ...
     def send_offsets_to_transaction(
-        self,
-        positions: List[TopicPartition],
-        group_metadata: Any,  # ConsumerGroupMetadata
-        timeout: float = -1
+        self, positions: List[TopicPartition], group_metadata: Any, timeout: float = -1  # ConsumerGroupMetadata
     ) -> None: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
@@ -171,7 +172,7 @@ class Consumer:
         topics: List[str],
         on_assign: Optional[RebalanceCallback] = None,
         on_revoke: Optional[RebalanceCallback] = None,
-        on_lost: Optional[RebalanceCallback] = None
+        on_lost: Optional[RebalanceCallback] = None,
     ) -> None: ...
     def unsubscribe(self) -> None: ...
     def poll(self, timeout: float = -1) -> Optional[Message]: ...
@@ -184,44 +185,31 @@ class Consumer:
         self,
         message: Optional['Message'] = None,
         offsets: Optional[List[TopicPartition]] = None,
-        asynchronous: Literal[True] = True
+        asynchronous: Literal[True] = True,
     ) -> None: ...
     @overload
     def commit(
         self,
         message: Optional['Message'] = None,
         offsets: Optional[List[TopicPartition]] = None,
-        asynchronous: Literal[False] = False
+        asynchronous: Literal[False] = False,
     ) -> List[TopicPartition]: ...
     def get_watermark_offsets(
-        self,
-        partition: TopicPartition,
-        timeout: float = -1,
-        cached: bool = False
+        self, partition: TopicPartition, timeout: float = -1, cached: bool = False
     ) -> Tuple[int, int]: ...
     def pause(self, partitions: List[TopicPartition]) -> None: ...
     def resume(self, partitions: List[TopicPartition]) -> None: ...
     def seek(self, partition: TopicPartition) -> None: ...
     def position(self, partitions: List[TopicPartition]) -> List[TopicPartition]: ...
     def store_offsets(
-        self,
-        message: Optional['Message'] = None,
-        offsets: Optional[List[TopicPartition]] = None
+        self, message: Optional['Message'] = None, offsets: Optional[List[TopicPartition]] = None
     ) -> None: ...
-    def committed(
-        self,
-        partitions: List[TopicPartition],
-        timeout: float = -1
-    ) -> List[TopicPartition]: ...
+    def committed(self, partitions: List[TopicPartition], timeout: float = -1) -> List[TopicPartition]: ...
     def close(self) -> None: ...
     def __enter__(self) -> "Consumer": ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
-    def offsets_for_times(
-        self,
-        partitions: List[TopicPartition],
-        timeout: float = -1
-    ) -> List[TopicPartition]: ...
+    def offsets_for_times(self, partitions: List[TopicPartition], timeout: float = -1) -> List[TopicPartition]: ...
     def incremental_assign(self, partitions: List[TopicPartition]) -> None: ...
     def incremental_unassign(self, partitions: List[TopicPartition]) -> None: ...
     def consumer_group_metadata(self) -> Any: ...  # ConsumerGroupMetadata
@@ -239,14 +227,10 @@ class _AdminClientImpl:
         future: Any,
         validate_only: bool = False,
         request_timeout: float = -1,
-        operation_timeout: float = -1
+        operation_timeout: float = -1,
     ) -> None: ...
     def delete_topics(
-        self,
-        topics: List[str],
-        future: Any,
-        request_timeout: float = -1,
-        operation_timeout: float = -1
+        self, topics: List[str], future: Any, request_timeout: float = -1, operation_timeout: float = -1
     ) -> None: ...
     def create_partitions(
         self,
@@ -254,88 +238,54 @@ class _AdminClientImpl:
         future: Any,
         validate_only: bool = False,
         request_timeout: float = -1,
-        operation_timeout: float = -1
+        operation_timeout: float = -1,
     ) -> None: ...
     def describe_topics(
         self,
         future: Any,
         topic_names: List[str],
         request_timeout: float = -1,
-        include_authorized_operations: bool = False
+        include_authorized_operations: bool = False,
     ) -> None: ...
     def describe_cluster(
-        self,
-        future: Any,
-        request_timeout: float = -1,
-        include_authorized_operations: bool = False
+        self, future: Any, request_timeout: float = -1, include_authorized_operations: bool = False
     ) -> None: ...
-    def list_topics(
-        self,
-        topic: Optional[str] = None,
-        timeout: float = -1
-    ) -> ClusterMetadata: ...
-    def list_groups(
-        self,
-        group: Optional[str] = None,
-        timeout: float = -1
-    ) -> List[GroupMetadata]: ...
+    def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> ClusterMetadata: ...
+    def list_groups(self, group: Optional[str] = None, timeout: float = -1) -> List[GroupMetadata]: ...
     def describe_consumer_groups(
         self,
         group_ids: List[str],
         future: Any,
         request_timeout: float = -1,
-        include_authorized_operations: bool = False
+        include_authorized_operations: bool = False,
     ) -> None: ...
     def list_consumer_groups(
         self,
         future: Any,
         states_int: Optional[List[int]] = None,
         types_int: Optional[List[int]] = None,
-        request_timeout: float = -1
+        request_timeout: float = -1,
     ) -> None: ...
     def list_consumer_group_offsets(
         self,
         request: Any,  # ConsumerGroupTopicPartitions
         future: Any,
         require_stable: bool = False,
-        request_timeout: float = -1
+        request_timeout: float = -1,
     ) -> None: ...
     def alter_consumer_group_offsets(
-        self,
-        requests: Any,  # List[ConsumerGroupTopicPartitions]
-        future: Any,
-        request_timeout: float = -1
+        self, requests: Any, future: Any, request_timeout: float = -1  # List[ConsumerGroupTopicPartitions]
     ) -> None: ...
-    def delete_consumer_groups(
-        self,
-        group_ids: List[str],
-        future: Any,
-        request_timeout: float = -1
-    ) -> None: ...
-    def create_acls(
-        self,
-        acls: List[Any],  # List[AclBinding]
-        future: Any,
-        request_timeout: float = -1
-    ) -> None: ...
+    def delete_consumer_groups(self, group_ids: List[str], future: Any, request_timeout: float = -1) -> None: ...
+    def create_acls(self, acls: List[Any], future: Any, request_timeout: float = -1) -> None: ...  # List[AclBinding]
     def describe_acls(
-        self,
-        acl_binding_filter: Any,  # AclBindingFilter
-        future: Any,
-        request_timeout: float = -1
+        self, acl_binding_filter: Any, future: Any, request_timeout: float = -1  # AclBindingFilter
     ) -> None: ...
     def delete_acls(
-        self,
-        acls: List[Any],  # List[AclBindingFilter]
-        future: Any,
-        request_timeout: float = -1
+        self, acls: List[Any], future: Any, request_timeout: float = -1  # List[AclBindingFilter]
     ) -> None: ...
     def describe_configs(
-        self,
-        resources: List[Any],  # List[ConfigResource]
-        future: Any,
-        request_timeout: float = -1,
-        broker: int = -1
+        self, resources: List[Any], future: Any, request_timeout: float = -1, broker: int = -1  # List[ConfigResource]
     ) -> None: ...
     def alter_configs(
         self,
@@ -343,7 +293,7 @@ class _AdminClientImpl:
         future: Any,
         validate_only: bool = False,
         request_timeout: float = -1,
-        broker: int = -1
+        broker: int = -1,
     ) -> None: ...
     def incremental_alter_configs(
         self,
@@ -351,33 +301,27 @@ class _AdminClientImpl:
         future: Any,
         validate_only: bool = False,
         request_timeout: float = -1,
-        broker: int = -1
+        broker: int = -1,
     ) -> None: ...
     def describe_user_scram_credentials(
-        self,
-        users: Optional[List[str]],
-        future: Any,
-        request_timeout: float = -1
+        self, users: Optional[List[str]], future: Any, request_timeout: float = -1
     ) -> None: ...
     def alter_user_scram_credentials(
-        self,
-        alterations: List[Any],  # List[UserScramCredentialAlteration]
-        future: Any,
-        request_timeout: float = -1
+        self, alterations: List[Any], future: Any, request_timeout: float = -1  # List[UserScramCredentialAlteration]
     ) -> None: ...
     def list_offsets(
         self,
         topic_partitions: List[TopicPartition],
         future: Any,
         isolation_level_value: Optional[int] = None,
-        request_timeout: float = -1
+        request_timeout: float = -1,
     ) -> None: ...
     def delete_records(
         self,
         topic_partition_offsets: List[TopicPartition],
         future: Any,
         request_timeout: float = -1,
-        operation_timeout: float = -1
+        operation_timeout: float = -1,
     ) -> None: ...
     def elect_leaders(
         self,
@@ -385,7 +329,7 @@ class _AdminClientImpl:
         partitions: Optional[List[TopicPartition]],
         future: Any,
         request_timeout: float = -1,
-        operation_timeout: float = -1
+        operation_timeout: float = -1,
     ) -> None: ...
     def poll(self, timeout: float = -1) -> int: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
@@ -397,7 +341,7 @@ class NewTopic:
         num_partitions: int = -1,
         replication_factor: int = -1,
         replica_assignment: Optional[List[List[int]]] = None,
-        config: Optional[Dict[str, str]] = None
+        config: Optional[Dict[str, str]] = None,
     ) -> None: ...
     topic: str
     num_partitions: int
@@ -415,10 +359,7 @@ class NewTopic:
 
 class NewPartitions:
     def __init__(
-        self,
-        topic: str,
-        new_total_count: int,
-        replica_assignment: Optional[List[List[int]]] = None
+        self, topic: str, new_total_count: int, replica_assignment: Optional[List[List[int]]] = None
     ) -> None: ...
     topic: str
     new_total_count: int
@@ -436,7 +377,6 @@ class NewPartitions:
 
 def libversion() -> Tuple[str, int]: ...
 def version() -> Tuple[str, int]: ...
-
 def murmur2(key: bytes, partition_count: int) -> int: ...
 def consistent(key: bytes, partition_count: int) -> int: ...
 def fnv1a(key: bytes, partition_count: int) -> int: ...
