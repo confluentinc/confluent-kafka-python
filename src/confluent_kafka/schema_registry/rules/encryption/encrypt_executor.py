@@ -365,7 +365,7 @@ class EncryptionExecutorTransform(object):
             ctx.rule_mode != RuleMode.READ
             and self._dek_expiry_days > 0
             and dek is not None
-            and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days
+            and (now - (dek.ts or 0)) / MILLIS_IN_DAY > self._dek_expiry_days
         )  # type: ignore[operator]
 
     def transform(self, ctx: RuleContext, field_type: FieldType, field_value: Any) -> Any:
