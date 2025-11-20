@@ -1057,7 +1057,7 @@ addition to the properties dictated by the underlying librdkafka C library:
   where ``expiry_time`` is the time in seconds since the epoch as a floating point number.
   This callback is useful only when ``sasl.mechanisms=OAUTHBEARER`` is set and
   is served to get the initial token before a successful broker connection can be made.
-  The callback can be triggered by calling ``client.poll()`` or ``producer.flush()``.
+  The callback is asynchronously triggered by the background thread to maintain token validity.``.
 
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
