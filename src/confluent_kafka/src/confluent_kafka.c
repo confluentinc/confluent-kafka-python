@@ -2023,7 +2023,7 @@ int wait_for_oauth_token_set(Handle *h) {
         if (!h->oauth_cb)
                 return 0;
 
-        int max_wait_sec       = 5;
+        int max_wait_sec       = 10;
         int retry_interval_sec = 1; /* Check every 1 sec */
         int elapsed_sec        = 0;
         while (!h->oauth_token_set && elapsed_sec < max_wait_sec) {
