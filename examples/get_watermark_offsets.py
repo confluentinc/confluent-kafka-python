@@ -21,8 +21,8 @@
 
 
 import sys
-import confluent_kafka
 
+import confluent_kafka
 
 if len(sys.argv) < 4:
     sys.stderr.write("Usage: {} <brokers> <group.id> <topic> <topic2..>\n".format(sys.argv[0]))
@@ -33,8 +33,7 @@ brokers, group = sys.argv[1:3]
 # Create consumer.
 # This consumer will not join the group, but the group.id is required by
 # committed() to know which group to get offsets for.
-consumer = confluent_kafka.Consumer({'bootstrap.servers': brokers,
-                                     'group.id': group})
+consumer = confluent_kafka.Consumer({'bootstrap.servers': brokers, 'group.id': group})
 
 
 print("%-50s  %9s  %9s" % ("Topic [Partition]", "Committed", "Lag"))
@@ -71,8 +70,7 @@ for topic in sys.argv[3:]:
         else:
             lag = "%d" % (hi - partition.offset)
 
-        print("%-50s  %9s  %9s" % (
-            "{} [{}]".format(partition.topic, partition.partition), offset, lag))
+        print("%-50s  %9s  %9s" % ("{} [{}]".format(partition.topic, partition.partition), offset, lag))
 
 
 consumer.close()

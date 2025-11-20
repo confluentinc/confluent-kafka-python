@@ -23,16 +23,12 @@ import struct
 import uuid
 from enum import Enum
 from threading import Lock
-from typing import Callable, List, Optional, Set, Dict, Any, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
 
-from confluent_kafka.schema_registry import (RegisteredSchema,
-                                             _MAGIC_BYTE_V0,
-                                             _MAGIC_BYTE_V1)
-from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
-    Rule, RuleKind, Schema
+from confluent_kafka.schema_registry import _MAGIC_BYTE_V0, _MAGIC_BYTE_V1, RegisteredSchema
+from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
 from confluent_kafka.serialization import SerializationContext, SerializationError
-
 
 __all__ = [
     'FieldType',
@@ -50,7 +46,7 @@ __all__ = [
     'RuleConditionError',
     'Migration',
     'ParsedSchemaCache',
-    'SchemaId'
+    'SchemaId',
 ]
 
 log = logging.getLogger(__name__)
@@ -76,10 +72,7 @@ class FieldType(str, Enum):
 class FieldContext(object):
     __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags']
 
-    def __init__(
-        self, containing_message: Any, full_name: str, name: str,
-        field_type: FieldType, tags: Set[str]
-    ):
+    def __init__(self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Set[str]):
         self.containing_message = containing_message
         self.full_name = full_name
         self.name = name
@@ -87,22 +80,48 @@ class FieldContext(object):
         self.tags = tags
 
     def is_primitive(self) -> bool:
-        return self.field_type in (FieldType.INT, FieldType.LONG, FieldType.FLOAT,
-                                   FieldType.DOUBLE, FieldType.BOOLEAN, FieldType.NULL,
-                                   FieldType.STRING, FieldType.BYTES)
+        return self.field_type in (
+            FieldType.INT,
+            FieldType.LONG,
+            FieldType.FLOAT,
+            FieldType.DOUBLE,
+            FieldType.BOOLEAN,
+            FieldType.NULL,
+            FieldType.STRING,
+            FieldType.BYTES,
+        )
 
     def type_name(self) -> str:
         return self.field_type.name
 
 
 class RuleContext(object):
-    __slots__ = ['ser_ctx', 'source', 'target', 'subject', 'rule_mode', 'rule',
-                 'index', 'rules', 'inline_tags', 'field_transformer', '_field_contexts']
+    __slots__ = [
+        'ser_ctx',
+        'source',
+        'target',
+        'subject',
+        'rule_mode',
+        'rule',
+        'index',
+        'rules',
+        'inline_tags',
+        'field_transformer',
+        '_field_contexts',
+    ]
 
     def __init__(
-        self, ser_ctx: SerializationContext, source: Optional[Schema],
-        target: Optional[Schema], subject: str, rule_mode: RuleMode, rule: Rule,
-        index: int, rules: List[Rule], inline_tags: Optional[Dict[str, Set[str]]], field_transformer
+        self,
+        ser_ctx: SerializationContext,
+        source: Optional[Schema],
+        target: Optional[Schema],
+        subject: str,
+        rule_mode: RuleMode,
+        rule: Rule,
+        index: int,
+        rules: List[Rule],
+        inline_tags: Optional[Dict[str, Set[str]]],
+        field_transformer,
     ):
         self.ser_ctx = ser_ctx
         self.source = source
@@ -122,9 +141,7 @@ class RuleContext(object):
             value = params.params.get(name)
             if value is not None:
                 return value
-        if (self.target is not None
-                and self.target.metadata is not None
-                and self.target.metadata.properties is not None):
+        if self.target is not None and self.target.metadata is not None and self.target.metadata.properties is not None:
             value = self.target.metadata.properties.properties.get(name)
             if value is not None:
                 return value
@@ -141,8 +158,7 @@ class RuleContext(object):
         return self._field_contexts[-1]
 
     def enter_field(
-        self, containing_message: Any, full_name: str, name: str,
-        field_type: FieldType, tags: Optional[Set[str]]
+        self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Optional[Set[str]]
     ) -> FieldContext:
         all_tags = set(tags if tags is not None else self._get_inline_tags(full_name))
         all_tags.update(self.get_tags(full_name))
@@ -152,9 +168,7 @@ class RuleContext(object):
 
     def get_tags(self, full_name: str) -> Set[str]:
         result = set()
-        if (self.target is not None
-                and self.target.metadata is not None
-                and self.target.metadata.tags is not None):
+        if self.target is not None and self.target.metadata is not None and self.target.metadata.tags is not None:
             tags = self.target.metadata.tags.tags
             for k, v in tags.items():
                 if wildcard_match(full_name, k):
@@ -213,12 +227,14 @@ class FieldRuleExecutor(RuleExecutor):
 
     @staticmethod
     def are_transforms_with_same_tag(rule1: Rule, rule2: Rule) -> bool:
-        return (bool(rule1.tags)
-                and rule1.kind == RuleKind.TRANSFORM
-                and rule1.kind == rule2.kind
-                and rule1.mode == rule2.mode
-                and rule1.type == rule2.type
-                and rule1.tags == rule2.tags)
+        return (
+            bool(rule1.tags)
+            and rule1.kind == RuleKind.TRANSFORM
+            and rule1.kind == rule2.kind
+            and rule1.mode == rule2.mode
+            and rule1.type == rule2.type
+            and rule1.tags == rule2.tags
+        )
 
 
 class RuleAction(RuleBase):
@@ -267,10 +283,7 @@ class RuleConditionError(RuleError):
 class Migration(object):
     __slots__ = ['rule_mode', 'source', 'target']
 
-    def __init__(
-        self, rule_mode: RuleMode, source: Optional[RegisteredSchema],
-        target: Optional[RegisteredSchema]
-    ):
+    def __init__(self, rule_mode: RuleMode, source: Optional[RegisteredSchema], target: Optional[RegisteredSchema]):
         self.rule_mode = rule_mode
         self.source = source
         self.target = target
@@ -327,9 +340,13 @@ class ParsedSchemaCache(object):
 class SchemaId(object):
     __slots__ = ['schema_type', 'id', 'guid', 'message_indexes']
 
-    def __init__(self, schema_type: str, schema_id: Optional[int] = None,
-                 guid: Optional[str] = None,
-                 message_indexes: Optional[List[int]] = None):
+    def __init__(
+        self,
+        schema_type: str,
+        schema_id: Optional[int] = None,
+        guid: Optional[str] = None,
+        message_indexes: Optional[List[int]] = None,
+    ):
         self.schema_type = schema_type
         self.id = schema_id
         self.guid = uuid.UUID(guid) if guid is not None else None
@@ -388,7 +405,7 @@ class SchemaId(object):
             while True:
                 i = SchemaId._read_byte(buf)
 
-                value |= (i & 0x7f) << shift
+                value |= (i & 0x7F) << shift
                 shift += 7
                 if not (i & 0x80):
                     break
@@ -458,8 +475,8 @@ class SchemaId(object):
         if zigzag:
             val = (val << 1) ^ (val >> 63)
 
-        while (val & ~0x7f) != 0:
-            buf.write(SchemaId._bytes((val & 0x7f) | 0x80))
+        while (val & ~0x7F) != 0:
+            buf.write(SchemaId._bytes((val & 0x7F) | 0x80))
             val >>= 7
         buf.write(SchemaId._bytes(val))
 

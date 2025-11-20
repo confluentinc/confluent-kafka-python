@@ -15,11 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import time
 from uuid import uuid1
 
-from confluent_kafka import KafkaException, KafkaError
+import pytest
+
+from confluent_kafka import KafkaError, KafkaException
 
 
 def test_cooperative_rebalance_1(kafka_cluster):
@@ -28,13 +29,15 @@ def test_cooperative_rebalance_1(kafka_cluster):
     of the incremental rebalancing API.
     """
 
-    consumer_conf = {'group.id': str(uuid1()),
-                     'partition.assignment.strategy': 'cooperative-sticky',
-                     'enable.auto.commit': 'false',
-                     'auto.offset.reset': 'earliest',
-                     'heartbeat.interval.ms': '2000',
-                     'session.timeout.ms': '6000',  # minimum allowed by broker
-                     'max.poll.interval.ms': '6500'}
+    consumer_conf = {
+        'group.id': str(uuid1()),
+        'partition.assignment.strategy': 'cooperative-sticky',
+        'enable.auto.commit': 'false',
+        'auto.offset.reset': 'earliest',
+        'heartbeat.interval.ms': '2000',
+        'session.timeout.ms': '6000',  # minimum allowed by broker
+        'max.poll.interval.ms': '6500',
+    }
 
     class RebalanceState:
         def __init__(self):
@@ -67,20 +70,14 @@ def test_cooperative_rebalance_1(kafka_cluster):
 
     kafka_cluster.seed_topic(topic1, value_source=[b'a'])
 
-    consumer.subscribe([topic1],
-                       on_assign=reb.on_assign,
-                       on_revoke=reb.on_revoke,
-                       on_lost=reb.on_lost)
+    consumer.subscribe([topic1], on_assign=reb.on_assign, on_revoke=reb.on_revoke, on_lost=reb.on_lost)
     msg = consumer.poll(10)
     assert msg is not None
     assert msg.value() == b'a'
 
     # Subscribe to a second one partition topic, the second assign
     # call should be incremental (checked in the handler).
-    consumer.subscribe([topic1, topic2],
-                       on_assign=reb.on_assign,
-                       on_revoke=reb.on_revoke,
-                       on_lost=reb.on_lost)
+    consumer.subscribe([topic1, topic2], on_assign=reb.on_assign, on_revoke=reb.on_revoke, on_lost=reb.on_lost)
 
     kafka_cluster.seed_topic(topic2, value_source=[b'b'])
     msg2 = consumer.poll(10)

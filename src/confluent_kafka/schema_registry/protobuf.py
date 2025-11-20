@@ -15,6 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .common.protobuf import *  # noqa
 from ._async.protobuf import *  # noqa
 from ._sync.protobuf import *  # noqa
+from .common.protobuf import *  # noqa
