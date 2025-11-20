@@ -705,7 +705,7 @@ class SchemaRegistryClient(object):
             `POST Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        schema_id = self._cache.get_id_by_schema(subject_name, schema)
+        schema_id: Optional[int] = self._cache.get_id_by_schema(subject_name, schema)
         if schema_id is not None:
             result = self._cache.get_schema_by_id(subject_name, schema_id)
             if result is not None:

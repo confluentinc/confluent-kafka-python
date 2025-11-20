@@ -707,6 +707,12 @@ class SchemaReference:
     subject: Optional[str]
     version: Optional[int]
 
+    def __init__(self, name: Optional[str] = None, subject: Optional[str] = None, version: Optional[int] = None):
+        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
+        object.__setattr__(self, 'name', name)
+        object.__setattr__(self, 'subject', subject)
+        object.__setattr__(self, 'version', version)
+
     def to_dict(self) -> Dict[str, Any]:
         name = self.name
 
@@ -889,6 +895,21 @@ class Schema:
     metadata: Optional[Metadata] = None
     rule_set: Optional[RuleSet] = None
 
+    def __init__(
+        self,
+        schema_str: Optional[str] = None,
+        schema_type: Optional[str] = "AVRO",
+        references: Optional[List[SchemaReference]] = None,
+        metadata: Optional[Metadata] = None,
+        rule_set: Optional[RuleSet] = None,
+    ):
+        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
+        object.__setattr__(self, 'schema_str', schema_str)
+        object.__setattr__(self, 'schema_type', schema_type)
+        object.__setattr__(self, 'references', references)
+        object.__setattr__(self, 'metadata', metadata)
+        object.__setattr__(self, 'rule_set', rule_set)
+
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema_str
         schema_type = self.schema_type
@@ -976,6 +997,21 @@ class RegisteredSchema:
     schema_id: Optional[int]
     guid: Optional[str]
     schema: Schema
+
+    def __init__(
+        self,
+        subject: Optional[str],
+        version: Optional[int],
+        schema_id: Optional[int],
+        guid: Optional[str],
+        schema: Schema,
+    ):
+        # This is needed because mypy fails to infer the type of the attributes when using the constructor.
+        object.__setattr__(self, 'subject', subject)
+        object.__setattr__(self, 'version', version)
+        object.__setattr__(self, 'schema_id', schema_id)
+        object.__setattr__(self, 'guid', guid)
+        object.__setattr__(self, 'schema', schema)
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema
