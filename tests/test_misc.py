@@ -154,13 +154,14 @@ def test_oauth_cb_principal_sasl_extensions():
         assert oauth_config == 'oauth_cb'
         return 'token', time.time() + 300.0, oauth_config, {"extone": "extoneval", "exttwo": "exttwoval"}
 
-    conf = {'group.id': 'test',
-            'security.protocol': 'sasl_plaintext',
-            'sasl.mechanisms': 'OAUTHBEARER',
-            'session.timeout.ms': 100,
-            'sasl.oauthbearer.config': 'oauth_cb',
-            'oauth_cb': oauth_cb
-            }
+    conf = {
+        'group.id': 'test',
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'session.timeout.ms': 100,
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+    }
 
     kc = TestConsumer(conf)
     assert seen_oauth_cb  # callback is expected to happen during client init
@@ -176,13 +177,14 @@ def test_oauth_cb_failure():
     def oauth_cb(oauth_config):
         raise Exception
 
-    conf = {'group.id': 'test',
-            'security.protocol': 'sasl_plaintext',
-            'sasl.mechanisms': 'OAUTHBEARER',
-            'session.timeout.ms': 1000,
-            'sasl.oauthbearer.config': 'oauth_cb',
-            'oauth_cb': oauth_cb
-            }
+    conf = {
+        'group.id': 'test',
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'session.timeout.ms': 1000,
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+    }
 
     with pytest.raises(KafkaException):
         TestConsumer(conf)
@@ -200,13 +202,14 @@ def test_oauth_cb_token_refresh_success():
         assert oauth_config == 'oauth_cb'
         return 'token', time.time() + 3  # token is returned with an expiry of 3 seconds
 
-    conf = {'group.id': 'test',
-            'security.protocol': 'sasl_plaintext',
-            'sasl.mechanisms': 'OAUTHBEARER',
-            'session.timeout.ms': 1000,
-            'sasl.oauthbearer.config': 'oauth_cb',
-            'oauth_cb': oauth_cb
-            }
+    conf = {
+        'group.id': 'test',
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'session.timeout.ms': 1000,
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+    }
 
     kc = TestConsumer(conf)  # callback is expected to happen during client init
     assert oauth_cb_count == 1
