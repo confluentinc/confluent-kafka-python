@@ -2,7 +2,9 @@
 urllib3<3
 flake8
 mypy
+attrs
 types-cachetools
+types-requests
 orjson
 pytest
 pytest-timeout
