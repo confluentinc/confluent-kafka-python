@@ -1284,57 +1284,30 @@ def test_avro_encryption_wrapped_union():
     rule_conf = {'secret': 'mysecret'}
     schema = {
         "fields": [
-            {
-                "name": "id",
-                "type": "int"
-            },
+            {"name": "id", "type": "int"},
             {
                 "name": "result",
                 "type": [
                     "null",
                     {
                         "fields": [
-                            {
-                                "name": "code",
-                                "type": "int"
-                            },
-                            {
-                                "confluent:tags": [
-                                    "PII"
-                                ],
-                                "name": "secret",
-                                "type": [
-                                    "null",
-                                    "string"
-                                ]
-                            }
+                            {"name": "code", "type": "int"},
+                            {"confluent:tags": ["PII"], "name": "secret", "type": ["null", "string"]},
                         ],
                         "name": "Data",
-                        "type": "record"
+                        "type": "record",
                     },
                     {
-                        "fields": [
-                            {
-                                "name": "code",
-                                "type": "int"
-                            },
-                            {
-                                "name": "reason",
-                                "type": [
-                                    "null",
-                                    "string"
-                                ]
-                            }
-                        ],
+                        "fields": [{"name": "code", "type": "int"}, {"name": "reason", "type": ["null", "string"]}],
                         "name": "Error",
-                        "type": "record"
-                    }
-                ]
-            }
+                        "type": "record",
+                    },
+                ],
+            },
         ],
         "name": "Result",
         "namespace": "com.acme",
-        "type": "record"
+        "type": "record",
     }
 
     rule = Rule(
@@ -1344,33 +1317,15 @@ def test_avro_encryption_wrapped_union():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "AVRO",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        'id': 123,
-        'result': (
-            'com.acme.Data', {
-                'code': 456,
-                'secret': 'mypii'
-            }
-        )
-    }
+    obj = {'id': 123, 'result': ('com.acme.Data', {'code': 456, 'secret': 'mypii'})}
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1379,10 +1334,7 @@ def test_avro_encryption_wrapped_union():
     # reset encrypted fields
     assert obj['result'][1]['secret'] != 'mypii'
     # remove union wrapper
-    obj['result'] = {
-        'code': 456,
-        'secret': 'mypii'
-    }
+    obj['result'] = {'code': 456, 'secret': 'mypii'}
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
     executor.executor.client = dek_client
@@ -1399,57 +1351,30 @@ def test_avro_encryption_typed_union():
     rule_conf = {'secret': 'mysecret'}
     schema = {
         "fields": [
-            {
-                "name": "id",
-                "type": "int"
-            },
+            {"name": "id", "type": "int"},
             {
                 "name": "result",
                 "type": [
                     "null",
                     {
                         "fields": [
-                            {
-                                "name": "code",
-                                "type": "int"
-                            },
-                            {
-                                "confluent:tags": [
-                                    "PII"
-                                ],
-                                "name": "secret",
-                                "type": [
-                                    "null",
-                                    "string"
-                                ]
-                            }
+                            {"name": "code", "type": "int"},
+                            {"confluent:tags": ["PII"], "name": "secret", "type": ["null", "string"]},
                         ],
                         "name": "Data",
-                        "type": "record"
+                        "type": "record",
                     },
                     {
-                        "fields": [
-                            {
-                                "name": "code",
-                                "type": "int"
-                            },
-                            {
-                                "name": "reason",
-                                "type": [
-                                    "null",
-                                    "string"
-                                ]
-                            }
-                        ],
+                        "fields": [{"name": "code", "type": "int"}, {"name": "reason", "type": ["null", "string"]}],
                         "name": "Error",
-                        "type": "record"
-                    }
-                ]
-            }
+                        "type": "record",
+                    },
+                ],
+            },
         ],
         "name": "Result",
         "namespace": "com.acme",
-        "type": "record"
+        "type": "record",
     }
 
     rule = Rule(
@@ -1459,32 +1384,15 @@ def test_avro_encryption_typed_union():
         RuleMode.WRITEREAD,
         "ENCRYPT",
         ["PII"],
-        RuleParams({
-            "encrypt.kek.name": "kek1",
-            "encrypt.kms.type": "local-kms",
-            "encrypt.kms.key.id": "mykey"
-        }),
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
         None,
         None,
         "ERROR,NONE",
-        False
+        False,
     )
-    client.register_schema(_SUBJECT, Schema(
-        json.dumps(schema),
-        "AVRO",
-        [],
-        None,
-        RuleSet(None, [rule])
-    ))
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        'id': 123,
-        'result': {
-            '-type': 'com.acme.Data',
-            'code': 456,
-            'secret': 'mypii'
-        }
-    }
+    obj = {'id': 123, 'result': {'-type': 'com.acme.Data', 'code': 456, 'secret': 'mypii'}}
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1493,10 +1401,7 @@ def test_avro_encryption_typed_union():
     # reset encrypted fields
     assert obj['result']['secret'] != 'mypii'
     # remove union wrapper
-    obj['result'] = {
-        'code': 456,
-        'secret': 'mypii'
-    }
+    obj['result'] = {'code': 456, 'secret': 'mypii'}
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
     executor.executor.client = dek_client
