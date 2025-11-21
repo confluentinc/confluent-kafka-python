@@ -51,7 +51,7 @@ The bounds configuration supports different environments with different performa
     "max_error_rate": 0.02,
     "min_success_rate": 0.98,
     "max_p99_latency_ms": 3000.0,
-    "max_memory_growth_mb": 800.0,
+    "max_memory_growth_mb": 1000.0,
     "max_buffer_full_rate": 0.05,
     "min_messages_per_poll": 10.0
   },
@@ -62,7 +62,7 @@ The bounds configuration supports different environments with different performa
     "max_error_rate": 0.01,
     "min_success_rate": 0.99,
     "max_p99_latency_ms": 2500.0,
-    "max_memory_growth_mb": 600.0,
+    "max_memory_growth_mb": 700.0,
     "max_buffer_full_rate": 0.03,
     "min_messages_per_poll": 15.0
   },
