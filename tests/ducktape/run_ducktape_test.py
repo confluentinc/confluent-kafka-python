@@ -135,7 +135,7 @@ def run_all_tests(args):
     print("=" * 70)
 
     for test_type in test_types:
-        print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")
+        print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")  # noqa: E226
 
         # Create a new args object for this test type
         test_args = argparse.Namespace(test_type=test_type, test_method=args.test_method, debug=args.debug)
@@ -148,7 +148,7 @@ def run_all_tests(args):
         else:
             print(f"\n✅ {test_type.upper()} tests passed!")
 
-    print(f"\n{'='*70}")
+    print(f"\n{'='*70}")  # noqa: E226
     if overall_success:
         print("🎉 All tests completed successfully!")
         return 0
