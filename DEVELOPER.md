@@ -212,8 +212,11 @@ tox -e black,isort
 # Check linting
 tox -e flake8
 
+# Check typing
+tox -e mypy
+
 # Run all formatting and linting checks
-tox -e black,isort,flake8
+tox -e black,isort,flake8,mypy
 ```
 
 ## Documentation build
