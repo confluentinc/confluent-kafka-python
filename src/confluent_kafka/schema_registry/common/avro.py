@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-from typing import Dict, Optional, Set, Tuple, Union
+from typing import Dict, Optional, Set, Tuple, Union, cast
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
@@ -217,11 +217,17 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[A
     for subschema in schema:
         try:
             if is_wrapped_union:
-                if isinstance(subschema, dict) and subschema["name"] == message[0]:
-                    return (subschema, message[1])
+                if isinstance(subschema, dict):
+                    dict_schema = cast(dict, subschema)
+                    tuple_message = cast(tuple, message)
+                    if dict_schema["name"] == tuple_message[0]:
+                        return (dict_schema, tuple_message[1])
             elif is_typed_union:
-                if isinstance(subschema, dict) and subschema["name"] == message['-type']:
-                    return (subschema, message)
+                if isinstance(subschema, dict):
+                    dict_schema = cast(dict, subschema)
+                    dict_message = cast(dict, message)
+                    if dict_schema["name"] == dict_message['-type']:
+                        return (dict_schema, dict_message)
             else:
                 validate(message, subschema)
                 return (subschema, message)
