@@ -1,5 +1,7 @@
 include README.md
 include LICENSE
 include src/confluent_kafka/src/*.[ch]
+include src/confluent_kafka/py.typed
+include src/confluent_kafka/cimpl.pyi
 prune tests
 prune docs
