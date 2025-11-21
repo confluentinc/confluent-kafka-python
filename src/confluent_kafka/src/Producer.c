@@ -1331,9 +1331,20 @@ static int Producer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        /* Enable Token Refresh to be handled by background thread if OAuth
+         * callback is provided */
+        if (self->oauth_cb) {
+                rd_kafka_sasl_background_callbacks_enable(self->rk);
+        }
+
         /* Forward log messages to poll queue */
         if (self->logger)
                 rd_kafka_set_log_queue(self->rk, NULL);
+
+        /* Wait for the background thread to set the token */
+        if (self->oauth_cb) {
+                return wait_for_oauth_token_set(self);
+        }
 
         return 0;
 }
