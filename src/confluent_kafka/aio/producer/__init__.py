@@ -21,5 +21,3 @@ This module contains all the components for the async Kafka producer.
 from ._AIOProducer import AIOProducer
 
 __all__ = ['AIOProducer']
-
-

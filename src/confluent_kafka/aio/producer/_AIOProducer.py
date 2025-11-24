@@ -296,5 +296,3 @@ class AIOProducer:
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Helper method for blocking operations that need ThreadPool execution"""
         return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
-
-

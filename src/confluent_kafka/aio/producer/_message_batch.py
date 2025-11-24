@@ -68,5 +68,3 @@ def create_message_batch(
         futures=tuple(futures) if not isinstance(futures, tuple) else futures,
         partition=partition,
     )
-
-

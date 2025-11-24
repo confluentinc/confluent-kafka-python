@@ -16,9 +16,7 @@ from unittest.mock import Mock, patch
 import confluent_kafka
 from confluent_kafka.aio.producer._AIOProducer import AIOProducer
 from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
-from confluent_kafka.aio.producer._producer_batch_processor import (
-    ProducerBatchManager as ProducerBatchProcessor,
-)
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager as ProducerBatchProcessor
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))

@@ -139,5 +139,3 @@ class ProducerBatchExecutor:
                     except Exception:
                         logger.warning("Exception in callback during partial failure handling", exc_info=True)
                         raise
-
-

@@ -330,5 +330,3 @@ class ProducerBatchManager:
             # Only set exception if future isn't already done
             if not future.done():
                 future.set_exception(exception)
-
-
