@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from confluent_kafka import KafkaError, KafkaException
-from confluent_kafka.experimental.aio.producer._AIOProducer import AIOProducer
+from confluent_kafka.aio.producer._AIOProducer import AIOProducer
 
 
 class TestAIOProducer:
@@ -19,12 +19,12 @@ class TestAIOProducer:
 
     @pytest.fixture
     def mock_producer(self):
-        with patch('confluent_kafka.experimental.aio.producer._AIOProducer.confluent_kafka.Producer') as mock:
+        with patch('confluent_kafka.aio.producer._AIOProducer.confluent_kafka.Producer') as mock:
             yield mock
 
     @pytest.fixture
     def mock_common(self):
-        with patch('confluent_kafka.experimental.aio.producer._AIOProducer._common') as mock:
+        with patch('confluent_kafka.aio.producer._AIOProducer._common') as mock:
 
             async def mock_async_call(executor, blocking_task, *args, **kwargs):
                 return blocking_task(*args, **kwargs)
