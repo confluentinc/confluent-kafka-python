@@ -4,7 +4,7 @@
 
 This is a beta release, notes to change to full release later on in changelog. Changes included are:
 
-- Enforced type hinting for all interaces
+- Enforced type hinting for all interfaces
 - Handle OAuth Token Refreshes
 - Added black and isort linting rules and enforcement to codebase
 - Fix support for wrapped Avro unions 
