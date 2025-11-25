@@ -29,6 +29,9 @@
 
 #include <stdarg.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 /**
  * @brief KNOWN ISSUES
@@ -2057,7 +2060,11 @@ int wait_for_oauth_token_set(Handle *h) {
         while (!h->oauth_token_set && elapsed_sec < max_wait_sec) {
                 CallState cs;
                 CallState_begin(h, &cs);
+#ifdef _WIN32
+                Sleep(retry_interval_sec * 1000);
+#else
                 sleep(retry_interval_sec);
+#endif
                 CallState_end(h, &cs);
                 elapsed_sec += retry_interval_sec;
         }
