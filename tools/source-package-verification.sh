@@ -52,8 +52,9 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         # Run these actions and tests only in this case
         echo "Checking code formatting ..."
         # Check all tracked files (Python and C)
-        all_files=$(git ls-tree -r --name-only HEAD | egrep '\.(py|c|h)$')
-        clang-format --version
+        # Commenting out clang-format until consistent versions across platforms are available for dev and CI testing
+        all_files=$(git ls-tree -r --name-only HEAD | egrep '\.(py)$')  # egrep '\.(py|c|h)$')
+        # clang-format --version
         tools/style-format.sh $all_files || exit 1
         echo "Building documentation ..."
         flake8 --exclude ./_venv,*_pb2.py,./build
