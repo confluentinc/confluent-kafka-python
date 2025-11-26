@@ -536,6 +536,81 @@ static CFL_UNUSED CFL_INLINE int cfl_timeout_ms(double tmout) {
                 return -1;
         return (int)(tmout * 1000);
 }
+
+
+/**
+ * @brief Calculate the timeout for the current chunk in wakeable poll pattern.
+ *
+ * This function calculates how long each chunk should wait, ensuring:
+ * - Infinite timeouts (-1) use the chunk size repeatedly
+ * - Finite timeouts are properly divided and don't exceed the total
+ * - The final chunk uses any remaining time (may be < chunk_size)
+ 
+ *
+ * @param total_timeout_ms Total timeout in milliseconds (-1 for infinite)
+ * @param chunk_count Current chunk iteration count (0-based)
+ * @param chunk_timeout_ms Chunk size in milliseconds (200ms by default)
+ * @return int Chunk timeout in milliseconds, or 0 if total timeout expired
+ */
+static CFL_UNUSED CFL_INLINE int calculate_chunk_timeout(int total_timeout_ms, int chunk_count,
+                                                          int chunk_timeout_ms) {
+        if (total_timeout_ms < 0) {
+                /* Infinite timeout - use chunk size */
+                return chunk_timeout_ms;
+        } else {
+                /* Finite timeout - calculate remaining */
+                int remaining_ms = total_timeout_ms - (chunk_count * chunk_timeout_ms);
+                if (remaining_ms <= 0) {
+                        /* Timeout expired */
+                        return 0;
+                }
+                return (remaining_ms < chunk_timeout_ms) ? remaining_ms : chunk_timeout_ms;
+        }
+}
+
+/**
+ * @brief Check for pending signals between poll chunks.
+ *
+ * Re-acquires GIL, checks for signals, and handles cleanup if signal detected.
+ *
+ * Signal Handling Details:
+ * -----------------------
+ * This function uses PyErr_CheckSignals(), which checks for ALL signals that
+ * Python has registered handlers for. By default,
+ * Python registers handlers for:
+ * - SIGINT (Ctrl+C): Raises KeyboardInterrupt exception
+ * - SIGTERM: Can raise SystemExit or be handled by user code
+ * - Other signals: If the user has registered handlers via Python's `signal`
+ *   module, those will also be checked (e.g., signal.signal(signal.SIGUSR1, handler)).
+ *   User code will need to handle these signals accordingly.
+ *
+ *
+ * @param self Handle (Producer or Consumer)
+ * @param cs CallState structure (thread state will be updated)
+ * @return int 0 if no signal detected (continue), 1 if signal detected (should return NULL)
+ */
+static CFL_UNUSED CFL_INLINE int check_signals_between_chunks(Handle *self, CallState *cs) {
+        /* Re-acquire GIL */
+        PyEval_RestoreThread(cs->thread_state);
+
+        /* Check for pending signals (KeyboardInterrupt, etc.) */
+        /* PyErr_CheckSignals() already set the exception */
+        if (PyErr_CheckSignals() == -1) {
+                /* Note: GIL is already held, but CallState_end expects to restore it */
+                /* Save thread state again so CallState_end can restore it properly */
+                cs->thread_state = PyEval_SaveThread();
+                if (!CallState_end(self, cs)) {
+                        /* CallState_end detected signal and cleaned up */
+                        return 1;  /* Signal detected */
+                }
+                return 1;
+        }
+
+        /* Re-release GIL for next iteration */
+        cs->thread_state = PyEval_SaveThread();
+        return 0;
+}
+
 /****************************************************************************
  *
  *
