@@ -17,6 +17,8 @@
 #
 
 import os
+import signal
+import time
 
 from confluent_kafka import Consumer
 
@@ -29,6 +31,19 @@ def _trivup_cluster_type_kraft():
 
 
 class TestUtils:
+    @staticmethod
+    def send_sigint_after_delay(delay_seconds):
+        """Send SIGINT to current process after delay.
+
+        Utility function for testing interruptible poll/flush/consume operations.
+        Used to simulate Ctrl+C in automated tests.
+
+        Args:
+            delay_seconds: Delay in seconds before sending SIGINT
+        """
+        time.sleep(delay_seconds)
+        os.kill(os.getpid(), signal.SIGINT)
+
     @staticmethod
     def broker_version():
         return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
