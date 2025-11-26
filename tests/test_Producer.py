@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gc
-import os
-import signal
 import threading
 import time
 from struct import pack
@@ -15,8 +13,7 @@ from confluent_kafka.avro import AvroProducer
 # Additional imports for batch integration tests
 from confluent_kafka.serialization import StringSerializer
 from tests.common import TestConsumer, TestUtils
-
-from tests.test_wakeable_utilities import WAKEABLE_POLL_TIMEOUT_MIN, WAKEABLE_POLL_TIMEOUT_MAX
+from tests.test_wakeable_utilities import WAKEABLE_POLL_TIMEOUT_MAX, WAKEABLE_POLL_TIMEOUT_MIN
 
 
 def error_cb(err):
@@ -1388,9 +1385,9 @@ def test_producer_close():
     assert producer.close(), "The producer could not be closed on demand"
     assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"
 
+
 def test_wakeable_poll_utility_functions_interaction():
-    """Test interaction between calculate_chunk_timeout() and check_signals_between_chunks().
-    """
+    """Test interaction between calculate_chunk_timeout() and check_signals_between_chunks()."""
     # Assert: Chunk calculation and signal check work together
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
@@ -1427,8 +1424,7 @@ def test_wakeable_poll_utility_functions_interaction():
 
 
 def test_wakeable_poll_interruptibility_and_messages():
-    """Test poll() interruptibility and message handling.
-    """
+    """Test poll() interruptibility and message handling."""
     # Assert: Infinite timeout can be interrupted
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
@@ -1488,14 +1484,14 @@ def test_wakeable_poll_interruptibility_and_messages():
     elapsed = time.time() - start
 
     assert isinstance(result, int), "poll() should return int"
-    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
-        f"Timeout took {elapsed:.2f}s, expected ~0.5s"
+    assert (
+        WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
+    ), f"Timeout took {elapsed:.2f}s, expected ~0.5s"
     producer4.close()
 
 
 def test_wakeable_poll_edge_cases():
-    """Test poll() edge cases.
-    """
+    """Test poll() edge cases."""
     # Assert: Zero timeout returns immediately
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
@@ -1524,8 +1520,7 @@ def test_wakeable_poll_edge_cases():
 
     assert isinstance(result, int)
     # Short timeouts don't use chunking
-    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
-        f"Short timeout took {elapsed:.2f}s"
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Short timeout took {elapsed:.2f}s"
     producer3.close()
 
     # Assert: Very short timeout works
@@ -1541,34 +1536,35 @@ def test_wakeable_poll_edge_cases():
 
 
 def test_wakeable_flush_interruptibility_and_messages():
-    """Test flush() interruptibility and message handling.
-    """
+    """Test flush() interruptibility and message handling."""
     # Assert: Infinite timeout can be interrupted
-    producer1 = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'socket.timeout.ms': 60000,
-        'message.timeout.ms': 30000,
-        'acks': 'all',
-        'batch.num.messages': 100,
-        'linger.ms': 100,
-        'queue.buffering.max.messages': 100000,
-        'queue.buffering.max.kbytes': 104857600,
-        'max.in.flight.requests.per.connection': 1,
-        'request.timeout.ms': 30000,
-        'delivery.timeout.ms': 30000,
-    })
+    producer1 = Producer(
+        {
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 60000,
+            'message.timeout.ms': 30000,
+            'acks': 'all',
+            'batch.num.messages': 100,
+            'linger.ms': 100,
+            'queue.buffering.max.messages': 100000,
+            'queue.buffering.max.kbytes': 104857600,
+            'max.in.flight.requests.per.connection': 1,
+            'request.timeout.ms': 30000,
+            'delivery.timeout.ms': 30000,
+        }
+    )
 
     messages_produced = False
     stop_producing = threading.Event()
     production_stats = {'count': 0, 'errors': 0}
-    
+
     def continuous_producer():
         message_num = 0
         while not stop_producing.is_set():
             try:
-                producer1.produce('test-topic', 
-                                 value=f'continuous-{message_num}'.encode(), 
-                                 key=f'key-{message_num}'.encode())
+                producer1.produce(
+                    'test-topic', value=f'continuous-{message_num}'.encode(), key=f'key-{message_num}'.encode()
+                )
                 production_stats['count'] += 1
                 message_num += 1
             except Exception as e:
@@ -1577,7 +1573,7 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.001)
                 else:
                     time.sleep(0.01)
-    
+
     try:
         for i in range(1000):
             try:
@@ -1588,19 +1584,19 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.01)
                     continue
                 break
-        
+
         if not messages_produced:
             producer1.close()
             pytest.skip("Broker not available, cannot test flush() interruptibility")
-        
+
         poll_start = time.time()
         while time.time() - poll_start < 0.5:
             producer1.poll(timeout=0.1)
-        
+
         producer_thread = threading.Thread(target=continuous_producer, daemon=True)
         producer_thread.start()
         time.sleep(0.1)
-        
+
         interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
         interrupt_thread.daemon = True
         interrupt_thread.start()
@@ -1616,36 +1612,38 @@ def test_wakeable_flush_interruptibility_and_messages():
             producer1.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
-    except Exception as e:
+    except Exception:
         stop_producing.set()
         producer1.close()
         raise
 
     # Assert: Finite timeout can be interrupted before timeout expires
-    producer2 = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'socket.timeout.ms': 60000,
-        'message.timeout.ms': 30000,
-        'acks': 'all',
-        'batch.num.messages': 100,
-        'linger.ms': 100,
-        'queue.buffering.max.messages': 100000,
-        'queue.buffering.max.kbytes': 104857600,
-        'max.in.flight.requests.per.connection': 1,
-        'request.timeout.ms': 30000,
-        'delivery.timeout.ms': 30000,
-    })
+    producer2 = Producer(
+        {
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 60000,
+            'message.timeout.ms': 30000,
+            'acks': 'all',
+            'batch.num.messages': 100,
+            'linger.ms': 100,
+            'queue.buffering.max.messages': 100000,
+            'queue.buffering.max.kbytes': 104857600,
+            'max.in.flight.requests.per.connection': 1,
+            'request.timeout.ms': 30000,
+            'delivery.timeout.ms': 30000,
+        }
+    )
 
     stop_producing2 = threading.Event()
     production_stats2 = {'count': 0, 'errors': 0}
-    
+
     def continuous_producer2():
         message_num = 0
         while not stop_producing2.is_set():
             try:
-                producer2.produce('test-topic', 
-                                 value=f'continuous2-{message_num}'.encode(), 
-                                 key=f'key2-{message_num}'.encode())
+                producer2.produce(
+                    'test-topic', value=f'continuous2-{message_num}'.encode(), key=f'key2-{message_num}'.encode()
+                )
                 production_stats2['count'] += 1
                 message_num += 1
             except Exception as e:
@@ -1654,7 +1652,7 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.001)
                 else:
                     time.sleep(0.01)
-    
+
     try:
         for i in range(1000):
             try:
@@ -1664,11 +1662,11 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.01)
                     continue
                 break
-        
+
         poll_start = time.time()
         while time.time() - poll_start < 0.5:
             producer2.poll(timeout=0.1)
-        
+
         producer_thread2 = threading.Thread(target=continuous_producer2, daemon=True)
         producer_thread2.start()
         time.sleep(0.1)
@@ -1688,36 +1686,38 @@ def test_wakeable_flush_interruptibility_and_messages():
             producer2.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
-    except Exception as e:
+    except Exception:
         stop_producing2.set()
         producer2.close()
         raise
 
     # Assert: Signal sent after multiple chunks still interrupts
-    producer3 = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'socket.timeout.ms': 60000,
-        'message.timeout.ms': 30000,
-        'acks': 'all',
-        'batch.num.messages': 100,
-        'linger.ms': 100,
-        'queue.buffering.max.messages': 100000,
-        'queue.buffering.max.kbytes': 104857600,
-        'max.in.flight.requests.per.connection': 1,
-        'request.timeout.ms': 30000,
-        'delivery.timeout.ms': 30000,
-    })
+    producer3 = Producer(
+        {
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 60000,
+            'message.timeout.ms': 30000,
+            'acks': 'all',
+            'batch.num.messages': 100,
+            'linger.ms': 100,
+            'queue.buffering.max.messages': 100000,
+            'queue.buffering.max.kbytes': 104857600,
+            'max.in.flight.requests.per.connection': 1,
+            'request.timeout.ms': 30000,
+            'delivery.timeout.ms': 30000,
+        }
+    )
 
     stop_producing3 = threading.Event()
     production_stats3 = {'count': 0, 'errors': 0}
-    
+
     def continuous_producer3():
         message_num = 0
         while not stop_producing3.is_set():
             try:
-                producer3.produce('test-topic', 
-                                 value=f'continuous3-{message_num}'.encode(), 
-                                 key=f'key3-{message_num}'.encode())
+                producer3.produce(
+                    'test-topic', value=f'continuous3-{message_num}'.encode(), key=f'key3-{message_num}'.encode()
+                )
                 production_stats3['count'] += 1
                 message_num += 1
             except Exception as e:
@@ -1726,7 +1726,7 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.001)
                 else:
                     time.sleep(0.01)
-    
+
     try:
         for i in range(1000):
             try:
@@ -1736,11 +1736,11 @@ def test_wakeable_flush_interruptibility_and_messages():
                     time.sleep(0.01)
                     continue
                 break
-        
+
         poll_start = time.time()
         while time.time() - poll_start < 0.5:
             producer3.poll(timeout=0.1)
-        
+
         producer_thread3 = threading.Thread(target=continuous_producer3, daemon=True)
         producer_thread3.start()
         time.sleep(0.1)
@@ -1760,19 +1760,21 @@ def test_wakeable_flush_interruptibility_and_messages():
             producer3.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
-    except Exception as e:
+    except Exception:
         stop_producing3.set()
         producer3.close()
         raise
 
     # Assert: No signal - timeout works normally
-    producer4 = Producer({
-        'bootstrap.servers': 'localhost:9092',
-        'socket.timeout.ms': 100,
-        'message.timeout.ms': 10,
-        'acks': 'all',
-        'max.in.flight.requests.per.connection': 1,
-    })
+    producer4 = Producer(
+        {
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10,
+            'acks': 'all',
+            'max.in.flight.requests.per.connection': 1,
+        }
+    )
 
     try:
         for i in range(100):
@@ -1785,14 +1787,12 @@ def test_wakeable_flush_interruptibility_and_messages():
     elapsed = time.time() - start
 
     assert isinstance(qlen, int), "flush() should return int"
-    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
-        f"Timeout took {elapsed:.2f}s"
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Timeout took {elapsed:.2f}s"
     producer4.close()
 
 
 def test_wakeable_flush_edge_cases():
-    """Test flush() edge cases.
-    """
+    """Test flush() edge cases."""
     # Assert: Zero timeout returns immediately
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
