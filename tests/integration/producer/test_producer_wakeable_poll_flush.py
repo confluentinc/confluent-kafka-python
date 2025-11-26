@@ -63,6 +63,9 @@ def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     # Allow time for delivery callback, but should complete reasonably quickly
     assert elapsed < 2.5, f"Poll took {elapsed:.2f}s, expected < 2.5s"
 
+    # Flush to ensure message is committed to Kafka
+    producer.flush(timeout=1.0)
+
     # Verify message was actually delivered by consuming it
     consumer_conf = kafka_cluster.client_conf(
         {
@@ -75,8 +78,8 @@ def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
-    # Wait for subscription
-    time.sleep(1.0)
+    # Wait for subscription and message availability
+    time.sleep(2.0)
 
     msg = consumer.poll(timeout=2.0)
     assert msg is not None, "Expected message to be delivered"
@@ -145,8 +148,8 @@ def test_flush_message_delivery_with_wakeable_pattern(kafka_cluster):
     consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
-    # Wait for subscription
-    time.sleep(1.0)
+    # Wait for subscription and message availability
+    time.sleep(2.0)
 
     # Consume all messages
     msglist = []
