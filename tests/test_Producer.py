@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gc
+import os
+import signal
 import threading
 import time
 from struct import pack
@@ -12,7 +14,9 @@ from confluent_kafka.avro import AvroProducer
 
 # Additional imports for batch integration tests
 from confluent_kafka.serialization import StringSerializer
-from tests.common import TestConsumer
+from tests.common import TestConsumer, TestUtils
+
+from tests.test_wakeable_utilities import WAKEABLE_POLL_TIMEOUT_MIN, WAKEABLE_POLL_TIMEOUT_MAX
 
 
 def error_cb(err):
@@ -1383,3 +1387,461 @@ def test_producer_close():
     producer.produce('mytopic', value='somedata', key='a key', callback=on_delivery)
     assert producer.close(), "The producer could not be closed on demand"
     assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"
+
+def test_wakeable_poll_utility_functions_interaction():
+    """Test interaction between calculate_chunk_timeout() and check_signals_between_chunks().
+    """
+    # Assert: Chunk calculation and signal check work together
+    producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        producer1.poll(timeout=1.0)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        producer1.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+    # Assert: Multiple chunks before signal detection
+    producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        producer2.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+
+def test_wakeable_poll_interruptibility_and_messages():
+    """Test poll() interruptibility and message handling.
+    """
+    # Assert: Infinite timeout can be interrupted
+    producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        producer1.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        producer1.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+    # Assert: Finite timeout can be interrupted before timeout expires
+    producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        producer2.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+    # Assert: Signal sent after multiple chunks still interrupts
+    producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        producer3.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        producer3.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+    # Assert: No signal - timeout works normally
+    producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    result = producer4.poll(timeout=0.5)
+    elapsed = time.time() - start
+
+    assert isinstance(result, int), "poll() should return int"
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Timeout took {elapsed:.2f}s, expected ~0.5s"
+    producer4.close()
+
+
+def test_wakeable_poll_edge_cases():
+    """Test poll() edge cases.
+    """
+    # Assert: Zero timeout returns immediately
+    producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    result = producer1.poll(timeout=0.0)
+    elapsed = time.time() - start
+
+    assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Zero timeout took {elapsed:.2f}s"
+    assert isinstance(result, int)
+    producer1.close()
+
+    # Assert: Closed producer raises RuntimeError
+    producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+    producer2.close()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        producer2.poll(timeout=0.1)
+    assert 'Producer has been closed' in str(exc_info.value)
+
+    # Assert: Short timeout works correctly
+    producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    result = producer3.poll(timeout=0.1)
+    elapsed = time.time() - start
+
+    assert isinstance(result, int)
+    # Short timeouts don't use chunking
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Short timeout took {elapsed:.2f}s"
+    producer3.close()
+
+    # Assert: Very short timeout works
+    producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    result = producer4.poll(timeout=0.05)
+    elapsed = time.time() - start
+
+    assert isinstance(result, int)
+    assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Very short timeout took {elapsed:.2f}s"
+    producer4.close()
+
+
+def test_wakeable_flush_interruptibility_and_messages():
+    """Test flush() interruptibility and message handling.
+    """
+    # Assert: Infinite timeout can be interrupted
+    producer1 = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 60000,
+        'message.timeout.ms': 30000,
+        'acks': 'all',
+        'batch.num.messages': 100,
+        'linger.ms': 100,
+        'queue.buffering.max.messages': 100000,
+        'queue.buffering.max.kbytes': 104857600,
+        'max.in.flight.requests.per.connection': 1,
+        'request.timeout.ms': 30000,
+        'delivery.timeout.ms': 30000,
+    })
+
+    messages_produced = False
+    stop_producing = threading.Event()
+    production_stats = {'count': 0, 'errors': 0}
+    
+    def continuous_producer():
+        message_num = 0
+        while not stop_producing.is_set():
+            try:
+                producer1.produce('test-topic', 
+                                 value=f'continuous-{message_num}'.encode(), 
+                                 key=f'key-{message_num}'.encode())
+                production_stats['count'] += 1
+                message_num += 1
+            except Exception as e:
+                production_stats['errors'] += 1
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.001)
+                else:
+                    time.sleep(0.01)
+    
+    try:
+        for i in range(1000):
+            try:
+                producer1.produce('test-topic', value=f'initial-{i}'.encode())
+                messages_produced = True
+            except Exception as e:
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.01)
+                    continue
+                break
+        
+        if not messages_produced:
+            producer1.close()
+            pytest.skip("Broker not available, cannot test flush() interruptibility")
+        
+        poll_start = time.time()
+        while time.time() - poll_start < 0.5:
+            producer1.poll(timeout=0.1)
+        
+        producer_thread = threading.Thread(target=continuous_producer, daemon=True)
+        producer_thread.start()
+        time.sleep(0.1)
+        
+        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
+        interrupt_thread.daemon = True
+        interrupt_thread.start()
+
+        interrupted = False
+        try:
+            producer1.flush()
+        except KeyboardInterrupt:
+            interrupted = True
+        finally:
+            stop_producing.set()
+            time.sleep(0.1)
+            producer1.close()
+
+        assert interrupted, "Should have raised KeyboardInterrupt"
+    except Exception as e:
+        stop_producing.set()
+        producer1.close()
+        raise
+
+    # Assert: Finite timeout can be interrupted before timeout expires
+    producer2 = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 60000,
+        'message.timeout.ms': 30000,
+        'acks': 'all',
+        'batch.num.messages': 100,
+        'linger.ms': 100,
+        'queue.buffering.max.messages': 100000,
+        'queue.buffering.max.kbytes': 104857600,
+        'max.in.flight.requests.per.connection': 1,
+        'request.timeout.ms': 30000,
+        'delivery.timeout.ms': 30000,
+    })
+
+    stop_producing2 = threading.Event()
+    production_stats2 = {'count': 0, 'errors': 0}
+    
+    def continuous_producer2():
+        message_num = 0
+        while not stop_producing2.is_set():
+            try:
+                producer2.produce('test-topic', 
+                                 value=f'continuous2-{message_num}'.encode(), 
+                                 key=f'key2-{message_num}'.encode())
+                production_stats2['count'] += 1
+                message_num += 1
+            except Exception as e:
+                production_stats2['errors'] += 1
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.001)
+                else:
+                    time.sleep(0.01)
+    
+    try:
+        for i in range(1000):
+            try:
+                producer2.produce('test-topic', value=f'initial2-{i}'.encode())
+            except Exception as e:
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.01)
+                    continue
+                break
+        
+        poll_start = time.time()
+        while time.time() - poll_start < 0.5:
+            producer2.poll(timeout=0.1)
+        
+        producer_thread2 = threading.Thread(target=continuous_producer2, daemon=True)
+        producer_thread2.start()
+        time.sleep(0.1)
+
+        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
+        interrupt_thread.daemon = True
+        interrupt_thread.start()
+
+        interrupted = False
+        try:
+            producer2.flush(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+        except KeyboardInterrupt:
+            interrupted = True
+        finally:
+            stop_producing2.set()
+            time.sleep(0.1)
+            producer2.close()
+
+        assert interrupted, "Should have raised KeyboardInterrupt"
+    except Exception as e:
+        stop_producing2.set()
+        producer2.close()
+        raise
+
+    # Assert: Signal sent after multiple chunks still interrupts
+    producer3 = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 60000,
+        'message.timeout.ms': 30000,
+        'acks': 'all',
+        'batch.num.messages': 100,
+        'linger.ms': 100,
+        'queue.buffering.max.messages': 100000,
+        'queue.buffering.max.kbytes': 104857600,
+        'max.in.flight.requests.per.connection': 1,
+        'request.timeout.ms': 30000,
+        'delivery.timeout.ms': 30000,
+    })
+
+    stop_producing3 = threading.Event()
+    production_stats3 = {'count': 0, 'errors': 0}
+    
+    def continuous_producer3():
+        message_num = 0
+        while not stop_producing3.is_set():
+            try:
+                producer3.produce('test-topic', 
+                                 value=f'continuous3-{message_num}'.encode(), 
+                                 key=f'key3-{message_num}'.encode())
+                production_stats3['count'] += 1
+                message_num += 1
+            except Exception as e:
+                production_stats3['errors'] += 1
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.001)
+                else:
+                    time.sleep(0.01)
+    
+    try:
+        for i in range(1000):
+            try:
+                producer3.produce('test-topic', value=f'initial3-{i}'.encode())
+            except Exception as e:
+                if "QUEUE_FULL" in str(e):
+                    time.sleep(0.01)
+                    continue
+                break
+        
+        poll_start = time.time()
+        while time.time() - poll_start < 0.5:
+            producer3.poll(timeout=0.1)
+        
+        producer_thread3 = threading.Thread(target=continuous_producer3, daemon=True)
+        producer_thread3.start()
+        time.sleep(0.1)
+
+        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
+        interrupt_thread.daemon = True
+        interrupt_thread.start()
+
+        interrupted = False
+        try:
+            producer3.flush()
+        except KeyboardInterrupt:
+            interrupted = True
+        finally:
+            stop_producing3.set()
+            time.sleep(0.1)
+            producer3.close()
+
+        assert interrupted, "Should have raised KeyboardInterrupt"
+    except Exception as e:
+        stop_producing3.set()
+        producer3.close()
+        raise
+
+    # Assert: No signal - timeout works normally
+    producer4 = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,
+        'acks': 'all',
+        'max.in.flight.requests.per.connection': 1,
+    })
+
+    try:
+        for i in range(100):
+            producer4.produce('test-topic', value=f'timeout-test-{i}'.encode())
+    except Exception:
+        pass
+
+    start = time.time()
+    qlen = producer4.flush(timeout=0.5)
+    elapsed = time.time() - start
+
+    assert isinstance(qlen, int), "flush() should return int"
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Timeout took {elapsed:.2f}s"
+    producer4.close()
+
+
+def test_wakeable_flush_edge_cases():
+    """Test flush() edge cases.
+    """
+    # Assert: Zero timeout returns immediately
+    producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    qlen = producer1.flush(timeout=0.0)
+    elapsed = time.time() - start
+
+    assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Zero timeout took {elapsed:.2f}s"
+    assert isinstance(qlen, int)
+    producer1.close()
+
+    # Assert: Closed producer raises RuntimeError
+    producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+    producer2.close()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        producer2.flush(timeout=0.1)
+    assert 'Producer has been closed' in str(exc_info.value)
+
+    # Assert: Short timeout works correctly
+    producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    qlen = producer3.flush(timeout=0.1)
+    elapsed = time.time() - start
+
+    assert isinstance(qlen, int)
+    # Short timeouts don't use chunking
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Short timeout took {elapsed:.2f}s"
+    producer3.close()
+
+    # Assert: Very short timeout works
+    producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    qlen = producer4.flush(timeout=0.05)
+    elapsed = time.time() - start
+
+    assert isinstance(qlen, int)
+    assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Very short timeout took {elapsed:.2f}s"
+    producer4.close()
+
+    # Assert: Empty queue flush returns immediately
+    producer5 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+
+    start = time.time()
+    qlen = producer5.flush(timeout=1.0)
+    elapsed = time.time() - start
+
+    assert qlen == 0
+    assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Empty flush took {elapsed:.2f}s"
+    producer5.close()
