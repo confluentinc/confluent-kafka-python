@@ -35,12 +35,14 @@ def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     producer.flush(timeout=1.0)
 
     # Create consumer with wakeable poll pattern settings
-    consumer_conf = kafka_cluster.client_conf({
-        'group.id': 'test-poll-message-available',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 6000,
-        'auto.offset.reset': 'earliest'
-    })
+    consumer_conf = kafka_cluster.client_conf(
+        {
+            'group.id': 'test-poll-message-available',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 6000,
+            'auto.offset.reset': 'earliest',
+        }
+    )
     consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
@@ -77,12 +79,14 @@ def test_consume_message_delivery_with_wakeable_pattern(kafka_cluster):
     producer.flush(timeout=1.0)
 
     # Create consumer with wakeable poll pattern settings
-    consumer_conf = kafka_cluster.client_conf({
-        'group.id': 'test-consume-messages-available',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 6000,
-        'auto.offset.reset': 'earliest'
-    })
+    consumer_conf = kafka_cluster.client_conf(
+        {
+            'group.id': 'test-consume-messages-available',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 6000,
+            'auto.offset.reset': 'earliest',
+        }
+    )
     consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
@@ -106,8 +110,7 @@ def test_consume_message_delivery_with_wakeable_pattern(kafka_cluster):
         assert msg.value() is not None, f"Message {i} has no value"
         # Verify we got the expected messages
         expected_value = f'test-message-{i}'.encode()
-        expected_msg = (f"Message {i} value mismatch: expected {expected_value}, "
-                        f"got {msg.value()}")
+        expected_msg = f"Message {i} value mismatch: expected {expected_value}, " f"got {msg.value()}"
         assert msg.value() == expected_value, expected_msg
 
     consumer.close()
