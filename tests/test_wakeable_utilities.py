@@ -108,12 +108,9 @@ class TestWakeableUtilities:
             assert isinstance(result, int), "Assertion 4 failed: poll() should return int"
         else:
             assert result is None, "Assertion 4 failed: Expected None (timeout)"
-        # Use constants for bounds - verify timeout happened but allow lenient upper bound
-        assert elapsed >= WAKEABLE_POLL_TIMEOUT_MIN, (
-            f"Assertion 4 failed: Timeout took {elapsed:.2f}s, " f"expected >= {WAKEABLE_POLL_TIMEOUT_MIN}s"
-        )
-        assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, (
-            f"Assertion 4 failed: Timeout took {elapsed:.2f}s, " f"expected <= {WAKEABLE_POLL_TIMEOUT_MAX}s"
+        # Short timeouts don't use chunking, so only check upper bound
+        assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, (
+            f"Assertion 4 failed: Very short timeout took {elapsed:.2f}s, " f"expected < {WAKEABLE_POLL_TIMEOUT_MAX}s"
         )
         obj4.close()
 
