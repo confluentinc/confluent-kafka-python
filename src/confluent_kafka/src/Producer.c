@@ -339,7 +339,7 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
 
 /**
  * @brief Poll for producer events with wakeable pattern for interruptibility.
- * 
+ *
  * This function:
  * 1. Splits the timeout into 200ms chunks
  * 2. Calls rd_kafka_poll() with chunk timeout
@@ -349,14 +349,14 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
  *
  * @param self Producer handle
  * @param tmout Timeout in milliseconds (-1 for infinite)
- * @returns -1 if callback crashed, signal detected, or poll() failed, else the number
- * of events served.
+ * @returns -1 if callback crashed, signal detected, or poll() failed, else the
+ * number of events served.
  */
 static int Producer_poll0(Handle *self, int tmout) {
         int r = 0;
         CallState cs;
-        const int CHUNK_TIMEOUT_MS = 200;  /* 200ms chunks for signal checking */
-        int total_timeout_ms = tmout;
+        const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
+        int total_timeout_ms       = tmout;
         int chunk_timeout_ms;
         int chunk_count = 0;
 
@@ -371,27 +371,28 @@ static int Producer_poll0(Handle *self, int tmout) {
         } else {
                 while (1) {
                         /* Calculate timeout for this chunk */
-                        chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
-                                                                  CHUNK_TIMEOUT_MS);
+                        chunk_timeout_ms = calculate_chunk_timeout(
+                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
                         if (chunk_timeout_ms == 0) {
                                 /* Timeout expired */
                                 break;
                         }
 
                         /* Poll with chunk timeout */
-                        int chunk_result = rd_kafka_poll(self->rk, chunk_timeout_ms);
+                        int chunk_result =
+                            rd_kafka_poll(self->rk, chunk_timeout_ms);
                         /* Error from poll */
                         if (chunk_result < 0) {
                                 r = chunk_result;
                                 break;
                         }
-                        r += chunk_result;  /* Accumulate events processed */
+                        r += chunk_result; /* Accumulate events processed */
 
                         chunk_count++;
 
                         /* Check for signals between chunks */
                         if (check_signals_between_chunks(self, &cs)) {
-                                return -1;  /* Signal detected */
+                                return -1; /* Signal detected */
                         }
                 }
         }
@@ -426,8 +427,9 @@ static PyObject *Producer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
 
 
 /**
- * @brief Flush all messages in the producer queue with wakeable pattern for interruptibility.
- * 
+ * @brief Flush all messages in the producer queue with wakeable pattern for
+ * interruptibility.
+ *
  * Instead of a single blocking call to rd_kafka_flush() with the
  * full timeout, this function:
  * 1. Splits the timeout into 200ms chunks
@@ -451,7 +453,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         static char *kws[] = {"timeout", NULL};
         rd_kafka_resp_err_t err;
         CallState cs;
-        const int CHUNK_TIMEOUT_MS = 200;  /* 200ms chunks for signal checking */
+        const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
         int chunk_count = 0;
@@ -474,15 +476,16 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
                 err = rd_kafka_flush(self->rk, total_timeout_ms);
         } else {
-                /* For infinite timeout, we need to keep looping and checking for signals.
-                 * rd_kafka_flush() waits for messages that were in the queue when it's called.
-                 * When flush() returns NO_ERROR, it means all messages that were queued at
-                 * that point have been delivered.
-                 * Note: Messages produced after flush() starts are not included in the current flush. */
+                /* For infinite timeout, we need to keep looping and checking
+                 * for signals. rd_kafka_flush() waits for messages that were in
+                 * the queue when it's called. When flush() returns NO_ERROR, it
+                 * means all messages that were queued at that point have been
+                 * delivered. Note: Messages produced after flush() starts are
+                 * not included in the current flush. */
                 while (1) {
                         /* Calculate timeout for this chunk */
-                        chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
-                                                                  CHUNK_TIMEOUT_MS);
+                        chunk_timeout_ms = calculate_chunk_timeout(
+                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
                         if (chunk_timeout_ms == 0) {
                                 /* Timeout expired */
                                 err = RD_KAFKA_RESP_ERR__TIMED_OUT;
@@ -492,10 +495,11 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                         /* Flush with chunk timeout */
                         err = rd_kafka_flush(self->rk, chunk_timeout_ms);
 
-                        /* Always check for signals between chunks (critical for interruptibility) */
+                        /* Always check for signals between chunks (critical for
+                         * interruptibility) */
                         chunk_count++;
                         if (check_signals_between_chunks(self, &cs)) {
-                                return NULL;  /* Signal detected */
+                                return NULL; /* Signal detected */
                         }
 
                         if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
