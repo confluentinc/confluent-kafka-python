@@ -541,14 +541,19 @@ class TestAIOProducer:
         producer = AIOProducer(basic_config, batch_size=10, buffer_timeout=0)
 
         # Produce 5 messages (less than batch_size, so they stay in buffer)
-        with patch.object(producer, '_flush_buffer'):  # Prevent auto-flush
+        with patch.object(producer, '_flush_buffer') as mock_flush:  # Prevent auto-flush
             for i in range(5):
                 await producer.produce('test-topic', value=f'msg-{i}'.encode())
+
+        # Verify flush was not called (messages stayed in buffer)
+        mock_flush.assert_not_called()
 
         # len() should count messages in buffer
         assert len(producer) == 5
         assert producer._batch_processor.get_buffer_size() == 5
         assert len(producer._producer) == 0  # Nothing in librdkafka yet
+        # Verify len() equals the sum
+        assert len(producer) == producer._batch_processor.get_buffer_size() + len(producer._producer)
 
         await producer.close()
 
@@ -558,20 +563,25 @@ class TestAIOProducer:
         producer = AIOProducer(basic_config, batch_size=10, buffer_timeout=0)
 
         # Produce and flush
-        with patch.object(producer, '_flush_buffer') as mock_flush:
+        with patch.object(producer, '_flush_buffer'):  # Prevent auto-flush
             for i in range(5):
                 await producer.produce('test-topic', value=f'msg-{i}'.encode())
 
-        # Mock flush to simulate messages moving to librdkafka
-        # After flush, buffer should be empty, but messages may be in librdkafka
+        # Flush to move messages to librdkafka
         await producer.flush()
 
         # After flush, messages move to librdkafka queue
-        # len() should still count them (exact count depends on librdkafka state)
+        # Verify len() correctly equals the sum of buffer + librdkafka
+        buffer_count = producer._batch_processor.get_buffer_size()
+        librdkafka_count = len(producer._producer)
         total_len = len(producer)
-        assert total_len >= 0  # Should be non-negative
+
         # Buffer should be empty after flush
-        assert producer._batch_processor.get_buffer_size() == 0
+        assert buffer_count == 0
+        # Verify len() equals the sum (this validates the __len__ implementation)
+        assert total_len == buffer_count + librdkafka_count
+        # Messages should be in librdkafka queue after flush
+        assert total_len == librdkafka_count
 
         await producer.close()
 
@@ -604,12 +614,17 @@ class TestAIOProducer:
             for i in range(7):
                 await producer.produce('test-topic', value=f'msg-{i}'.encode())
 
+        # With batch_size=5, flush should be called after 5th message
+        # Verify flush was called (at least once when batch_size reached)
+        assert mock_flush.call_count >= 1
+
         # After batch_size messages, some may have flushed
         # Total should be sum of buffer + librdkafka queue
         buffer_count = producer._batch_processor.get_buffer_size()
         librdkafka_count = len(producer._producer)
         total_count = len(producer)
 
+        # Verify len() correctly equals the sum (this validates the __len__ implementation)
         assert total_count == buffer_count + librdkafka_count
         # At least the messages beyond batch_size should be in buffer
         # (exact count depends on flush behavior)
