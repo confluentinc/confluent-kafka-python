@@ -125,6 +125,27 @@ class AIOProducer:
         if hasattr(self, '_buffer_timeout_manager'):
             self._buffer_timeout_manager.stop_timeout_monitoring()
 
+    def __len__(self) -> int:
+        """Return the total number of pending messages.
+
+        This includes:
+        - Messages in librdkafka's output queue (waiting to be delivered to broker)
+        - Messages in the async batch buffer (waiting to be sent to librdkafka)
+
+        Returns:
+            int: Total number of pending messages across both queues
+        """
+        if self._is_closed:
+            return 0
+
+        # Count messages in librdkafka queue
+        librdkafka_count = len(self._producer)
+
+        # Count messages in async batch buffer
+        buffer_count = self._batch_processor.get_buffer_size()
+
+        return librdkafka_count + buffer_count
+
     # ========================================================================
     # CORE PRODUCER OPERATIONS - Main public API
     # ========================================================================
