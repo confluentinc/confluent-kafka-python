@@ -20,13 +20,15 @@
 # https://www.oauth.com/oauth2-servers/access-tokens/client-credentials/
 # where client_id and client_secret are passed as HTTP Authorization header
 
-import logging
-import functools
 import argparse
+import functools
+import logging
 import time
+
+import requests
+
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
-import requests
 
 
 def _get_token(args, config):
@@ -34,13 +36,8 @@ def _get_token(args, config):
     It is not used in this example but you can put arbitrary values to
     configure how you can get the token (e.g. which token URL to use)
     """
-    payload = {
-        'grant_type': 'client_credentials',
-        'scope': ' '.join(args.scopes)
-    }
-    resp = requests.post(args.token_url,
-                         auth=(args.client_id, args.client_secret),
-                         data=payload)
+    payload = {'grant_type': 'client_credentials', 'scope': ' '.join(args.scopes)}
+    resp = requests.post(args.token_url, auth=(args.client_id, args.client_secret), data=payload)
     token = resp.json()
     return token['access_token'], time.time() + float(token['expires_in'])
 
@@ -65,7 +62,7 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
 
         msg (Message): The message that was produced or failed.
 
@@ -81,8 +78,11 @@ def delivery_report(err, msg):
     if err is not None:
         print('Delivery failed for User record {}: {}'.format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -100,14 +100,11 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic=topic,
-                                 key=serializer(msg[0]),
-                                 value=serializer(msg[1]),
-                                 on_delivery=delivery_report)
+                producer.produce(
+                    topic=topic, key=serializer(msg[0]), value=serializer(msg[1]), on_delivery=delivery_report
+                )
             else:
-                producer.produce(topic=topic,
-                                 value=serializer(msg[0]),
-                                 on_delivery=delivery_report)
+                producer.produce(topic=topic, value=serializer(msg[0]), on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
 
@@ -117,19 +114,14 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="OAUTH example with client credentials grant")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="topic", default="example_producer_oauth",
-                        help="Topic name")
-    parser.add_argument('-d', dest="delimiter", default="|",
-                        help="Key-Value delimiter. Defaults to '|'"),
-    parser.add_argument('--client', dest="client_id", required=True,
-                        help="Client ID for client credentials flow")
-    parser.add_argument('--secret', dest="client_secret", required=True,
-                        help="Client secret for client credentials flow.")
-    parser.add_argument('--token-url', dest="token_url", required=True,
-                        help="Token URL.")
-    parser.add_argument('--scopes', dest="scopes", required=True, nargs='+',
-                        help="Scopes requested from OAuth server.")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-t', dest="topic", default="example_producer_oauth", help="Topic name")
+    parser.add_argument('-d', dest="delimiter", default="|", help="Key-Value delimiter. Defaults to '|'"),
+    parser.add_argument('--client', dest="client_id", required=True, help="Client ID for client credentials flow")
+    parser.add_argument(
+        '--secret', dest="client_secret", required=True, help="Client secret for client credentials flow."
+    )
+    parser.add_argument('--token-url', dest="token_url", required=True, help="Token URL.")
+    parser.add_argument('--scopes', dest="scopes", required=True, nargs='+', help="Scopes requested from OAuth server.")
 
     main(parser.parse_args())

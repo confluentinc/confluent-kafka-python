@@ -1,0 +1,26 @@
+{
+  "_comment": "Performance bounds for benchmark tests by environment",
+  "local": {
+    "_comment": "Default bounds for local development - more relaxed thresholds",
+    "min_throughput_msg_per_sec": 1000.0,
+    "max_p95_latency_ms": 6000.0,
+    "max_error_rate": 0.02,
+    "min_success_rate": 0.98,
+    "max_p99_latency_ms": 7000.0,
+    "max_memory_growth_mb": 1000.0,
+    "max_buffer_full_rate": 0.05,
+    "min_messages_per_poll": 5.0
+  },
+  "ci": {
+    "_comment": "Stricter bounds for CI environment - production-like requirements",
+    "min_throughput_msg_per_sec": 1500.0,
+    "max_p95_latency_ms": 11000.0,
+    "max_error_rate": 0.01,
+    "min_success_rate": 0.99,
+    "max_p99_latency_ms": 12000.0,
+    "max_memory_growth_mb": 1000.0,
+    "max_buffer_full_rate": 0.03,
+    "min_messages_per_poll": 5.0
+  },
+  "_default_environment": "local"
+}

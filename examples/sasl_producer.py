@@ -31,7 +31,7 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
 
         msg (Message): The message that was produced or failed.
 
@@ -47,28 +47,39 @@ def delivery_report(err, msg):
     if err is not None:
         print("Delivery failed for User record {}: {}".format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def sasl_conf(args):
     sasl_mechanism = args.sasl_mechanism.upper()
 
-    sasl_conf = {'sasl.mechanism': sasl_mechanism,
-                 # Set to SASL_SSL to enable TLS support.
-                 'security.protocol': 'SASL_PLAINTEXT'}
+    sasl_conf = {
+        'sasl.mechanism': sasl_mechanism,
+        # Set to SASL_SSL to enable TLS support.
+        'security.protocol': 'SASL_PLAINTEXT',
+    }
 
     if sasl_mechanism != 'GSSAPI':
-        sasl_conf.update({'sasl.username': args.user_principal,
-                          'sasl.password': args.user_secret})
+        sasl_conf.update({'sasl.username': args.user_principal, 'sasl.password': args.user_secret})
 
     if sasl_mechanism == 'GSSAPI':
-        sasl_conf.update({'sasl.kerberos.service.name', args.broker_principal,
-                          # Keytabs are not supported on Windows. Instead the
-                          # the logged on user's credentials are used to
-                          # authenticate.
-                          'sasl.kerberos.principal', args.user_principal,
-                          'sasl.kerberos.keytab', args.user_secret})
+        sasl_conf.update(
+            {
+                'sasl.kerberos.service.name',
+                args.broker_principal,
+                # Keytabs are not supported on Windows. Instead the
+                # the logged on user's credentials are used to
+                # authenticate.
+                'sasl.kerberos.principal',
+                args.user_principal,
+                'sasl.kerberos.keytab',
+                args.user_secret,
+            }
+        )
     return sasl_conf
 
 
@@ -88,14 +99,11 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic=topic,
-                                 key=serializer(msg[0]),
-                                 value=serializer(msg[1]),
-                                 on_delivery=delivery_report)
+                producer.produce(
+                    topic=topic, key=serializer(msg[0]), value=serializer(msg[1]), on_delivery=delivery_report
+                )
             else:
-                producer.produce(topic=topic,
-                                 value=serializer(msg[0]),
-                                 on_delivery=delivery_report)
+                producer.produce(topic=topic, value=serializer(msg[0]), on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
 
@@ -105,22 +113,23 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SASL Example")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="topic", default="example_producer_sasl",
-                        help="Topic name")
-    parser.add_argument('-d', dest="delimiter", default="|",
-                        help="Key-Value delimiter. Defaults to '|'"),
-    parser.add_argument('-m', dest="sasl_mechanism", default='PLAIN',
-                        choices=['GSSAPI', 'PLAIN',
-                                 'SCRAM-SHA-512', 'SCRAM-SHA-256'],
-                        help="SASL mechanism to use for authentication."
-                             "Defaults to PLAIN")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-t', dest="topic", default="example_producer_sasl", help="Topic name")
+    parser.add_argument('-d', dest="delimiter", default="|", help="Key-Value delimiter. Defaults to '|'"),
+    parser.add_argument(
+        '-m',
+        dest="sasl_mechanism",
+        default='PLAIN',
+        choices=['GSSAPI', 'PLAIN', 'SCRAM-SHA-512', 'SCRAM-SHA-256'],
+        help="SASL mechanism to use for authentication." "Defaults to PLAIN",
+    )
     parser.add_argument('--tls', dest="enab_tls", default=False)
-    parser.add_argument('-u', dest="user_principal", required=True,
-                        help="Username")
-    parser.add_argument('-s', dest="user_secret", required=True,
-                        help="Password for PLAIN and SCRAM, or path to"
-                             " keytab (ignored on Windows) if GSSAPI.")
+    parser.add_argument('-u', dest="user_principal", required=True, help="Username")
+    parser.add_argument(
+        '-s',
+        dest="user_secret",
+        required=True,
+        help="Password for PLAIN and SCRAM, or path to" " keytab (ignored on Windows) if GSSAPI.",
+    )
 
     main(parser.parse_args())

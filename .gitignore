@@ -2,6 +2,7 @@ build
 _build
 build-openssl
 dist
+dest
 *~
 \#*
 MANIFEST
@@ -29,3 +30,9 @@ tmp-KafkaCluster
 .venv
 venv_test
 venv_examples
+*Zone.Identifier
+.coverage
+**/coverage.xml
+**/test-report.xml
+.ducktape
+results

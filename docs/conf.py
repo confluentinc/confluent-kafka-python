@@ -12,15 +12,34 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sphinx_rtd_theme
-import sys
 import os
-from glob import glob
 
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path[:0] = [os.path.abspath(x) for x in glob('../build/lib.*')]
+try:
+    import tomllib
+except ImportError:
+    # For Python 3.12 and earlier
+    import tomli as tomllib
+
+
+def _read_version_from_pyproject(pyproject_path=None):
+    """Reads the project version from pyproject.toml using tomllib."""
+
+    if not pyproject_path:
+        pyproject_path = os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml')
+
+    if not os.path.isfile(pyproject_path):
+        return None
+
+    with open(pyproject_path, "rb") as f:
+        data = tomllib.load(f)
+
+    # Check for 'project.version' first (PEP 621)
+    if "project" in data and "version" in data["project"]:
+        return data["project"]["version"]
+    # Fallback to 'tool.poetry.version' for Poetry projects
+    elif "tool" in data and "poetry" in data["tool"] and "version" in data["tool"]["poetry"]:
+        return data["tool"]["poetry"]["version"]
+
 
 # -- General configuration ------------------------------------------------
 
@@ -28,14 +47,14 @@ sys.path[:0] = [os.path.abspath(x) for x in glob('../build/lib.*')]
 ######################################################################
 # General information about the project.
 project = u'confluent-kafka'
-copyright = u'2016-2023, Confluent Inc.'
+copyright = u'2016-2025, Confluent Inc.'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = '2.2.0'
+version = _read_version_from_pyproject()
 # The full version, including alpha/beta/rc tags.
 release = version
 ######################################################################
@@ -47,12 +66,7 @@ release = version
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.coverage',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode'
-]
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.coverage', 'sphinx.ext.napoleon', 'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -115,7 +129,6 @@ html_theme = 'sphinx_rtd_theme'
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -196,10 +209,8 @@ htmlhelp_basename = 'confluent-kafkadoc'
 latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     # 'preamble': '',
 }
@@ -208,8 +219,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    ('index', 'confluent-kafka.tex', u'confluent-kafka Documentation',
-     u'Magnus Edenhill', 'manual'),
+    ('index', 'confluent-kafka.tex', u'confluent-kafka Documentation', u'Magnus Edenhill', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -237,10 +247,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    ('index', 'confluent-kafka', u'confluent-kafka Documentation',
-     [u'Magnus Edenhill'], 1)
-]
+man_pages = [('index', 'confluent-kafka', u'confluent-kafka Documentation', [u'Magnus Edenhill'], 1)]
 
 # If true, show URL addresses after external links.
 # man_show_urls = False
@@ -252,9 +259,15 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'confluent-kafka', u'confluent-kafka Documentation',
-     u'Magnus Edenhill', 'confluent-kafka', 'One line description of project.',
-     'Miscellaneous'),
+    (
+        'index',
+        'confluent-kafka',
+        u'confluent-kafka Documentation',
+        u'Magnus Edenhill',
+        'confluent-kafka',
+        'One line description of project.',
+        'Miscellaneous',
+    ),
 ]
 
 # Documents to append as an appendix to all manuals.

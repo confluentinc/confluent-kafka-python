@@ -13,26 +13,27 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import Type, Union
 
 
 class ConversionUtil:
     @staticmethod
-    def convert_to_enum(val, enum_clazz):
+    def convert_to_enum(val: Union[str, int, Enum], enum_clazz: Type[Enum]) -> Enum:
         if type(enum_clazz) is not type(Enum):
             raise TypeError("'enum_clazz' must be of type Enum")
 
-        if type(val) == str:
+        if isinstance(val, str):
             # Allow it to be specified as case-insensitive string, for convenience.
             try:
                 val = enum_clazz[val.upper()]
             except KeyError:
                 raise ValueError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
 
-        elif type(val) == int:
+        elif isinstance(val, int):
             # The C-code passes restype as an int, convert to enum.
             val = enum_clazz(val)
 
-        elif type(val) != enum_clazz:
+        elif not isinstance(val, enum_clazz):
             raise TypeError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
 
         return val

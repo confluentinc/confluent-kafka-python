@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+import "confluent/meta.proto";
+
+message Author {
+  string name = 1 [
+    (confluent.field_meta).tags = "PII"
+  ];
+  int32 id = 2;
+  bytes picture = 3 [
+    (confluent.field_meta).tags = "PII"
+  ];
+  repeated string works = 4;
+  oneof pii_oneof {
+    Pizza oneof_message = 5;
+    string oneof_string = 6 [(.confluent.field_meta).tags = "PII"];
+  }
+}
+
+message Pizza {
+  string size = 1;
+  repeated string toppings = 2;
+}

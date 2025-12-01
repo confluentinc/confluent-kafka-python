@@ -2,31 +2,32 @@
 #
 #
 # Get python versions required for cibuildwheel from their config and
-# install them. This implementation is based on cibuildwheel 2.12.0
+# install them. This implementation is based on cibuildwheel 3.2.1
 # version. Might need tweak if something changes in cibuildwheel.
 #
 # This was added as there is a permission issue when cibuildwheel
 # tries to install these versions on its own.
 #
 
-import platform
-import sys
 import os
-import tomli
-import urllib.request
+import platform
 import re
 import shutil
-
+import sys
+import tomllib
+import urllib.request
 
 cibuildwheel_version = sys.argv[1]
-config_url = "https://raw.githubusercontent.com/pypa/cibuildwheel/" + \
-    f"v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+config_url = (
+    "https://raw.githubusercontent.com/pypa/cibuildwheel/"
+    + f"v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+)
 print(f"Config URL is '{config_url}'")
 
 response = urllib.request.urlopen(config_url).read()
 
 content = response.decode('utf-8')
-d = tomli.loads(content)
+d = tomllib.loads(content)
 macos_config = d['macos']['python_configurations']
 
 machine_arc = platform.machine()

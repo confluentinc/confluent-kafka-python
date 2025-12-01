@@ -1,0 +1,5 @@
+attrs>=21.2.0
+cachetools>=5.5.0
+certifi
+httpx>=0.26
+authlib>=1.0.0
