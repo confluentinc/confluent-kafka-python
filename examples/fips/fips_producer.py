@@ -20,8 +20,9 @@
 # Reads lines from stdin and sends to Kafka.
 #
 
-from confluent_kafka import Producer
 import sys
+
+from confluent_kafka import Producer
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
@@ -33,21 +34,22 @@ if __name__ == '__main__':
 
     # Producer configuration
     # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
-    conf = {'bootstrap.servers': broker,
-            'security.protocol': 'SASL_SSL',
-            'sasl.mechanism': 'PLAIN',
-            'sasl.username': 'broker',
-            'sasl.password': 'broker-secret',
-            # pkc12 keystores are not FIPS compliant and hence you will need to use
-            # path to key and certificate separately in FIPS mode
-            # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
-            # 'ssl.keystore.password': '111111',
-            'ssl.key.location': './docker/secrets/localhost_client.key',
-            'ssl.key.password': '111111',
-            'ssl.certificate.location': './docker/secrets/localhost_client.crt',
-            'ssl.ca.location': './docker/secrets/ca-root.crt',
-            'ssl.providers': 'fips,base'
-            }
+    conf = {
+        'bootstrap.servers': broker,
+        'security.protocol': 'SASL_SSL',
+        'sasl.mechanism': 'PLAIN',
+        'sasl.username': 'broker',
+        'sasl.password': 'broker-secret',
+        # pkc12 keystores are not FIPS compliant and hence you will need to use
+        # path to key and certificate separately in FIPS mode
+        # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
+        # 'ssl.keystore.password': '111111',
+        'ssl.key.location': './docker/secrets/localhost_client.key',
+        'ssl.key.password': '111111',
+        'ssl.certificate.location': './docker/secrets/localhost_client.crt',
+        'ssl.ca.location': './docker/secrets/ca-root.crt',
+        'ssl.providers': 'fips,base',
+    }
 
     # Create Producer instance
     p = Producer(**conf)
@@ -59,8 +61,7 @@ if __name__ == '__main__':
         if err:
             sys.stderr.write('%% Message failed delivery: %s\n' % err)
         else:
-            sys.stderr.write('%% Message delivered to %s [%d] @ %d\n' %
-                             (msg.topic(), msg.partition(), msg.offset()))
+            sys.stderr.write('%% Message delivered to %s [%d] @ %d\n' % (msg.topic(), msg.partition(), msg.offset()))
 
     # Read lines from stdin, produce each line to Kafka
     for line in sys.stdin:
@@ -69,8 +70,7 @@ if __name__ == '__main__':
             p.produce(topic, line.rstrip(), callback=delivery_callback)
 
         except BufferError:
-            sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' %
-                             len(p))
+            sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' % len(p))
 
         # Serve delivery callback queue.
         # NOTE: Since produce() is an asynchronous API this poll() call

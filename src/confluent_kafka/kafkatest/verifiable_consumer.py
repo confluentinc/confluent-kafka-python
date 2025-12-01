@@ -18,8 +18,10 @@
 import argparse
 import os
 import time
-from confluent_kafka import Consumer, KafkaError, KafkaException
+
 from verifiable_client import VerifiableClient
+
+from confluent_kafka import Consumer, KafkaError, KafkaException
 
 
 class VerifiableConsumer(VerifiableClient):
@@ -45,23 +47,25 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = dict()
 
     def find_assignment(self, topic, partition):
-        """ Find and return existing assignment based on topic and partition,
-        or None on miss. """
+        """Find and return existing assignment based on topic and partition,
+        or None on miss."""
         skey = '%s %d' % (topic, partition)
         return self.assignment_dict.get(skey)
 
     def send_records_consumed(self, immediate=False):
-        """ Send records_consumed, every 100 messages, on timeout,
-            or if immediate is set. """
+        """Send records_consumed, every 100 messages, on timeout,
+        or if immediate is set."""
         if self.consumed_msgs <= self.consumed_msgs_last_reported + (0 if immediate else 100):
             return
 
         if len(self.assignment) == 0:
             return
 
-        d = {'name': 'records_consumed',
-             'count': self.consumed_msgs - self.consumed_msgs_last_reported,
-             'partitions': []}
+        d = {
+            'name': 'records_consumed',
+            'count': self.consumed_msgs - self.consumed_msgs_last_reported,
+            'partitions': [],
+        }
 
         for a in self.assignment:
             if a.min_offset == -1:
@@ -75,13 +79,15 @@ class VerifiableConsumer(VerifiableClient):
         self.consumed_msgs_last_reported = self.consumed_msgs
 
     def send_assignment(self, evtype, partitions):
-        """ Send assignment update, evtype is either 'assigned' or 'revoked' """
-        d = {'name': 'partitions_' + evtype,
-             'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
+        """Send assignment update, evtype is either 'assigned' or 'revoked'"""
+        d = {
+            'name': 'partitions_' + evtype,
+            'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions],
+        }
         self.send(d)
 
     def on_assign(self, consumer, partitions):
-        """ Rebalance on_assign callback """
+        """Rebalance on_assign callback"""
         old_assignment = self.assignment
         self.assignment = [AssignedPartition(p.topic, p.partition) for p in partitions]
         # Move over our last seen offsets so that we can report a proper
@@ -94,7 +100,7 @@ class VerifiableConsumer(VerifiableClient):
         self.send_assignment('assigned', partitions)
 
     def on_revoke(self, consumer, partitions):
-        """ Rebalance on_revoke callback """
+        """Rebalance on_revoke callback"""
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
         self.send_records_consumed(immediate=True)
@@ -104,7 +110,7 @@ class VerifiableConsumer(VerifiableClient):
         self.send_assignment('revoked', partitions)
 
     def on_commit(self, err, partitions):
-        """ Offsets Committed callback """
+        """Offsets Committed callback"""
         if err is not None and err.code() == KafkaError._NO_OFFSET:
             self.dbg('on_commit(): no offsets to commit')
             return
@@ -112,8 +118,7 @@ class VerifiableConsumer(VerifiableClient):
         # Report consumed messages to make sure consumed position >= committed position
         self.send_records_consumed(immediate=True)
 
-        d = {'name': 'offsets_committed',
-             'offsets': []}
+        d = {'name': 'offsets_committed', 'offsets': []}
 
         if err is not None:
             d['success'] = False
@@ -135,11 +140,9 @@ class VerifiableConsumer(VerifiableClient):
         self.send(d)
 
     def do_commit(self, immediate=False, asynchronous=None):
-        """ Commit every 1000 messages or whenever there is a consume timeout
-            or immediate. """
-        if (self.use_auto_commit
-                or self.consumed_msgs_at_last_commit + (0 if immediate else 1000) >
-                self.consumed_msgs):
+        """Commit every 1000 messages or whenever there is a consume timeout
+        or immediate."""
+        if self.use_auto_commit or self.consumed_msgs_at_last_commit + (0 if immediate else 1000) > self.consumed_msgs:
             return
 
         # Make sure we report consumption before commit,
@@ -152,9 +155,9 @@ class VerifiableConsumer(VerifiableClient):
         else:
             async_mode = asynchronous
 
-        self.dbg('Committing %d messages (Async=%s)' %
-                 (self.consumed_msgs - self.consumed_msgs_at_last_commit,
-                  async_mode))
+        self.dbg(
+            'Committing %d messages (Async=%s)' % (self.consumed_msgs - self.consumed_msgs_at_last_commit, async_mode)
+        )
 
         retries = 3
         while True:
@@ -172,9 +175,11 @@ class VerifiableConsumer(VerifiableClient):
                 if e.args[0].code() == KafkaError._NO_OFFSET:
                     self.dbg('No offsets to commit')
                     break
-                elif e.args[0].code() in (KafkaError.REQUEST_TIMED_OUT,
-                                          KafkaError.NOT_COORDINATOR,
-                                          KafkaError._WAIT_COORD):
+                elif e.args[0].code() in (
+                    KafkaError.REQUEST_TIMED_OUT,
+                    KafkaError.NOT_COORDINATOR,
+                    KafkaError._WAIT_COORD,
+                ):
                     self.dbg('Commit failed: %s (%d retries)' % (str(e), retries))
                     if retries <= 0:
                         raise
@@ -187,18 +192,22 @@ class VerifiableConsumer(VerifiableClient):
         self.consumed_msgs_at_last_commit = self.consumed_msgs
 
     def msg_consume(self, msg):
-        """ Handle consumed message (or error event) """
+        """Handle consumed message (or error event)"""
         if msg.error():
             self.err('Consume failed: %s' % msg.error(), term=False)
             return
 
         if self.verbose:
-            self.send({'name': 'record_data',
-                       'topic': msg.topic(),
-                       'partition': msg.partition(),
-                       'key': msg.key(),
-                       'value': msg.value(),
-                       'offset': msg.offset()})
+            self.send(
+                {
+                    'name': 'record_data',
+                    'topic': msg.topic(),
+                    'partition': msg.partition(),
+                    'key': msg.key(),
+                    'value': msg.value(),
+                    'offset': msg.offset(),
+                }
+            )
 
         if self.max_msgs >= 0 and self.consumed_msgs >= self.max_msgs:
             return  # ignore extra messages
@@ -206,8 +215,10 @@ class VerifiableConsumer(VerifiableClient):
         # Find assignment.
         a = self.find_assignment(msg.topic(), msg.partition())
         if a is None:
-            self.err('Received message on unassigned partition %s [%d] @ %d' %
-                     (msg.topic(), msg.partition(), msg.offset()), term=True)
+            self.err(
+                'Received message on unassigned partition %s [%d] @ %d' % (msg.topic(), msg.partition(), msg.offset()),
+                term=True,
+            )
 
         a.consumed_msgs += 1
         if a.min_offset == -1:
@@ -223,7 +234,7 @@ class VerifiableConsumer(VerifiableClient):
 
 
 class AssignedPartition(object):
-    """ Local state container for assigned partition. """
+    """Local state container for assigned partition."""
 
     def __init__(self, topic, partition):
         super(AssignedPartition, self).__init__()
@@ -235,9 +246,13 @@ class AssignedPartition(object):
         self.max_offset = 0
 
     def to_dict(self):
-        """ Return a dict of this partition's state """
-        return {'topic': self.topic, 'partition': self.partition,
-                'minOffset': self.min_offset, 'maxOffset': self.max_offset}
+        """Return a dict of this partition's state"""
+        return {
+            'topic': self.topic,
+            'partition': self.partition,
+            'minOffset': self.min_offset,
+            'maxOffset': self.max_offset,
+        }
 
 
 if __name__ == '__main__':
@@ -258,11 +273,13 @@ if __name__ == '__main__':
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
-    conf = {'broker.version.fallback': '0.9.0',
-            # Do explicit manual offset stores to avoid race conditions
-            # where a message is consumed from librdkafka but not yet handled
-            # by the Python code that keeps track of last consumed offset.
-            'enable.auto.offset.store': False}
+    conf = {
+        'broker.version.fallback': '0.9.0',
+        # Do explicit manual offset stores to avoid race conditions
+        # where a message is consumed from librdkafka but not yet handled
+        # by the Python code that keeps track of last consumed offset.
+        'enable.auto.offset.store': False,
+    }
 
     if args.get('consumer_config', None) is not None:
         args.update(VerifiableClient.read_config_file(args['consumer_config']))
@@ -280,8 +297,7 @@ if __name__ == '__main__':
     vc.dbg('Using config: %s' % conf)
 
     vc.dbg('Subscribing to %s' % args['topic'])
-    vc.consumer.subscribe(args['topic'],
-                          on_assign=vc.on_assign, on_revoke=vc.on_revoke)
+    vc.consumer.subscribe(args['topic'], on_assign=vc.on_assign, on_revoke=vc.on_revoke)
 
     failed = False
 

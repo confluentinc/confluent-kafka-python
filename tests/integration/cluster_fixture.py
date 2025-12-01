@@ -16,14 +16,19 @@
 # limitations under the License.
 #
 
+import time
 from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
-    SerializingProducer
+from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from tests.common import TestConsumer
+from tests.common._async.consumer import TestAsyncDeserializingConsumer
+from tests.common._async.producer import TestAsyncSerializingProducer
+from tests.common.schema_registry import TestDeserializingConsumer
 
 
 class KafkaClusterFixture(object):
@@ -40,8 +45,7 @@ class KafkaClusterFixture(object):
 
     @classmethod
     def _topic_conf(cls, conf=None):
-        topic_conf = {'num_partitions': 1,
-                      'replication_factor': 1}
+        topic_conf = {'num_partitions': 1, 'replication_factor': 1}
 
         if conf is not None:
             topic_conf.update(conf)
@@ -86,6 +90,32 @@ class KafkaClusterFixture(object):
 
         return SerializingProducer(client_conf)
 
+    def async_producer(self, conf=None, key_serializer=None, value_serializer=None):
+        """
+        Returns a producer bound to this cluster.
+
+        Args:
+            conf (dict): Producer configuration overrides
+
+            key_serializer (Serializer): serializer to apply to message key
+
+            value_serializer (Deserializer): serializer to apply to
+                message value
+
+        Returns:
+            Producer: A new SerializingProducer instance
+
+        """
+        client_conf = self.client_conf(conf)
+
+        if key_serializer is not None:
+            client_conf['key.serializer'] = key_serializer
+
+        if value_serializer is not None:
+            client_conf['value.serializer'] = value_serializer
+
+        return TestAsyncSerializingProducer(client_conf)
+
     def cimpl_consumer(self, conf=None):
         """
         Returns a consumer bound to this cluster.
@@ -97,15 +127,12 @@ class KafkaClusterFixture(object):
             Consumer: A new Consumer instance
 
         """
-        consumer_conf = self.client_conf({
-            'group.id': str(uuid1()),
-            'auto.offset.reset': 'earliest'
-        })
+        consumer_conf = self.client_conf({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
 
         if conf is not None:
             consumer_conf.update(conf)
 
-        return Consumer(consumer_conf)
+        return TestConsumer(consumer_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -124,10 +151,7 @@ class KafkaClusterFixture(object):
             Consumer: A new DeserializingConsumer instance
 
         """
-        consumer_conf = self.client_conf({
-            'group.id': str(uuid1()),
-            'auto.offset.reset': 'earliest'
-        })
+        consumer_conf = self.client_conf({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
 
         if conf is not None:
             consumer_conf.update(conf)
@@ -138,9 +162,46 @@ class KafkaClusterFixture(object):
         if value_deserializer is not None:
             consumer_conf['value.deserializer'] = value_deserializer
 
-        return DeserializingConsumer(consumer_conf)
+        return TestDeserializingConsumer(consumer_conf)
 
-    def admin(self):
+    def async_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
+        """
+        Returns a consumer bound to this cluster.
+
+        Args:
+            conf (dict): Consumer config overrides
+
+            key_deserializer (Deserializer): deserializer to apply to
+                message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            Consumer: A new DeserializingConsumer instance
+
+        """
+        consumer_conf = self.client_conf({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        if key_deserializer is not None:
+            consumer_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            consumer_conf['value.deserializer'] = value_deserializer
+
+        return TestAsyncDeserializingConsumer(consumer_conf)
+
+    def admin(self, conf=None):
+        if conf:
+            # When conf is passed create a new AdminClient
+            admin_conf = self.client_conf()
+            admin_conf.update(conf)
+            return AdminClient(admin_conf)
+
+        # Otherwise use a common one
         if self._admin is None:
             self._admin = AdminClient(self.client_conf())
         return self._admin
@@ -155,11 +216,41 @@ class KafkaClusterFixture(object):
         :rtype: str
         """
         name = prefix + "-" + str(uuid1())
-        future_topic = self.admin().create_topics([NewTopic(name,
-                                                            **self._topic_conf(conf))],
-                                                  **create_topic_kwargs)
+        future_topic = self.admin().create_topics([NewTopic(name, **self._topic_conf(conf))], **create_topic_kwargs)
 
         future_topic.get(name).result()
+        return name
+
+    def delete_topic(self, topic):
+        """
+        Deletes a topic with this cluster.
+
+        :param str topic: topic name
+        """
+        future = self.admin().delete_topics([topic])
+        try:
+            future.get(topic).result()
+            print("Topic {} deleted".format(topic))
+        except Exception as e:
+            print("Failed to delete topic {}: {}".format(topic, e))
+
+    def create_topic_and_wait_propogation(self, prefix, conf=None, **create_topic_kwargs):
+        """
+        Creates a new topic with this cluster. Wait for the topic to be propogated to all brokers.
+
+        :param str prefix: topic name
+        :param dict conf: additions/overrides to topic configuration.
+        :returns: The topic's name
+        :rtype: str
+        """
+        name = self.create_topic(prefix, conf, **create_topic_kwargs)
+
+        # wait for topic propogation across all the brokers.
+        # FIXME: find a better way to wait for topic creation
+        #        for all languages, given option to send request to
+        #        a specific broker isn't present everywhere.
+        time.sleep(1)
+
         return name
 
     def seed_topic(self, topic, value_source=None, key_source=None, header_source=None):
@@ -211,14 +302,14 @@ class KafkaClusterFixture(object):
             while True:
                 try:
                     if header_source is not None:
-                        producer.produce(topic,
-                                         value=value_source[i],
-                                         key=key_source[i % num_keys],
-                                         headers=header_source[i % (num_headers + 1)])
+                        producer.produce(
+                            topic,
+                            value=value_source[i],
+                            key=key_source[i % num_keys],
+                            headers=header_source[i % (num_headers + 1)],
+                        )
                     else:
-                        producer.produce(topic,
-                                         value=value_source[i],
-                                         key=key_source[i % num_keys])
+                        producer.produce(topic, value=value_source[i], key=key_source[i % num_keys])
                     break
                 except BufferError:
                     producer.poll(0.1)
@@ -257,6 +348,15 @@ class TrivupFixture(KafkaClusterFixture):
             sr_conf.update(conf)
         return SchemaRegistryClient(sr_conf)
 
+    def async_schema_registry(self, conf=None):
+        if not hasattr(self._cluster, 'sr'):
+            return None
+
+        sr_conf = {'url': self._cluster.sr.get('url')}
+        if conf is not None:
+            sr_conf.update(conf)
+        return AsyncSchemaRegistryClient(sr_conf)
+
     def client_conf(self, conf=None):
         """
         Default client configuration
@@ -283,8 +383,7 @@ class ByoFixture(KafkaClusterFixture):
 
     def __init__(self, conf):
         if conf.get("bootstrap.servers", "") == "":
-            raise ValueError("'bootstrap.servers' must be set in the "
-                             "conf dict")
+            raise ValueError("'bootstrap.servers' must be set in the " "conf dict")
         self._admin = None
         self._producer = None
         self._conf = conf.copy()

@@ -31,12 +31,16 @@ fi
 echo "$0 running from $(pwd)"
 
 function setup_ubuntu {
+    export DEBIAN_FRONTEND=noninteractive
     # Ubuntu container setup
     apt-get update
-    apt-get install -y python3.8 curl
+    apt-get install -y -q software-properties-common
+    add-apt-repository ppa:deadsnakes/ppa
     # python3-distutils is required on Ubuntu 18.04 and later but does
     # not exist on 14.04.
-    apt-get install -y python3.8-distutils || true
+    apt-get install -y -q python3.9
+    apt-get install -y -q python3.9-distutils
+    apt-get install -y -q curl
 }
 
 
@@ -61,7 +65,7 @@ function run_single_in_docker {
     # in a plethora of possibly outdated Python requirements that
     # might interfere with the newer packages from PyPi, such as six.
     # Instead install it directly from PyPa.
-    curl https://bootstrap.pypa.io/get-pip.py | python3.8
+    curl https://bootstrap.pypa.io/get-pip.py | python3.9
 
     /io/tools/smoketest.sh "$wheelhouse"
 }
@@ -78,7 +82,7 @@ function run_all_with_docker {
 
     [[ ! -z $DOCKER_IMAGES ]] || \
         # LTS and stable release of popular Linux distros.
-        DOCKER_IMAGES="ubuntu:18.04 ubuntu:20.04"
+        DOCKER_IMAGES="ubuntu:20.04 ubuntu:22.04"
 
 
     _wheels="$wheelhouse/*manylinux*.whl"

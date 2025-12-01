@@ -6,26 +6,28 @@ of time, typically 2+ weeks, to vet out any resource leaks, etc.
 The soak testing client is made up of a producer, producing messages to
 the configured topic, and a consumer, consuming the same messages back.
 
-DataDog reporting supported by setting datadog.api_key a and datadog.app_key
-in the soak client configuration file.
+OpenTelemetry reporting supported through OTLP.
 
+# Installation
 
-There are some convenience script to get you started.
+1. Edit `ccloud.config`
 
-On the host (ec2) where you aim to run the soaktest, do:
+2. Edit `otel-config.yaml`
 
-$ git clone https://github.com/confluentinc/librdkafka
-$ git clone https://github.com/confluentinc/confluent-kafka-python
+3. the first time:
+```bash
+./bootstrap.sh <python-branch/tag> <librdkafka-branch/tag>
+```
+4. next times:
+```bash
+./build.sh <python-branch/tag> <librdkafka-branch/tag>
+```
 
-# Build librdkafka and python
-$ ~/confluent-kafka-python/tests/soak/build.sh <librdkafka-version> <cfl-python-version>
+5. 
+```bash
+. venv/bin/activate
 
-# Set up config:
-$ cp ~/confluent-kafka-python/tests/soak/ccloud.config.example ~/confluent-kafka-python/ccloud.config
-
-# Start a screen session
-$ screen bash
-
-# Within the screen session, run the soak client
-(screen)$ ~/run.sh
-(screen)$ Ctrl-A d  # to detach
+5. Run some tests
+```bash
+TESTID=<testid> ./run.sh ccloud.config
+```

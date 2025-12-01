@@ -13,11 +13,12 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limit
+# limitations under the License.
 
-import pytest
 import time
 from uuid import uuid1
+
+import pytest
 
 from confluent_kafka import KafkaError
 from confluent_kafka.error import ConsumeError
@@ -30,13 +31,15 @@ def test_cooperative_rebalance_2(kafka_cluster):
     specified.
     """
 
-    consumer_conf = {'group.id': str(uuid1()),
-                     'partition.assignment.strategy': 'cooperative-sticky',
-                     'enable.auto.commit': 'false',
-                     'auto.offset.reset': 'earliest',
-                     'heartbeat.interval.ms': '2000',
-                     'session.timeout.ms': '6000',  # minimum allowed by broker
-                     'max.poll.interval.ms': '6500'}
+    consumer_conf = {
+        'group.id': str(uuid1()),
+        'partition.assignment.strategy': 'cooperative-sticky',
+        'enable.auto.commit': 'false',
+        'auto.offset.reset': 'earliest',
+        'heartbeat.interval.ms': '2000',
+        'session.timeout.ms': '6000',  # minimum allowed by broker
+        'max.poll.interval.ms': '6500',
+    }
 
     class RebalanceState:
         def __init__(self):
@@ -52,15 +55,13 @@ def test_cooperative_rebalance_2(kafka_cluster):
 
     reb = RebalanceState()
 
-    topic1 = kafka_cluster.create_topic("topic1")
+    topic1 = kafka_cluster.create_topic_and_wait_propogation("topic1")
 
     consumer = kafka_cluster.consumer(consumer_conf)
 
     kafka_cluster.seed_topic(topic1, value_source=[b'a'])
 
-    consumer.subscribe([topic1],
-                       on_assign=reb.on_assign,
-                       on_revoke=reb.on_revoke)
+    consumer.subscribe([topic1], on_assign=reb.on_assign, on_revoke=reb.on_revoke)
     msg = consumer.poll(10)
     assert msg is not None
     assert msg.value() == b'a'
@@ -71,8 +72,9 @@ def test_cooperative_rebalance_2(kafka_cluster):
 
     with pytest.raises(ConsumeError) as exc_info:
         consumer.poll(1)
-    assert exc_info.value.args[0].code() == KafkaError._MAX_POLL_EXCEEDED, \
-        "Expected _MAX_POLL_EXCEEDED, not {}".format(exc_info)
+    assert exc_info.value.args[0].code() == KafkaError._MAX_POLL_EXCEEDED, "Expected _MAX_POLL_EXCEEDED, not {}".format(
+        exc_info
+    )
 
     # The second call should trigger the revoked handler (because a lost
     # handler has not been specified).

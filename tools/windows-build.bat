@@ -10,8 +10,8 @@ set
 rem Download and install librdkafka from NuGet.
 call tools\windows-install-librdkafka.bat %LIBRDKAFKA_NUGET_VERSION% dest || exit /b 1
 
-pip install -U -r tests/requirements.txt -r src/confluent_kafka/avro/requirements.txt
-pip install cibuildwheel==0.12.0 || exit /b 1
+pip install -r requirements\requirements-tests-install.txt || exit /b 1
+pip install cibuildwheel==3.2.1 || exit /b 1
 
 rem Build wheels (without tests)
 cibuildwheel --platform windows --output-dir wheelhouse || exit /b 1
@@ -51,8 +51,7 @@ for %%W in (wheelhouse\confluent_kafka-*cp%PYTHON_SHORTVER%*win*%PYTHON_ARCH%.wh
   python -c "import struct; print(struct.calcsize('P') * 8)"
   7z l %%~W
   pip install %%~W || exit /b 1
-  pip install -r src\confluent_kafka\requirements.txt
-  pip install -r src\confluent_kafka\avro\requirements.txt
+  pip install -r requirements\requirements-tests-install.txt
 
   python -c "from confluent_kafka import libversion ; print(libversion())" || exit /b 1
 

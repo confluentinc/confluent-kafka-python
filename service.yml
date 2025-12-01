@@ -1,11 +1,17 @@
 name: confluent-kafka-python
 lang: python
-lang_version: 3.7
+lang_version: 3.8
 git:
   enable: true
 github:
   enable: true
   repo_name: confluentinc/confluent-kafka-python
+sonarqube:
+  enable: true
+  coverage_exclusions:
+    - "**/*.pb.*"
+    - "**/mk-include/**/*"
+    - "examples/**"
 semaphore:
   enable: true
   pipeline_enable: false

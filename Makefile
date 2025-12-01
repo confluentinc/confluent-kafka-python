@@ -2,16 +2,23 @@ all:
 	@echo "Targets:"
 	@echo " clean"
 	@echo " docs"
+	@echo " mypy"
+	@echo " style-check"
+	@echo " style-fix"
 
 
 clean:
-	python setup.py clean
+	pip cache purge
+	rm -rf dist
 	make -C docs clean
 
 .PHONY: docs
 
 docs:
 	$(MAKE) -C docs html
+
+mypy:
+	python3 -m mypy src/confluent_kafka
 
 style-check:
 	@(tools/style-format.sh \

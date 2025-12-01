@@ -1,0 +1,36 @@
+confluent-kafka
+fastapi
+pydantic
+uvicorn
+six
+
+attrs
+cachetools
+httpx>=0.26
+authlib>=1.0.0
+
+fastavro < 1.8.0; python_version == "3.7"
+fastavro < 2; python_version > "3.7"
+requests
+avro>=1.11.1,<2
+
+pyrsistent
+jsonschema
+orjson >= 3.10
+
+googleapis-common-protos
+protobuf
+
+azure-identity
+azure-keyvault-keys
+boto3
+cel-python>=0.4.0
+google-auth
+google-api-core
+google-cloud-kms
+hkdf==0.0.3
+hvac
+jsonata-python
+# Dependency of cel-python.  Use version 6 due to https://github.com/yaml/pyyaml/issues/601
+pyyaml>=6.0.0
+tink

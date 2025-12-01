@@ -1,0 +1,150 @@
+[build-system]
+requires = [ "setuptools>=62", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "confluent-kafka"
+version = "2.12.1"
+description = "Confluent's Python client for Apache Kafka"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules"]
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[[project.authors]]
+name = "Confluent Inc."
+email = "support@confluent.io"
+
+[project.urls]
+Homepage = "https://github.com/confluentinc/confluent-kafka-python"
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.avro",
+    "confluent_kafka.schema_registry.json_schema",
+    "confluent_kafka.schema_registry.protobuf",
+]
+disable_error_code = ["assignment", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.confluent.meta_pb2",
+    "confluent_kafka.schema_registry.confluent.types.decimal_pb2",
+]
+ignore_errors = true
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+skip-string-normalization = true
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Exclude build directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | tmp-build
+  | tmp-KafkaCluster
+  # Exclude generated files
+  | .*_pb2\.py
+  # Exclude docs config (maintained separately)
+  | docs/conf\.py
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip = [
+    ".formatignore",
+    ".git",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "tmp-build",
+    "tmp-KafkaCluster",
+    ".tox",
+]
+skip_glob = [
+    "*_pb2.py",
+    "docs/conf.py",
+]
+known_first_party = ["confluent_kafka"]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/requirements.txt"]}
+optional-dependencies.schemaregistry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.schema_registry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.dev = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.docs = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.tests = { file = [
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
+optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
+optional-dependencies.all = { file = [
+    "requirements/requirements-soaktest.txt",
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Exclude ducktape tests from pytest collection to avoid import errors in CI
+# Ducktape requires boto3==1.33.13 and PyYAML==5.3.1, but project requires boto3>=1.35 and PyYAML>=6.0.0
+# TODO: Remove this exclusion when ducktape updates to support newer dependency versions
+norecursedirs = "tests/ducktape"

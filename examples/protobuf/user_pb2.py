@@ -6,20 +6,26 @@ from google.protobuf.internal import builder as _builder
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import symbol_database as _symbol_database
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
+from confluent_kafka.schema_registry.confluent import meta_pb2 as confluent_dot_meta__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nuser.proto\"E\n\x04User\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x17\n\x0f\x66\x61vorite_number\x18\x02 \x01(\x03\x12\x16\n\x0e\x66\x61vorite_color\x18\x03 \x01(\tb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n\nuser.proto\x1a\x14\x63onfluent/meta.proto\"O\n\x04User\x12\x16\n\x04name\x18\x01 \x01(\tB\x08\x82\x44\x05\x1a\x03PII\x12\x17\n\x0f\x66\x61vorite_number\x18\x02 \x01(\x03\x12\x16\n\x0e\x66\x61vorite_color\x18\x03 \x01(\tb\x06proto3'
+)
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'user_pb2', globals())
 if _descriptor._USE_C_DESCRIPTORS == False:
 
-  DESCRIPTOR._options = None
-  _USER._serialized_start=14
-  _USER._serialized_end=83
+    DESCRIPTOR._options = None
+    _USER.fields_by_name['name']._options = None
+    _USER.fields_by_name['name']._serialized_options = b'\202D\005\032\003PII'
+    _USER._serialized_start = 36
+    _USER._serialized_end = 115
 # @@protoc_insertion_point(module_scope)

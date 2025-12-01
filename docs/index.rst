@@ -6,6 +6,7 @@ A reliable, performant and feature-rich Python client for Apache Kafka v0.8 and 
 Guides
    - :ref:`Configuration Guide <pythonclient_configuration>`
    - :ref:`Transactional API <pythonclient_transactional>`
+   - :ref:`KIP-848 Migration Guide <pythonclient_migration_kip848>`
 
 Client API
    - :ref:`Producer <pythonclient_producer>`
@@ -25,6 +26,14 @@ Supporting classes
     - :ref:`Message <pythonclient_message>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
     - :ref:`ThrottleEvent <pythonclient_throttleevent>`
+    - :ref:`IsolationLevel <pythonclient_isolation_level>`
+    - :ref:`TopicCollection <pythonclient_topic_collection>`
+    - :ref:`TopicPartitionInfo <pythonclient_topic_partition_info>`
+    - :ref:`Node <pythonclient_node>`
+    - :ref:`ConsumerGroupTopicPartitions <pythonclient_consumer_group_topic_partition>`
+    - :ref:`ConsumerGroupState <pythonclient_consumer_group_state>`
+    - :ref:`Uuid <pythonclient_uuid>`
+    - :ref:`ElectionType <pythonclient_election_type>`
 
     - Errors:
        - :ref:`KafkaError <pythonclient_kafkaerror>`
@@ -55,6 +64,22 @@ Supporting classes
        - :ref:`UserScramCredentialAlteration <pythonclient_user_scram_credential_alteration>`
        - :ref:`UserScramCredentialUpsertion <pythonclient_user_scram_credential_upsertion>`
        - :ref:`UserScramCredentialDeletion <pythonclient_user_scram_credential_deletion>`
+       - :ref:`OffsetSpec <pythonclient_offset_spec>`
+       - :ref:`ListOffsetsResultInfo <pythonclient_list_offsets_result_info>`
+       - :ref:`TopicDescription <pythonclient_topic_description>`
+       - :ref:`DescribeClusterResult <pythonclient_describe_cluster_result>`
+       - :ref:`BrokerMetadata <pythonclient_broker_metadata>`
+       - :ref:`ClusterMetadata <pythonclient_cluster_metadata>`
+       - :ref:`GroupMember <pythonclient_group_member>`
+       - :ref:`GroupMetadata <pythonclient_group_metadata>`
+       - :ref:`PartitionMetadata <pythonclient_partition_metadata>`
+       - :ref:`TopicMetadata <pythonclient_topic_metadata>`
+       - :ref:`ConsumerGroupListing <pythonclient_consumer_group_listing>`
+       - :ref:`ListConsumerGroupsResult <pythonclient_list_consumer_group_result>`
+       - :ref:`MemberAssignment <pythonclient_member_assignment>`
+       - :ref:`MemberDescription <pythonclient_member_description>`
+       - :ref:`ConsumerGroupDescription <pythonclient_consumer_group_description>`
+       - :ref:`DeletedRecords <pythonclient_deleted_records>`
 
 Experimental
    These classes are experimental and are likely to be removed, or subject to incompatible
@@ -84,6 +109,7 @@ AdminClient
 
 .. automodule:: confluent_kafka.admin
    :members:
+   :noindex:
 
 .. _pyclient_admin_newtopic:
 
@@ -247,6 +273,150 @@ UserScramCredentialDeletion
 .. autoclass:: confluent_kafka.admin.UserScramCredentialDeletion
    :members:
 
+.. _pythonclient_offset_spec:
+
+**********
+OffsetSpec
+**********
+
+.. autoclass:: confluent_kafka.admin.OffsetSpec
+   :members:
+
+.. _pythonclient_list_offsets_result_info:
+
+*********************
+ListOffsetsResultInfo
+*********************
+
+.. autoclass:: confluent_kafka.admin.ListOffsetsResultInfo
+   :members:
+
+.. _pythonclient_topic_description:
+
+****************
+TopicDescription
+****************
+
+.. autoclass:: confluent_kafka.admin.TopicDescription
+   :members:
+
+.. _pythonclient_describe_cluster_result:
+
+*********************
+DescribeClusterResult
+*********************
+
+.. autoclass:: confluent_kafka.admin.DescribeClusterResult
+   :members:
+
+.. _pythonclient_broker_metadata:
+
+**************
+BrokerMetadata
+**************
+
+.. autoclass:: confluent_kafka.admin.BrokerMetadata
+   :members:
+
+.. _pythonclient_cluster_metadata:
+
+***************
+ClusterMetadata
+***************
+
+.. autoclass:: confluent_kafka.admin.ClusterMetadata
+   :members:
+
+.. _pythonclient_group_member:
+
+***********
+GroupMember
+***********
+
+.. autoclass:: confluent_kafka.admin.GroupMember
+   :members:
+
+.. _pythonclient_group_metadata:
+
+*************
+GroupMetadata
+*************
+
+.. autoclass:: confluent_kafka.admin.GroupMetadata
+   :members:
+
+.. _pythonclient_partition_metadata:
+
+*****************
+PartitionMetadata
+*****************
+
+.. autoclass:: confluent_kafka.admin.PartitionMetadata
+   :members:
+
+.. _pythonclient_topic_metadata:
+
+*************
+TopicMetadata
+*************
+
+.. autoclass:: confluent_kafka.admin.TopicMetadata
+   :members:
+
+.. _pythonclient_consumer_group_listing:
+
+********************
+ConsumerGroupListing
+********************
+
+.. autoclass:: confluent_kafka.admin.ConsumerGroupListing
+   :members:
+
+.. _pythonclient_list_consumer_group_result:
+
+************************
+ListConsumerGroupsResult
+************************
+
+.. autoclass:: confluent_kafka.admin.ListConsumerGroupsResult
+   :members:
+
+.. _pythonclient_consumer_group_description:
+
+************************
+ConsumerGroupDescription
+************************
+
+.. autoclass:: confluent_kafka.admin.ConsumerGroupDescription
+   :members:
+
+.. _pythonclient_deleted_records:
+
+**************
+DeletedRecords
+**************
+
+.. autoclass:: confluent_kafka.admin.DeletedRecords
+   :members:
+
+.. _pythonclient_member_assignment:
+
+****************
+MemberAssignment
+****************
+
+.. autoclass:: confluent_kafka.admin.MemberAssignment
+   :members:
+
+.. _pythonclient_member_description:
+
+*****************
+MemberDescription
+*****************
+
+.. autoclass:: confluent_kafka.admin.MemberDescription
+   :members:
+
 .. _pythonclient_consumer:
 
 ********
@@ -255,6 +425,7 @@ Consumer
 
 .. autoclass:: confluent_kafka.Consumer
    :members:
+   :noindex:
 
 .. _serde_consumer:
 
@@ -275,6 +446,7 @@ Producer
 
 .. autoclass:: confluent_kafka.Producer
    :members:
+   :noindex:
 
 .. _serde_producer:
 
@@ -477,6 +649,69 @@ TopicPartition
 .. autoclass:: confluent_kafka.TopicPartition
    :members:
 
+.. _pythonclient_topic_collection:
+
+***************
+TopicCollection
+***************
+
+.. autoclass:: confluent_kafka.TopicCollection
+   :members:
+
+.. _pythonclient_topic_partition_info:
+
+******************
+TopicPartitionInfo
+******************
+
+.. autoclass:: confluent_kafka.TopicPartitionInfo
+   :members:
+
+.. _pythonclient_node:
+
+****
+Node
+****
+
+.. autoclass:: confluent_kafka.Node
+   :members:
+
+.. _pythonclient_consumer_group_topic_partition:
+
+****************************
+ConsumerGroupTopicPartitions
+****************************
+
+.. autoclass:: confluent_kafka.ConsumerGroupTopicPartitions
+   :members:
+
+.. _pythonclient_consumer_group_state:
+
+******************
+ConsumerGroupState
+******************
+
+.. autoclass:: confluent_kafka.ConsumerGroupState
+   :members:
+
+.. _pythonclient_uuid:
+
+****
+Uuid
+****
+
+.. autoclass:: confluent_kafka.Uuid
+   :members:
+
+.. _pythonclient_election_type:
+
+************
+ElectionType
+************
+
+.. autoclass:: confluent_kafka.ElectionType
+   :members:
+
 .. _serde_field:
 
 ************
@@ -623,6 +858,14 @@ ThrottleEvent
 .. autoclass:: confluent_kafka.ThrottleEvent
    :members:
 
+.. _pythonclient_isolation_level:
+
+**************
+IsolationLevel
+**************
+
+.. autoclass:: confluent_kafka.IsolationLevel
+   :members:
 
 .. _avro_producer:
 
@@ -814,7 +1057,7 @@ addition to the properties dictated by the underlying librdkafka C library:
   where ``expiry_time`` is the time in seconds since the epoch as a floating point number.
   This callback is useful only when ``sasl.mechanisms=OAUTHBEARER`` is set and
   is served to get the initial token before a successful broker connection can be made.
-  The callback can be triggered by calling ``client.poll()`` or ``producer.flush()``.
+  The callback is asynchronously triggered by the background thread to maintain token validity.``.
 
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
@@ -848,3 +1091,11 @@ addition to the properties dictated by the underlying librdkafka C library:
 
 For the full range of configuration properties, please consult librdkafka's documentation:
 https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+
+
+.. _pythonclient_migration_kip848:
+
+`KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ - Migration Guide
+==================================================================================================================================================
+
+.. include:: kip-848-migration-guide.rst
