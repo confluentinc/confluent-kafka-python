@@ -216,7 +216,6 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         '_parsed_schemas',
         '_strict',
         '_strict_allow_default',
-
     ]
 
     _default_conf = {
@@ -434,8 +433,9 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 buffer = value if isinstance(value, bytes) else value.encode()
             else:
                 # write the record to the rest of the buffer
-                schemaless_writer(fo, parsed_schema, value, strict=self._strict,
-                                  strict_allow_default=self._strict_allow_default)
+                schemaless_writer(
+                    fo, parsed_schema, value, strict=self._strict, strict_allow_default=self._strict_allow_default
+                )
                 buffer = fo.getvalue()
 
             if latest_schema is not None and ctx is not None and subject is not None:
