@@ -1,6 +1,7 @@
-# #!/usr/bin/env python
+#!/usr/bin/env python
 
 from confluent_kafka import KafkaError, Message
+import pickle
 
 
 def test_init_no_params():
@@ -68,3 +69,86 @@ def test_set_value():
     m = Message()
     m.set_value(b"value")
     assert m.value() == b"value"
+
+
+def test_set_topic():
+    m = Message()
+    m.set_topic("test_topic")
+    assert m.topic() == "test_topic"
+    m.set_topic("another_topic")
+    assert m.topic() == "another_topic"
+
+
+def test_set_error():
+    m = Message()
+    m.set_error(KafkaError(0))
+    assert m.error() == KafkaError(0)
+    m.set_error(KafkaError(1))
+    assert m.error() == KafkaError(1)
+
+
+def test_equality():
+    m1 = Message(
+        topic="test",
+        partition=1,
+        offset=2,
+        key=b"key",
+        value=b"value",
+        headers=[("h1", "v1")],
+        error=KafkaError(0),
+        timestamp=(1, 1762499956),
+        leader_epoch=1762499956,
+    )
+    m2 = Message(
+        topic="test",
+        partition=1,
+        offset=2,
+        key=b"key",
+        value=b"value",
+        headers=[("h1", "v1")],
+        error=KafkaError(0),
+        timestamp=(1, 1762499956),
+        leader_epoch=1762499956,
+    )
+    m3 = Message(
+        topic="different",
+        partition=1,
+        offset=2,
+        key=b"key",
+        value=b"value",
+    )
+
+    assert m1 == m2
+    assert m1 != m3
+    assert m2 != m3
+    assert m1 != "not a message"
+
+
+def test_pickling():
+    m = Message(
+        topic="test",
+        partition=1,
+        offset=2,
+        key=b"key",
+        value=b"value",
+        headers=[("h1", "v1")],
+        error=KafkaError(0),
+        timestamp=(1, 1762499956),
+        latency=0.05,
+        leader_epoch=1762499956,
+    )
+
+    # Pickle and unpickle
+    pickled = pickle.dumps(m)
+    unpickled = pickle.loads(pickled)
+
+    assert unpickled.topic() == m.topic()
+    assert unpickled.partition() == m.partition()
+    assert unpickled.offset() == m.offset()
+    assert unpickled.key() == m.key()
+    assert unpickled.value() == m.value()
+    assert unpickled.headers() == m.headers()
+    assert unpickled.error() == m.error()
+    assert unpickled.timestamp() == m.timestamp()
+    assert unpickled.latency() == m.latency()
+    assert unpickled.leader_epoch() == m.leader_epoch()
