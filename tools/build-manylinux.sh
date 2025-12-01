@@ -15,6 +15,7 @@
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
+PYTHON_VERSIONS=("cp37" "cp38" "cp39" "cp310" "cp311" "cp312" "cp313")
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
     echo "Usage: $0 <librdkafka_tag>"
@@ -33,7 +34,13 @@ if [[ ! -f /.dockerenv ]]; then
         exit 1
     fi
 
-    docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
+    if [[ $ARCH == arm64* ]]; then
+        docker_image=quay.io/pypa/manylinux_2_28_aarch64:latest
+    else
+        docker_image=quay.io/pypa/manylinux_2_28_x86_64:latest
+    fi
+
+    docker run -t -v $(pwd):/io $docker_image  /io/tools/build-manylinux.sh "v${LIBRDKAFKA_VERSION}"
 
     exit $?
 fi
@@ -44,17 +51,22 @@ fi
 #
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++
+yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
 
 # Compile wheels
 echo "# Compile"
-for PYBIN in /opt/python/*/bin; do
-    echo "## Compiling $PYBIN"
-    CFLAGS="-Werror -Wno-strict-aliasing -Wno-parentheses" \
-          "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
+for PYBIN in /opt/python/cp*/bin; do
+    for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
+        if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
+            echo "## Compiling $PYBIN"
+            CFLAGS="-Werror -Wno-strict-aliasing -Wno-parentheses" \
+            "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
+            break
+        fi
+    done
 done
 
 # Bundle external shared libraries into the wheels
@@ -73,13 +85,18 @@ done
 
 # Install packages and test
 echo "# Installing wheels"
-for PYBIN in /opt/python/*/bin/; do
-    echo "## Installing $PYBIN"
-    "${PYBIN}/pip" install confluent_kafka -f /io/wheelhouse
-    "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
-    echo "## Uninstalling $PYBIN"
-    "${PYBIN}/pip" uninstall -y confluent_kafka
+for PYBIN in /opt/python/cp*/bin; do
+    for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
+        if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
+            echo "## Installing $PYBIN"
+            "${PYBIN}/pip" -V
+            "${PYBIN}/pip" install --no-index -f /io/wheelhouse confluent_kafka 
+            "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
+            "${PYBIN}/pip" install pytest
+            "${PYBIN}/pytest" /io/tests/test_Producer.py
+            echo "## Uninstalling $PYBIN"
+            "${PYBIN}/pip" uninstall -y confluent_kafka
+            break
+        fi
+    done
 done
-
-
-

@@ -17,8 +17,11 @@
 
 import argparse
 import time
-from confluent_kafka import Producer, KafkaException
+from typing import Optional
+
 from verifiable_client import VerifiableClient
+
+from confluent_kafka import KafkaException, Producer
 
 
 class VerifiableProducer(VerifiableClient):
@@ -26,6 +29,7 @@ class VerifiableProducer(VerifiableClient):
     confluent-kafka-python backed VerifiableProducer class for use with
     Kafka's kafkatests client tests.
     """
+
     def __init__(self, conf):
         """
         conf is a config dict passed to confluent_kafka.Producer()
@@ -38,22 +42,30 @@ class VerifiableProducer(VerifiableClient):
         self.num_err = 0
 
     def dr_cb(self, err, msg):
-        """ Per-message Delivery report callback. Called from poll() """
+        """Per-message Delivery report callback. Called from poll()"""
         if err:
             self.num_err += 1
-            self.send({'name': 'producer_send_error',
-                       'message': str(err),
-                       'topic': msg.topic(),
-                       'key': msg.key(),
-                       'value': msg.value()})
+            self.send(
+                {
+                    'name': 'producer_send_error',
+                    'message': str(err),
+                    'topic': msg.topic(),
+                    'key': msg.key(),
+                    'value': msg.value(),
+                }
+            )
         else:
             self.num_acked += 1
-            self.send({'name': 'producer_send_success',
-                       'topic': msg.topic(),
-                       'partition': msg.partition(),
-                       'offset': msg.offset(),
-                       'key': msg.key(),
-                       'value': msg.value()})
+            self.send(
+                {
+                    'name': 'producer_send_success',
+                    'topic': msg.topic(),
+                    'partition': msg.partition(),
+                    'offset': msg.offset(),
+                    'key': msg.key(),
+                    'value': msg.value(),
+                }
+            )
 
         pass
 
@@ -74,8 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
-    conf = {'broker.version.fallback': '0.9.0',
-            'produce.offset.report': True}
+    conf = {'broker.version.fallback': '0.9.0', 'produce.offset.report': True}
 
     if args.get('producer_config', None) is not None:
         args.update(VerifiableClient.read_config_file(args['producer_config']))
@@ -98,7 +109,7 @@ if __name__ == '__main__':
     key_counter = 0
 
     if throughput > 0:
-        delay = 1.0/throughput
+        delay = 1.0 / throughput
     else:
         delay = 0
 
@@ -111,6 +122,7 @@ if __name__ == '__main__':
 
             t_end = time.time() + delay
             while vp.run:
+                key: Optional[str]
                 if repeating_keys != 0:
                     key = '%d' % key_counter
                     key_counter = (key_counter + 1) % repeating_keys
@@ -118,15 +130,15 @@ if __name__ == '__main__':
                     key = None
 
                 try:
-                    vp.producer.produce(topic, value=(value_fmt % i), key=key,
-                                        timestamp=args.get('create_time', 0))
+                    vp.producer.produce(topic, value=(value_fmt % i), key=key, timestamp=args.get('create_time', 0))
                     vp.num_sent += 1
                 except KafkaException as e:
                     vp.err('produce() #%d/%d failed: %s' % (i, vp.max_msgs, str(e)))
                     vp.num_err += 1
                 except BufferError:
-                    vp.dbg('Local produce queue full (produced %d/%d msgs), waiting for deliveries..' %
-                           (i, vp.max_msgs))
+                    vp.dbg(
+                        'Local produce queue full (produced %d/%d msgs), waiting for deliveries..' % (i, vp.max_msgs)
+                    )
                     vp.producer.poll(timeout=0.5)
                     continue
                 break

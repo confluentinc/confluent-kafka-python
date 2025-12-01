@@ -21,7 +21,7 @@ services:
       KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
       KAFKA_SUPER_USERS: "User:ANONYMOUS"
   schema-registry:
-    image: confluentinc/cp-schema-registry:7.1.0
+    image: confluentinc/cp-schema-registry
     depends_on:
     - zookeeper
     - kafka
@@ -42,7 +42,7 @@ services:
       SCHEMA_REGISTRY_SSL_TRUSTSTORE_PASSWORD: abcdefgh
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
   schema-registry-basic-auth:
-    image: confluentinc/cp-schema-registry:7.1.0
+    image: confluentinc/cp-schema-registry
     depends_on:
       - zookeeper
       - kafka

@@ -1,4 +1,409 @@
-# Confluent's Python client for Apache Kafka
+# Confluent Python Client for Apache Kafka - CHANGELOG
+
+## v2.12.1 - 2025-10-21
+
+v2.12.1 is a maintenance release with the following fixes:
+
+- Restored macOS binaries compatibility with macOS 13
+- `libversion()` now returns the string/integer tuple for varients on version -- use `version()` for string only response
+- Added Python 3.14 support and dropped 3.7 support -- Free-threaded capabilities not fully supported yet
+- Fixed use.schema.id in `sr.lookup_schema()`
+- Removed tomli dependency from standard (non-documentation) requirements
+- Fixed experimental asyncio example files to correctly use new capabilities
+- Fixed invalid argument error on schema lookups on repeat requests
+- Fixed documentation generation and added error checks for builds to prevent future breaks
+
+
+## v2.12.0 - 2025-10-09
+
+v2.12.0 is a feature release with the following enhancements:
+
+### [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) – General Availability
+Starting with __confluent-kafka-python 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**. Please refer to the following [migration guide](docs/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
+
+**Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
+
+### AsyncIO Producer (experimental)
+ Introduces beta class `AIOProducer` for asynchronous message production in asyncio applications.
+
+#### Added
+
+- AsyncIO Producer (experimental): Introduces beta class `AIOProducer` for
+  asynchronous message production in asyncio applications. This API offloads
+  blocking librdkafka calls to a thread pool and schedules common callbacks
+  (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
+  loop for safe usage inside async frameworks.
+
+#### Features
+
+- Batched async produce: `await AIOProducer(...).produce(topic, value=...)`
+  buffers messages and flushes when the buffer threshold or timeout is reached.
+- Async lifecycle: `await producer.flush()`, `await producer.purge()`, and
+  transactional operations (`init_transactions`, `begin_transaction`,
+  `commit_transaction`, `abort_transaction`).
+
+#### Limitations
+
+- Per-message headers are not supported in the current batched async produce
+  path. If headers are required, use the synchronous `Producer.produce(...)` or
+  offload a sync produce call to a thread executor within your async app.
+
+#### Guidance
+
+- Use the AsyncIO Producer inside async apps/servers (FastAPI/Starlette, aiohttp,
+  asyncio tasks) to avoid blocking the event loop.
+- For batch jobs, scripts, or highest-throughput pipelines without an event
+  loop, the synchronous `Producer` remains recommended.
+
+### Enhancement and Fixes
+
+- Kafka OAuth/OIDC metadata based authentication examples with Azure IMDS (#2083).
+
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.11.1 - 2025-08-18
+
+v2.11.1 is a maintenance release with the following fixes:
+
+confluent-kafka-python v2.11.1 is based on librdkafka v2.11.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.11.0 - 2025-07-03
+
+v2.11.0 is a feature release with the following enhancements:
+
+### Fixes
+- Fix error propagation rule for Python's C API to prevent SystemError when callbacks raise exceptions (#865)
+
+confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.10.1 - 2025-06-11
+
+v2.10.1 is a maintenance release with the following fixes:
+
+- Handled `None` value for optional `ctx` parameter in  `ProtobufDeserializer` (#1939)
+- Handled `None` value for optional `ctx` parameter in  `AvroDeserializer` (#1973)
+- Handled ctx=None for AvroDeserializer and ProtobufDeserializer in __call__ (#1974)
+- Fix possible NPE in CSFLE executor (#1980)
+- Support for schema id in header (#1978)
+- Raise an error if Protobuf deprecated format is specified (#1986)
+- Implement Async Schema Registry client (#1965)
+
+confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+## v2.10.0 - 2025-04-18
+
+v2.10.0 is a feature release with the following fixes and enhancements:
+
+- [KIP-848] Group Config is now supported in AlterConfigs, IncrementalAlterConfigs and DescribeConfigs. (#1856)
+- [KIP-848] `describe_consumer_groups()` now supports KIP-848 introduced `consumer` groups. Two new fields for consumer group type and target assignment have also been added. Type defines whether this group is a `classic` or `consumer` group. Target assignment is only valid for the `consumer` protocol and its defaults to NULL. (#1873).
+
+confluent-kafka-python v2.10.0 is based on librdkafka v2.10.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+## v2.9.0 - 2025-03-28
+
+v2.9.0 is a feature release with the following fixes and enhancements:
+
+ - Add Client Credentials OAuth support for Schema Registry (#1919)
+ - Add custom OAuth support for Schema Registry (#1925)
+ - Add utilities to convert decimals from/to Protobuf (#1946)
+ - Add support for passing schema ID during serialization (#1949)
+
+confluent-kafka-python v2.9.0 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+## v2.8.2 - 2025-02-28
+
+v2.8.2 is a maintenance release with the following fixes and enhancements:
+
+ - Fixed caching to ensure cached schema matches input. (#1922)
+ - Fix handling of named Avro schemas (#1928)
+
+confluent-kafka-python v2.8.2 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+Note: Versioning is skipped due to breaking change in v2.8.1.
+Do not run software with v2.8.1 installed.
+
+
+## v2.8.0 - 2025-01-07
+
+v2.8.0 is a feature release with the features, fixes and enhancements:
+
+confluent-kafka-python v2.8.0 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.7.0 - 2024-12-21
+
+v2.7.0 is a feature release with the features, fixes and enhancements present in v2.6.2 including the following fix:
+
+- Added missing dependency on googleapis-common-protos when using protobufs. (#1881, @tenzer)
+
+confluent-kafka-python v2.7.0 is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.6.2 - 2024-12-18
+
+> [!WARNING]
+> Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
+We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
+
+v2.6.2 is a feature release with the following features, fixes and enhancements:
+
+Note: This release modifies the dependencies of the Schema Registry client.
+If you are using the Schema Registry client, please ensure that you install the
+extra dependencies using the following syntax:
+
+```
+pip install confluent-kafka[schemaregistry]
+```
+
+or
+
+```
+pip install confluent-kafka[avro,schemaregistry]
+```
+
+Please see the [README.md](README.md) for more information.
+
+ - Support for Data Contracts with Schema Registry, including
+   - Data Quality rules
+   - Data Transformation rules
+   - Client-Side Field Level Encryption (CSFLE)
+   - Schema Migration rules (requires Python 3.9+)
+ - Migrated the Schema Registry client from requests to httpx
+ - Add support for multiple URLs (#409)
+ - Allow configuring timeout (#622)
+ - Fix deletion semantics (#1127)
+ - Python deserializer can take SR client (#1174)
+ - Fix handling of Avro unions (#1562)
+ - Remove deprecated RefResolver for JSON (#1840)
+ - Support delete of subject version (#1851)
+
+confluent-kafka-python is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.6.1 - 2024-11-18
+
+v2.6.1 is a maintenance release with the following fixes and enhancements:
+
+ - Migrated build system from `setup.py` to `pyproject.toml` in accordance with `PEP 517` and `PEP 518`, improving project configuration, build system requirements management, and compatibility with modern Python packaging tools like `pip` and `build`. (#1592)
+ - Removed python 3.6 support. (#1592)
+ - Added an example for OAUTH OIDC producer with support for confluent cloud (#1769, @sarwarbhuiyan)
+
+confluent-kafka-python is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.6.0 - 2024-10-11
+
+v2.6.0 is a feature release with the following features, fixes and enhancements:
+
+- Added Python 3.13 wheels (#1828).
+- [KIP-848 EA](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Admin API for listing consumer groups now has an optional filter to return only groups of given types (#1830).
+- [KIP-460](https://cwiki.apache.org/confluence/display/KAFKA/KIP-460%3A+Admin+Leader+Election+RPC) Admin Leader Election RPC (#1818)
+- Added Transactional id resource type for ACL operations (@JohnPreston, #1834).
+
+confluent-kafka-python is based on librdkafka v2.6.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.5.3 - 2024-09-02
+
+v2.5.3 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Fix an assert being triggered during push telemetry call when no metrics matched on the client side.
+* Minor enhancement to JSONDeserializer to retrieve schema from Schema Registry if not provided
+
+confluent-kafka-python is based on librdkafka v2.5.3, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.5.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.5.0 - 2024-07-10
+
+> [!WARNING]
+This version has introduced a regression in which an assert is triggered during **PushTelemetry** call. This happens when no metric is matched on the client side among those requested by broker subscription.
+>
+> You won't face any problem if:
+> * Broker doesn't support [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability).
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the broker side.
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the client side. This is enabled by default. Set configuration `enable.metrics.push` to `false`.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side and there is no subscription configured there.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side with subscriptions that match the [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) metrics defined on the client.
+>
+> Having said this, we strongly recommend using `v2.5.3` and above to not face this regression at all.
+
+v2.5.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-107](https://cwiki.apache.org/confluence/display/KAFKA/KIP-107%3A+Add+deleteRecordsBefore%28%29+API+in+AdminClient) Added delete_records API. (#1710)
+ - Added an example to show the usage of the custom logger with `AdminClient`. (#1758)
+ - Improve caching on Schema Registry client. (#1744)
+ - Removed usage of `strcpy` to enhance security of the client. (#1745)
+ - Removed support for centos6 and centos7. (#1776)
+ - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy. (#1745)
+ - Fixed documentation for default value of `operation_timeout` and `request_timeout` in various Admin apis. (#1710)
+ - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy. (#1764)
+ - Fixed a segfault when `commit` or `store_offsets` consumer method is called incorrectly with errored Message object. (#1754)
+ - Fixed `logger` not working when provided as an argument to `AdminClient` instead of a configuration property. (#1758)
+ - Fixed some memory leaks related to `PyDict_SetItem`. (#1710)
+
+confluent-kafka-python is based on librdkafka v2.5.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.4.0 - 2024-05-07
+
+v2.4.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Added KIP-848 based new consumer group rebalance protocol. The feature is an **Early Access**: not production ready yet. Please refer [detailed doc](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#next-generation-of-the-consumer-group-protocol-kip-848) for more information.
+ - Fix segfault with describe_topics and flaky connection (@lpsinger, #1692)
+
+confluent-kafka-python is based on librdkafka v2.4.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.3.0
+
+v2.3.0 is a feature release with the following features, fixes and enhancements:
+
+ - Add Python 3.12 wheels
+ - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations): Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
+ - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses. (@jainruchir, #1635)
+ - [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers): Partial support of topic identifiers. Topic identifiers in metadata response are available through the new describe_topics function (#1645).
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with the addition of `list_offsets` (#1576).
+ - Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#1635, @jainruchir).
+ - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
+   issue(https://github.com/confluentinc/confluent-kafka-python/issues/1616) for more details (#1630).
+
+confluent-kafka-python is based on librdkafka v2.3.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.2.0
+
+v2.2.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#1517).
+ - [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1575).
+ - Added documentation with an example of FIPS compliant communication with Kafka cluster.
+ - Fixed wrong error code parameter name in KafkaError.
+
+confluent-kafka-python is based on librdkafka v2.2.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.1
+
+v2.1.1 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+- Added a new ConsumerGroupState UNKNOWN. The typo state UNKOWN is deprecated and will be removed in the next major version.
+- Fix some Admin API documentation stating -1 for infinite timeout incorrectly.
+  Request timeout can't be infinite.
+
+confluent-kafka-python is based on librdkafka v2.1.1, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.1.0
+
+v2.1.0 is a feature release with the following features, fixes and enhancements:
+
+- Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
+  SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
+- Wheels for Linux / arm64 (#1496).
+- Added support for Default num_partitions in CreateTopics Admin API.
+- Added support for password protected private key in CachedSchemaRegistryClient.
+- Add reference support in Schema Registry client. (@RickTalken, #1304)
+- Migrated travis jobs to Semaphore CI (#1503)
+- Added support for schema references. (#1514 and @slominskir #1088)
+- [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+  add offset leader epoch methods to the TopicPartition and Message classes (#1540).
+
+confluent-kafka-python is based on librdkafka v2.1.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.0.2
+
+v2.0.2 is a feature release with the following features, fixes and enhancements:
+
+ - Added Python 3.11 wheels.
+ - [KIP-222](https://cwiki.apache.org/confluence/display/KAFKA/KIP-222+-+Add+Consumer+Group+operations+to+Admin+API)
+   Add Consumer Group operations to Admin API.
+ - [KIP-518](https://cwiki.apache.org/confluence/display/KAFKA/KIP-518%3A+Allow+listing+consumer+groups+per+state)
+   Allow listing consumer groups per state.
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484)
+   Partially implemented: support for AlterConsumerGroupOffsets.
+ - As result of the above KIPs, added (#1449)
+   - `list_consumer_groups` Admin operation. Supports listing by state.
+   - `describe_consumer_groups` Admin operation. Supports multiple groups.
+   - `delete_consumer_groups` Admin operation. Supports multiple groups.
+   - `list_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple partitions. Supports require_stable option.
+   - `alter_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple offsets.
+ - Added `normalize.schemas` configuration property to Schema Registry client (@rayokota, #1406)
+ - Added metadata to `TopicPartition` type and `commit()` (#1410).
+ - Added `consumer.memberid()` for getting member id assigned to
+   the consumer in a consumer group (#1154).
+ - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
+   will not be used. This avoids situations where producers with no enqueued items would
+   evaluate to False (@vladz-sternum, #1445).
+ - Deprecated `AvroProducer` and `AvroConsumer`. Use `AvroSerializer` and `AvroDeserializer` instead.
+ - Deprecated `list_groups`. Use `list_consumer_groups` and `describe_consumer_groups` instead.
+ - Improved Consumer Example to show atleast once semantics.
+ - Improved Serialization and Deserialization Examples.
+ - Documentation Improvements.
+
+## Upgrade considerations
+
+OpenSSL 3.0.x upgrade in librdkafka requires a major version bump, as some
+ legacy ciphers need to be explicitly configured to continue working,
+ but it is highly recommended NOT to use them. The rest of the API remains
+ backward compatible.
+
+confluent-kafka-python is based on librdkafka 2.0.2, see the
+[librdkafka v2.0.0 release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+**Note: There were no v2.0.0 and v2.0.1 releases.**
 
 ## v1.9.2
 
@@ -226,4 +631,3 @@ v1.5.0 is a maintenance release with the following fixes and enhancements:
 confluent-kafka-python is based on librdkafka v1.5.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.5.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-

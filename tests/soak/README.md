@@ -6,8 +6,28 @@ of time, typically 2+ weeks, to vet out any resource leaks, etc.
 The soak testing client is made up of a producer, producing messages to
 the configured topic, and a consumer, consuming the same messages back.
 
-DataDog reporting supported by setting datadog.api_key a and datadog.app_key
-in the soak client configuration file.
+OpenTelemetry reporting supported through OTLP.
 
+# Installation
 
-Use ubuntu-bootstrap.sh in this directory set up the environment (e.g., on ec2).
+1. Edit `ccloud.config`
+
+2. Edit `otel-config.yaml`
+
+3. the first time:
+```bash
+./bootstrap.sh <python-branch/tag> <librdkafka-branch/tag>
+```
+4. next times:
+```bash
+./build.sh <python-branch/tag> <librdkafka-branch/tag>
+```
+
+5. 
+```bash
+. venv/bin/activate
+
+5. Run some tests
+```bash
+TESTID=<testid> ./run.sh ccloud.config
+```

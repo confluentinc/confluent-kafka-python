@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/customer.schema.json",
+  "title": "Customer",
+  "description": "Customer data",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Customer name",
+      "type": "string"
+    },
+    "id": {
+      "description": "Customer id",
+      "type": "integer"
+    },
+    "email": {
+      "description": "Customer email",
+      "type": "string"
+    }
+  },
+  "required": [ "name", "id"]
+}
