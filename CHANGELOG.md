@@ -1,5 +1,32 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## 2.13.0b1 - (beta) 2025-11-24
+
+This is a beta release, notes to change to full release later on in changelog. Changes included are:
+
+- Enforced type hinting for all interfaces
+- Handle OAuth Token Refreshes
+- Added black and isort linting rules and enforcement to codebase
+- Fix support for wrapped Avro unions 
+- Enabled direct creation of Message objects
+- Added `close()` method to producer
+- Added context manager for librdkafka classes to enable easy scope cleanup
+- Fixed segfault exceptions on calls against objects that had closed internal objects
+- Handle evolution during field transformation of schemas
+- Expose deterministic partitioner functions
+- Handle null group name to prevent segfault in Admin `list_consumer_group_offsets()`
+- Add Accept-Version header for schemas
+- Ensure schemaId initialization is thread-safe
+- Fix error propagation rule for Python's C API
+- Fix SR delete behavior with client-side caching
+- Enhanced the BufferTimeoutManager to flush the librdkafka queue
+
+## 2.12.2 - 2025-11-06
+
+v2.12.2 is a hotfix for a critical problem found with Schema Registry clients in the 2.12.1 release:
+
+- Fix IndexOutOfBoundsException when evolving Avro schema that uses rules
+
 ## v2.12.1 - 2025-10-21
 
 v2.12.1 is a maintenance release with the following fixes:
