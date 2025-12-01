@@ -40,5 +40,5 @@ class TestUtil(unittest.TestCase):
 
     def test_schema_load_parse_error(self):
         with pytest.raises(avro.ClientError) as excinfo:
-            avro.load(data_gen.get_schema_path("invalid_scema.avsc"))
+            avro.load(data_gen.get_schema_path("invalid_schema.avsc"))
         assert 'Schema parse failed:' in str(excinfo.value)
