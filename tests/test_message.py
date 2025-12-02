@@ -1,6 +1,7 @@
 import pickle
-import pytest
 import sys
+
+import pytest
 
 from confluent_kafka.cimpl import Message
 
@@ -50,8 +51,9 @@ def empty_message_5():
         (empty_message_5, None, None, None, None, None),  # Subclass: __reduce__ returns base class
     ],
 )
-def test_message_create_empty(make_message, expected_partition, expected_offset, 
-                               expected_leader_epoch, expected_latency, expected_reduce_args):
+def test_message_create_empty(
+    make_message, expected_partition, expected_offset, expected_leader_epoch, expected_latency, expected_reduce_args
+):
     # Checks the creation of an empty Message with no data.
 
     msg = make_message()
