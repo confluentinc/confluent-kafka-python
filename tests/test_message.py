@@ -1,5 +1,4 @@
 import pickle
-import sys
 
 import pytest
 
@@ -265,7 +264,7 @@ def test_message_compare():
     assert msg0 == msg01
     assert msg0 != msg1
     assert msg0 != 1
-    assert msg0 != None
+    assert msg0 is not None
     assert msg0 != object()
 
     with pytest.raises(TypeError):
