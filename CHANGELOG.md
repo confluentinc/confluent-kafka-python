@@ -4,7 +4,7 @@
 
 This is a beta release, notes to change to full release later on in changelog. Changes included are:
 
-- Enforced type hinting for all interaces
+- Enforced type hinting for all interfaces
 - Handle OAuth Token Refreshes
 - Added black and isort linting rules and enforcement to codebase
 - Fix support for wrapped Avro unions 
@@ -50,7 +50,7 @@ Starting with __confluent-kafka-python 2.12.0__, the next generation consumer gr
 
 **Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
 
-### AsyncIO Producer (experimental)
+### AsyncIO Producer
  Introduces beta class `AIOProducer` for asynchronous message production in asyncio applications.
 
 #### Added
