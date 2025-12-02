@@ -20,7 +20,7 @@ import random
 import signal
 import sys
 
-from confluent_kafka.experimental.aio import AIOConsumer, AIOProducer
+from confluent_kafka.aio import AIOConsumer, AIOProducer
 
 # This example demonstrates comprehensive AsyncIO usage patterns with Kafka:
 # - Event loop safe callbacks that don't block the loop

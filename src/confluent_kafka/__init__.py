@@ -54,7 +54,7 @@ from .serializing_producer import SerializingProducer
 __all__ = [
     "admin",
     "Consumer",
-    "experimental",
+    "aio",
     "KafkaError",
     "KafkaException",
     "kafkatest",
