@@ -105,17 +105,6 @@ static int Consumer_traverse(Handle *self, visitproc visit, void *arg) {
 }
 
 
-/****************************************************************************
- *
- *
- * Consumer Methods
- *
- *
- *
- *
- ****************************************************************************/
-
-
 static PyObject *
 Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
 
@@ -1047,8 +1036,9 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
 
         /* Final GIL restore and signal check */
         if (!CallState_end(self, &cs)) {
-                if (rkm)
+                if (rkm) {
                         rd_kafka_message_destroy(rkm);
+                }
                 return NULL;
         }
 
