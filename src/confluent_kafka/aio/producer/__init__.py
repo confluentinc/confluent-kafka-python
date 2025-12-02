@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Confluent Kafka Experimental AIOProducer Module
+Confluent Kafka AIOProducer Module
 
 This module contains all the components for the async Kafka producer.
 """

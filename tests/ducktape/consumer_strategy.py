@@ -11,7 +11,7 @@ import os
 import time
 
 from confluent_kafka import Consumer
-from confluent_kafka.experimental.aio import AIOConsumer
+from confluent_kafka.aio import AIOConsumer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, SchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroDeserializer
 from confluent_kafka.schema_registry._async.json_schema import AsyncJSONDeserializer
