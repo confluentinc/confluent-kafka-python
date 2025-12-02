@@ -21,6 +21,35 @@ import time
 from tests.common import TestConsumer
 
 
+# ============================================================================
+# Consumer Wakeability Integration Testing
+# ============================================================================
+#
+# These integration tests verify that the wakeable pattern works correctly
+# with actual Kafka clusters and real message delivery scenarios.
+#
+# How We Test Consumer Wakeability in Integration:
+# -----------------------------------------------
+# 1. Message Availability Testing:
+#    - Produce messages to Kafka topics using a producer
+#    - Create consumers with wakeable pattern settings (timeouts >= 200ms)
+#    - Call poll()/consume() with timeouts that trigger chunking
+#    - Verify messages are returned correctly despite chunking
+#    - Measure elapsed time to ensure wakeable pattern doesn't delay delivery
+#
+# 2. Testing Methodology:
+#    - Setup: Create topics, produce messages, create consumers with proper config
+#    - Execution: Call poll()/consume() with timeouts >= 200ms (triggers chunking)
+#    - Verification: Check messages are returned, values are correct, timing is reasonable
+#    - Cleanup: Close consumers and verify no resource leaks
+#
+# 3. What We Verify:
+#    - Messages are correctly returned when available (wakeable pattern doesn't block delivery)
+#    - Message values and metadata are preserved through chunking
+#    - Timing remains reasonable (messages return quickly when available)
+#    - Consumer state remains consistent after operations complete
+
+
 def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     """Test that poll() correctly returns messages when available.
 
