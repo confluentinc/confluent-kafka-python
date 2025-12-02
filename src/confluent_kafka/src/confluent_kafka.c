@@ -121,6 +121,41 @@ static PyObject *KafkaError_txn_requires_abort(KafkaError *self,
         return ret;
 }
 
+static PyObject *KafkaError_reduce(KafkaError *self, PyObject *Py_UNUSED(ignored)) {
+        PyObject *KafkaError_type = NULL;
+        PyObject *result = NULL;
+        PyObject *args = NULL;
+        PyObject *reason = NULL;
+
+        KafkaError_type = cfl_PyObject_lookup("confluent_kafka.cimpl", "KafkaError");
+
+        if (self->str) {
+                reason = cfl_PyUnistr(_FromString(self->str));
+        } else {
+                reason = NULL;
+        }
+
+        /* Build args tuple: (error, reason, fatal, retriable, txn_requires_abort) */
+        if (reason) {
+                args = Py_BuildValue("(iOiii)", self->code, reason, self->fatal,
+                                    self->retriable, self->txn_requires_abort);
+                Py_DECREF(reason);
+        } else {
+                args = Py_BuildValue("(iziii)", self->code, NULL, self->fatal,
+                                    self->retriable, self->txn_requires_abort);
+        }
+        if (!args) {
+                Py_DECREF(KafkaError_type);
+                Py_DECREF(reason);
+                return NULL;
+        }
+
+        result = Py_BuildValue("(OO)", KafkaError_type, args);
+
+        Py_DECREF(KafkaError_type);
+        Py_DECREF(args);
+        return result;
+}
 
 static PyMethodDef KafkaError_methods[] = {
     {"code", (PyCFunction)KafkaError_code, METH_NOARGS,
@@ -162,7 +197,8 @@ static PyMethodDef KafkaError_methods[] = {
      "producer API.\n"
      "  :rtype: bool\n"
      "\n"},
-
+    {"__reduce__", (PyCFunction)KafkaError_reduce, METH_NOARGS,
+     " Function for serializing KafkaError using the pickle protocol."},
     {NULL}};
 
 
@@ -287,7 +323,7 @@ KafkaError_init0(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 }
 
 static PyTypeObject KafkaErrorType = {
-    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.KafkaError", /*tp_name*/
+    PyVarObject_HEAD_INIT(NULL, 0) "confluent_kafka.cimpl.KafkaError", /*tp_name*/
     sizeof(KafkaError),                                /*tp_basicsize*/
     0,                                                 /*tp_itemsize*/
     (destructor)KafkaError_dealloc,                    /*tp_dealloc*/
@@ -559,6 +595,9 @@ static PyObject *Message_set_error(Message *self, PyObject *new_error) {
 }
 
 static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
+        PyObject *Message_type = NULL;
+        PyObject *result      = NULL;
+
 #ifdef RD_KAFKA_V_HEADERS
         if (!self->headers && self->c_headers) {
                 self->headers = c_headers_to_py(self->c_headers);
@@ -567,14 +606,27 @@ static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
         }
 #endif
 
-        return Py_BuildValue(
-            "O(NNNNNiiiLN)", Py_TYPE(self), Message_topic(self, NULL),
-            Message_value(self, NULL), Message_key(self, NULL),
-            Message_headers(self, NULL), Message_error(self, NULL),
-            self->partition, self->offset, self->leader_epoch, self->timestamp,
-            (self->latency >= 0
-                 ? PyFloat_FromDouble((double)self->latency / 1000000.0)
-                 : cfl_PyInt_FromInt(-1)));
+
+        Message_type = cfl_PyObject_lookup("confluent_kafka.cimpl", "Message");
+
+        PyObject *latency_obj = NULL;
+        if (self->latency >= 0) {
+                latency_obj = PyFloat_FromDouble((double)self->latency / 1000000.0);
+        } else {
+                Py_INCREF(Py_None);
+                latency_obj = Py_None;
+        }
+        result = Py_BuildValue(
+            "O(NiLNNNNOOi)", Message_type, Message_topic(self, NULL),
+            self->partition, self->offset, Message_key(self, NULL),
+            Message_value(self, NULL), Message_headers(self, NULL),
+            Message_error(self, NULL), Message_timestamp(self, NULL),
+            latency_obj, self->leader_epoch);
+        Py_DECREF(latency_obj);
+
+
+        Py_DECREF(Message_type);
+        return result;
 }
 
 static PyMethodDef Message_methods[] = {
@@ -897,7 +949,7 @@ static PySequenceMethods Message_seq_methods = {
 
 
 PyTypeObject MessageType = {
-    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.Message", /*tp_name*/
+    PyVarObject_HEAD_INIT(NULL, 0) "confluent_kafka.cimpl.Message", /*tp_name*/
     sizeof(Message),                                /*tp_basicsize*/
     0,                                              /*tp_itemsize*/
     (destructor)Message_dealloc,                    /*tp_dealloc*/
