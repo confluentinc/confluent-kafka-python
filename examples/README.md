@@ -25,7 +25,7 @@ The AsyncIO producer works seamlessly with popular Python web frameworks:
 
 ```python
 from fastapi import FastAPI
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 app = FastAPI()
 producer = None
@@ -46,7 +46,7 @@ async def create_event(data: dict):
 
 ```python
 from aiohttp import web
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 async def init_app():
     app = web.Application()
@@ -67,7 +67,7 @@ For more details, see [Integrating Apache Kafka With Python Asyncio Web Applicat
 The AsyncIO producer and consumer work seamlessly with async Schema Registry serializers:
 
 ```python
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
@@ -172,7 +172,7 @@ producing.
 
 ```python
 # From examples/README.md
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
