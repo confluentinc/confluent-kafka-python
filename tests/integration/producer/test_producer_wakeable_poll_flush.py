@@ -21,6 +21,36 @@ import time
 from tests.common import TestConsumer
 
 
+# ============================================================================
+# Approach to Producer Wakeability Integration Testing
+# ============================================================================
+#
+# These integration tests verify that the wakeable pattern works correctly
+# with actual Kafka clusters and real message delivery scenarios.
+#
+# How We Test Producer Wakeability in Integration:
+# ------------------------------------------------
+# 1. Message Delivery Testing:
+#    - Create producers with wakeable pattern settings (timeouts >= 200ms)
+#    - Produce messages with delivery callbacks
+#    - Call poll()/flush() with timeouts that trigger chunking
+#    - Verify delivery callbacks are invoked correctly despite chunking
+#    - Measure elapsed time to ensure wakeable pattern doesn't delay delivery
+#
+# 2. Testing Methodology:
+#    - Setup: Create topics, configure producers with delivery callbacks
+#    - Execution: Produce messages, call poll()/flush() with timeouts >= 200ms (triggers chunking)
+#    - Verification: Check callbacks are called, messages are delivered to Kafka, timing is reasonable
+#    - End-to-End: Consume messages to verify they were actually committed to Kafka
+#    - Cleanup: Close producers/consumers and verify no resource leaks
+#
+# 3. What We Verify:
+#    - Delivery callbacks are correctly invoked (wakeable pattern doesn't block callbacks)
+#    - Messages are successfully delivered to Kafka brokers
+#    - Timing remains reasonable (delivery completes quickly when possible)
+#    - Producer state remains consistent after operations complete
+
+
 def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     """Test that poll() correctly delivers messages when using wakeable pattern.
 
