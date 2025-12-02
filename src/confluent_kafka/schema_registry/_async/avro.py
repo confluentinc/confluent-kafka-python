@@ -153,7 +153,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
     |                                   |          | schema.                                          |
     |                                   |          |                                                  |
     |                                   |          | Defaults to False.                               |
-    +-----------------------------------+----------+---------------------------------------------------
+    +-----------------------------------+----------+--------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -361,7 +361,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             ctx (SerializationContext): Metadata pertaining to the serialization operation.
 
         Raises:
-            SerializerError: If any error occurs serializing obj.
+            TypeError or ValueError: If any error occurs serializing obj.
             SchemaRegistryError: If there was an error registering the schema with
                                  Schema Registry, or auto.register.schemas is
                                  false and the schema was not registered.
