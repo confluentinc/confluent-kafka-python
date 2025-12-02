@@ -613,8 +613,8 @@ static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
         if (self->latency >= 0) {
                 latency_obj = PyFloat_FromDouble((double)self->latency / 1000000.0);
         } else {
-                Py_INCREF(Py_None);
-                latency_obj = Py_None;
+                /* Return -1.0 for negative latency to match Message_init default */
+                latency_obj = PyFloat_FromDouble(-1.0);
         }
         result = Py_BuildValue(
             "O(NiLNNNNOOi)", Message_type, Message_topic(self, NULL),
