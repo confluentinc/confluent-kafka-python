@@ -2473,7 +2473,7 @@ async def test_avro_serialize_strict_nested_record():
 
 async def test_avro_serialize_deserialize_strict():
     """
-    Ensures validate.strict round-trip works correctly with all fields present
+    Ensures validate.strict round trip works correctly with all fields present
     """
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
