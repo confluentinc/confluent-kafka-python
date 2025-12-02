@@ -27,7 +27,7 @@ Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
 
 - **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
 - **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
-- **Experimental; AsyncIO Producer**: An experimental fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
+- **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
 - **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
 - **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
 - **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
@@ -54,13 +54,13 @@ Additional examples can be found in the [examples](examples) directory or the [c
 Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
 Finally, the [tests](tests) are useful as a reference for example usage.
-### AsyncIO Producer (experimental)
+### AsyncIO Producer
 
 Use the AsyncIO `Producer` inside async applications to avoid blocking the event loop.
 
 ```python
 import asyncio
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 async def main():
     p = AIOProducer({"bootstrap.servers": "mybroker"})
@@ -177,7 +177,7 @@ producer.flush()
 Use the `AsyncSchemaRegistryClient` and `Async` serializers with `AIOProducer` and `AIOConsumer`. The configuration is the same as the synchronous client.
 
 ```python
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
