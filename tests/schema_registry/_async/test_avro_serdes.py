@@ -2277,6 +2277,234 @@ async def test_avro_reference():
     await _references_test_common(client, awarded_user, schema, schema)
 
 
+async def test_avro_serialize_strict_extra_fields_rejected():
+    """
+    Ensures validate.strict=True rejects records with extra fields not in schema
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'StrictTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'age', 'type': 'int'},
+        ],
+    }
+
+    obj = {
+        'name': 'Alice',
+        'age': 30,
+        'extra_field': 'should_be_rejected',
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Should raise an exception due to extra field with strict=True
+    with pytest.raises(ValueError):
+        await ser(obj, ser_ctx)
+
+
+async def test_avro_serialize_strict_missing_field_with_default():
+    """
+    Ensures validate.strict=True rejects missing field even if it has a default
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'StrictDefaultTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'age', 'type': 'int', 'default': 0},
+        ],
+    }
+
+    obj = {'name': 'Charlie'}
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Should raise an exception because age is missing with strict=True
+    with pytest.raises(ValueError):
+        await ser(obj, ser_ctx)
+
+
+async def test_avro_serialize_strict_allow_default_missing_field_with_default():
+    """
+    Ensures validate.strict.allow.default=True allows missing field with default
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict.allow.default': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'StrictAllowDefaultTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'age', 'type': 'int', 'default': 0},
+            {'name': 'city', 'type': 'string', 'default': 'Unknown'},
+        ],
+    }
+
+    obj = {'name': 'Diana'}
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+
+    # Should have default values
+    assert obj2 == {'name': 'Diana', 'age': 0, 'city': 'Unknown'}
+
+
+async def test_avro_serialize_strict_allow_default_extra_fields_rejected():
+    """
+    Ensures validate.strict.allow.default=True still rejects extra fields
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict.allow.default': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'StrictAllowDefaultExtraTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'age', 'type': 'int', 'default': 0},
+        ],
+    }
+
+    obj = {
+        'name': 'Frank',
+        'age': 40,
+        'extra_field': 'should_be_rejected',
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Should raise an exception due to extra field
+    with pytest.raises(ValueError):
+        await ser(obj, ser_ctx)
+
+
+async def test_avro_serialize_strict_allow_default_union_with_default():
+    """
+    Tests validate.strict.allow.default with union types having defaults
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict.allow.default': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'UnionDefaultTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'email', 'type': ['null', 'string'], 'default': None},
+        ],
+    }
+
+    obj = {'name': 'Grace'}
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+
+    # Should have None as default value for email
+    assert obj2 == {'name': 'Grace', 'email': None}
+
+
+async def test_avro_serialize_strict_nested_record():
+    """
+    Tests validate.strict=True with nested records
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'NestedStrictTest',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {
+                'name': 'address',
+                'type': {
+                    'type': 'record',
+                    'name': 'Address',
+                    'fields': [
+                        {'name': 'street', 'type': 'string'},
+                        {'name': 'city', 'type': 'string'},
+                    ],
+                },
+            },
+        ],
+    }
+
+    obj = {
+        'name': 'Henry',
+        'address': {
+            'street': '123 Main St',
+            'city': 'Boston',
+            'extra_nested': 'should_be_rejected',
+        },
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Should raise an exception due to extra field in nested record
+    with pytest.raises(ValueError):
+        await ser(obj, ser_ctx)
+
+
+async def test_avro_serialize_deserialize_strict():
+    """
+    Ensures validate.strict round trip works correctly with all fields present
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate.strict': True}
+
+    schema = {
+        'type': 'record',
+        'name': 'Strict',
+        'fields': [
+            {'name': 'name', 'type': 'string'},
+            {'name': 'age', 'type': 'int'},
+            {'name': 'score', 'type': 'double'},
+        ],
+    }
+
+    obj = {
+        'name': 'Jack',
+        'age': 28,
+        'score': 95.5,
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+
+    assert obj == obj2
+
+
 async def _register_avro_schemas_and_build_awarded_user_schema(client):
     user = User('Bowie', 47, 'purple')
     award_properties = AwardProperties(10, 2023)
