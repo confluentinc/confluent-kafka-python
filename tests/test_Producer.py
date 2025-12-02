@@ -12,7 +12,7 @@ from confluent_kafka.avro import AvroProducer
 
 # Additional imports for batch integration tests
 from confluent_kafka.serialization import StringSerializer
-from tests.common import TestConsumer, TestUtils
+from tests.common import TestConsumer
 
 
 def error_cb(err):
