@@ -599,23 +599,18 @@ static CFL_UNUSED CFL_INLINE int check_signals_between_chunks(Handle *self,
         PyEval_RestoreThread(cs->thread_state);
 
         /* Check for pending signals (KeyboardInterrupt, etc.) */
-        /* PyErr_CheckSignals() already set the exception */
         if (PyErr_CheckSignals() == -1) {
-                /* Note: GIL is already held, but CallState_end expects to
-                 * restore it */
-                /* Save thread state again so CallState_end can restore it
-                 * properly */
+                /* Signal detected - end the call state (cleanup TLS, etc.)
+                 * Note: GIL is already held, but CallState_end expects to
+                 * restore it, so save thread state again */
                 cs->thread_state = PyEval_SaveThread();
-                if (!CallState_end(self, cs)) {
-                        /* CallState_end detected signal and cleaned up */
-                        return 1; /* Signal detected */
-                }
+                CallState_end(self, cs);
                 return 1;
+        } else {
+                /* No signal detected - re-release GIL for next iteration */
+                cs->thread_state = PyEval_SaveThread();
+                return 0;
         }
-
-        /* Re-release GIL for next iteration */
-        cs->thread_state = PyEval_SaveThread();
-        return 0;
 }
 
 /****************************************************************************
