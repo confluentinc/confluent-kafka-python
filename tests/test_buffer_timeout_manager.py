@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from confluent_kafka.experimental.aio.producer._buffer_timeout_manager import BufferTimeoutManager
+from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
 
 class TestBufferTimeoutManager(unittest.TestCase):
