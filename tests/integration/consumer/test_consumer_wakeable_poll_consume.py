@@ -20,7 +20,6 @@ import time
 
 from tests.common import TestConsumer
 
-
 # ============================================================================
 # Consumer Wakeability Integration Testing
 # ============================================================================

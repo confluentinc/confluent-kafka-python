@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-import threading
-import time
-
 import pytest
 
 from confluent_kafka import (
@@ -13,7 +10,7 @@ from confluent_kafka import (
     KafkaException,
     TopicPartition,
 )
-from tests.common import TestConsumer, TestUtils
+from tests.common import TestConsumer
 
 
 def test_basic_api():

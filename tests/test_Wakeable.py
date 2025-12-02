@@ -80,6 +80,7 @@ WAKEABLE_POLL_TIMEOUT_MAX = 2.0  # Maximum timeout (seconds)
 # Producer wakeable tests
 # ============================================================================
 
+
 def test_producer_wakeable_poll_utility_functions_interaction():
     """Test interaction between calculate_chunk_timeout() and check_signals_between_chunks()."""
     # Assert: Chunk calculation and signal check work together
@@ -544,6 +545,7 @@ def test_producer_wakeable_flush_edge_cases():
 # ============================================================================
 # Consumer wakeable tests
 # ============================================================================
+
 
 def test_consumer_wakeable_poll_utility_functions_interaction():
     """Test interaction between calculate_chunk_timeout() and check_signals_between_chunks()."""
@@ -1023,6 +1025,7 @@ def test_consumer_wakeable_consume_edge_cases():
 # ============================================================================
 # Utility function tests
 # ============================================================================
+
 
 @pytest.mark.parametrize("api_type", ["producer", "consumer"])
 def test_calculate_chunk_timeout_utility_function(api_type):
