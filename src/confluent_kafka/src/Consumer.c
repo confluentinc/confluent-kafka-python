@@ -463,6 +463,9 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &offsets, &async_o, &async_o))
                 return NULL;
 
+        msg = msg == Py_None ? NULL : msg;
+        offsets = offsets == Py_None ? NULL : offsets;
+
         if (msg && offsets) {
                 PyErr_SetString(PyExc_ValueError,
                                 "message and offsets are mutually exclusive");
@@ -491,7 +494,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 m = (Message *)msg;
 
-                if (m->error != Py_None) {
+                if (m->error && m->error != Py_None) {
                         PyObject *error = Message_error(m, NULL);
                         PyObject *errstr =
                             PyObject_CallMethod(error, "str", NULL);

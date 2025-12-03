@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from confluent_kafka import Message
 
 import pytest
 
@@ -198,6 +199,38 @@ def test_on_commit():
 
     c.close()
 
+def test_commit_params():
+    """Verify that commit() handles message and offsets params being Py_None (issue #1642)"""
+    c = TestConsumer(
+        {
+            'group.id': 'x',
+            'enable.auto.commit': False,
+        })
+
+    test_tp = TopicPartition("test", 0)
+    test_msg = Message(topic=test_tp.topic, partition=test_tp.partition)
+
+    c.assign([test_tp])
+
+    # All of these are valid ways to use commit()
+    c.commit(message=None)
+    c.commit(offsets=None)
+    c.commit(message=None, offsets=None)
+    c.commit(**{'asynchronous': True})
+    c.commit(asynchronous=True)
+    c.commit()
+    c.commit(message=None, offsets=None, asynchronous=True)
+    c.commit(message=None, offsets=[test_tp])
+    c.commit(offsets=[test_tp])
+    c.commit(message=test_msg, offsets=None)
+    c.commit(message=test_msg)
+
+    # Invalid way to use commit()
+    with pytest.raises(Exception) as ex:
+        c.commit(message=test_msg, offsets=[])
+    assert "mutually exclusive" in str(ex.value)
+
+    c.close()
 
 def test_subclassing():
     class SubConsumer(Consumer):
