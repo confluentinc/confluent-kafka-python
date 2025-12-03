@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-from confluent_kafka import Message
-
 import pytest
 
 from confluent_kafka import (
@@ -9,6 +7,7 @@ from confluent_kafka import (
     Consumer,
     KafkaError,
     KafkaException,
+    Message,
     TopicPartition,
 )
 from tests.common import TestConsumer
@@ -199,13 +198,15 @@ def test_on_commit():
 
     c.close()
 
+
 def test_commit_params():
     """Verify that commit() handles message and offsets params being Py_None (issue #1642)"""
     c = TestConsumer(
         {
             'group.id': 'x',
             'enable.auto.commit': False,
-        })
+        }
+    )
 
     test_tp = TopicPartition("test", 0)
     test_msg = Message(topic=test_tp.topic, partition=test_tp.partition)
@@ -231,6 +232,7 @@ def test_commit_params():
     assert "mutually exclusive" in str(ex.value)
 
     c.close()
+
 
 def test_subclassing():
     class SubConsumer(Consumer):
