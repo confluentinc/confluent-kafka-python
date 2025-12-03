@@ -1386,7 +1386,7 @@ static PyObject *TopicPartition_str0(TopicPartition *self) {
         }
 
         ret = cfl_PyUnistr(
-            _FromFormat("TopicPartition{topic=%s,partition=%" CFL_PRId32
+            _FromFormat("TopicPartition{topic=%s,partition=%d"
                         ",offset=%s,leader_epoch=%s,error=%s}",
                         self->topic, self->partition, offset_str,
                         leader_epoch_str, c_errstr ? c_errstr : "None"));
