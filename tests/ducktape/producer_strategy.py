@@ -419,7 +419,7 @@ class AsyncProducerStrategy(ProducerStrategy):
         # Enable logging for AIOProducer
         import logging
 
-        from confluent_kafka.experimental.aio import AIOProducer
+        from confluent_kafka.aio import AIOProducer
 
         logging.basicConfig(level=logging.INFO)
 
