@@ -31,14 +31,15 @@ from authlib.integrations.httpx_client import OAuth2Client
 from cachetools import Cache, LRUCache, TTLCache
 from httpx import Response
 
+from confluent_kafka import version
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
     Schema,
     SchemaVersion,
     ServerConfig,
     _BearerFieldProvider,
-    _SchemaCache,
     _StaticFieldProvider,
+    _SchemaCache,
     full_jitter,
     is_retriable,
     is_success,
@@ -441,7 +442,9 @@ class _RestClient(_BaseRestClient):
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None) -> Any:
+    def send_request(
+        self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None
+    ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry, trying each base URL in turn.
 
@@ -477,6 +480,7 @@ class _RestClient(_BaseRestClient):
                 'Content-Length': str(len(body_str)),
                 'Content-Type': "application/vnd.schemaregistry.v1+json",
                 'Confluent-Accept-Unknown-Properties': "true",
+                'Confluent-Client-Version': f"python/{version()}"
             }
 
         if self.bearer_auth_credentials_source:
@@ -942,7 +946,9 @@ class SchemaRegistryClient(object):
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
-        response = self._rest_client.post('subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request)
+        response = self._rest_client.post(
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request
+        )
 
         result = RegisteredSchema.from_dict(response)
 
@@ -1043,7 +1049,9 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1123,7 +1131,9 @@ class SchemaRegistryClient(object):
                 return registered_schema
 
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1210,7 +1220,9 @@ class SchemaRegistryClient(object):
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
         else:
-            response = self._rest_client.delete('subjects/{}/versions/{}'.format(_urlencode(subject_name), version))
+            response = self._rest_client.delete(
+                'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
+            )
 
         # Clear cache for both soft and hard deletes to maintain consistency
         self._cache.remove_by_subject_version(subject_name, version)
@@ -1338,7 +1350,9 @@ class SchemaRegistryClient(object):
         )
         return response['is_compatible']
 
-    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
+    def set_config(
+        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None
+    ) -> 'ServerConfig':
         """
         Update global or subject config.
 
