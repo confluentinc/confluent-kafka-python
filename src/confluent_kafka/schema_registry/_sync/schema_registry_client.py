@@ -478,7 +478,7 @@ class _RestClient(_BaseRestClient):
                 'Content-Length': str(len(body_str)),
                 'Content-Type': "application/vnd.schemaregistry.v1+json",
                 'Confluent-Accept-Unknown-Properties': "true",
-                'Confluent-Client-Version': f"python/{version()}"
+                'Confluent-Client-Version': f"python/{version()}",
             }
 
         if self.bearer_auth_credentials_source:
