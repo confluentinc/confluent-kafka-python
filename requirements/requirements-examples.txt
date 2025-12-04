@@ -9,8 +9,8 @@ cachetools
 httpx>=0.26
 authlib>=1.0.0
 
-fastavro < 1.8.0; python_version == "3.7"
-fastavro < 2; python_version > "3.7"
+fastavro >= 1.5.4, < 1.8.0; python_version == "3.7"
+fastavro >= 1.5.4, < 2; python_version > "3.7"
 requests
 avro>=1.11.1,<2
 

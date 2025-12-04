@@ -229,3 +229,43 @@ async def test_avro_deserializer_invalid_schema_type():
     test_client = AsyncSchemaRegistryClient(conf)
     with pytest.raises(TypeError, match="You must pass either schema string or schema object"):
         await AsyncAvroDeserializer(test_client, 1)
+
+
+async def test_avro_serializer_config_validate_strict():
+    """
+    Ensures validate.strict config is correctly set
+    """
+    conf = {'url': TEST_URL}
+    test_client = AsyncSchemaRegistryClient(conf)
+    test_serializer = await AsyncAvroSerializer(test_client, '"string"', conf={'validate.strict': True})
+    assert test_serializer._strict is True
+
+
+async def test_avro_serializer_config_validate_strict_default():
+    """
+    Ensures validate.strict defaults to False
+    """
+    conf = {'url': TEST_URL}
+    test_client = AsyncSchemaRegistryClient(conf)
+    test_serializer = await AsyncAvroSerializer(test_client, '"string"')
+    assert test_serializer._strict is False
+
+async def test_avro_serializer_config_validate_strict_allow_default():
+    """
+    Ensures validate.strict.allow.default config is correctly set
+    """
+    conf = {'url': TEST_URL}
+    test_client = AsyncSchemaRegistryClient(conf)
+    test_serializer = await AsyncAvroSerializer(test_client, '"string"', conf={'validate.strict.allow.default': True})
+    assert test_serializer._strict_allow_default is True
+
+
+async def test_avro_serializer_config_validate_strict_allow_default_default():
+    """
+    Ensures validate.strict.allow.default defaults to False
+    """
+    conf = {'url': TEST_URL}
+    test_client = AsyncSchemaRegistryClient(conf)
+    test_serializer = await AsyncAvroSerializer(test_client, '"string"')
+    assert test_serializer._strict_allow_default is False
+
