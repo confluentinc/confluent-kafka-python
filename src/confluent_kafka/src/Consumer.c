@@ -105,7 +105,6 @@ static int Consumer_traverse(Handle *self, visitproc visit, void *arg) {
 }
 
 
-
 static PyObject *
 Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
 
@@ -964,13 +963,36 @@ Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
 #endif
 }
 
-
+/**
+ * @brief Poll for a single message from the subscribed topics.
+ *
+ * Instead of a single blocking call to rd_kafka_consumer_poll() with the
+ * full timeout, this function:
+ * 1. Splits the timeout into 200ms chunks
+ * 2. Calls rd_kafka_consumer_poll() with chunk timeout
+ * 3. Between chunks, re-acquires GIL and calls PyErr_CheckSignals()
+ * 4. If signal detected, returns NULL (raises KeyboardInterrupt)
+ * 5. Continues until message received, timeout expired, or signal detected
+ *
+ *
+ * @param self Consumer handle
+ * @param args Positional arguments (unused)
+ * @param kwargs Keyword arguments:
+ *              - timeout (float, optional): Timeout in seconds.
+ *                Default: -1.0 (infinite timeout)
+ * @return PyObject* Message object, None if timeout, or NULL on error
+ *         (raises KeyboardInterrupt if signal detected)
+ */
 static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
-        double tmout       = -1.0f;
-        static char *kws[] = {"timeout", NULL};
-        rd_kafka_message_t *rkm;
+        double tmout            = -1.0f;
+        static char *kws[]      = {"timeout", NULL};
+        rd_kafka_message_t *rkm = NULL;
         PyObject *msgobj;
         CallState cs;
+        const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
+        int total_timeout_ms;
+        int chunk_timeout_ms;
+        int chunk_count = 0;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
@@ -980,16 +1002,53 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
+        total_timeout_ms = cfl_timeout_ms(tmout);
+
         CallState_begin(self, &cs);
 
-        rkm = rd_kafka_consumer_poll(self->rk, cfl_timeout_ms(tmout));
+        /* Skip wakeable poll pattern for non-blocking or very short timeouts.
+         * This avoids unnecessary GIL re-acquisition that can interfere with
+         * ThreadPool. Only use wakeable poll for
+         * blocking calls that need to be interruptible. */
+        if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
+                rkm = rd_kafka_consumer_poll(self->rk, total_timeout_ms);
+        } else {
+                while (1) {
+                        /* Calculate timeout for this chunk */
+                        chunk_timeout_ms = calculate_chunk_timeout(
+                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                        if (chunk_timeout_ms == 0) {
+                                /* Timeout expired */
+                                break;
+                        }
 
+                        /* Poll with chunk timeout */
+                        rkm =
+                            rd_kafka_consumer_poll(self->rk, chunk_timeout_ms);
+
+                        /* If we got a message, exit the loop */
+                        if (rkm) {
+                                break;
+                        }
+
+                        chunk_count++;
+
+                        /* Check for signals between chunks */
+                        if (check_signals_between_chunks(self, &cs)) {
+                                return NULL;
+                        }
+                }
+        }
+
+        /* Final GIL restore and signal check */
         if (!CallState_end(self, &cs)) {
-                if (rkm)
+                if (rkm) {
                         rd_kafka_message_destroy(rkm);
+                }
                 return NULL;
         }
 
+        /* Handle the message */
         if (!rkm)
                 Py_RETURN_NONE;
 
@@ -1030,7 +1089,27 @@ Consumer_memberid(Handle *self, PyObject *args, PyObject *kwargs) {
         return memberidobj;
 }
 
-
+/**
+ * @brief Consume a batch of messages from the subscribed topics.
+ *
+ * Instead of a single blocking call to rd_kafka_consume_batch_queue() with the
+ * full timeout, this function:
+ * 1. Splits the timeout into 200ms chunks
+ * 2. Calls rd_kafka_consume_batch_queue() with chunk timeout
+ * 3. Between chunks, re-acquires GIL and calls PyErr_CheckSignals()
+ * 4. If signal detected, returns NULL (raises KeyboardInterrupt)
+ * 5. Continues until messages received, timeout expired, or signal detected.
+ *
+ * @param self Consumer handle
+ * @param args Positional arguments (unused)
+ * @param kwargs Keyword arguments:
+ *              - num_messages (int, optional): Maximum number of messages to
+ *                consume per call. Default: 1. Maximum: 1000000.
+ *              - timeout (float, optional): Timeout in seconds.
+ *                Default: -1.0 (infinite timeout)
+ * @return PyObject* List of Message objects, empty list if timeout, or NULL on
+ * error (raises KeyboardInterrupt if signal detected)
+ */
 static PyObject *
 Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         unsigned int num_messages = 1;
@@ -1040,7 +1119,11 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
-        Py_ssize_t i, n;
+        Py_ssize_t i, n = 0;
+        const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
+        int total_timeout_ms;
+        int chunk_timeout_ms;
+        int chunk_count = 0;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
@@ -1058,13 +1141,74 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        CallState_begin(self, &cs);
+        total_timeout_ms = cfl_timeout_ms(tmout);
 
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
+        if (!rkmessages) {
+                PyErr_NoMemory();
+                return NULL;
+        }
 
-        n = (Py_ssize_t)rd_kafka_consume_batch_queue(
-            rkqu, cfl_timeout_ms(tmout), rkmessages, num_messages);
+        CallState_begin(self, &cs);
 
+        /* Skip wakeable poll pattern for non-blocking or very short timeouts.
+         * This avoids unnecessary GIL re-acquisition that can interfere with
+         * ThreadPool. Only use wakeable poll for
+         * blocking calls that need to be interruptible. */
+        if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
+                n = (Py_ssize_t)rd_kafka_consume_batch_queue(
+                    rkqu, total_timeout_ms, rkmessages, num_messages);
+
+                if (n < 0) {
+                        /* Error - need to restore GIL before setting error */
+                        PyEval_RestoreThread(cs.thread_state);
+                        free(rkmessages);
+                        cfl_PyErr_Format(
+                            rd_kafka_last_error(), "%s",
+                            rd_kafka_err2str(rd_kafka_last_error()));
+                        return NULL;
+                }
+        } else {
+                while (1) {
+                        /* Calculate timeout for this chunk */
+                        chunk_timeout_ms = calculate_chunk_timeout(
+                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                        if (chunk_timeout_ms == 0) {
+                                /* Timeout expired */
+                                break;
+                        }
+
+                        /* Consume with chunk timeout */
+                        n = (Py_ssize_t)rd_kafka_consume_batch_queue(
+                            rkqu, chunk_timeout_ms, rkmessages, num_messages);
+
+                        if (n < 0) {
+                                /* Error - need to restore GIL before setting
+                                 * error */
+                                PyEval_RestoreThread(cs.thread_state);
+                                free(rkmessages);
+                                cfl_PyErr_Format(
+                                    rd_kafka_last_error(), "%s",
+                                    rd_kafka_err2str(rd_kafka_last_error()));
+                                return NULL;
+                        }
+
+                        /* If we got messages, exit the loop */
+                        if (n > 0) {
+                                break;
+                        }
+
+                        chunk_count++;
+
+                        /* Check for signals between chunks */
+                        if (check_signals_between_chunks(self, &cs)) {
+                                free(rkmessages);
+                                return NULL;
+                        }
+                }
+        }
+
+        /* Final GIL restore and signal check */
         if (!CallState_end(self, &cs)) {
                 for (i = 0; i < n; i++) {
                         rd_kafka_message_destroy(rkmessages[i]);
@@ -1073,13 +1217,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (n < 0) {
-                free(rkmessages);
-                cfl_PyErr_Format(rd_kafka_last_error(), "%s",
-                                 rd_kafka_err2str(rd_kafka_last_error()));
-                return NULL;
-        }
-
+        /* Create Python list from messages  */
         msglist = PyList_New(n);
 
         for (i = 0; i < n; i++) {
