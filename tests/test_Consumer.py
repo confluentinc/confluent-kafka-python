@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 import pytest
 
 from confluent_kafka import (
@@ -8,6 +7,7 @@ from confluent_kafka import (
     Consumer,
     KafkaError,
     KafkaException,
+    Message,
     TopicPartition,
 )
 from tests.common import TestConsumer
@@ -152,6 +152,52 @@ def test_store_offsets():
     c.close()
 
 
+def test_store_offsets_params():
+    """Verify that store_offsets() handles message and offsets params being Py_None (issue #1642)"""
+    c = TestConsumer(
+        {
+            'group.id': 'x',
+            'enable.auto.commit': True,
+            'enable.auto.offset.store': False,
+        }
+    )
+
+    test_tp = TopicPartition("test", 0, -1)
+    test_msg = Message(topic=test_tp.topic, partition=test_tp.partition, offset=test_tp.offset)
+
+    c.assign([test_tp])
+
+    # Valid ways to use store_offsets() - must provide either message or offsets
+    c.store_offsets(message=test_msg)
+    c.store_offsets(offsets=[test_tp])
+    c.store_offsets(message=test_msg, offsets=None)
+    c.store_offsets(message=None, offsets=[test_tp])
+
+    # Invalid: both message and offsets provided
+    with pytest.raises(Exception) as ex:
+        c.store_offsets(message=test_msg, offsets=[test_tp])
+    assert "mutually exclusive" in str(ex.value)
+
+    # Invalid: neither message nor offsets provided
+    with pytest.raises(Exception) as ex:
+        c.store_offsets()
+    assert "expected either message or offsets" in str(ex.value)
+
+    with pytest.raises(Exception) as ex:
+        c.store_offsets(message=None)
+    assert "expected either message or offsets" in str(ex.value)
+
+    with pytest.raises(Exception) as ex:
+        c.store_offsets(offsets=None)
+    assert "expected either message or offsets" in str(ex.value)
+
+    with pytest.raises(Exception) as ex:
+        c.store_offsets(message=None, offsets=None)
+    assert "expected either message or offsets" in str(ex.value)
+
+    c.close()
+
+
 def test_on_commit():
     """Verify that on_commit is only called once per commit() (issue #71)"""
 
@@ -195,6 +241,41 @@ def test_on_commit():
             except KafkaException as e:
                 print('commit failed with %s (expected)' % e)
                 assert e.args[0].code() == KafkaError._NO_OFFSET
+
+    c.close()
+
+
+def test_commit_params():
+    """Verify that commit() handles message and offsets params being Py_None (issue #1642)"""
+    c = TestConsumer(
+        {
+            'group.id': 'x',
+            'enable.auto.commit': False,
+        }
+    )
+
+    test_tp = TopicPartition("test", 0)
+    test_msg = Message(topic=test_tp.topic, partition=test_tp.partition)
+
+    c.assign([test_tp])
+
+    # All of these are valid ways to use commit()
+    c.commit(message=None)
+    c.commit(offsets=None)
+    c.commit(message=None, offsets=None)
+    c.commit(**{'asynchronous': True})
+    c.commit(asynchronous=True)
+    c.commit()
+    c.commit(message=None, offsets=None, asynchronous=True)
+    c.commit(message=None, offsets=[test_tp])
+    c.commit(offsets=[test_tp])
+    c.commit(message=test_msg, offsets=None)
+    c.commit(message=test_msg)
+
+    # Invalid way to use commit() - both message and offsets provided
+    with pytest.raises(Exception) as ex:
+        c.commit(message=test_msg, offsets=[])
+    assert "mutually exclusive" in str(ex.value)
 
     c.close()
 
