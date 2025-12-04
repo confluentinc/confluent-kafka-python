@@ -1,5 +1,10 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+
+### Fixes
+
+- Fixed `Consumer.poll()`, `Consumer.consume()`, `Producer.poll()`, and `Producer.flush()` blocking indefinitely and not responding to Ctrl+C (KeyboardInterrupt) signals. The implementation now uses a "wakeable poll" pattern that breaks long blocking calls into smaller chunks (200ms) and periodically re-acquires the Python GIL to check for pending signals. This allows Ctrl+C to properly interrupt blocking operations. Fixes Issues [#209](https://github.com/confluentinc/confluent-kafka-python/issues/209) and [#807](https://github.com/confluentinc/confluent-kafka-python/issues/807).
+
 ## 2.13.0b1 - (beta) 2025-11-24
 
 This is a beta release, notes to change to full release later on in changelog. Changes included are:
