@@ -295,8 +295,13 @@ class AvroSerializer(BaseSerializer):
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
-        self._strict = conf_copy.pop('validate.strict')
-        self._strict_allow_default = conf_copy.pop('validate.strict.allow.default')
+        self._strict = cast(bool, conf_copy.pop('validate.strict'))
+        if not isinstance(self._strict, bool):
+            raise ValueError("validate.strict must be a boolean value")
+
+        self._strict_allow_default = cast(bool, conf_copy.pop('validate.strict.allow.default'))
+        if not isinstance(self._strict_allow_default, bool):
+            raise ValueError("validate.strict.allow.default must be a boolean value")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
