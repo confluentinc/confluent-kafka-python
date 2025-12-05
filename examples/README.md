@@ -157,11 +157,14 @@ avro_serializer = AvroSerializer(schema_registry_client,
 
 producer_conf = {
     'bootstrap.servers': 'localhost:9092',
-    'key.serializer': StringSerializer('utf_8'),
-    'value.serializer': avro_serializer
 }
 
 producer = Producer(producer_conf)
+
+# Simplified example of serialize and produce
+serialized_value = avro_serializer(some_user_object)
+producer.produce('my-topic', key='user1', value=serialized_value)
+producer.flush()
 ```
 
 ### Asynchronous usage (Experimental AsyncIO)
