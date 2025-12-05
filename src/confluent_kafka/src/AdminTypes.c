@@ -77,6 +77,7 @@ static void NewTopic_dealloc(NewTopic *self) {
 static int NewTopic_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         NewTopic *self = (NewTopic *)self0;
         const char *topic;
+        PyObject *replica_assignment = NULL, *config = NULL;
         static char *kws[] = {"topic",
                               "num_partitions",
                               "replication_factor",
@@ -91,22 +92,23 @@ static int NewTopic_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
 
         if (!PyArg_ParseTupleAndKeywords(
                 args, kwargs, "s|iiOO", kws, &topic, &self->num_partitions,
-                &self->replication_factor, &self->replica_assignment,
-                &self->config))
+                &self->replication_factor, &replica_assignment, &config))
                 return -1;
 
 
 
-        if (self->config) {
-                if (!PyDict_Check(self->config)) {
+        if (config) {
+                if (!PyDict_Check(config)) {
                         PyErr_SetString(PyExc_TypeError,
                                         "config must be a dict of strings");
                         return -1;
                 }
-                Py_INCREF(self->config);
+                Py_INCREF(config);
+                self->config = config;
         }
 
-        Py_XINCREF(self->replica_assignment);
+        Py_XINCREF(replica_assignment);
+        self->replica_assignment = replica_assignment;
 
         self->topic = strdup(topic);
 
