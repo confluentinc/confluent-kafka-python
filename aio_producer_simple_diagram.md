@@ -77,9 +77,9 @@ The `AIOProducer` implements a multi-component architecture designed for high-pe
 
 ### Source Code Location
 
-- **Main Implementation**: `src/confluent_kafka/experimental/aio/producer/_AIOProducer.py`
-- **Supporting Modules**: `src/confluent_kafka/experimental/aio/producer/` directory
-- **Common Utilities**: `src/confluent_kafka/experimental/aio/_common.py`
+- **Main Implementation**: `src/confluent_kafka/aio/producer/_AIOProducer.py`
+- **Supporting Modules**: `src/confluent_kafka/aio/producer/` directory
+- **Common Utilities**: `src/confluent_kafka/aio/_common.py`
 
 ### Design Principles
 
@@ -103,4 +103,4 @@ Unlike the synchronous `Producer` which uses polling-based callbacks, the `AIOPr
 
 - [AsyncIO Producer Usage Examples](examples/asyncio_example.py) - Comprehensive usage patterns and best practices.
 - [AsyncIO Producer Development Guide](DEVELOPER.md#asyncio-producer-development-aioproducer) - Implementation details for contributors.
-- [Main README AsyncIO Section](README.md#asyncio-producer-experimental) - Getting started with AsyncIO producer.
+- [Main README AsyncIO Section](README.md#asyncio-produce) - Getting started with AsyncIO producer.
