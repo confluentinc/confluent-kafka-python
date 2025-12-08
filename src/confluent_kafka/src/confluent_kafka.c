@@ -149,7 +149,6 @@ static PyObject *KafkaError_reduce(KafkaError *self,
         }
         if (!args) {
                 Py_DECREF(KafkaError_type);
-                Py_DECREF(reason);
                 return NULL;
         }
 
@@ -901,11 +900,17 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         }
 
         if (self == other) {
-                return op == Py_EQ ? Py_True : Py_False;
+                if (op == Py_EQ)
+                        Py_RETURN_TRUE;
+                else
+                        Py_RETURN_FALSE;
         }
 
         if (!PyObject_TypeCheck(other, &MessageType)) {
-                return op == Py_EQ ? Py_False : Py_True;
+                if (op == Py_EQ)
+                        Py_RETURN_FALSE;
+                else
+                        Py_RETURN_TRUE;
         }
 
         Message *msg_self  = (Message *)self;
@@ -918,8 +923,12 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
                 result = PyObject_RichCompareBool(left, right, Py_EQ);         \
                 if (result < 0)                                                \
                         return NULL;                                           \
-                if (result == 0)                                               \
-                        return op == Py_EQ ? Py_False : Py_True;               \
+                if (result == 0) {                                             \
+                        if (op == Py_EQ)                                       \
+                                Py_RETURN_FALSE;                               \
+                        else                                                   \
+                                Py_RETURN_TRUE;                                \
+                }                                                              \
         } while (0)
         _LOCAL_COMPARE(msg_self->topic, msg_other->topic);
         _LOCAL_COMPARE(msg_self->value, msg_other->value);
@@ -930,8 +939,12 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
 
 #define _LOCAL_COMPARE(left, right)                                            \
         do {                                                                   \
-                if (left != right)                                             \
-                        return op == Py_EQ ? Py_False : Py_True;               \
+                if (left != right) {                                           \
+                        if (op == Py_EQ)                                       \
+                                Py_RETURN_FALSE;                               \
+                        else                                                   \
+                                Py_RETURN_TRUE;                                \
+                }                                                              \
         } while (0)
         _LOCAL_COMPARE(msg_self->partition, msg_other->partition);
         _LOCAL_COMPARE(msg_self->offset, msg_other->offset);
@@ -940,7 +953,7 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         // latency is skipped, it is a float and not that significant.
 #undef _LOCAL_COMPARE
 
-        return Py_True;
+        Py_RETURN_TRUE;
 }
 
 static Py_ssize_t Message__len__(Message *self) {
