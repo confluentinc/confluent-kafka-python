@@ -462,7 +462,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &offsets, &async_o, &async_o))
                 return NULL;
 
-        msg = msg == Py_None ? NULL : msg;
+        msg     = msg == Py_None ? NULL : msg;
         offsets = offsets == Py_None ? NULL : offsets;
 
         if (msg && offsets) {
@@ -605,7 +605,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &offsets))
                 return NULL;
 
-        msg = msg == Py_None ? NULL : msg;
+        msg     = msg == Py_None ? NULL : msg;
         offsets = offsets == Py_None ? NULL : offsets;
 
         if (msg && offsets) {
