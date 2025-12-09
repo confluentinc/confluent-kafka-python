@@ -121,6 +121,43 @@ static PyObject *KafkaError_txn_requires_abort(KafkaError *self,
         return ret;
 }
 
+static PyObject *KafkaError_reduce(KafkaError *self,
+                                   PyObject *Py_UNUSED(ignored)) {
+        PyObject *KafkaError_type = NULL;
+        PyObject *result          = NULL;
+        PyObject *args            = NULL;
+        PyObject *reason          = NULL;
+
+        KafkaError_type =
+            cfl_PyObject_lookup("confluent_kafka.cimpl", "KafkaError");
+
+        if (self->str) {
+                reason = cfl_PyUnistr(_FromString(self->str));
+        } else {
+                reason = NULL;
+        }
+
+        /* Build args tuple: (error, reason, fatal, retriable,
+         * txn_requires_abort) */
+        if (reason) {
+                args = Py_BuildValue("(iOiii)", self->code, reason, self->fatal,
+                                     self->retriable, self->txn_requires_abort);
+                Py_DECREF(reason);
+        } else {
+                args = Py_BuildValue("(iziii)", self->code, NULL, self->fatal,
+                                     self->retriable, self->txn_requires_abort);
+        }
+        if (!args) {
+                Py_DECREF(KafkaError_type);
+                return NULL;
+        }
+
+        result = Py_BuildValue("(OO)", KafkaError_type, args);
+
+        Py_DECREF(KafkaError_type);
+        Py_DECREF(args);
+        return result;
+}
 
 static PyMethodDef KafkaError_methods[] = {
     {"code", (PyCFunction)KafkaError_code, METH_NOARGS,
@@ -162,7 +199,8 @@ static PyMethodDef KafkaError_methods[] = {
      "producer API.\n"
      "  :rtype: bool\n"
      "\n"},
-
+    {"__reduce__", (PyCFunction)KafkaError_reduce, METH_NOARGS,
+     " Function for serializing KafkaError using the pickle protocol."},
     {NULL}};
 
 
@@ -287,24 +325,25 @@ KafkaError_init0(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 }
 
 static PyTypeObject KafkaErrorType = {
-    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.KafkaError", /*tp_name*/
-    sizeof(KafkaError),                                /*tp_basicsize*/
-    0,                                                 /*tp_itemsize*/
-    (destructor)KafkaError_dealloc,                    /*tp_dealloc*/
-    0,                                                 /*tp_print*/
-    0,                                                 /*tp_getattr*/
-    0,                                                 /*tp_setattr*/
-    0,                                                 /*tp_compare*/
-    (reprfunc)KafkaError_str0,                         /*tp_repr*/
-    0,                                                 /*tp_as_number*/
-    0,                                                 /*tp_as_sequence*/
-    0,                                                 /*tp_as_mapping*/
-    (hashfunc)KafkaError_hash,                         /*tp_hash */
-    0,                                                 /*tp_call*/
-    0,                                                 /*tp_str*/
-    PyObject_GenericGetAttr,                           /*tp_getattro*/
-    0,                                                 /*tp_setattro*/
-    0,                                                 /*tp_as_buffer*/
+    PyVarObject_HEAD_INIT(NULL,
+                          0) "confluent_kafka.cimpl.KafkaError", /*tp_name*/
+    sizeof(KafkaError),             /*tp_basicsize*/
+    0,                              /*tp_itemsize*/
+    (destructor)KafkaError_dealloc, /*tp_dealloc*/
+    0,                              /*tp_print*/
+    0,                              /*tp_getattr*/
+    0,                              /*tp_setattr*/
+    0,                              /*tp_compare*/
+    (reprfunc)KafkaError_str0,      /*tp_repr*/
+    0,                              /*tp_as_number*/
+    0,                              /*tp_as_sequence*/
+    0,                              /*tp_as_mapping*/
+    (hashfunc)KafkaError_hash,      /*tp_hash */
+    0,                              /*tp_call*/
+    0,                              /*tp_str*/
+    PyObject_GenericGetAttr,        /*tp_getattro*/
+    0,                              /*tp_setattro*/
+    0,                              /*tp_as_buffer*/
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_BASE_EXC_SUBCLASS |
         Py_TPFLAGS_HAVE_GC, /*tp_flags*/
     "Kafka error and event object\n"
@@ -540,6 +579,61 @@ static PyObject *Message_set_key(Message *self, PyObject *new_key) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Message_set_topic(Message *self, PyObject *new_topic) {
+        if (self->topic)
+                Py_DECREF(self->topic);
+        self->topic = new_topic;
+        Py_INCREF(self->topic);
+
+        Py_RETURN_NONE;
+}
+
+static PyObject *Message_set_error(Message *self, PyObject *new_error) {
+        if (self->error)
+                Py_DECREF(self->error);
+        self->error = new_error;
+        Py_INCREF(self->error);
+
+        Py_RETURN_NONE;
+}
+
+static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
+        PyObject *Message_type = NULL;
+        PyObject *result       = NULL;
+
+#ifdef RD_KAFKA_V_HEADERS
+        if (!self->headers && self->c_headers) {
+                self->headers = c_headers_to_py(self->c_headers);
+                rd_kafka_headers_destroy(self->c_headers);
+                self->c_headers = NULL;
+        }
+#endif
+
+
+        Message_type = cfl_PyObject_lookup("confluent_kafka.cimpl", "Message");
+
+        PyObject *latency_obj = NULL;
+        if (self->latency >= 0) {
+                latency_obj =
+                    PyFloat_FromDouble((double)self->latency / 1000000.0);
+        } else {
+                /* Return -1.0 for negative latency to match Message_init
+                 * default */
+                latency_obj = PyFloat_FromDouble(-1.0);
+        }
+        result = Py_BuildValue(
+            "O(NiLNNNNOOi)", Message_type, Message_topic(self, NULL),
+            self->partition, self->offset, Message_key(self, NULL),
+            Message_value(self, NULL), Message_headers(self, NULL),
+            Message_error(self, NULL), Message_timestamp(self, NULL),
+            latency_obj, self->leader_epoch);
+        Py_DECREF(latency_obj);
+
+
+        Py_DECREF(Message_type);
+        return result;
+}
+
 static PyMethodDef Message_methods[] = {
     {"error", (PyCFunction)Message_error, METH_NOARGS,
      "  The message object is also used to propagate errors and events, "
@@ -634,6 +728,22 @@ static PyMethodDef Message_methods[] = {
      "  :returns: None.\n"
      "  :rtype: None\n"
      "\n"},
+    {"set_topic", (PyCFunction)Message_set_topic, METH_O,
+     "  Set the field 'Message.topic' with new value.\n"
+     "\n"
+     "  :param object value: Message.topic.\n"
+     "  :returns: None.\n"
+     "  :rtype: None\n"
+     "\n"},
+    {"set_error", (PyCFunction)Message_set_error, METH_O,
+     "  Set the field 'Message.error' with new value.\n"
+     "\n"
+     "  :param object value: Message.error.\n"
+     "  :returns: None.\n"
+     "  :rtype: None\n"
+     "\n"},
+    {"__reduce__", (PyCFunction)Message_reduce, METH_NOARGS,
+     " Function for serializing Message using the pickle protocol."},
     {NULL}};
 
 static int Message_clear(Message *self) {
@@ -783,33 +893,99 @@ static int Message_traverse(Message *self, visitproc visit, void *arg) {
         return 0;
 }
 
+static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
+        if (op != Py_EQ && op != Py_NE) {
+                Py_INCREF(Py_NotImplemented);
+                return Py_NotImplemented;
+        }
+
+        if (self == other) {
+                if (op == Py_EQ)
+                        Py_RETURN_TRUE;
+                else
+                        Py_RETURN_FALSE;
+        }
+
+        if (!PyObject_TypeCheck(other, &MessageType)) {
+                if (op == Py_EQ)
+                        Py_RETURN_FALSE;
+                else
+                        Py_RETURN_TRUE;
+        }
+
+        Message *msg_self  = (Message *)self;
+        Message *msg_other = (Message *)other;
+
+        int result;
+
+#define _LOCAL_COMPARE(left, right)                                            \
+        do {                                                                   \
+                result = PyObject_RichCompareBool(left, right, Py_EQ);         \
+                if (result < 0)                                                \
+                        return NULL;                                           \
+                if (result == 0) {                                             \
+                        if (op == Py_EQ)                                       \
+                                Py_RETURN_FALSE;                               \
+                        else                                                   \
+                                Py_RETURN_TRUE;                                \
+                }                                                              \
+        } while (0)
+        _LOCAL_COMPARE(msg_self->topic, msg_other->topic);
+        _LOCAL_COMPARE(msg_self->value, msg_other->value);
+        _LOCAL_COMPARE(msg_self->key, msg_other->key);
+        _LOCAL_COMPARE(msg_self->headers, msg_other->headers);
+        _LOCAL_COMPARE(msg_self->error, msg_other->error);
+#undef _LOCAL_COMPARE
+
+#define _LOCAL_COMPARE(left, right)                                            \
+        do {                                                                   \
+                if (left != right) {                                           \
+                        if (op == Py_EQ)                                       \
+                                Py_RETURN_FALSE;                               \
+                        else                                                   \
+                                Py_RETURN_TRUE;                                \
+                }                                                              \
+        } while (0)
+        _LOCAL_COMPARE(msg_self->partition, msg_other->partition);
+        _LOCAL_COMPARE(msg_self->offset, msg_other->offset);
+        _LOCAL_COMPARE(msg_self->leader_epoch, msg_other->leader_epoch);
+        _LOCAL_COMPARE(msg_self->timestamp, msg_other->timestamp);
+        // latency is skipped, it is a float and not that significant.
+#undef _LOCAL_COMPARE
+
+        Py_RETURN_TRUE;
+}
+
 static Py_ssize_t Message__len__(Message *self) {
-        return self->value ? PyObject_Length(self->value) : 0;
+        return self->value && self->value != Py_None
+                   ? PyObject_Length(self->value)
+                   : 0;
 }
 
 static PySequenceMethods Message_seq_methods = {
     (lenfunc)Message__len__ /* sq_length */
 };
 
+
 PyTypeObject MessageType = {
-    PyVarObject_HEAD_INIT(NULL, 0) "cimpl.Message", /*tp_name*/
-    sizeof(Message),                                /*tp_basicsize*/
-    0,                                              /*tp_itemsize*/
-    (destructor)Message_dealloc,                    /*tp_dealloc*/
-    0,                                              /*tp_print*/
-    0,                                              /*tp_getattr*/
-    0,                                              /*tp_setattr*/
-    0,                                              /*tp_compare*/
-    0,                                              /*tp_repr*/
-    0,                                              /*tp_as_number*/
-    &Message_seq_methods,                           /*tp_as_sequence*/
-    0,                                              /*tp_as_mapping*/
-    0,                                              /*tp_hash */
-    0,                                              /*tp_call*/
-    0,                                              /*tp_str*/
-    PyObject_GenericGetAttr,                        /*tp_getattro*/
-    0,                                              /*tp_setattro*/
-    0,                                              /*tp_as_buffer*/
+    PyVarObject_HEAD_INIT(NULL, 0) "confluent_kafka.cimpl.Message", /*tp_name*/
+    sizeof(Message),             /*tp_basicsize*/
+    0,                           /*tp_itemsize*/
+    (destructor)Message_dealloc, /*tp_dealloc*/
+    0,                           /*tp_print*/
+    0,                           /*tp_getattr*/
+    0,                           /*tp_setattr*/
+    0,                           /*tp_compare*/
+    0,                           /*tp_repr*/
+    0,                           /*tp_as_number*/
+    &Message_seq_methods,        /*tp_as_sequence*/
+    0,                           /*tp_as_mapping*/
+    0,                           /*tp_hash */
+    0,                           /*tp_call*/
+    0,                           /*tp_str*/
+    PyObject_GenericGetAttr,     /*tp_getattro*/
+    0,                           /*tp_setattro*/
+    0,                           /*tp_as_buffer*/
     Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
     "The Message object represents either a single consumed or "
     "produced message, or an event (:py:func:`error()` is not None).\n"
@@ -850,24 +1026,24 @@ PyTypeObject MessageType = {
     "\n"
     "  :returns: Message value (payload) size in bytes\n"
     "  :rtype: int\n"
-    "\n",                           /*tp_doc*/
-    (traverseproc)Message_traverse, /* tp_traverse */
-    (inquiry)Message_clear,         /* tp_clear */
-    0,                              /* tp_richcompare */
-    0,                              /* tp_weaklistoffset */
-    0,                              /* tp_iter */
-    0,                              /* tp_iternext */
-    Message_methods,                /* tp_methods */
-    0,                              /* tp_members */
-    0,                              /* tp_getset */
-    0,                              /* tp_base */
-    0,                              /* tp_dict */
-    0,                              /* tp_descr_get */
-    0,                              /* tp_descr_set */
-    0,                              /* tp_dictoffset */
-    Message_init,                   /* tp_init */
-    0,                              /* tp_alloc */
-    Message_new                     /* tp_new */
+    "\n",                             /*tp_doc*/
+    (traverseproc)Message_traverse,   /* tp_traverse */
+    (inquiry)Message_clear,           /* tp_clear */
+    (richcmpfunc)Message_richcompare, /* tp_richcompare */
+    0,                                /* tp_weaklistoffset */
+    0,                                /* tp_iter */
+    0,                                /* tp_iternext */
+    Message_methods,                  /* tp_methods */
+    0,                                /* tp_members */
+    0,                                /* tp_getset */
+    0,                                /* tp_base */
+    0,                                /* tp_dict */
+    0,                                /* tp_descr_get */
+    0,                                /* tp_descr_set */
+    0,                                /* tp_dictoffset */
+    Message_init,                     /* tp_init */
+    0,                                /* tp_alloc */
+    Message_new                       /* tp_new */
 };
 
 /**
@@ -910,8 +1086,6 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
 
         return (PyObject *)self;
 }
-
-
 
 /****************************************************************************
  *
@@ -1064,7 +1238,6 @@ PyTypeObject UuidType = {
     0,                           /* tp_alloc */
     Uuid_new                     /* tp_new */
 };
-
 
 
 /****************************************************************************
@@ -1226,7 +1399,7 @@ static PyObject *TopicPartition_str0(TopicPartition *self) {
         }
 
         ret = cfl_PyUnistr(
-            _FromFormat("TopicPartition{topic=%s,partition=%d"
+            _FromFormat("TopicPartition{topic=%s,partition=%" CFL_PRId32
                         ",offset=%s,leader_epoch=%s,error=%s}",
                         self->topic, self->partition, offset_str,
                         leader_epoch_str, c_errstr ? c_errstr : "None"));
