@@ -480,7 +480,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                 'Content-Length': str(len(body_str)),
                 'Content-Type': "application/vnd.schemaregistry.v1+json",
                 'Confluent-Accept-Unknown-Properties': "true",
-                'Confluent-Client-Version': f"python/{version()}"
+                'Confluent-Client-Version': f"python/{version()}",
             }
 
         headers['Confluent-Client-Version'] = f"python/{version()}"
