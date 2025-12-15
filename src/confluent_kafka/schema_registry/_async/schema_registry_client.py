@@ -483,6 +483,8 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                 'Confluent-Client-Version': f"python/{version()}"
             }
 
+        headers['Confluent-Client-Version'] = f"python/{version()}"
+
         if self.bearer_auth_credentials_source:
             await self.handle_bearer_auth(headers)
 
