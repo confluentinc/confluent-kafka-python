@@ -1,30 +1,47 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
 
-### Fixes
+## v2.13.0 - 2025-12-15
 
-- Fixed `Consumer.poll()`, `Consumer.consume()`, `Producer.poll()`, and `Producer.flush()` blocking indefinitely and not responding to Ctrl+C (KeyboardInterrupt) signals. The implementation now uses a "wakeable poll" pattern that breaks long blocking calls into smaller chunks (200ms) and periodically re-acquires the Python GIL to check for pending signals. This allows Ctrl+C to properly interrupt blocking operations. Fixes Issues [#209](https://github.com/confluentinc/confluent-kafka-python/issues/209) and [#807](https://github.com/confluentinc/confluent-kafka-python/issues/807).
+v2.13.0 is a feature release with the following features, fixes and enhancements:
 
-## 2.13.0b1 - (beta) 2025-11-24
-
-This is a beta release, notes to change to full release later on in changelog. Changes included are:
+### Enhancements
 
 - Enforced type hinting for all interfaces
-- Handle OAuth Token Refreshes
-- Added black and isort linting rules and enforcement to codebase
-- Fix support for wrapped Avro unions 
-- Enabled direct creation of Message objects
-- Added `close()` method to producer
-- Added context manager for librdkafka classes to enable easy scope cleanup
-- Fixed segfault exceptions on calls against objects that had closed internal objects
-- Handle evolution during field transformation of schemas
-- Expose deterministic partitioner functions
-- Handle null group name to prevent segfault in Admin `list_consumer_group_offsets()`
-- Add Accept-Version header for schemas
-- Ensure schemaId initialization is thread-safe
+- Handle OAuth Token Refreshes using background thread for Admin, Producer and Consumer clients (#2130)
+- Added black and isort linting rules and enforcement to codebase (#2133, #2137)
+- Enabled direct creation of Message objects (#2128)
+- Added `close()` method to producer (#2039)
+- Added context manager for librdkafka classes to enable easy scope cleanup (#2114)
+- Expose deterministic partitioner functions (#2116)
+- Add Accept-Version header for schemas (#2117)
+- Enhanced the BufferTimeoutManager to flush the librdkafka queue
+- Remove experimental module designation for Async classes (#2143)
+- Add `__len__` function to AIOProducer (#2140)
+- Enhance Message class to include serialisation support and rich comparison (#2153)
+- Support Strict Validation Flags in Avro Serializers (#2147)
+
+### Fixes
+
+- Fixed `Consumer.poll()`, `Consumer.consume()`, `Producer.poll()`, and `Producer.flush()` blocking indefinitely and not responding to Ctrl+C (KeyboardInterrupt) signals. The implementation now uses a "wakeable poll" pattern that breaks long blocking calls into smaller chunks (200ms) and periodically re-acquires the Python GIL to check for pending signals. This allows Ctrl+C to properly interrupt blocking operations. Fixes Issues [#209](https://github.com/confluentinc/confluent-kafka-python/issues/209) and [#807](https://github.com/confluentinc/confluent-kafka-python/issues/807) (#2126).
+- Fix support for wrapped Avro unions (#2134)
+- Fixed segfault exceptions on calls against objects that had closed internal objects (#2122)
+- Handle evolution during field transformation of schemas (#2121)
+- Handle null group name to prevent segfault in Admin `list_consumer_group_offsets()` (#2118)
+- Ensure schemaId initialization is thread-safe (#2120)
 - Fix error propagation rule for Python's C API
 - Fix SR delete behavior with client-side caching
-- Enhanced the BufferTimeoutManager to flush the librdkafka queue
+- Don't leave NewTopic partially-initialized on error (#2151)
+- Fix formatting issue of TopicPartition that causes SystemError on Windows (#2141)
+- Add Py_None check for msg and offset params in `commit()` and `store_offsets()` (#2145)
+- Fix experimental module references (#2144)
+- Update outdated example in README.md (#2150)
+
+confluent-kafka-python v2.13.0 is based on librdkafka v2.13.0-RC1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.0-RC1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 
 ## 2.12.2 - 2025-11-06
 
