@@ -37,8 +37,8 @@ v2.13.0 is a feature release with the following features, fixes and enhancements
 - Fix experimental module references (#2144)
 - Update outdated example in README.md (#2150)
 
-confluent-kafka-python v2.13.0 is based on librdkafka v2.13.0-RC1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.0-RC1)
+confluent-kafka-python v2.13.0 is based on librdkafka v2.13.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
