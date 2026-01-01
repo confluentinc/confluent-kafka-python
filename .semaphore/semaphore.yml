@@ -172,8 +172,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - pyenv install 3.11.9
-            - pyenv global 3.11.9
+            - sem-version 3.11.9
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
