@@ -140,10 +140,12 @@ RCs, so it only needs to be set once for each release.
  * `src/confluent_kafka/src/confluent_kafka.h`
     update both `CFL_VERSION`. (TODO make this read from toml file)
  * `pyproject.toml` - change `version` field to match.
+ * `tests/soak/setup_all_versions.py` - add the new version to both
+    `LIBRDKAFKA_VERSIONS` and `PYTHON_VERSIONS` lists.
 
 Commit these changes with a commit-message containing the version:
 
-    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h pyproject.toml
+    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h pyproject.toml tests/soak/setup_all_versions.py
 
 
 ## 5. Tag, CI build, wheel verification, upload
@@ -246,10 +248,7 @@ review approval.
 
 **RELEASE ITERATION:**
 
-Same as the _CANDIDATE ITERATION_ plus:
-
-Update `tests/soak/setup_all_versions.py` with the released version
-to be tested in the soak test.
+Same as the _CANDIDATE ITERATION_.
 
 
 ### 5.5.3. CANDIDATE ITERATION: Merge PR
