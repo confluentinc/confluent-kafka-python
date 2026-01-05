@@ -249,7 +249,8 @@ review approval.
 Same as the _CANDIDATE ITERATION_ plus:
 
 Update `tests/soak/setup_all_versions.py` with the released version
-to be tested in the soak test.
+to be tested in the soak test. Both `LIBRDKAFKA_VERSIONS` and `PYTHON_VERSIONS`
+lists need to be updated with the new version.
 
 
 ### 5.5.3. CANDIDATE ITERATION: Merge PR
