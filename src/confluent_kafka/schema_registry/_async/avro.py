@@ -79,6 +79,13 @@ async def _resolve_named_schema(
             if ref.name is None:
                 raise TypeError("Name cannot be None")
             named_schemas[ref.name] = parsed_schema
+            # Also store under the fully qualified name from the parsed schema
+            # This allows fastavro to find schemas by their full name (e.g., 'test.B')
+            # when the reference uses only the short name (e.g., 'B')
+            if isinstance(parsed_schema, dict):
+                fullname = parsed_schema.get('name')
+                if fullname and fullname != ref.name:
+                    named_schemas[fullname] = parsed_schema
     return named_schemas
 
 

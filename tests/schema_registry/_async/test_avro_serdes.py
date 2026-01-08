@@ -384,6 +384,45 @@ async def test_avro_serialize_union_with_record_references():
     assert obj == obj2
 
 
+async def test_avro_serialize_union_with_record_references_without_namespacing():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    obj = {
+        'First': {'stringField': 'hi'},
+        'Second': {'stringField': 'hi'},
+    }
+    ref_schema = {
+        'type': 'record',
+        'namespace': 'test',
+        'name': 'B',
+        'fields': [
+            {'name': 'stringField', 'type': 'string'},
+        ],
+    }
+    await client.register_schema('ref', Schema(json.dumps(ref_schema)))
+    schema = [
+        'null',
+        {
+            'type': 'record',
+            'name': 'A',
+            'namespace': 'test',
+            'fields': [{'name': 'First', 'type': 'B'}, {'name': 'Second', 'type': 'B'}],
+        },
+    ]
+    refs = [SchemaReference('B', 'ref', 1)]
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 async def test_avro_serialize_union_with_references():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
