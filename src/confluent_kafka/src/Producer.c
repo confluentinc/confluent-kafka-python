@@ -297,6 +297,10 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
                 dr_cb = self->u.Producer.default_dr_cb;
 
         if (!self->rk) {
+#ifdef RD_KAFKA_V_HEADERS
+                if (rd_headers)
+                        rd_kafka_headers_destroy(rd_headers);
+#endif
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
                 return NULL;
         }
@@ -322,6 +326,10 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
         if (err) {
                 if (msgstate)
                         Producer_msgstate_destroy(msgstate);
+#ifdef RD_KAFKA_V_HEADERS
+                if (rd_headers)
+                        rd_kafka_headers_destroy(rd_headers);
+#endif
 
                 if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL)
                         PyErr_Format(PyExc_BufferError, "%s",
