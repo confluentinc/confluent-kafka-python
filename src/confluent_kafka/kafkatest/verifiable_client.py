@@ -106,7 +106,7 @@ class VerifiableClient(object):
 
                 fi = line.find('=')
                 if fi < 1:
-                    raise Exception('%s: invalid line, no key=value pair: %s' % (path, line))
+                    raise Exception(f'{path}: invalid line, no key=value pair: {line}')
 
                 k = line[:fi]
                 v = line[fi + 1 :]
