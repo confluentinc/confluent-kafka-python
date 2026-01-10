@@ -140,6 +140,19 @@ This client provides full integration with Schema Registry for schema management
 
 #### Synchronous Client & Serializers
 
+> **⚠️ Note on Legacy Classes**
+>
+> The `AvroProducer` and `AvroConsumer` classes are **deprecated** and will be removed in a future version.
+>
+> **Use instead:**
+> - `AvroSerializer` / `AvroDeserializer` with standard `Producer` / `Consumer` (shown below)
+> - `AsyncAvroSerializer` / `AsyncAvroDeserializer` with `AIOProducer` / `AIOConsumer` (see AsyncIO section)
+>
+> **Examples:**
+> - [`examples/avro_producer.py`](examples/avro_producer.py)
+> - [`examples/avro_consumer.py`](examples/avro_consumer.py)
+
+
 Use the synchronous `SchemaRegistryClient` with the standard `Producer` and `Consumer`.
 
 ```python
