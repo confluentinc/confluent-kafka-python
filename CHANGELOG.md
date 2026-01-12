@@ -1,6 +1,11 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
 
+### Fixes
+
+- Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
+
+
 ## v2.13.0 - 2025-12-15
 
 v2.13.0 is a feature release with the following features, fixes and enhancements:
