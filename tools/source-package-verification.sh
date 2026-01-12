@@ -45,6 +45,9 @@ fi
 echo "Checking for uncommitted changes in generated _sync directories"
 python3 tools/unasync.py --check
 
+echo "Checking if KafkaError stub has up to date error codes"
+python3 tools/generate_kafka_error_stub_codes.py --check
+
 python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
