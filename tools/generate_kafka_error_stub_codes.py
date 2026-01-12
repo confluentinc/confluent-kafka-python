@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import difflib
 import os
 import re
 import sys
@@ -39,46 +38,6 @@ def get_kafka_error_constants():
     ])
 
     return constants
-
-
-def generate_kafka_error_class_stub(constants):
-    """Generate the KafkaError class stub with all error constants.
-
-    Args:
-        constants: List of error code constant names
-
-    Returns:
-        String containing the complete KafkaError class definition
-    """
-    lines = []
-    lines.append("class KafkaError:")
-
-    # Add all error code constants
-    for const in constants:
-        lines.append(f"    {const}: int")
-
-    # Add blank line before methods
-    lines.append("")
-
-    # Add method signatures (manually crafted with proper types)
-    lines.append("    def __init__(self, code: int, str: Optional[str] = None, fatal: bool = False) -> None: ...")
-    lines.append("    def code(self) -> int: ...")
-    lines.append("    def name(self) -> builtins.str: ...")
-    lines.append("    def str(self) -> builtins.str: ...")
-    lines.append("    def fatal(self) -> bool: ...")
-    lines.append("    def retriable(self) -> bool: ...")
-    lines.append("    def txn_requires_abort(self) -> bool: ...")
-    lines.append("    def __str__(self) -> builtins.str: ...")
-    lines.append("    def __bool__(self) -> bool: ...")
-    lines.append("    def __hash__(self) -> int: ...")
-    lines.append("    def __eq__(self, other: object) -> bool: ...")
-    lines.append("    def __ne__(self, other: object) -> bool: ...")
-    lines.append("    def __lt__(self, other: Union['KafkaError', int]) -> bool: ...")
-    lines.append("    def __le__(self, other: Union['KafkaError', int]) -> bool: ...")
-    lines.append("    def __gt__(self, other: Union['KafkaError', int]) -> bool: ...")
-    lines.append("    def __ge__(self, other: Union['KafkaError', int]) -> bool: ...")
-
-    return "\n".join(lines)
 
 
 def check_cimpl_pyi(stub_path, constants):
