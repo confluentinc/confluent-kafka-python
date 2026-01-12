@@ -86,11 +86,11 @@ def check_cimpl_pyi(stub_path, constants):
 
     if missing or extra:
         if missing:
-            print(f"\nMissing constants (in compiled module but not in stub):")
+            print("\nMissing constants (in compiled module but not in stub):")
             for const in sorted(missing):
                 print(f"  + {const}: int")
         if extra:
-            print(f"\nExtra constants (in stub but not in compiled module):")
+            print("\nExtra constants (in stub but not in compiled module):")
             for const in sorted(extra):
                 print(f"  - {const}: int")
         return False
