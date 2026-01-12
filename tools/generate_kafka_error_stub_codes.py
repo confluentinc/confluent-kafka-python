@@ -32,10 +32,7 @@ def get_kafka_error_constants():
     methods = {'code', 'fatal', 'name', 'retriable', 'str', 'txn_requires_abort'}
 
     # Filter to get only constants (not methods, not dunders)
-    constants = sorted([
-        attr for attr in all_attrs
-        if not attr.startswith('__') and attr not in methods
-    ])
+    constants = sorted([attr for attr in all_attrs if not attr.startswith('__') and attr not in methods])
 
     return constants
 
@@ -101,16 +98,9 @@ def check_cimpl_pyi(stub_path, constants):
     return True
 
 
-
 def main():
-    parser = argparse.ArgumentParser(
-        description='Generate KafkaError error codes for cimpl.pyi stub file'
-    )
-    parser.add_argument(
-        '--check',
-        action='store_true',
-        help='Check if cimpl.pyi has differences and print diff'
-    )
+    parser = argparse.ArgumentParser(description='Generate KafkaError error codes for cimpl.pyi stub file')
+    parser.add_argument('--check', action='store_true', help='Check if cimpl.pyi has differences and print diff')
     args = parser.parse_args()
 
     # Get error constants from compiled module
@@ -127,8 +117,10 @@ def main():
 
         if not is_up_to_date:
             print("\n⚠️  Differences found in KafkaError constants")
-            print("\nPlease run this script again (without the --check flag) to generate the error codes "
-                  "and update the KafkaError class in cimpl.pyi stub file")
+            print(
+                "\nPlease run this script again (without the --check flag) to generate the error codes "
+                "and update the KafkaError class in cimpl.pyi stub file"
+            )
             sys.exit(1)
         else:
             print("✅ KafkaError stubs are up to date!")
