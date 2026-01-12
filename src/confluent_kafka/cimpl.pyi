@@ -35,8 +35,9 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload, Protocol
 
+from blib2to3.pgen2.driver import Logger
 from typing_extensions import Literal, Self
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
@@ -220,7 +221,14 @@ class KafkaError:
     _VALUE_SERIALIZATION: int
     _WAIT_CACHE: int
     _WAIT_COORD: int
-    def __init__(self, code: int, str: Optional[str] = None, fatal: bool = False) -> None: ...
+    def __init__(
+        self,
+        code: int,
+        reason: Optional[str] = None,
+        fatal: bool = False,
+        retriable: bool = False,
+        txn_requires_abort: bool = False,
+    ) -> None: ...
     def code(self) -> int: ...
     def name(self) -> builtins.str: ...
     def str(self) -> builtins.str: ...
@@ -271,7 +279,14 @@ class Message:
     def __len__(self) -> int: ...
 
 class TopicPartition:
-    def __init__(self, topic: str, partition: int = -1, offset: int = -1001) -> None: ...
+    def __init__(
+        self,
+        topic: str,
+        partition: int = -1,
+        offset: int = -1001,
+        metadata: Optional[str] = None,
+        leader_epoch: Optional[int] = None,
+    ) -> None: ...
     topic: str
     partition: int
     offset: int
@@ -285,7 +300,7 @@ class TopicPartition:
     def __lt__(self, other: 'TopicPartition') -> bool: ...
 
 class Uuid:
-    def __init__(self, uuid_str: Optional[str] = None) -> None: ...
+    def __init__(self, most_significant_bits: int, least_significant_bits: int) -> None: ...
     def __str__(self) -> str: ...
     def __repr__(self) -> str: ...
     def __int__(self) -> int: ...
@@ -293,12 +308,56 @@ class Uuid:
     def __eq__(self, other: object) -> bool: ...
 
 class Producer:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
+    @overload
+    def __init__(self, config: Dict[str, Any]) -> None:
+        """
+        Create Producer with configuration dict.
+
+        Args:
+            config: Configuration dictionary. Typically includes 'bootstrap.servers'.
+                    Can also include callbacks (error_cb, stats_cb, etc.)
+
+        Example:
+            Producer({'bootstrap.servers': 'localhost:9092'})
+        """
+        ...
+    @overload
+    def __init__(
+        self,
+        config: Dict[str, Any],
+        **kwargs: Any
+    ) -> None:
+        """
+        Create Producer with configuration dict and additional keyword arguments.
+        Keyword arguments override values in the config dict.
+
+        Args:
+            config: Configuration dictionary.
+            **kwargs: Additional config as keyword args (overrides dict values).
+
+        Example:
+            Producer(conf, logger=logger)
+            Producer({'bootstrap.servers': 'localhost'}, enable_idempotence=True)
+        """
+        ...
+    @overload
+    def __init__(self, **config: Any) -> None:
+        """
+        Create Producer with keyword arguments only.
+
+        Args:
+            **config: Configuration as keyword args.
+                      Note: Use underscores (bootstrap_servers) not dots (bootstrap.servers) in kwargs.
+
+        Example:
+            Producer(bootstrap_servers='localhost:9092')
+        """
+        ...
     def produce(
         self,
         topic: str,
-        value: Optional[bytes] = None,
-        key: Optional[bytes] = None,
+        value: Optional[Union[str, bytes]] = None,
+        key: Optional[Union[str, bytes]] = None,
         partition: int = -1,
         callback: Optional[DeliveryCallback] = None,
         on_delivery: Optional[DeliveryCallback] = None,
@@ -331,7 +390,51 @@ class Producer:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
 
 class Consumer:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool, None]]) -> None: ...
+    @overload
+    def __init__(self, config: dict[str, Any]) -> None:
+        """
+        Create Consumer with configuration dict.
+
+        Args:
+            config: Configuration dictionary. Must include 'group.id'.
+                    Can also include callbacks (error_cb, stats_cb, etc.)
+
+        Example:
+            Consumer({'bootstrap.servers': 'localhost', 'group.id': 'mygroup'})
+        """
+        ...
+    @overload
+    def __init__(
+        self,
+        config: dict[str, Any],
+        **kwargs: Any
+    ) -> None:
+        """
+        Create Consumer with configuration dict and additional keyword arguments.
+        Keyword arguments override values in the config dict.
+
+        Args:
+            config: Configuration dictionary. Must include 'group.id'.
+            **kwargs: Additional config as keyword args (overrides dict values).
+
+        Example:
+            Consumer(conf, logger=logger)
+            Consumer({'bootstrap.servers': 'localhost'}, group_id='mygroup')
+        """
+        ...
+    @overload
+    def __init__(self, **config: Any) -> None:
+        """
+        Create Consumer with keyword arguments only.
+
+        Args:
+            **config: Configuration as keyword args. Must include group_id.
+                      Note: Use underscores (group_id) not dots (group.id) in kwargs.
+
+        Example:
+            Consumer(bootstrap_servers='localhost', group_id='mygroup')
+        """
+        ...
     def subscribe(
         self,
         topics: List[str],
@@ -380,7 +483,6 @@ class Consumer:
     def consumer_group_metadata(self) -> Any: ...  # ConsumerGroupMetadata
     def memberid(self) -> str: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
-    def __bool__(self) -> bool: ...
 
 class _AdminClientImpl:
     def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
