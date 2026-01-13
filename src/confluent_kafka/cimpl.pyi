@@ -325,6 +325,7 @@ class Producer:
     def __init__(
         self,
         config: Dict[str, Any],
+        /,
         **kwargs: Any
     ) -> None:
         """
@@ -407,6 +408,7 @@ class Consumer:
     def __init__(
         self,
         config: dict[str, Any],
+        /,
         **kwargs: Any
     ) -> None:
         """
