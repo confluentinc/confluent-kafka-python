@@ -37,7 +37,6 @@ maintenance burden and get type hints directly from the implementation.
 import builtins
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
-from blib2to3.pgen2.driver import Logger
 from typing_extensions import Literal, Self
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
