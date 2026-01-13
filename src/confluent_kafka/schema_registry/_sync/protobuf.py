@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import io
 from typing import Any, Callable, List, Optional, Set, Tuple, Union, cast
 
@@ -33,6 +34,7 @@ from confluent_kafka.schema_registry import (
     reference_subject_name_strategy,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.protobuf import (
     PROTOBUF_TYPE,
     _bytes,
@@ -95,6 +97,7 @@ def _resolve_named_schema(
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
+
 
 
 class ProtobufSerializer(BaseSerializer):
@@ -285,6 +288,7 @@ class ProtobufSerializer(BaseSerializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._ref_reference_subject_func = cast(
             Callable[[Optional[SerializationContext], Any], Optional[str]],
@@ -303,6 +307,7 @@ class ProtobufSerializer(BaseSerializer):
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
@@ -359,7 +364,9 @@ class ProtobufSerializer(BaseSerializer):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(self, ctx: SerializationContext, file_desc: FileDescriptor) -> List[SchemaReference]:
+    def _resolve_dependencies(
+        self, ctx: SerializationContext, file_desc: FileDescriptor
+    ) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -414,7 +421,15 @@ class ProtobufSerializer(BaseSerializer):
         if not isinstance(message, self._msg_class):
             raise ValueError("message must be of type {} not {}".format(self._msg_class, type(message)))
 
-        subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
+        subject = (
+            (
+                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._conf)
+                if self._strategy_accepts_extras
+                else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
+            )
+            if ctx
+            else None
+        )
         latest_schema = None
         if subject is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
@@ -485,6 +500,7 @@ class ProtobufSerializer(BaseSerializer):
         return fd_proto, pool
 
 
+
 class ProtobufDeserializer(BaseDeserializer):
     """
     Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
@@ -550,6 +566,7 @@ class ProtobufDeserializer(BaseDeserializer):
         super().__init__()
 
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
@@ -572,6 +589,7 @@ class ProtobufDeserializer(BaseDeserializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -593,7 +611,9 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -619,7 +639,11 @@ class ProtobufDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            self._subject_name_func(ctx, None, self._registry, self._conf)
+            if self._strategy_accepts_extras
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
@@ -634,7 +658,11 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
+                subject = (
+                    self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._conf)
+                    if self._strategy_accepts_extras
+                    else self._subject_name_func(ctx, writer_desc.full_name)
+                )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject, fmt='serialized')
         else:

@@ -136,6 +136,29 @@ def record_subject_name_strategy(ctx: Optional[SerializationContext], record_nam
     return record_name if record_name is not None else None
 
 
+def associated_subject_name_strategy(
+    ctx: Optional[SerializationContext],
+    record_name: Optional[str],
+    schema_registry_client: SchemaRegistryClient,
+    conf: Optional[dict] = None
+) -> Optional[str]:
+    """
+    Retrieves the associated subject name from schema registry.
+
+    Args:
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation. **Not used** by this strategy.
+
+        record_name (Optional[str]): Record name.
+
+        schema_registry_client (SchemaRegistryClient): SchemaRegistryClient instance.
+
+        conf (Optional[dict]): Configuration dictionary.
+
+    """
+    return record_name if record_name is not None else None
+
+
 def reference_subject_name_strategy(ctx: Optional[SerializationContext], schema_ref: SchemaReference) -> Optional[str]:
     """
     Constructs a subject reference name in the form of {reference name}.

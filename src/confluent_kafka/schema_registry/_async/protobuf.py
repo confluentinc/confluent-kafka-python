@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import io
 from typing import Any, Callable, Coroutine, List, Optional, Set, Tuple, Union, cast
 
@@ -287,6 +288,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._ref_reference_subject_func = cast(
             Callable[[Optional[SerializationContext], Any], Optional[str]],
@@ -305,6 +307,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
@@ -418,7 +421,15 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         if not isinstance(message, self._msg_class):
             raise ValueError("message must be of type {} not {}".format(self._msg_class, type(message)))
 
-        subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
+        subject = (
+            (
+                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._conf)
+                if self._strategy_accepts_extras
+                else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
+            )
+            if ctx
+            else None
+        )
         latest_schema = None
         if subject is not None:
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
@@ -555,6 +566,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         super().__init__()
 
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
@@ -577,6 +589,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -626,7 +639,11 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            self._subject_name_func(ctx, None, self._registry, self._conf)
+            if self._strategy_accepts_extras
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
@@ -641,7 +658,11 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
+                subject = (
+                    self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._conf)
+                    if self._strategy_accepts_extras
+                    else self._subject_name_func(ctx, writer_desc.full_name)
+                )
                 if subject is not None:
                     latest_schema = await self._get_reader_schema(subject, fmt='serialized')
         else:

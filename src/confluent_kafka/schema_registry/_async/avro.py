@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import io
 import json
 from typing import Any, Callable, Coroutine, Dict, Optional, Union, cast
@@ -248,6 +249,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             schema = None
 
         self._registry = schema_registry_client
+        self._conf = conf
         self._schema_id: Optional[SchemaId] = None
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._known_subjects: set[str] = set()
@@ -292,6 +294,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -373,7 +376,11 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
+        subject = (
+            self._subject_name_func(ctx, self._schema_name, self._registry, self._conf)
+            if self._strategy_accepts_extras
+            else self._subject_name_func(ctx, self._schema_name)
+        )
         latest_schema = await self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(AVRO_TYPE, latest_schema.schema_id, latest_schema.guid)
@@ -559,6 +566,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
         self._schema = schema
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
@@ -581,6 +589,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -649,7 +658,15 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
                 "Schema Registry serializer".format(len(data))
             )
 
-        subject = self._subject_name_func(ctx, None) if ctx else None
+        subject = (
+            (
+                self._subject_name_func(ctx, None, self._registry, self._conf)
+                if self._strategy_accepts_extras
+                else self._subject_name_func(ctx, None)
+            )
+            if ctx
+            else None
+        )
         latest_schema = None
         if subject is not None:
             latest_schema = await self._get_reader_schema(subject)
@@ -661,7 +678,14 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         writer_schema = await self._get_parsed_schema(writer_schema_raw)
         if subject is None:
             subject = (
-                self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
+                (
+                    self._subject_name_func(
+                        ctx, writer_schema.get("name"), self._registry, self._conf)  # type: ignore[union-attr]
+                    if self._strategy_accepts_extras
+                    else self._subject_name_func(ctx, writer_schema.get("name"))  # type: ignore[union-attr]
+                )
+                if ctx
+                else None
             )
             if subject is not None:
                 latest_schema = await self._get_reader_schema(subject)

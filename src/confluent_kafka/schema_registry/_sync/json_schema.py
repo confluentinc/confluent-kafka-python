@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import io
 import logging
 from typing import Any, Callable, Optional, Tuple, Union, cast
@@ -26,13 +27,14 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RuleMode,
     Schema,
-    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC,
     JSON_TYPE,
@@ -84,6 +86,7 @@ def _resolve_named_schema(
                 raise TypeError("Name cannot be None")
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
+
 
 
 class JSONSerializer(BaseSerializer):
@@ -248,6 +251,7 @@ class JSONSerializer(BaseSerializer):
 
         self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
@@ -293,6 +297,7 @@ class JSONSerializer(BaseSerializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -349,7 +354,11 @@ class JSONSerializer(BaseSerializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
+        subject = (
+            self._subject_name_func(ctx, self._schema_name, self._registry, self._conf)
+            if self._strategy_accepts_extras
+            else self._subject_name_func(ctx, self._schema_name)
+        )
         latest_schema = self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
@@ -450,6 +459,7 @@ class JSONSerializer(BaseSerializer):
 
         self._validators[schema] = validator
         return validator
+
 
 
 class JSONDeserializer(BaseDeserializer):
@@ -556,6 +566,7 @@ class JSONDeserializer(BaseDeserializer):
 
         self._schema: Optional[Schema] = schema
         self._registry = schema_registry_client
+        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
@@ -580,6 +591,7 @@ class JSONDeserializer(BaseDeserializer):
         )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -611,7 +623,9 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -635,7 +649,11 @@ class JSONDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            self._subject_name_func(ctx, None, self._registry, self._conf)
+            if self._strategy_accepts_extras
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject)
@@ -648,7 +666,11 @@ class JSONDeserializer(BaseDeserializer):
             writer_schema_raw = self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
-                subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                subject = (
+                    self._subject_name_func(ctx, writer_schema.get("title"), self._registry, self._conf)
+                    if self._strategy_accepts_extras
+                    else self._subject_name_func(ctx, writer_schema.get("title"))
+                )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject)
         else:
