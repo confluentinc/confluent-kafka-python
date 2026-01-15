@@ -134,7 +134,9 @@ class BaseSerde(object):
         self._subject_name_conf = subject_name_strategy_conf
 
         # If a callable is provided, use it directly (backward compatible)
-        if subject_name_strategy is not None and callable(subject_name_strategy):
+        if subject_name_strategy is not None:
+            if not callable(subject_name_strategy):
+                raise ValueError("subject.name.strategy must be callable")
             self._subject_name_func = subject_name_strategy
             self._strategy_accepts_client = False
             return
