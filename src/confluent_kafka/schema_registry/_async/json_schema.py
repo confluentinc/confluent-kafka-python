@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 import io
 import logging
 from typing import Any, Callable, Coroutine, Optional, Tuple, Union, cast
@@ -32,7 +31,6 @@ from confluent_kafka.schema_registry import (
     Schema,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
-    topic_subject_name_strategy,
 )
 from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.common.json_schema import (
@@ -225,7 +223,9 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate': True,
     }
@@ -291,13 +291,11 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -355,8 +353,8 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, self._schema_name, self._registry, self._conf)
-            if self._strategy_accepts_extras
+            await self._subject_name_func(ctx, self._schema_name, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
             else self._subject_name_func(ctx, self._schema_name)
         )
         latest_schema = await self._get_reader_schema(subject) if subject else None
@@ -532,7 +530,9 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'validate': True,
     }
@@ -585,13 +585,11 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -650,8 +648,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, None, self._registry, self._conf)
-            if self._strategy_accepts_extras
+            await self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
             else self._subject_name_func(ctx, None)
         )
         latest_schema = None
@@ -667,8 +665,9 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
                 subject = (
-                    self._subject_name_func(ctx, writer_schema.get("title"), self._registry, self._conf)
-                    if self._strategy_accepts_extras
+                    await self._subject_name_func(
+                        ctx, writer_schema.get("title"), self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
                     else self._subject_name_func(ctx, writer_schema.get("title"))
                 )
                 if subject is not None:

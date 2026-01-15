@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 import io
 from typing import Any, Callable, List, Optional, Set, Tuple, Union, cast
 
@@ -32,7 +31,6 @@ from confluent_kafka.schema_registry import (
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     reference_subject_name_strategy,
-    topic_subject_name_strategy,
 )
 
 from confluent_kafka.schema_registry.common.protobuf import (
@@ -230,7 +228,9 @@ class ProtobufSerializer(BaseSerializer):
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'skip.known.types': True,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'reference.subject.name.strategy': reference_subject_name_strategy,
         'schema.id.serializer': prefix_schema_id_serializer,
         'use.deprecated.format': False,
@@ -282,20 +282,18 @@ class ProtobufSerializer(BaseSerializer):
         if self._use_deprecated_format:
             raise ValueError("use.deprecated.format is no longer supported")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._ref_reference_subject_func = cast(
             Callable[[Optional[SerializationContext], Any], Optional[str]],
             conf_copy.pop('reference.subject.name.strategy'),
         )
         if not callable(self._ref_reference_subject_func):
-            raise ValueError("subject.name.strategy must be callable")
+            raise ValueError("reference.subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -423,8 +421,9 @@ class ProtobufSerializer(BaseSerializer):
 
         subject = (
             (
-                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._conf)
-                if self._strategy_accepts_extras
+                self._subject_name_func(
+                    ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
                 else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
             )
             if ctx
@@ -550,7 +549,9 @@ class ProtobufDeserializer(BaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'use.deprecated.format': False,
     }
@@ -583,13 +584,11 @@ class ProtobufDeserializer(BaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -640,8 +639,8 @@ class ProtobufDeserializer(BaseDeserializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, None, self._registry, self._conf)
-            if self._strategy_accepts_extras
+            self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
             else self._subject_name_func(ctx, None)
         )
         latest_schema = None
@@ -659,8 +658,9 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
                 subject = (
-                    self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._conf)
-                    if self._strategy_accepts_extras
+                    self._subject_name_func(
+                        ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
                     else self._subject_name_func(ctx, writer_desc.full_name)
                 )
                 if subject is not None:

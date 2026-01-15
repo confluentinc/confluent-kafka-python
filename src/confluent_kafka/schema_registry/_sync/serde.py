@@ -17,9 +17,14 @@
 #
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from confluent_kafka.schema_registry import RegisteredSchema
+from confluent_kafka.schema_registry import (
+    RegisteredSchema,
+    topic_subject_name_strategy,
+    topic_record_subject_name_strategy,
+    record_subject_name_strategy, SchemaRegistryClient,
+)
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.common.serde import (
     ErrorAction,
@@ -31,6 +36,7 @@ from confluent_kafka.schema_registry.common.serde import (
     RuleContext,
     RuleError,
     SchemaId,
+    SubjectNameStrategyType,
 )
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
 from confluent_kafka.serialization import Deserializer, SerializationContext, SerializationError, Serializer
@@ -44,6 +50,29 @@ __all__ = [
 log = logging.getLogger(__name__)
 
 
+def associated_subject_name_strategy(
+    ctx: Optional[SerializationContext],
+    record_name: Optional[str],
+    schema_registry_client: SchemaRegistryClient,
+    conf: Optional[dict] = None
+) -> Optional[str]:
+    """
+    Retrieves the associated subject name from schema registry.
+
+    Args:
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation. **Not used** by this strategy.
+
+        record_name (Optional[str]): Record name.
+
+        schema_registry_client (SchemaRegistryClient): SchemaRegistryClient instance.
+
+        conf (Optional[dict]): Configuration dictionary.
+
+    """
+    return record_name if record_name is not None else None
+
+
 class BaseSerde(object):
     __slots__ = [
         '_use_schema_id',
@@ -52,7 +81,8 @@ class BaseSerde(object):
         '_registry',
         '_conf',
         '_rule_registry',
-        '_strategy_accepts_extras',
+        '_strategy_accepts_client',
+        '_subject_name_conf',
         '_subject_name_func',
         '_field_transformer',
     ]
@@ -62,8 +92,82 @@ class BaseSerde(object):
     _use_latest_with_metadata: Optional[Dict[str, str]]
     _registry: Any  # SchemaRegistryClient
     _rule_registry: Any  # RuleRegistry
+    _subject_name_conf: Optional[dict]
     _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
     _field_transformer: Optional[FieldTransformer]
+
+    # Mapping from SubjectNameStrategyType to strategy functions
+    _STRATEGY_TYPE_MAP: Dict[SubjectNameStrategyType, Callable] = {
+        SubjectNameStrategyType.TOPIC: topic_subject_name_strategy,
+        SubjectNameStrategyType.RECORD: record_subject_name_strategy,
+        SubjectNameStrategyType.TOPIC_RECORD: topic_record_subject_name_strategy,
+        # ASSOCIATED is handled specially since it requires schema_registry_client
+    }
+
+    def configure_subject_name_strategy(
+        self,
+        subject_name_strategy_type: Optional[Union[SubjectNameStrategyType, str]] = None,
+        subject_name_strategy_conf: Optional[dict] = None,
+        subject_name_strategy: Optional[Callable] = None,
+    ) -> None:
+        """
+        Configure the subject name strategy for this serde.
+
+        This method supports both the legacy callable approach and the new type-based approach.
+        If both `subject_name_strategy` (as a callable) and `subject_name_strategy_type` are
+        provided, the callable takes precedence.
+
+        Args:
+            subject_name_strategy: A callable that implements the subject name strategy.
+                Signature: (SerializationContext, str) -> str or
+                          (SerializationContext, str, SchemaRegistryClient, dict) -> str
+
+            subject_name_strategy_type: The type of subject name strategy to use.
+                Can be a SubjectNameStrategyType enum value or a string
+                ("TOPIC", "RECORD", "TOPIC_RECORD", "ASSOCIATED").
+
+            subject_name_strategy_conf: Configuration dictionary passed to strategies
+                that accept extra parameters (like ASSOCIATED).
+
+        Raises:
+            ValueError: If the strategy is not callable or the type is invalid.
+        """
+        self._subject_name_conf = subject_name_strategy_conf
+
+        # If a callable is provided, use it directly (backward compatible)
+        if subject_name_strategy is not None and callable(subject_name_strategy):
+            self._subject_name_func = subject_name_strategy
+            self._strategy_accepts_client = False
+            return
+
+        # If a type is provided, resolve it to a callable
+        if subject_name_strategy_type is not None:
+            # Convert string to enum if needed
+            if isinstance(subject_name_strategy_type, str):
+                try:
+                    subject_name_strategy_type = SubjectNameStrategyType(subject_name_strategy_type.upper())
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid subject.name.strategy.type: {subject_name_strategy_type}. "
+                        f"Valid values are: {[e.value for e in SubjectNameStrategyType]}"
+                    )
+
+            # Handle ASSOCIATED specially since it needs schema_registry_client
+            if subject_name_strategy_type == SubjectNameStrategyType.ASSOCIATED:
+                self._subject_name_func = associated_subject_name_strategy
+                self._strategy_accepts_client = True
+            elif subject_name_strategy_type in self._STRATEGY_TYPE_MAP:
+                self._subject_name_func = self._STRATEGY_TYPE_MAP[subject_name_strategy_type]
+                self._strategy_accepts_client = False
+            else:
+                raise ValueError(
+                    f"Unknown subject.name.strategy.type: {subject_name_strategy_type}"
+                )
+            return
+
+        # Default to topic_subject_name_strategy
+        self._subject_name_func = topic_subject_name_strategy
+        self._strategy_accepts_client = False
 
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:

@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
 import io
 import json
 from typing import Any, Callable, Dict, Optional, Union, cast
@@ -27,7 +26,6 @@ from confluent_kafka.schema_registry import (
     Schema,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
-    topic_subject_name_strategy,
 )
 
 from confluent_kafka.schema_registry.common.avro import (
@@ -225,7 +223,9 @@ class AvroSerializer(BaseSerializer):
         'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate.strict': False,
         'validate.strict.allow.default': False,
@@ -288,13 +288,11 @@ class AvroSerializer(BaseSerializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -377,8 +375,8 @@ class AvroSerializer(BaseSerializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, self._schema_name, self._registry, self._conf)
-            if self._strategy_accepts_extras
+            self._subject_name_func(ctx, self._schema_name, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
             else self._subject_name_func(ctx, self._schema_name)
         )
         latest_schema = self._get_reader_schema(subject) if subject else None
@@ -540,7 +538,9 @@ class AvroDeserializer(BaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
     }
 
@@ -583,13 +583,11 @@ class AvroDeserializer(BaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
-        self._strategy_accepts_extras = len(inspect.signature(self._subject_name_func).parameters) > 2
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -660,8 +658,8 @@ class AvroDeserializer(BaseDeserializer):
 
         subject = (
             (
-                self._subject_name_func(ctx, None, self._registry, self._conf)
-                if self._strategy_accepts_extras
+                self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
                 else self._subject_name_func(ctx, None)
             )
             if ctx
@@ -680,9 +678,9 @@ class AvroDeserializer(BaseDeserializer):
             subject = (
                 (
                     self._subject_name_func(
-                        ctx, writer_schema.get("name"), self._registry, self._conf)  # type: ignore[union-attr]
-                    if self._strategy_accepts_extras
-                    else self._subject_name_func(ctx, writer_schema.get("name"))  # type: ignore[union-attr]
+                        ctx, writer_schema.get("name"), self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
+                    else self._subject_name_func(ctx, writer_schema.get("name"))
                 )
                 if ctx
                 else None

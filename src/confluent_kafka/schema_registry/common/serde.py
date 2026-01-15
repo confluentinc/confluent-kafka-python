@@ -31,6 +31,7 @@ from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = [
+    'SubjectNameStrategyType',
     'FieldType',
     'FieldContext',
     'RuleContext',
@@ -50,6 +51,13 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+
+
+class SubjectNameStrategyType(str, Enum):
+    TOPIC = "TOPIC"
+    RECORD = "RECORD"
+    TOPIC_RECORD = "TOPIC_RECORD"
+    ASSOCIATED = "ASSOCIATED"
 
 
 class FieldType(str, Enum):
