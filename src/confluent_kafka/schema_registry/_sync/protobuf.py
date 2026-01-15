@@ -150,14 +150,28 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | The type of subject name strategy to use.            |
+    | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | subject.name.strategy is specified.                  |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Configuration dictionary passed to strategies        |
+    | ``subject.name.strategy.conf``      | dict     | that require additional configuration, such as       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to None.                                    |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
     |                                     |          | constructed. Standard naming strategies are          |
     |                                     |          | defined in the confluent_kafka.schema_registry       |
-    |                                     |          | namespace.                                           |
+    |                                     |          | namespace. Takes precedence over                     |
+    |                                     |          | subject.name.strategy.type if both are set.          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to topic_subject_name_strategy.             |
+    |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
@@ -523,14 +537,28 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | The type of subject name strategy to use.            |
+    | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | subject.name.strategy is specified.                  |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Configuration dictionary passed to strategies        |
+    | ``subject.name.strategy.conf``      | dict     | that require additional configuration, such as       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to None.                                    |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
-    |                                     |          | constructed. Standard naming strategies     are      |
-    |                                     |          | defined in the confluent_kafka.    schema_registry   |
-    |                                     |          | namespace    .                                       |
+    |                                     |          | constructed. Standard naming strategies are          |
+    |                                     |          | defined in the confluent_kafka.schema_registry       |
+    |                                     |          | namespace. Takes precedence over                     |
+    |                                     |          | subject.name.strategy.type if both are set.          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to topic_subject_name_strategy.             |
+    |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
     |                                     |          |   -> io.BytesIO                                      |

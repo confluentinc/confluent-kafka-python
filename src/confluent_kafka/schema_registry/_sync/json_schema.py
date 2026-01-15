@@ -132,14 +132,28 @@ class JSONSerializer(BaseSerializer):
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | The type of subject name strategy to use.          |
+    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to TOPIC if neither this nor              |
+    |                             |          | subject.name.strategy is specified.                |
+    +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Configuration dictionary passed to strategies      |
+    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to None.                                  |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Callable(SerializationContext, str) -> str         |
     |                             |          |                                                    |
     | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
     |                             |          | constructed. Standard naming strategies are        |
     |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
+    |                             |          | namespace. Takes precedence over                   |
+    |                             |          | subject.name.strategy.type if both are set.        |
     |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
+    |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
@@ -481,14 +495,28 @@ class JSONDeserializer(BaseDeserializer):
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | The type of subject name strategy to use.          |
+    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to TOPIC if neither this nor              |
+    |                             |          | subject.name.strategy is specified.                |
+    +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Configuration dictionary passed to strategies      |
+    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to None.                                  |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Callable(SerializationContext, str) -> str         |
     |                             |          |                                                    |
     | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
     |                             |          | constructed. Standard naming strategies are        |
     |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
+    |                             |          | namespace. Takes precedence over                   |
+    |                             |          | subject.name.strategy.type if both are set.        |
     |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
+    |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
