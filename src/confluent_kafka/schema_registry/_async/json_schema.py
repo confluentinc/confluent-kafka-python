@@ -265,7 +265,6 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
         self._registry = schema_registry_client
-        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
@@ -594,7 +593,6 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         self._schema: Optional[Schema] = schema
         self._registry = schema_registry_client
-        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)

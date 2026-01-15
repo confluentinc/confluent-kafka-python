@@ -79,7 +79,6 @@ class BaseSerde(object):
         '_use_latest_version',
         '_use_latest_with_metadata',
         '_registry',
-        '_conf',
         '_rule_registry',
         '_strategy_accepts_client',
         '_subject_name_conf',

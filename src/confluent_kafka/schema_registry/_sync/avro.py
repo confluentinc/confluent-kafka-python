@@ -263,7 +263,6 @@ class AvroSerializer(BaseSerializer):
             schema = None
 
         self._registry = schema_registry_client
-        self._conf = conf
         self._schema_id: Optional[SchemaId] = None
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._known_subjects: set[str] = set()
@@ -594,7 +593,6 @@ class AvroDeserializer(BaseDeserializer):
 
         self._schema = schema
         self._registry = schema_registry_client
-        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None

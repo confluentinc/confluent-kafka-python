@@ -319,7 +319,6 @@ class ProtobufSerializer(BaseSerializer):
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
         self._registry = schema_registry_client
-        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
@@ -595,7 +594,6 @@ class ProtobufDeserializer(BaseDeserializer):
         super().__init__()
 
         self._registry = schema_registry_client
-        self._conf = conf
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
