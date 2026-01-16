@@ -452,17 +452,67 @@ class Consumer:
     @overload
     def commit(
         self,
-        message: Optional['Message'] = None,
-        offsets: Optional[List[TopicPartition]] = None,
-        asynchronous: Literal[True] = True,
-    ) -> None: ...
+        *,
+        asynchronous: Literal[True] = ...,
+    ) -> None:
+        """
+        Message and offsets omitted, asynchronous.
+        """
+        ...
     @overload
     def commit(
         self,
-        message: Optional['Message'] = None,
-        offsets: Optional[List[TopicPartition]] = None,
-        asynchronous: Literal[False] = False,
-    ) -> List[TopicPartition]: ...
+        *,
+        asynchronous: Literal[False],
+    ) -> List[TopicPartition]:
+        """
+        Message and offsets omitted, synchronous.
+        """
+        ...
+    @overload
+    def commit(
+        self,
+        *,
+        message: Message,
+        asynchronous: Literal[True] = ...,
+    ) -> None:
+        """
+        Message specified, asynchronous.
+        """
+        ...
+    @overload
+    def commit(
+        self,
+        *,
+        message: Message,
+        asynchronous: Literal[False],
+    ) -> List[TopicPartition]:
+        """
+        Message specified, synchronous.
+        """
+        ...
+    @overload
+    def commit(
+            self,
+            *,
+            offsets: List[TopicPartition],
+            asynchronous: Literal[True] = ...,
+    ) -> None:
+        """
+        Offsets specified, asynchronous.
+        """
+        ...
+    @overload
+    def commit(
+        self,
+        *,
+        offsets: List[TopicPartition],
+        asynchronous: Literal[False],
+    ) -> List[TopicPartition]:
+        """
+        Offsets specified, synchronous
+        """
+        ...
     def get_watermark_offsets(
         self, partition: TopicPartition, timeout: float = -1, cached: bool = False
     ) -> Tuple[int, int]: ...
