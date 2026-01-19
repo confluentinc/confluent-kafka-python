@@ -53,7 +53,7 @@ for topic in sys.argv[3:]:
 
     for partition in committed:
         # Get the partitions low and high watermark offsets.
-        (lo, hi) = consumer.get_watermark_offsets(partition, timeout=10, cached=False)
+        lo, hi = consumer.get_watermark_offsets(partition, timeout=10, cached=False)
 
         if partition.offset == confluent_kafka.OFFSET_INVALID:
             offset = "-"
