@@ -2,6 +2,7 @@
 """
 Unified test runner for Ducktape Producer and Consumer tests
 """
+
 import argparse
 import os
 import subprocess

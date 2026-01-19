@@ -4,6 +4,7 @@
 Unit tests for AIOProducer class.
 
 """
+
 import asyncio
 import concurrent.futures
 from unittest.mock import Mock, patch

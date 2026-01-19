@@ -47,6 +47,9 @@ python3 tools/unasync.py --check
 
 python3 -m pip install .
 
+echo "Checking if KafkaError stub has up to date error codes"
+python3 tools/generate_kafka_error_stub_codes.py --check
+
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
         # Run these actions and tests only in this case

@@ -109,7 +109,7 @@ def transform(
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
     if isinstance(schema, list):
-        (subschema, submessage) = _resolve_union(schema, message)
+        subschema, submessage = _resolve_union(schema, message)
         if subschema is None:
             return message
         submessage = transform(ctx, subschema, submessage, field_transform)
