@@ -4,7 +4,7 @@
 ### Fixes
 
 - Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
-
+- Fixed type hinting of `KafkaError` class, `Consumer.__init()__`, `Producer.__init()__`, `Producer.produce()` and `Consumer.commit()` and introduced a script in tools directory to keep error codes up to date. Fixes Issue [#2168](https://github.com/confluentinc/confluent-kafka-python/issues/2168).
 
 ## v2.13.0 - 2025-12-15
 
