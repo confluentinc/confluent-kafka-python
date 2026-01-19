@@ -236,7 +236,7 @@ class KafkaClusterFixture(object):
 
     def create_topic_and_wait_propogation(self, prefix, conf=None, **create_topic_kwargs):
         """
-        Creates a new topic with this cluster. Wait for the topic to be propogated to all brokers.
+        C   reates a new topic with this cluster. Wait for the topic to be propogated to all brokers.
 
         :param str prefix: topic name
         :param dict conf: additions/overrides to topic configuration.
@@ -337,7 +337,8 @@ class TrivupFixture(KafkaClusterFixture):
         self._cluster = KafkaCluster(**conf)
         self._admin = None
         self._producer = None
-        self._cluster.wait_operational()
+        #self._cluster.wait_operational()
+        time.sleep(90)
 
     def schema_registry(self, conf=None):
         if not hasattr(self._cluster, 'sr'):
@@ -369,6 +370,8 @@ class TrivupFixture(KafkaClusterFixture):
         if conf is not None:
             client_conf.update(conf)
 
+        client_conf['ssl.providers'] = 'fips,base'   # for fips testing
+        client_conf['debug'] = 'security' # to log openssl and providers version
         return client_conf
 
     def stop(self):

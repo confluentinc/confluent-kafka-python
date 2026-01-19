@@ -28,12 +28,13 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {
-        'with_sr': True,
+        'with_sr': False,  # not in scope of NJC FIPS testing
         'debug': True,
-        'cp_version': '7.6.0',
-        'kraft': TestUtils.use_kraft(),
-        'version': TestUtils.broker_version(),
+        # 'cp_version': '7.6.0', # not required, since SR is not configured
+        'kraft': True,
+        'version': '4.1.1',
         'broker_conf': TestUtils.broker_conf(),
+        'with_ssl': True
     }
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
