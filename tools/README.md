@@ -12,6 +12,18 @@ To upload binary packages to PyPi (test.pypi.org in this example to be safe), do
     $ twine upload -r test dl-<tag|sha1>/*
 
 
+## generate_kafka_error_stub_codes.py
+
+Run `tools/generate_kafka_error_stub_codes.py` to generate the list of error codes
+supported by the compiled C extension.
+
+Running it with `--check` compares the error code attributes in `KafkaError` stub class
+in `src/confluent_kafka/cimpl.pyi` with the error codes supported by `librdkafka`
+
+This script should be used to update the `KafkaError` stub class with the up-to-date
+error codes supported by `librdkafka`
+
+
 ## manylinux build
 
 To build the manylinux Python packages follow these steps:
