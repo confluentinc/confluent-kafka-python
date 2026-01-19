@@ -718,7 +718,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     def _get_message_desc(self, pool: DescriptorPool, fd: FileDescriptor, msg_index: List[int]) -> Descriptor:
         file_desc_proto = descriptor_pb2.FileDescriptorProto()
         fd.CopyToProto(file_desc_proto)
-        (full_name, desc_proto) = self._get_message_desc_proto("", file_desc_proto, msg_index)
+        full_name, desc_proto = self._get_message_desc_proto("", file_desc_proto, msg_index)
         package = file_desc_proto.package
         qualified_name = package + "." + full_name if package else full_name
         return pool.FindMessageTypeByName(qualified_name)

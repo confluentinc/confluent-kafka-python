@@ -99,12 +99,12 @@ struct Admin_options {
  * Make sure this is kept up to date with Admin_options above. */
 #define Admin_options_INITIALIZER                                              \
         {                                                                      \
-                Admin_options_def_int, Admin_options_def_float,                \
-                    Admin_options_def_float, Admin_options_def_int,            \
-                    Admin_options_def_int, Admin_options_def_int,              \
-                    Admin_options_def_int, Admin_options_def_ptr,              \
-                    Admin_options_def_cnt, Admin_options_def_ptr,              \
-                    Admin_options_def_cnt,                                     \
+            Admin_options_def_int,   Admin_options_def_float,                  \
+            Admin_options_def_float, Admin_options_def_int,                    \
+            Admin_options_def_int,   Admin_options_def_int,                    \
+            Admin_options_def_int,   Admin_options_def_ptr,                    \
+            Admin_options_def_cnt,   Admin_options_def_ptr,                    \
+            Admin_options_def_cnt,                                             \
         }
 
 #define Admin_options_is_set_int(v)   ((v) != Admin_options_def_int)
