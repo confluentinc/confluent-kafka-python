@@ -72,10 +72,6 @@ alg_section = algorithm_sect
 
 [provider_sect]
 fips = fips_sect
-base = base_sect
-
-[base_sect]
-activate = 1
 
 [algorithm_sect]
 default_properties = fips=yes
