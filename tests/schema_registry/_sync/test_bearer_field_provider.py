@@ -52,9 +52,11 @@ TEST_URL = 'http://SchemaRegistry:65534'
 
 def test_expiry():
     oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
-    oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 1}
+    # Use consistent test data: expires_at and expires_in should match
+    # Token expires in 2 seconds, with 0.8 threshold, should refresh after 1.6 seconds (when 0.4s remaining)
+    oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 2}
     assert not oauth_client.token_expired()
-    time.sleep(1.5)
+    time.sleep(1.7)  # After 1.7 seconds, only 0.3s remaining (< 0.4s threshold), should be expired
     assert oauth_client.token_expired()
 
 
@@ -65,7 +67,8 @@ def test_get_token():
         oauth_client.token = {'expires_at': 0, 'expires_in': 1, 'access_token': '123'}
 
     def update_token2():
-        oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 1, 'access_token': '1234'}
+        # Use consistent test data: expires_at and expires_in should match
+        oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 2, 'access_token': '1234'}
 
     oauth_client.generate_access_token = Mock(side_effect=update_token1)
     oauth_client.get_access_token()
