@@ -2,11 +2,12 @@
 """
 Unified test runner for Ducktape Producer and Consumer tests
 """
-import sys
+
+import argparse
 import os
 import subprocess
+import sys
 import tempfile
-import argparse
 from datetime import datetime
 
 import ducktape
@@ -15,18 +16,9 @@ import ducktape
 def get_test_info(test_type):
     """Get test file and description based on test type"""
     test_info = {
-        'producer': {
-            'file': 'test_producer.py',
-            'description': 'Producer Benchmark Tests'
-        },
-        'consumer': {
-            'file': 'test_consumer.py',
-            'description': 'Consumer Benchmark Tests'
-        },
-        'transactions': {
-            'file': 'test_transactions.py',
-            'description': 'Transactional Producer and Consumer Tests'
-        }
+        'producer': {'file': 'test_producer.py', 'description': 'Producer Benchmark Tests'},
+        'consumer': {'file': 'test_consumer.py', 'description': 'Consumer Benchmark Tests'},
+        'transactions': {'file': 'test_transactions.py', 'description': 'Transactional Producer and Consumer Tests'},
     }
     return test_info.get(test_type)
 
@@ -46,6 +38,7 @@ def run_single_test_type(args):
         # Some ducktape versions don't have __version__, try alternative methods
         try:
             import pkg_resources
+
             version = pkg_resources.get_distribution('ducktape').version
             print(f"Using ducktape version: {version}")
         except Exception:
@@ -54,6 +47,7 @@ def run_single_test_type(args):
     # Check if confluent_kafka is available
     try:
         import confluent_kafka
+
         print(f"Using confluent-kafka version: {confluent_kafka.version()}")
     except ImportError:
         print("ERROR: confluent_kafka is not installed.")
@@ -82,10 +76,15 @@ def run_single_test_type(args):
 
     # Build ducktape command
     cmd = [
-        sys.executable, "-m", "ducktape",
-        "--results-root", results_dir,
-        "--cluster", "ducktape.cluster.localhost.LocalhostCluster",
-        "--default-num-nodes", "1"
+        sys.executable,
+        "-m",
+        "ducktape",
+        "--results-root",
+        results_dir,
+        "--cluster",
+        "ducktape.cluster.localhost.LocalhostCluster",
+        "--default-num-nodes",
+        "1",
     ]
 
     if args.debug:
@@ -137,14 +136,10 @@ def run_all_tests(args):
     print("=" * 70)
 
     for test_type in test_types:
-        print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")
+        print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")  # noqa: E226
 
         # Create a new args object for this test type
-        test_args = argparse.Namespace(
-            test_type=test_type,
-            test_method=args.test_method,
-            debug=args.debug
-        )
+        test_args = argparse.Namespace(test_type=test_type, test_method=args.test_method, debug=args.debug)
 
         # Run the specific test type
         result = run_single_test_type(test_args)
@@ -154,7 +149,7 @@ def run_all_tests(args):
         else:
             print(f"\n✅ {test_type.upper()} tests passed!")
 
-    print(f"\n{'='*70}")
+    print(f"\n{'='*70}")  # noqa: E226
     if overall_success:
         print("🎉 All tests completed successfully!")
         return 0
@@ -166,12 +161,14 @@ def run_all_tests(args):
 def main():
     """Run the ducktape test based on specified type"""
     parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
-    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'transactions'],
-                        help='Type of test to run (default: run all tests)')
-    parser.add_argument('test_method', nargs='?',
-                        help='Specific test method to run (optional)')
-    parser.add_argument('--debug', action='store_true',
-                        help='Enable debug output')
+    parser.add_argument(
+        'test_type',
+        nargs='?',
+        choices=['producer', 'consumer', 'transactions'],
+        help='Type of test to run (default: run all tests)',
+    )
+    parser.add_argument('test_method', nargs='?', help='Specific test method to run (optional)')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
 
     args = parser.parse_args()
 

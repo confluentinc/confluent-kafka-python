@@ -35,11 +35,7 @@ class ProducerBatchExecutor:
     - Supporting partition-specific batch operations
     """
 
-    def __init__(
-        self,
-        producer: confluent_kafka.Producer,
-        executor: concurrent.futures.Executor
-    ) -> None:
+    def __init__(self, producer: confluent_kafka.Producer, executor: concurrent.futures.Executor) -> None:
         """Initialize the Kafka batch executor
 
         Args:
@@ -49,12 +45,7 @@ class ProducerBatchExecutor:
         self._producer = producer
         self._executor = executor
 
-    async def execute_batch(
-        self,
-        topic: str,
-        batch_messages: Sequence[Dict[str, Any]],
-        partition: int = -1
-    ) -> int:
+    async def execute_batch(self, topic: str, batch_messages: Sequence[Dict[str, Any]], partition: int = -1) -> int:
         """Execute a batch operation via thread pool
 
         This method handles the complete batch execution workflow:
@@ -73,6 +64,7 @@ class ProducerBatchExecutor:
         Raises:
             Exception: Any exception from the batch operation is propagated
         """
+
         def _produce_batch_and_poll() -> int:
             """Helper function to run in thread pool
 
@@ -84,9 +76,7 @@ class ProducerBatchExecutor:
             # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
             messages_list: List[Dict[str, Any]] = (
-                list(batch_messages)
-                if isinstance(batch_messages, tuple)
-                else batch_messages  # type: ignore
+                list(batch_messages) if isinstance(batch_messages, tuple) else batch_messages  # type: ignore
             )
 
             # Use the provided partition for the entire batch
@@ -110,16 +100,13 @@ class ProducerBatchExecutor:
 
     async def flush_librdkafka_queue(self, timeout=-1):
         """Flush the librdkafka queue and wait for all messages to be delivered
-
         This method awaits until all outstanding produce requests are completed
         or the timeout is reached, unless the timeout is set to 0 (non-blocking).
-
         Args:
             timeout: Maximum time to wait in seconds:
                     - -1 = wait indefinitely (default)
                     - 0 = non-blocking, return immediately
                     - >0 = wait up to timeout seconds
-
         Returns:
             Number of messages still in queue after flush attempt
         """
@@ -150,8 +137,5 @@ class ProducerBatchExecutor:
                     try:
                         callback(error, None)
                     except Exception:
-                        logger.warning(
-                            "Exception in callback during partial failure handling",
-                            exc_info=True
-                        )
+                        logger.warning("Exception in callback during partial failure handling", exc_info=True)
                         raise

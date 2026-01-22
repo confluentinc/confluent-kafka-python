@@ -1,9 +1,9 @@
-from tools.unasync import unasync, unasync_line, unasync_file_check
-
 import os
 import tempfile
 
 import pytest
+
+from tools.unasync import unasync, unasync_file_check, unasync_line
 
 
 @pytest.fixture

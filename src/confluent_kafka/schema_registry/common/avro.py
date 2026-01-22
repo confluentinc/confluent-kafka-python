@@ -1,17 +1,18 @@
 import decimal
+import json
+import logging
 import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-import json
-from typing import Dict, Union, Optional, Set
+from typing import Dict, Optional, Set, Tuple, Union, cast
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
-from .schema_registry_client import Schema, RuleKind
-from confluent_kafka.schema_registry.serde import RuleContext, FieldType, \
-    FieldTransform, RuleConditionError
+from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+
+from .schema_registry_client import RuleKind, Schema
 
 __all__ = [
     'AvroMessage',
@@ -41,8 +42,11 @@ AvroMessage = Union[
     bytes,  # 'bytes'
     list,  # 'array'
     dict,  # 'map' and 'record'
+    tuple,  # wrapped union type
 ]
 AvroSchema = Union[str, list, dict]
+
+log = logging.getLogger(__name__)
 
 
 class _ContextStringIO(BytesIO):
@@ -97,8 +101,7 @@ def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]
 
 
 def transform(
-    ctx: RuleContext, schema: AvroSchema, message: AvroMessage,
-    field_transform: FieldTransform
+    ctx: RuleContext, schema: AvroSchema, message: AvroMessage, field_transform: FieldTransform
 ) -> AvroMessage:
     if message is None or schema is None:
         return message
@@ -106,21 +109,33 @@ def transform(
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
     if isinstance(schema, list):
-        subschema = _resolve_union(schema, message)
+        subschema, submessage = _resolve_union(schema, message)
         if subschema is None:
             return message
-        return transform(ctx, subschema, message, field_transform)
+        submessage = transform(ctx, subschema, submessage, field_transform)
+        if isinstance(message, tuple) and len(message) == 2:
+            return (message[0], submessage)
+        return submessage
     elif isinstance(schema, dict):
         schema_type = schema.get("type")
         if schema_type == 'array':
-            return [transform(ctx, schema["items"], item, field_transform)
-                    for item in message]
+            if not isinstance(message, list):
+                log.warning("Incompatible message type for array schema")
+                return message
+            return [transform(ctx, schema["items"], item, field_transform) for item in message]
         elif schema_type == 'map':
-            return {key: transform(ctx, schema["values"], value, field_transform)
-                    for key, value in message.items()}
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for map schema")
+                return message
+            return {key: transform(ctx, schema["values"], value, field_transform) for key, value in message.items()}
         elif schema_type == 'record':
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for record schema")
+                return message
             fields = schema["fields"]
             for field in fields:
+                if field["name"] not in message:
+                    continue
                 _transform_field(ctx, schema, field, message, field_transform)
             return message
 
@@ -131,21 +146,12 @@ def transform(
     return message
 
 
-def _transform_field(
-    ctx: RuleContext, schema: AvroSchema, field: dict,
-    message: AvroMessage, field_transform: FieldTransform
-):
+def _transform_field(ctx: RuleContext, schema: dict, field: dict, message: dict, field_transform: FieldTransform):
     field_type = field["type"]
     name = field["name"]
     full_name = schema["name"] + "." + name
     try:
-        ctx.enter_field(
-            message,
-            full_name,
-            name,
-            get_type(field_type),
-            None
-        )
+        ctx.enter_field(message, full_name, name, get_type(field_type), None)
         value = message[name]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
@@ -205,26 +211,38 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
     return True
 
 
-def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Optional[AvroSchema]:
+def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
+    is_wrapped_union = isinstance(message, tuple) and len(message) == 2
+    is_typed_union = isinstance(message, dict) and '-type' in message
     for subschema in schema:
         try:
-            validate(message, subschema)
+            if is_wrapped_union:
+                if isinstance(subschema, dict):
+                    dict_schema = cast(dict, subschema)
+                    tuple_message = cast(tuple, message)
+                    if dict_schema["name"] == tuple_message[0]:
+                        return (dict_schema, tuple_message[1])
+            elif is_typed_union:
+                if isinstance(subschema, dict):
+                    dict_schema = cast(dict, subschema)
+                    dict_message = cast(dict, message)
+                    if dict_schema["name"] == dict_message['-type']:
+                        return (dict_schema, dict_message)
+            else:
+                validate(message, subschema)
+                return (subschema, message)
         except:  # noqa: E722
             continue
-        return subschema
-    return None
+    return (None, message)
 
 
 def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
-    inline_tags = defaultdict(set)
+    inline_tags: Dict[str, Set[str]] = defaultdict(set)
     _get_inline_tags_recursively('', '', schema, inline_tags)
     return inline_tags
 
 
-def _get_inline_tags_recursively(
-    ns: str, name: str, schema: Optional[AvroSchema],
-    tags: Dict[str, Set[str]]
-):
+def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema], tags: Dict[str, Set[str]]):
     if schema is None:
         return
     if isinstance(schema, list):
@@ -246,16 +264,18 @@ def _get_inline_tags_recursively(
                 record_ns = _implied_namespace(name)
             if record_ns is None:
                 record_ns = ns
-            if record_ns != '' and not record_name.startswith(record_ns):
+            # Ensure record_name is not None and doesn't already have namespace prefix
+            if record_name is not None and record_ns != '' and not record_name.startswith(record_ns):
                 record_name = f"{record_ns}.{record_name}"
             fields = schema["fields"]
             for field in fields:
                 field_tags = field.get("confluent:tags")
                 field_name = field.get("name")
                 field_type = field.get("type")
-                if field_tags is not None and field_name is not None:
+                # Ensure all required fields are present before building tag key
+                if field_tags is not None and field_name is not None and record_name is not None:
                     tags[record_name + '.' + field_name].update(field_tags)
-                if field_type is not None:
+                if field_type is not None and record_name is not None:
                     _get_inline_tags_recursively(record_ns, record_name, field_type, tags)
 
 

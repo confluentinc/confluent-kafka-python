@@ -15,11 +15,12 @@
 # limitations under the License.
 #
 
+import sys
+
 #
 # Example FIPS Compliant Consumer
 #
 from confluent_kafka import Consumer, KafkaException
-import sys
 
 
 def print_usage_and_exit(program_name):
@@ -34,23 +35,24 @@ if __name__ == '__main__':
     broker = sys.argv[1]
     group = sys.argv[2]
     topics = sys.argv[3:]
-    conf = {'bootstrap.servers': broker,
-            'group.id': group,
-            'auto.offset.reset': 'earliest',
-            'security.protocol': 'SASL_SSL',
-            'sasl.mechanism': 'PLAIN',
-            'sasl.username': 'broker',
-            'sasl.password': 'broker-secret',
-            # pkc12 keystores are not FIPS compliant and hence you will need to use
-            # path to key and certificate separately in FIPS mode
-            # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
-            # 'ssl.keystore.password': '111111',
-            'ssl.key.location': './docker/secrets/localhost_client.key',
-            'ssl.key.password': '111111',
-            'ssl.certificate.location': './docker/secrets/localhost_client.crt',
-            'ssl.ca.location': './docker/secrets/ca-root.crt',
-            'ssl.providers': 'fips,base'
-            }
+    conf = {
+        'bootstrap.servers': broker,
+        'group.id': group,
+        'auto.offset.reset': 'earliest',
+        'security.protocol': 'SASL_SSL',
+        'sasl.mechanism': 'PLAIN',
+        'sasl.username': 'broker',
+        'sasl.password': 'broker-secret',
+        # pkc12 keystores are not FIPS compliant and hence you will need to use
+        # path to key and certificate separately in FIPS mode
+        # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
+        # 'ssl.keystore.password': '111111',
+        'ssl.key.location': './docker/secrets/localhost_client.key',
+        'ssl.key.password': '111111',
+        'ssl.certificate.location': './docker/secrets/localhost_client.crt',
+        'ssl.ca.location': './docker/secrets/ca-root.crt',
+        'ssl.providers': 'fips,base',
+    }
 
     # Create Consumer instance
     c = Consumer(conf)
@@ -71,9 +73,10 @@ if __name__ == '__main__':
                 raise KafkaException(msg.error())
             else:
                 # Proper message
-                sys.stderr.write('%% %s [%d] at offset %d with key %s:\n' %
-                                 (msg.topic(), msg.partition(), msg.offset(),
-                                  str(msg.key())))
+                sys.stderr.write(
+                    '%% %s [%d] at offset %d with key %s:\n'
+                    % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
+                )
                 print(msg.value())
 
     except KeyboardInterrupt:

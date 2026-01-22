@@ -16,46 +16,53 @@
 # limitations under the License.
 #
 
-from .deserializing_consumer import DeserializingConsumer
-from .serializing_producer import SerializingProducer
-from .error import KafkaException, KafkaError
+import os
+
+from ._model import Node  # noqa: F401
 from ._model import (
-    Node,  # noqa: F401
-    ConsumerGroupTopicPartitions,
     ConsumerGroupState,
+    ConsumerGroupTopicPartitions,
     ConsumerGroupType,
+    ElectionType,
+    IsolationLevel,
     TopicCollection,
     TopicPartitionInfo,
-    IsolationLevel,
-    ElectionType
 )
-import os
 from .cimpl import (
-    Producer,
-    Consumer,
-    Message,
-    TopicPartition,
-    Uuid,
-    libversion,
-    version,
-    TIMESTAMP_NOT_AVAILABLE,
-    TIMESTAMP_CREATE_TIME,
-    TIMESTAMP_LOG_APPEND_TIME,
     OFFSET_BEGINNING,
     OFFSET_END,
-    OFFSET_STORED,
     OFFSET_INVALID,
+    OFFSET_STORED,
+    TIMESTAMP_CREATE_TIME,
+    TIMESTAMP_LOG_APPEND_TIME,
+    TIMESTAMP_NOT_AVAILABLE,
+    Consumer,
+    Message,
+    Producer,
+    TopicPartition,
+    Uuid,
+    consistent,
+    fnv1a,
+    libversion,
+    murmur2,
+    version,
 )
+from .deserializing_consumer import DeserializingConsumer
+from .error import KafkaError, KafkaException
+from .serializing_producer import SerializingProducer
 
 __all__ = [
     "admin",
     "Consumer",
-    "experimental",
+    "aio",
     "KafkaError",
     "KafkaException",
     "kafkatest",
     "libversion",
     "version",
+    "murmur2",
+    "consistent",
+    "fnv1a",
     "Message",
     "OFFSET_BEGINNING",
     "OFFSET_END",
@@ -76,7 +83,7 @@ __all__ = [
     "IsolationLevel",
     "TopicCollection",
     "TopicPartitionInfo",
-    "ElectionType"
+    "ElectionType",
 ]
 
 
@@ -98,20 +105,17 @@ class ThrottleEvent(object):
     :ivar float throttle_time: The amount of time (in seconds) the broker throttled (delayed) the request
     """
 
-    def __init__(self, broker_name: str,
-                 broker_id: int,
-                 throttle_time: float) -> None:
+    def __init__(self, broker_name: str, broker_id: int, throttle_time: float) -> None:
         self.broker_name = broker_name
         self.broker_id = broker_id
         self.throttle_time = throttle_time
 
     def __str__(self) -> str:
-        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id,
-                                                  int(self.throttle_time * 1000))
+        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id, int(self.throttle_time * 1000))
 
 
 def _resolve_plugins(plugins: str) -> str:
-    """ Resolve embedded plugins from the wheel's library directory.
+    """Resolve embedded plugins from the wheel's library directory.
 
     For internal module use only.
 

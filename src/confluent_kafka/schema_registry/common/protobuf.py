@@ -1,29 +1,47 @@
+import base64
 import io
 import sys
-import base64
 from collections import deque
-from decimal import Context, Decimal, MAX_PREC
-from typing import Set, List, Any
+from decimal import MAX_PREC, Context, Decimal
+from typing import Any, Deque, List, Set
 
-from google.protobuf import descriptor_pb2, any_pb2, api_pb2, empty_pb2, \
-    duration_pb2, field_mask_pb2, source_context_pb2, struct_pb2, timestamp_pb2, \
-    type_pb2, wrappers_pb2
+from google.protobuf import (
+    any_pb2,
+    api_pb2,
+    descriptor_pb2,
+    duration_pb2,
+    empty_pb2,
+    field_mask_pb2,
+    source_context_pb2,
+    struct_pb2,
+    timestamp_pb2,
+    type_pb2,
+    wrappers_pb2,
+)
+from google.protobuf.descriptor import Descriptor, FieldDescriptor, FileDescriptor
 from google.protobuf.descriptor_pool import DescriptorPool
-from google.type import calendar_period_pb2, color_pb2, date_pb2, datetime_pb2, \
-    dayofweek_pb2, expr_pb2, fraction_pb2, latlng_pb2, money_pb2, month_pb2, \
-    postal_address_pb2, timeofday_pb2, quaternion_pb2
+from google.protobuf.message import DecodeError, Message
+from google.type import (
+    calendar_period_pb2,
+    color_pb2,
+    date_pb2,
+    datetime_pb2,
+    dayofweek_pb2,
+    expr_pb2,
+    fraction_pb2,
+    latlng_pb2,
+    money_pb2,
+    month_pb2,
+    postal_address_pb2,
+    quaternion_pb2,
+    timeofday_pb2,
+)
 
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
-
-from google.protobuf.descriptor import Descriptor, FieldDescriptor, \
-    FileDescriptor
-from google.protobuf.message import DecodeError, Message
-
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
 from confluent_kafka.schema_registry import RuleKind
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
 from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.serde import RuleContext, FieldTransform, \
-    FieldType, RuleConditionError
 
 __all__ = [
     '_bytes',
@@ -41,13 +59,14 @@ __all__ = [
     '_disjoint',
     '_is_builtin',
     'decimal_to_protobuf',
-    'protobuf_to_decimal'
+    'protobuf_to_decimal',
 ]
 
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
 # Python2.chr() -> str(alias for bytes)
 if sys.version > '3':
+
     def _bytes(v: int) -> bytes:
         """
         Convert int to bytes
@@ -56,8 +75,10 @@ if sys.version > '3':
             v (int): The int to convert to bytes.
         """
         return bytes((v,))
+
 else:
-    def _bytes(v: int) -> str:
+
+    def _bytes(v: int) -> str:  # type: ignore[misc]
         """
         Convert int to bytes
 
@@ -65,6 +86,7 @@ else:
             v (int): The int to convert to bytes.
         """
         return chr(v)
+
 
 PROTOBUF_TYPE = "PROTOBUF"
 
@@ -97,7 +119,7 @@ def _create_index_array(msg_desc: Descriptor) -> List[int]:
         ValueError: If the message descriptor is malformed.
     """
 
-    msg_idx = deque()
+    msg_idx: Deque[int] = deque()
 
     # Walk the nested MessageDescriptor tree up to the root.
     current = msg_desc
@@ -209,18 +231,13 @@ def _init_pool(pool: DescriptorPool):
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
 
 
-def transform(
-    ctx: RuleContext, descriptor: Descriptor, message: Any,
-    field_transform: FieldTransform
-) -> Any:
+def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
     if message is None or descriptor is None:
         return message
     if isinstance(message, list):
-        return [transform(ctx, descriptor, item, field_transform)
-                for item in message]
+        return [transform(ctx, descriptor, item, field_transform) for item in message]
     if isinstance(message, dict):
-        return {key: transform(ctx, descriptor, value, field_transform)
-                for key, value in message.items()}
+        return {key: transform(ctx, descriptor, value, field_transform) for key, value in message.items()}
     if isinstance(message, Message):
         for fd in descriptor.fields:
             _transform_field(ctx, fd, descriptor, message, field_transform)
@@ -234,17 +251,10 @@ def transform(
 
 
 def _transform_field(
-    ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor,
-    message: Message, field_transform: FieldTransform
+    ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor, message: Message, field_transform: FieldTransform
 ):
     try:
-        ctx.enter_field(
-            message,
-            fd.full_name,
-            fd.name,
-            get_type(fd),
-            get_inline_tags(fd)
-        )
+        ctx.enter_field(message, fd.full_name, fd.name, get_type(fd), get_inline_tags(fd))
         if fd.containing_oneof is not None and not message.HasField(fd.name):
             return
         value = getattr(message, fd.name)
@@ -286,13 +296,21 @@ def get_type(fd: FieldDescriptor) -> FieldType:
         return FieldType.STRING
     if fd.type == FieldDescriptor.TYPE_BYTES:
         return FieldType.BYTES
-    if fd.type in (FieldDescriptor.TYPE_INT32, FieldDescriptor.TYPE_SINT32,
-                   FieldDescriptor.TYPE_UINT32, FieldDescriptor.TYPE_FIXED32,
-                   FieldDescriptor.TYPE_SFIXED32):
+    if fd.type in (
+        FieldDescriptor.TYPE_INT32,
+        FieldDescriptor.TYPE_SINT32,
+        FieldDescriptor.TYPE_UINT32,
+        FieldDescriptor.TYPE_FIXED32,
+        FieldDescriptor.TYPE_SFIXED32,
+    ):
         return FieldType.INT
-    if fd.type in (FieldDescriptor.TYPE_INT64, FieldDescriptor.TYPE_SINT64,
-                   FieldDescriptor.TYPE_UINT64, FieldDescriptor.TYPE_FIXED64,
-                   FieldDescriptor.TYPE_SFIXED64):
+    if fd.type in (
+        FieldDescriptor.TYPE_INT64,
+        FieldDescriptor.TYPE_SINT64,
+        FieldDescriptor.TYPE_UINT64,
+        FieldDescriptor.TYPE_FIXED64,
+        FieldDescriptor.TYPE_SFIXED64,
+    ):
         return FieldType.LONG
     if fd.type == FieldDescriptor.TYPE_FLOAT:
         return FieldType.FLOAT
@@ -304,13 +322,15 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 
 def is_map_field(fd: FieldDescriptor):
-    return (fd.type == FieldDescriptor.TYPE_MESSAGE
-            and hasattr(fd.message_type, 'options')
-            and fd.message_type.options.map_entry)
+    return (
+        fd.type == FieldDescriptor.TYPE_MESSAGE
+        and hasattr(fd.message_type, 'options')
+        and fd.message_type.options.map_entry
+    )
 
 
 def get_inline_tags(fd: FieldDescriptor) -> Set[str]:
-    meta = fd.GetOptions().Extensions[meta_pb2.field_meta]
+    meta = fd.GetOptions().Extensions[meta_pb2.field_meta]  # type: ignore[attr-defined]
     if meta is None:
         return set()
     else:
@@ -325,12 +345,10 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
 
 
 def _is_builtin(name: str) -> bool:
-    return name.startswith('confluent/') or \
-        name.startswith('google/protobuf/') or \
-        name.startswith('google/type/')
+    return name.startswith('confluent/') or name.startswith('google/protobuf/') or name.startswith('google/type/')
 
 
-def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
+def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # type: ignore[name-defined]
     """
     Converts a Decimal to a Protobuf value.
 
@@ -343,11 +361,10 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
     """
     sign, digits, exp = value.as_tuple()
 
-    delta = exp + scale
+    delta = exp + scale  # type: ignore[operator]
 
     if delta < 0:
-        raise ValueError(
-            "Scale provided does not match the decimal")
+        raise ValueError("Scale provided does not match the decimal")
 
     unscaled_datum = 0
     for digit in digits:
@@ -362,7 +379,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 
     bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
 
-    result = decimal_pb2.Decimal()
+    result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes
     result.precision = 0
     result.scale = scale
@@ -372,7 +389,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 decimal_context = Context()
 
 
-def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:
+def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[name-defined]
     """
     Converts a Protobuf value to Decimal.
 
@@ -388,6 +405,4 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:
         decimal_context.prec = value.precision
     else:
         decimal_context.prec = MAX_PREC
-    return decimal_context.create_decimal(unscaled_datum).scaleb(
-        -value.scale, decimal_context
-    )
+    return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)

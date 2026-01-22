@@ -13,25 +13,23 @@
 # limitations under the License.
 
 import datetime
+import logging
 import uuid
+from threading import Lock
+from typing import Any, Dict, List, Optional
 
 import celpy
 from celpy import celtypes
-
-from threading import Lock
-from typing import Any, Optional, Dict, List
+from google.protobuf import message
 
 from confluent_kafka.schema_registry import RuleKind, Schema
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.rules.cel.cel_field_presence import \
-    InterpretedRunner
-from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel, \
-    _scalar_field_value_to_cel
+from confluent_kafka.schema_registry.rules.cel.cel_field_presence import InterpretedRunner
+from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel, _scalar_field_value_to_cel
 from confluent_kafka.schema_registry.rules.cel.extra_func import EXTRA_FUNCS
-from confluent_kafka.schema_registry.serde import RuleExecutor, RuleContext, \
-    FieldContext
+from confluent_kafka.schema_registry.serde import FieldContext, RuleContext, RuleExecutor
 
-from google.protobuf import message
+log = logging.getLogger(__name__)
 
 # A date logical type annotates an Avro int, where the int stores the number
 # of days from the unix epoch, 1 January 1970 (ISO calendar).
@@ -54,6 +52,9 @@ class CelExecutor(RuleExecutor):
 
     def execute(self, ctx: RuleContext, msg: Any, args: Any) -> Any:
         expr = ctx.rule.expr
+        if expr is None:
+            log.warning("Expression from rule %s is None", ctx.rule.name)
+            return msg
         try:
             index = expr.index(";")
         except ValueError:
@@ -66,13 +67,19 @@ class CelExecutor(RuleExecutor):
                     if ctx.rule.kind == RuleKind.CONDITION:
                         return True
                     return msg
-            expr = expr[index+1:]
+            expr = expr[index + 1 :]
 
         return self.execute_rule(ctx, expr, args)
 
     def execute_rule(self, ctx: RuleContext, expr: str, args: Any) -> Any:
         schema = ctx.target
-        script_type = ctx.target.schema_type
+        if schema is None:
+            # TODO: check whether we should raise or return fallback
+            raise ValueError("Target schema is None")
+        script_type = schema.schema_type
+        if script_type is None:
+            # TODO: check whether we should raise or return fallback
+            raise ValueError("Target schema type is None")
         prog = self._cache.get_program(expr, script_type, schema)
         if prog is None:
             ast = self._env.compile(expr)
@@ -158,7 +165,7 @@ def _dict_to_cel(val: dict) -> Dict[str, celtypes.Value]:
     result = celtypes.MapType()
     for key, val in val.items():
         result[key] = _value_to_cel(val)
-    return result
+    return result  # type: ignore[return-value]
 
 
 def _array_to_cel(val: list) -> List[celtypes.Value]:

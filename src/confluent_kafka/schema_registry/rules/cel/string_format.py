@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import celpy  # type: ignore
-from celpy import celtypes  # type: ignore
+import celpy
+from celpy import celtypes
 
 QUOTE_TRANS = str.maketrans(
     {
@@ -43,13 +43,17 @@ class StringFormat:
 
     def format(self, fmt: celtypes.Value, args: celtypes.Value) -> celpy.Result:
         if not isinstance(fmt, celtypes.StringType):
-            return celpy.native_to_cel(celpy.new_error("format() requires a string as the first argument"))
+            return celpy.native_to_cel(  # type: ignore[attr-defined]
+                celpy.new_error("format() requires a string as the first argument")  # type: ignore[attr-defined]
+            )  # type: ignore[attr-defined]
         if not isinstance(args, celtypes.ListType):
-            return celpy.native_to_cel(celpy.new_error("format() requires a list as the second argument"))
+            return celpy.native_to_cel(  # type: ignore[attr-defined]
+                celpy.new_error("format() requires a list as the second argument")  # type: ignore[attr-defined]
+            )  # type: ignore[attr-defined]
         # printf style formatting
         i = 0
         j = 0
-        result = ""
+        result: str = ""
         while i < len(fmt):
             if fmt[i] != "%":
                 result += fmt[i]
@@ -76,25 +80,41 @@ class StringFormat:
                     i += 1
             if i >= len(fmt):
                 return celpy.CELEvalError("format() incomplete format specifier")
+
+            # Format the argument and handle errors
+            formatted: celpy.Result
             if fmt[i] == "f":
-                result += self.format_float(arg, precision)
-            if fmt[i] == "e":
-                result += self.format_exponential(arg, precision)
+                formatted = self.format_float(arg, precision)
+            elif fmt[i] == "e":
+                formatted = self.format_exponential(arg, precision)
             elif fmt[i] == "d":
-                result += self.format_int(arg)
+                formatted = self.format_int(arg)
             elif fmt[i] == "s":
-                result += self.format_string(arg)
+                formatted = self.format_string(arg)
             elif fmt[i] == "x":
-                result += self.format_hex(arg)
+                formatted = self.format_hex(arg)
             elif fmt[i] == "X":
-                result += self.format_hex(arg).upper()
+                formatted = self.format_hex(arg)
+                if isinstance(formatted, celpy.CELEvalError):
+                    return formatted
+                result += str(formatted).upper()
+                i += 1
+                continue
             elif fmt[i] == "o":
-                result += self.format_oct(arg)
+                formatted = self.format_oct(arg)
             elif fmt[i] == "b":
-                result += self.format_bin(arg)
+                formatted = self.format_bin(arg)
             else:
                 return celpy.CELEvalError("format() unknown format specifier: " + fmt[i])
+
+            # Check if formatting returned an error
+            if isinstance(formatted, celpy.CELEvalError):
+                return formatted
+
+            # Append the formatted string
+            result += str(formatted)
             i += 1
+
         if j < len(args):
             return celpy.CELEvalError("format() too many arguments for format string")
         return celtypes.StringType(result)
@@ -109,11 +129,12 @@ class StringFormat:
             return celtypes.StringType(f"{arg:.{precision}e}")
         return self.format_int(arg)
 
+    # TODO: check if celtypes.StringType() supports int conversion
     def format_int(self, arg: celtypes.Value) -> celpy.Result:
         if isinstance(arg, celtypes.IntType):
-            return celtypes.StringType(arg)
+            return celtypes.StringType(arg)  # type: ignore[arg-type]
         if isinstance(arg, celtypes.UintType):
-            return celtypes.StringType(arg)
+            return celtypes.StringType(arg)  # type: ignore[arg-type]
         return celpy.CELEvalError("format_int() requires an integer argument")
 
     def format_hex(self, arg: celtypes.Value) -> celpy.Result:
@@ -150,21 +171,24 @@ class StringFormat:
             return celtypes.StringType(arg.hex())
         if isinstance(arg, celtypes.ListType):
             return self.format_list(arg)
-        return celtypes.StringType(arg)
+        return celtypes.StringType(arg)  # type: ignore[arg-type]
 
     def format_value(self, arg: celtypes.Value) -> celpy.Result:
         if isinstance(arg, (celtypes.StringType, str)):
             return celtypes.StringType(quote(arg))
         if isinstance(arg, celtypes.UintType):
-            return celtypes.StringType(arg)
+            return celtypes.StringType(arg)  # type: ignore[arg-type]
         return self.format_string(arg)
 
     def format_list(self, arg: celtypes.ListType) -> celpy.Result:
-        result = "["
+        result: str = "["
         for i in range(len(arg)):
             if i > 0:
                 result += ", "
-            result += self.format_value(arg[i])
+            formatted = self.format_value(arg[i])
+            if isinstance(formatted, celpy.CELEvalError):
+                return formatted
+            result += str(formatted)
         result += "]"
         return celtypes.StringType(result)
 

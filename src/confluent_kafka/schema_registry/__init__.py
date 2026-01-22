@@ -18,25 +18,25 @@
 import io
 from typing import Optional
 
+from ..serialization import MessageField, SerializationContext, SerializationError
 from .schema_registry_client import (
-  ConfigCompatibilityLevel,
-  Metadata,
-  MetadataProperties,
-  MetadataTags,
-  RegisteredSchema,
-  Rule,
-  RuleKind,
-  RuleMode,
-  RuleParams,
-  RuleSet,
-  Schema,
-  SchemaRegistryClient,
-  AsyncSchemaRegistryClient,
-  SchemaRegistryError,
-  SchemaReference,
-  ServerConfig
+    AsyncSchemaRegistryClient,
+    ConfigCompatibilityLevel,
+    Metadata,
+    MetadataProperties,
+    MetadataTags,
+    RegisteredSchema,
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    Schema,
+    SchemaReference,
+    SchemaRegistryClient,
+    SchemaRegistryError,
+    ServerConfig,
 )
-from ..serialization import SerializationError, MessageField, SerializationContext
 
 _KEY_SCHEMA_ID = "__key_schema_id"
 _VALUE_SCHEMA_ID = "__value_schema_id"
@@ -46,83 +46,109 @@ _MAGIC_BYTE_V0 = _MAGIC_BYTE
 _MAGIC_BYTE_V1 = 1
 
 __all__ = [
-  "ConfigCompatibilityLevel",
-  "Metadata",
-  "MetadataProperties",
-  "MetadataTags",
-  "RegisteredSchema",
-  "Rule",
-  "RuleKind",
-  "RuleMode",
-  "RuleParams",
-  "RuleSet",
-  "Schema",
-  "SchemaRegistryClient",
-  "AsyncSchemaRegistryClient",
-  "SchemaRegistryError",
-  "SchemaReference",
-  "ServerConfig",
-  "topic_subject_name_strategy",
-  "topic_record_subject_name_strategy",
-  "record_subject_name_strategy",
-  "header_schema_id_serializer",
-  "prefix_schema_id_serializer",
-  "dual_schema_id_deserializer",
-  "prefix_schema_id_deserializer"
+    "ConfigCompatibilityLevel",
+    "Metadata",
+    "MetadataProperties",
+    "MetadataTags",
+    "RegisteredSchema",
+    "Rule",
+    "RuleKind",
+    "RuleMode",
+    "RuleParams",
+    "RuleSet",
+    "Schema",
+    "SchemaRegistryClient",
+    "AsyncSchemaRegistryClient",
+    "SchemaRegistryError",
+    "SchemaReference",
+    "ServerConfig",
+    "topic_subject_name_strategy",
+    "topic_record_subject_name_strategy",
+    "record_subject_name_strategy",
+    "header_schema_id_serializer",
+    "prefix_schema_id_serializer",
+    "dual_schema_id_deserializer",
+    "prefix_schema_id_deserializer",
 ]
 
 
-def topic_subject_name_strategy(ctx, record_name: Optional[str]) -> Optional[str]:
+def topic_subject_name_strategy(ctx: Optional[SerializationContext], record_name: Optional[str]) -> Optional[str]:
     """
     Constructs a subject name in the form of {topic}-key|value.
 
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
-            operation.
+            operation. **Required** - will raise ValueError if None.
 
         record_name (Optional[str]): Record name.
 
+    Raises:
+        ValueError: If ctx is None.
+
     """
+    if ctx is None:
+        raise ValueError(
+            "SerializationContext is required for topic_subject_name_strategy. "
+            "Either provide a SerializationContext or use record_subject_name_strategy."
+        )
     return ctx.topic + "-" + ctx.field
 
 
-def topic_record_subject_name_strategy(ctx, record_name: Optional[str]) -> Optional[str]:
+def topic_record_subject_name_strategy(
+    ctx: Optional[SerializationContext], record_name: Optional[str]
+) -> Optional[str]:
     """
     Constructs a subject name in the form of {topic}-{record_name}.
 
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
-            operation.
+            operation. **Required** - will raise ValueError if None.
 
         record_name (Optional[str]): Record name.
 
+    Raises:
+        ValueError: If ctx is None.
+
     """
+    if ctx is None:
+        raise ValueError(
+            "SerializationContext is required for topic_record_subject_name_strategy. "
+            "Either provide a SerializationContext or use record_subject_name_strategy."
+        )
     return ctx.topic + "-" + record_name if record_name is not None else None
 
 
-def record_subject_name_strategy(ctx, record_name: Optional[str]) -> Optional[str]:
+def record_subject_name_strategy(ctx: Optional[SerializationContext], record_name: Optional[str]) -> Optional[str]:
     """
     Constructs a subject name in the form of {record_name}.
 
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
-            operation.
+            operation. **Not used** by this strategy.
 
         record_name (Optional[str]): Record name.
+
+    Note:
+        This strategy does not require SerializationContext and can be used
+        when ctx is None.
 
     """
     return record_name if record_name is not None else None
 
 
-def reference_subject_name_strategy(ctx, schema_ref: SchemaReference) -> Optional[str]:
+def reference_subject_name_strategy(ctx: Optional[SerializationContext], schema_ref: SchemaReference) -> Optional[str]:
     """
     Constructs a subject reference name in the form of {reference name}.
 
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
-            operation.
+            operation. **Not used** by this strategy.
 
         schema_ref (SchemaReference): SchemaReference instance.
+
+    Note:
+        This strategy does not require SerializationContext and can be used
+        when ctx is None.
 
     """
     return schema_ref.name if schema_ref is not None else None
@@ -205,7 +231,7 @@ def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationConte
 
     # Parse schema ID from determined source and return appropriate payload
     if header_value is not None:
-        schema_id.from_bytes(io.BytesIO(header_value))
+        schema_id.from_bytes(io.BytesIO(header_value))  # type: ignore[arg-type]
         return io.BytesIO(payload)  # Return full payload when schema ID is in header
     else:
         return schema_id.from_bytes(io.BytesIO(payload))  # Parse from payload, return remainder

@@ -6,19 +6,17 @@ This module tests the BatchProcessor class to ensure proper
 message batching, topic grouping, and future management.
 """
 
-from confluent_kafka.experimental.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
-from confluent_kafka.experimental.aio.producer._AIOProducer import AIOProducer
-from confluent_kafka.experimental.aio.producer._producer_batch_processor import (
-    ProducerBatchManager as ProducerBatchProcessor
-)
 import asyncio
+import concurrent.futures
+import os
+import sys
 import unittest
 from unittest.mock import Mock, patch
-import sys
-import os
-import concurrent.futures
-import confluent_kafka
 
+import confluent_kafka
+from confluent_kafka.aio.producer._AIOProducer import AIOProducer
+from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager as ProducerBatchProcessor
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -158,9 +156,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         exception = RuntimeError("Batch failed")
 
         # Handle batch failure
-        self.batch_processor._handle_batch_failure(
-            exception, futures
-        )
+        self.batch_processor._handle_batch_failure(exception, futures)
 
         # Verify first future got exception (not already done)
         futures[0].set_exception.assert_called_once_with(exception)
@@ -172,6 +168,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_flush_empty_buffer(self):
         """Test flushing empty buffer is no-op"""
+
         async def async_test():
             await self.batch_processor.flush_buffer()
             self.assertTrue(self.batch_processor.is_buffer_empty())
@@ -180,6 +177,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_flush_buffer_with_messages(self):
         """Test successful buffer flush with messages"""
+
         async def async_test():
             future1 = self.loop.create_future()
             future2 = self.loop.create_future()
@@ -201,6 +199,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_flush_buffer_selective_topic(self):
         """Test selective topic flushing"""
+
         async def async_test():
             future3 = self.loop.create_future()
             future4 = self.loop.create_future()
@@ -222,6 +221,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_flush_buffer_exception_handling(self):
         """Test exception handling during buffer flush"""
+
         async def async_test():
             future = self.loop.create_future()
             msg = {'topic': 'topic1', 'value': 'test'}
@@ -241,6 +241,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_kafka_executor_integration(self):
         """Test executing a batch operation via KafkaBatchExecutor"""
+
         async def async_test():
             batch_messages = [
                 {'value': 'test1', 'callback': Mock()},
@@ -274,7 +275,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
                 'topic': f'topic{i % 2}',
                 'value': f'unique_value_{i}',
                 'key': f'unique_key_{i}',
-                'user_callback': user_callback
+                'user_callback': user_callback,
             }
 
             self.batch_processor.add_message(msg_data, future)
@@ -289,11 +290,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         futures = []
         for i in range(5):
             future = self.loop.create_future()
-            msg_data = {
-                'topic': f'topic{i % 2}',
-                'value': f'test{i}',
-                'key': f'key{i}'
-            }
+            msg_data = {'topic': f'topic{i % 2}', 'value': f'test{i}', 'key': f'key{i}'}
             self.batch_processor.add_message(msg_data, future)
             futures.append(future)
         return futures
@@ -320,9 +317,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self._add_alternating_topic_messages()
         topic_groups = self.batch_processor._group_messages_by_topic_and_partition()
 
-        batch_messages = self.batch_processor._prepare_batch_messages(
-            topic_groups[('topic0', -1)]['messages']
-        )
+        batch_messages = self.batch_processor._prepare_batch_messages(topic_groups[('topic0', -1)]['messages'])
 
         self.assertEqual(len(batch_messages), 3)
         for batch_msg in batch_messages:
@@ -406,7 +401,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_add_batches_back_to_buffer_basic(self):
         """Test adding batches back to buffer with basic message data"""
-        from confluent_kafka.experimental.aio.producer._message_batch import create_message_batch
+        from confluent_kafka.aio.producer._message_batch import create_message_batch
 
         # Create test futures
         future1 = asyncio.Future()
@@ -415,12 +410,9 @@ class TestProducerBatchProcessor(unittest.TestCase):
         # Create test batch with basic message data
         batch = create_message_batch(
             topic='test-topic',
-            messages=[
-                {'value': 'test1', 'key': 'key1'},
-                {'value': 'test2', 'key': 'key2'}
-            ],
+            messages=[{'value': 'test1', 'key': 'key1'}, {'value': 'test2', 'key': 'key2'}],
             futures=[future1, future2],
-            partition=0
+            partition=0,
         )
 
         # Ensure buffer is initially empty
@@ -448,15 +440,10 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_add_batches_back_to_buffer_empty_batch(self):
         """Test adding empty batch back to buffer"""
-        from confluent_kafka.experimental.aio.producer._message_batch import create_message_batch
+        from confluent_kafka.aio.producer._message_batch import create_message_batch
 
         # Create empty batch
-        batch = create_message_batch(
-            topic='test-topic',
-            messages=[],
-            futures=[],
-            partition=0
-        )
+        batch = create_message_batch(topic='test-topic', messages=[], futures=[], partition=0)
 
         initial_size = self.batch_processor.get_buffer_size()
 

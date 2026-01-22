@@ -19,8 +19,8 @@ from email.utils import parseaddr
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from urllib import parse as urlparse
 
-import celpy  # type: ignore
-from celpy import celtypes  # type: ignore
+import celpy
+from celpy import celtypes
 
 from confluent_kafka.schema_registry.rules.cel import string_format
 
@@ -78,14 +78,14 @@ def validate_host_and_port(string: str, *, port_required: bool) -> bool:
         if after_end == len(string):  # no port
             return not port_required and validate_ip(string[1:end], 6)
         if after_end == split_idx:  # port
-            return validate_ip(string[1:end]) and validate_port(string[split_idx+1:])
+            return validate_ip(string[1:end]) and validate_port(string[split_idx + 1 :])
         return False  # malformed
 
     if split_idx == -1:
         return not port_required and (_validate_hostname(string) or validate_ip(string, 4))
 
     host = string[:split_idx]
-    port = string[split_idx+1:]
+    port = string[split_idx + 1 :]
     return (_validate_hostname(host) or validate_ip(host, 4)) and validate_port(port)
 
 
@@ -143,6 +143,9 @@ def is_email(string: celtypes.Value) -> celpy.Result:
 
 
 def is_uri(string: celtypes.Value) -> celpy.Result:
+    if not isinstance(string, celtypes.StringType):
+        msg = "invalid argument, expected string"
+        raise celpy.CELEvalError(msg)
     url = urlparse.urlparse(string)
     if not all([url.scheme, url.netloc, url.path]):
         return celtypes.BoolType(False)
@@ -150,6 +153,9 @@ def is_uri(string: celtypes.Value) -> celpy.Result:
 
 
 def is_uri_ref(string: celtypes.Value) -> celpy.Result:
+    if not isinstance(string, celtypes.StringType):
+        msg = "invalid argument, expected string"
+        raise celpy.CELEvalError(msg)
     url = urlparse.urlparse(string)
     if not all([url.scheme, url.path]) and url.fragment:
         return celtypes.BoolType(False)

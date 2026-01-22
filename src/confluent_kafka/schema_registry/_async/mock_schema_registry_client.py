@@ -18,11 +18,11 @@
 import uuid
 from collections import defaultdict
 from threading import Lock
-from typing import List, Dict, Optional
+from typing import Dict, List, Literal, Optional, Union
 
-from .schema_registry_client import AsyncSchemaRegistryClient
 from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
 from ..error import SchemaRegistryError
+from .schema_registry_client import AsyncSchemaRegistryClient
 
 
 class _SchemaStore(object):
@@ -43,7 +43,7 @@ class _SchemaStore(object):
                 guid=registered_schema.guid,
                 schema=registered_schema.schema,
                 subject=registered_schema.subject,
-                version=registered_schema.version
+                version=registered_schema.version,
             )
             self.schema_id_index[rs.schema_id] = rs
             self.schema_guid_index[rs.guid] = rs
@@ -61,11 +61,7 @@ class _SchemaStore(object):
             rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
 
-    def get_registered_schema_by_schema(
-        self,
-        subject_name: str,
-        schema: Schema
-    ) -> Optional[RegisteredSchema]:
+    def get_registered_schema_by_schema(self, subject_name: str, schema: Schema) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 for rs in self.subject_schemas[subject_name]:
@@ -73,7 +69,7 @@ class _SchemaStore(object):
                         return rs
             return None
 
-    def get_version(self, subject_name: str, version: int) -> Optional[RegisteredSchema]:
+    def get_version(self, subject_name: str, version: Union[int, str]) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 for rs in self.subject_schemas[subject_name]:
@@ -94,17 +90,18 @@ class _SchemaStore(object):
             return None
 
     def get_latest_with_metadata(
-        self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: Optional[str] = None
+        self, subject_name: str, metadata: Dict[str, str], deleted: bool = False, fmt: Optional[str] = None
     ) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 rs: RegisteredSchema
                 for rs in self.subject_schemas[subject_name]:
-                    if (rs.schema
-                            and rs.schema.metadata
-                            and rs.schema.metadata.properties
-                            and metadata.items() <= rs.schema.metadata.properties.properties.items()):
+                    if (
+                        rs.schema
+                        and rs.schema.metadata
+                        and rs.schema.metadata.properties
+                        and metadata.items() <= rs.schema.metadata.properties.properties.items()
+                    ):
                         return rs
             return None
 
@@ -151,31 +148,24 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         super().__init__(conf)
         self._store = _SchemaStore()
 
-    async def register_schema(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False
-    ) -> int:
+    async def register_schema(self, subject_name: str, schema: 'Schema', normalize_schemas: bool = False) -> int:
         registered_schema = await self.register_schema_full_response(
-            subject_name, schema, normalize_schemas=normalize_schemas)
-        return registered_schema.schema_id
+            subject_name, schema, normalize_schemas=normalize_schemas
+        )
+        return registered_schema.schema_id  # type: ignore[return-value]
 
     async def register_schema_full_response(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False
+        self, subject_name: str, schema: 'Schema', normalize_schemas: bool = False
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
         if registered_schema is not None:
             return registered_schema
 
         latest_schema = self._store.get_latest_version(subject_name)
-        latest_version = 1 if latest_schema is None else latest_schema.version + 1
+        latest_version = 1 if latest_schema is None or latest_schema.version is None else latest_schema.version + 1
 
         registered_schema = RegisteredSchema(
-            schema_id=1,
-            guid=str(uuid.uuid4()),
-            schema=schema,
-            subject=subject_name,
-            version=latest_version
+            schema_id=1, guid=str(uuid.uuid4()), schema=schema, subject=subject_name, version=latest_version
         )
 
         registered_schema = self._store.set(registered_schema)
@@ -183,8 +173,11 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         return registered_schema
 
     async def get_schema(
-        self, schema_id: int, subject_name: Optional[str] = None,
-        fmt: Optional[str] = None
+        self,
+        schema_id: int,
+        subject_name: Optional[str] = None,
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
     ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
         if schema is not None:
@@ -192,9 +185,7 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    async def get_schema_by_guid(
-        self, guid: str, fmt: Optional[str] = None
-    ) -> 'Schema':
+    async def get_schema_by_guid(self, guid: str, fmt: Optional[str] = None) -> 'Schema':
         schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema
@@ -202,8 +193,12 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     async def lookup_schema(
-        self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
+        self,
+        subject_name: str,
+        schema: 'Schema',
+        normalize_schemas: bool = False,
+        fmt: Optional[str] = None,
+        deleted: bool = False,
     ) -> 'RegisteredSchema':
 
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
@@ -212,8 +207,31 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    async def get_subjects(self) -> List[str]:
-        return self._store.get_subjects()
+    async def get_subjects(
+        self,
+        subject_prefix: Optional[str] = None,
+        deleted: bool = False,
+        deleted_only: bool = False,
+        offset: int = 0,
+        limit: int = -1,
+    ) -> List[str]:
+        """
+        Note: Mock implementation does not support deleted/deleted_only parameters
+        as the mock does not track deletion state.
+        """
+        subjects = self._store.get_subjects()
+
+        # Filter by prefix if provided
+        if subject_prefix is not None:
+            subjects = [s for s in subjects if s.startswith(subject_prefix)]
+
+        # Apply pagination
+        if offset > 0:
+            subjects = subjects[offset:]
+        if limit >= 0:
+            subjects = subjects[:limit]
+
+        return subjects
 
     async def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         return self._store.remove_by_subject(subject_name)
@@ -226,8 +244,7 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     async def get_latest_with_metadata(
-        self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: Optional[str] = None
+        self, subject_name: str, metadata: Dict[str, str], deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_with_metadata(subject_name, metadata)
         if registered_schema is not None:
@@ -236,30 +253,50 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     async def get_version(
-        self, subject_name: str, version: int,
-        deleted: bool = False, fmt: Optional[str] = None
+        self,
+        subject_name: str,
+        version: Union[int, Literal["latest"]] = "latest",
+        deleted: bool = False,
+        fmt: Optional[str] = None,
     ) -> 'RegisteredSchema':
-        registered_schema = self._store.get_version(subject_name, version)
+        if version == "latest":
+            registered_schema = self._store.get_latest_version(subject_name)
+        else:
+            registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             return registered_schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    async def get_versions(self, subject_name: str) -> List[int]:
-        return self._store.get_versions(subject_name)
+    async def get_versions(
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[int]:
+        """
+        Note: Mock implementation does not support deleted/deleted_only parameters
+        as the mock does not track deletion state.
+        """
+        versions = self._store.get_versions(subject_name)
+
+        # Apply pagination
+        if offset > 0:
+            versions = versions[offset:]
+        if limit >= 0:
+            versions = versions[:limit]
+
+        return versions
 
     async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             self._store.remove_by_schema(registered_schema)
-            return registered_schema.schema_id
+            return registered_schema.schema_id  # type: ignore[return-value]
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     async def set_config(
-        self, subject_name: Optional[str] = None, config: 'ServerConfig' = None  # noqa F821
+        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None  # noqa F821
     ) -> 'ServerConfig':  # noqa F821
-        return None
+        return None  # type: ignore[return-value]
 
     async def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':  # noqa F821
-        return None
+        return None  # type: ignore[return-value]

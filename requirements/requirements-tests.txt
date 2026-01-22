@@ -1,6 +1,10 @@
 # core test requirements
 urllib3<3
 flake8
+mypy
+attrs
+types-cachetools
+types-requests
 orjson
 pytest
 pytest-timeout
@@ -10,3 +14,7 @@ pytest_cov
 pluggy<1.6.0
 pytest-asyncio
 async-timeout
+
+# Formatting tools
+black>=24.0.0
+isort>=5.13.0

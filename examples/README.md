@@ -8,10 +8,11 @@ The scripts in this directory provide various examples of using the Confluent Py
 
 - [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
 - [consumer.py](consumer.py): Read messages from a Kafka topic.
+- [context_manager_example.py](context_manager_example.py): **Demonstrates context manager (`with` statement) usage for Producer, Consumer, and AdminClient** - shows automatic resource cleanup when exiting the `with` block.
 
 ## AsyncIO Examples
 
-- [asyncio_example.py](asyncio_example.py): Experimental comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
+- [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
 - [asyncio_avro_producer.py](asyncio_avro_producer.py): Minimal AsyncIO Avro producer using `AsyncSchemaRegistryClient` and `AsyncAvroSerializer` (supports Confluent Cloud using `--sr-api-key`/`--sr-api-secret`).
 
 **Architecture:** For implementation details and component design, see the [AIOProducer Architecture Overview](../aio_producer_simple_diagram.md).
@@ -24,7 +25,7 @@ The AsyncIO producer works seamlessly with popular Python web frameworks:
 
 ```python
 from fastapi import FastAPI
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 app = FastAPI()
 producer = None
@@ -45,7 +46,7 @@ async def create_event(data: dict):
 
 ```python
 from aiohttp import web
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 async def init_app():
     app = web.Application()
@@ -66,7 +67,7 @@ For more details, see [Integrating Apache Kafka With Python Asyncio Web Applicat
 The AsyncIO producer and consumer work seamlessly with async Schema Registry serializers:
 
 ```python
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
@@ -156,14 +157,17 @@ avro_serializer = AvroSerializer(schema_registry_client,
 
 producer_conf = {
     'bootstrap.servers': 'localhost:9092',
-    'key.serializer': StringSerializer('utf_8'),
-    'value.serializer': avro_serializer
 }
 
 producer = Producer(producer_conf)
+
+# Simplified example of serialize and produce
+serialized_value = avro_serializer(some_user_object)
+producer.produce('my-topic', key='user1', value=serialized_value)
+producer.flush()
 ```
 
-### Asynchronous usage (Experimental AsyncIO)
+### Asynchronous usage
 
 Use async serializers with `AIOProducer` and `AIOConsumer`. Note that you must
 instantiate the serializer and then call it to serialize the data *before*
@@ -171,7 +175,7 @@ producing.
 
 ```python
 # From examples/README.md
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 

@@ -4,22 +4,24 @@ Producer strategies for testing sync and async Kafka producers.
 This module contains strategy classes that encapsulate the different producer
 implementations (sync vs async) with consistent interfaces for testing.
 """
-import time
+
 import asyncio
-import uuid
-from confluent_kafka import Producer
 import json
+import os
+import time
+import uuid
+
+from confluent_kafka import Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer
 from confluent_kafka.schema_registry._sync.json_schema import JSONSerializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
 from confluent_kafka.schema_registry.avro import AvroSerializer
-from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer
-from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer
-from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
-import os
 
 
 class ProducerStrategy:
@@ -33,8 +35,16 @@ class ProducerStrategy:
     def create_producer(self):
         raise NotImplementedError()
 
-    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
-                         delivered_container, failed_container=None, serialization_type=None):
+    def produce_messages(
+        self,
+        topic_name,
+        test_duration,
+        start_time,
+        message_formatter,
+        delivered_container,
+        failed_container=None,
+        serialization_type=None,
+    ):
         raise NotImplementedError()
 
     def _get_base_config(self):
@@ -42,16 +52,16 @@ class ProducerStrategy:
         return {
             'bootstrap.servers': self.bootstrap_servers,
             'queue.buffering.max.messages': 1000000,  # 1M messages (sufficient)
-            'queue.buffering.max.kbytes': 1048576,    # 1GB (default)
-            'batch.size': 65536,                      # 64KB batches (increased for better efficiency)
-            'batch.num.messages': 50000,              # 50K messages per batch (up from 10K default)
-            'message.max.bytes': 2097152,             # 2MB max message size (up from ~1MB default)
-            'linger.ms': 1,                          # Wait 1ms for batching (low latency)
-            'compression.type': 'lz4',               # Fast compression
-            'acks': 1,                               # Wait for leader only (faster)
-            'retries': 3,                            # Retry failed sends
-            'delivery.timeout.ms': 30000,            # 30s delivery timeout
-            'max.in.flight.requests.per.connection': 5  # Pipeline requests
+            'queue.buffering.max.kbytes': 1048576,  # 1GB (default)
+            'batch.size': 65536,  # 64KB batches (increased for better efficiency)
+            'batch.num.messages': 50000,  # 50K messages per batch (up from 10K default)
+            'message.max.bytes': 2097152,  # 2MB max message size (up from ~1MB default)
+            'linger.ms': 1,  # Wait 1ms for batching (low latency)
+            'compression.type': 'lz4',  # Fast compression
+            'acks': 1,  # Wait for leader only (faster)
+            'retries': 3,  # Retry failed sends
+            'delivery.timeout.ms': 30000,  # 30s delivery timeout
+            'max.in.flight.requests.per.connection': 5,  # Pipeline requests
         }
 
     def _log_configuration(self, config, producer_type, extra_params=None):
@@ -97,8 +107,7 @@ class SyncProducerStrategy(ProducerStrategy):
             return None, None
 
         schema_registry_url = os.getenv(
-            'SCHEMA_REGISTRY_URL',
-            getattr(self, 'schema_registry_url', 'http://localhost:8081')
+            'SCHEMA_REGISTRY_URL', getattr(self, 'schema_registry_url', 'http://localhost:8081')
         )
         client_config = {
             'url': schema_registry_url,
@@ -125,13 +134,10 @@ class SyncProducerStrategy(ProducerStrategy):
                     {"name": "test_sint32", "type": "int"},
                     {"name": "test_sint64", "type": "long"},
                     {"name": "test_uint32", "type": "int"},
-                    {"name": "test_uint64", "type": "long"}
-                ]
+                    {"name": "test_uint64", "type": "long"},
+                ],
             }
-            value_serializer = AvroSerializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(avro_schema)
-            )
+            value_serializer = AvroSerializer(schema_registry_client=sr_client, schema_str=json.dumps(avro_schema))
         elif serialization_type == 'json':
             json_schema = {
                 "type": "object",
@@ -151,14 +157,25 @@ class SyncProducerStrategy(ProducerStrategy):
                     "test_sint32": {"type": "integer"},
                     "test_sint64": {"type": "integer"},
                     "test_uint32": {"type": "integer"},
-                    "test_uint64": {"type": "integer"}
+                    "test_uint64": {"type": "integer"},
                 },
                 "required": [
-                    "test_string", "test_bool", "test_bytes", "test_double", "test_float",
-                    "test_fixed32", "test_fixed64", "test_int32", "test_int64",
-                    "test_sfixed32", "test_sfixed64", "test_sint32", "test_sint64",
-                    "test_uint32", "test_uint64"
-                ]
+                    "test_string",
+                    "test_bool",
+                    "test_bytes",
+                    "test_double",
+                    "test_float",
+                    "test_fixed32",
+                    "test_fixed64",
+                    "test_int32",
+                    "test_int64",
+                    "test_sfixed32",
+                    "test_sfixed64",
+                    "test_sint32",
+                    "test_sint64",
+                    "test_uint32",
+                    "test_uint64",
+                ],
             }
             value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
         elif serialization_type == 'protobuf':
@@ -183,16 +200,20 @@ class SyncProducerStrategy(ProducerStrategy):
         return producer
 
     def create_transactional_producer(self):
-        overrides = {
-            'transactional.id': f'sync-tx-producer-{uuid.uuid4()}',
-            'acks': 'all',
-            'enable.idempotence': True
-        }
+        overrides = {'transactional.id': f'sync-tx-producer-{uuid.uuid4()}', 'acks': 'all', 'enable.idempotence': True}
         return self.create_producer(config_overrides=overrides)
 
-    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
-                         delivered_container, failed_container=None, serialization_type=None,
-                         use_transaction=False):
+    def produce_messages(
+        self,
+        topic_name,
+        test_duration,
+        start_time,
+        message_formatter,
+        delivered_container,
+        failed_container=None,
+        serialization_type=None,
+        use_transaction=False,
+    ):
         config_overrides = getattr(self, 'config_overrides', None)
         if use_transaction:
             producer = self.create_transactional_producer()
@@ -216,8 +237,7 @@ class SyncProducerStrategy(ProducerStrategy):
                     failed_container.append(err)
                 if self.metrics:
                     self.metrics.record_failed(
-                        topic=msg.topic() if msg else topic_name,
-                        partition=msg.partition() if msg else 0
+                        topic=msg.topic() if msg else topic_name, partition=msg.partition() if msg else 0
                     )
             else:
                 delivered_container.append(msg)
@@ -250,10 +270,7 @@ class SyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
                     produce_start = time.time()
                     producer.produce(
-                        topic=topic_name,
-                        value=serialized_value,
-                        key=serialized_key,
-                        on_delivery=delivery_callback
+                        topic=topic_name, value=serialized_value, key=serialized_key, on_delivery=delivery_callback
                     )
                 else:
                     # Track send time for latency calculation (plain string messages)
@@ -264,10 +281,7 @@ class SyncProducerStrategy(ProducerStrategy):
                     # Produce message
                     produce_start = time.time()
                     producer.produce(
-                        topic=topic_name,
-                        value=message_value,
-                        key=message_key,
-                        on_delivery=delivery_callback
+                        topic=topic_name, value=message_value, key=message_key, on_delivery=delivery_callback
                     )
                 # Commit transaction if using transactions
                 if use_transaction:
@@ -321,8 +335,7 @@ class AsyncProducerStrategy(ProducerStrategy):
             return None, None
 
         schema_registry_url = os.getenv(
-            'SCHEMA_REGISTRY_URL',
-            getattr(self, 'schema_registry_url', 'http://localhost:8081')
+            'SCHEMA_REGISTRY_URL', getattr(self, 'schema_registry_url', 'http://localhost:8081')
         )
         client_config = {
             'url': schema_registry_url,
@@ -349,12 +362,11 @@ class AsyncProducerStrategy(ProducerStrategy):
                     {"name": "test_sint32", "type": "int"},
                     {"name": "test_sint64", "type": "long"},
                     {"name": "test_uint32", "type": "int"},
-                    {"name": "test_uint64", "type": "long"}
-                ]
+                    {"name": "test_uint64", "type": "long"},
+                ],
             }
             value_serializer = await AsyncAvroSerializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(avro_schema)
+                schema_registry_client=sr_client, schema_str=json.dumps(avro_schema)
             )
         elif serialization_type == 'json':
             json_schema = {
@@ -375,14 +387,25 @@ class AsyncProducerStrategy(ProducerStrategy):
                     "test_sint32": {"type": "integer"},
                     "test_sint64": {"type": "integer"},
                     "test_uint32": {"type": "integer"},
-                    "test_uint64": {"type": "integer"}
+                    "test_uint64": {"type": "integer"},
                 },
                 "required": [
-                    "test_string", "test_bool", "test_bytes", "test_double", "test_float",
-                    "test_fixed32", "test_fixed64", "test_int32", "test_int64",
-                    "test_sfixed32", "test_sfixed64", "test_sint32", "test_sint64",
-                    "test_uint32", "test_uint64"
-                ]
+                    "test_string",
+                    "test_bool",
+                    "test_bytes",
+                    "test_double",
+                    "test_float",
+                    "test_fixed32",
+                    "test_fixed64",
+                    "test_int32",
+                    "test_int64",
+                    "test_sfixed32",
+                    "test_sfixed64",
+                    "test_sint32",
+                    "test_sint64",
+                    "test_uint32",
+                    "test_uint64",
+                ],
             }
             value_serializer = await AsyncJSONSerializer(json.dumps(json_schema), sr_client)
         elif serialization_type == 'protobuf':
@@ -393,9 +416,11 @@ class AsyncProducerStrategy(ProducerStrategy):
         return key_serializer, value_serializer
 
     def create_producer(self, config_overrides=None):
-        from confluent_kafka.experimental.aio import AIOProducer
         # Enable logging for AIOProducer
         import logging
+
+        from confluent_kafka.aio import AIOProducer
+
         logging.basicConfig(level=logging.INFO)
 
         config = self._get_base_config()
@@ -418,16 +443,20 @@ class AsyncProducerStrategy(ProducerStrategy):
         return self._producer_instance
 
     def create_transactional_producer(self):
-        overrides = {
-            'transactional.id': f'async-tx-producer-{uuid.uuid4()}',
-            'acks': 'all',
-            'enable.idempotence': True
-        }
+        overrides = {'transactional.id': f'async-tx-producer-{uuid.uuid4()}', 'acks': 'all', 'enable.idempotence': True}
         return self.create_producer(config_overrides=overrides)
 
-    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
-                         delivered_container, failed_container=None, serialization_type=None,
-                         use_transaction=False):
+    def produce_messages(
+        self,
+        topic_name,
+        test_duration,
+        start_time,
+        message_formatter,
+        delivered_container,
+        failed_container=None,
+        serialization_type=None,
+        use_transaction=False,
+    ):
 
         async def async_produce():
             config_overrides = getattr(self, 'config_overrides', None)
@@ -452,6 +481,7 @@ class AsyncProducerStrategy(ProducerStrategy):
 
             # Pre-create shared metrics callback to avoid closure creation overhead
             if self.metrics:
+
                 def shared_metrics_callback(err, msg):
                     if not err:
                         # Calculate latency if we have send time
@@ -495,10 +525,7 @@ class AsyncProducerStrategy(ProducerStrategy):
                     # Produce message
                     produce_start = time.time()
                     delivery_future = await producer.produce(
-                        topic=topic_name,
-                        value=produce_value,
-                        key=produce_key,
-                        on_delivery=shared_metrics_callback
+                        topic=topic_name, value=produce_value, key=produce_key, on_delivery=shared_metrics_callback
                     )
 
                     # Commit transaction if using transactions

@@ -1,5 +1,60 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+
+### Fixes
+
+- Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
+- Fixed type hinting of `KafkaError` class, `Consumer.__init()__`, `Producer.__init()__`, `Producer.produce()` and `Consumer.commit()` and introduced a script in tools directory to keep error codes up to date. Fixes Issue [#2168](https://github.com/confluentinc/confluent-kafka-python/issues/2168).
+
+## v2.13.0 - 2025-12-15
+
+v2.13.0 is a feature release with the following features, fixes and enhancements:
+
+### Enhancements
+
+- Enforced type hinting for all interfaces
+- Handle OAuth Token Refreshes using background thread for Admin, Producer and Consumer clients (#2130)
+- Added black and isort linting rules and enforcement to codebase (#2133, #2137)
+- Enabled direct creation of Message objects (#2128)
+- Added `close()` method to producer (#2039)
+- Added context manager for librdkafka classes to enable easy scope cleanup (#2114)
+- Expose deterministic partitioner functions (#2116)
+- Add Accept-Version header for schemas (#2117)
+- Enhanced the BufferTimeoutManager to flush the librdkafka queue
+- Remove experimental module designation for Async classes (#2143)
+- Add `__len__` function to AIOProducer (#2140)
+- Enhance Message class to include serialisation support and rich comparison (#2153)
+- Support Strict Validation Flags in Avro Serializers (#2147)
+
+### Fixes
+
+- Type hint `__enter__` to return the same object type that called it (#2157)
+- Fixed `Consumer.poll()`, `Consumer.consume()`, `Producer.poll()`, and `Producer.flush()` blocking indefinitely and not responding to Ctrl+C (KeyboardInterrupt) signals. The implementation now uses a "wakeable poll" pattern that breaks long blocking calls into smaller chunks (200ms) and periodically re-acquires the Python GIL to check for pending signals. This allows Ctrl+C to properly interrupt blocking operations. Fixes Issues [#209](https://github.com/confluentinc/confluent-kafka-python/issues/209) and [#807](https://github.com/confluentinc/confluent-kafka-python/issues/807) (#2126).
+- Fix support for wrapped Avro unions (#2134)
+- Fixed segfault exceptions on calls against objects that had closed internal objects (#2122)
+- Handle evolution during field transformation of schemas (#2121)
+- Handle null group name to prevent segfault in Admin `list_consumer_group_offsets()` (#2118)
+- Ensure schemaId initialization is thread-safe (#2120)
+- Fix error propagation rule for Python's C API
+- Fix SR delete behavior with client-side caching
+- Don't leave NewTopic partially-initialized on error (#2151)
+- Fix formatting issue of TopicPartition that causes SystemError on Windows (#2141)
+- Add Py_None check for msg and offset params in `commit()` and `store_offsets()` (#2145)
+- Fix experimental module references (#2144)
+- Update outdated example in README.md (#2150)
+
+confluent-kafka-python v2.13.0 is based on librdkafka v2.13.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.13.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## 2.12.2 - 2025-11-06
+
+v2.12.2 is a hotfix for a critical problem found with Schema Registry clients in the 2.12.1 release:
+
+- Fix IndexOutOfBoundsException when evolving Avro schema that uses rules
+
 ## v2.12.1 - 2025-10-21
 
 v2.12.1 is a maintenance release with the following fixes:
@@ -23,7 +78,7 @@ Starting with __confluent-kafka-python 2.12.0__, the next generation consumer gr
 
 **Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
 
-### AsyncIO Producer (experimental)
+### AsyncIO Producer
  Introduces beta class `AIOProducer` for asynchronous message production in asyncio applications.
 
 #### Added
@@ -77,6 +132,9 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 ## v2.11.0 - 2025-07-03
 
 v2.11.0 is a feature release with the following enhancements:
+
+### Fixes
+- Fix error propagation rule for Python's C API to prevent SystemError when callbacks raise exceptions (#865)
 
 confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)

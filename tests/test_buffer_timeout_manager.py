@@ -7,11 +7,11 @@ buffer timeout monitoring and automatic flush handling.
 """
 
 import asyncio
-import unittest
 import time
-from unittest.mock import Mock, AsyncMock
+import unittest
+from unittest.mock import AsyncMock, Mock
 
-from confluent_kafka.experimental.aio.producer._buffer_timeout_manager import BufferTimeoutManager
+from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
 
 class TestBufferTimeoutManager(unittest.TestCase):
@@ -31,11 +31,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
         self.mock_kafka_executor.flush_librdkafka_queue = AsyncMock(return_value=0)
 
         # Create timeout manager with 1 second timeout
-        self.timeout_manager = BufferTimeoutManager(
-            self.mock_batch_processor,
-            self.mock_kafka_executor,
-            timeout=1.0
-        )
+        self.timeout_manager = BufferTimeoutManager(self.mock_batch_processor, self.mock_kafka_executor, timeout=1.0)
 
     def tearDown(self):
         # Stop any running timeout monitoring tasks
@@ -64,6 +60,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_start_timeout_monitoring(self):
         """Test that timeout monitoring task starts correctly"""
+
         async def async_test():
             self.timeout_manager.start_timeout_monitoring()
 
@@ -78,6 +75,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_stop_timeout_monitoring(self):
         """Test that timeout monitoring task stops correctly"""
+
         async def async_test():
             self.timeout_manager.start_timeout_monitoring()
             self.assertTrue(self.timeout_manager._running)
@@ -86,20 +84,13 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
             self.assertFalse(self.timeout_manager._running)
             # Task should be cancelled or None
-            self.assertTrue(
-                self.timeout_manager._timeout_task is None or
-                self.timeout_manager._timeout_task.done()
-            )
+            self.assertTrue(self.timeout_manager._timeout_task is None or self.timeout_manager._timeout_task.done())
 
         self.loop.run_until_complete(async_test())
 
     def test_start_timeout_monitoring_disabled(self):
         """Test that timeout monitoring doesn't start when timeout is 0"""
-        manager = BufferTimeoutManager(
-            self.mock_batch_processor,
-            self.mock_kafka_executor,
-            timeout=0  # Disabled
-        )
+        manager = BufferTimeoutManager(self.mock_batch_processor, self.mock_kafka_executor, timeout=0)  # Disabled
 
         manager.start_timeout_monitoring()
 
@@ -108,6 +99,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_flush_buffer_due_to_timeout(self):
         """Test that _flush_buffer_due_to_timeout calls both flush methods"""
+
         async def async_test():
             # Call the flush method
             await self.timeout_manager._flush_buffer_due_to_timeout()
@@ -172,6 +164,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_monitor_timeout_triggers_flush(self):
         """Test that timeout monitoring triggers flush when buffer is inactive"""
+
         async def async_test():
             # Set last activity to past time (simulating inactivity)
             self.timeout_manager._last_activity = time.time() - 2.0  # 2 seconds ago
@@ -222,6 +215,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_monitor_timeout_does_not_flush_recent_activity(self):
         """Test that timeout monitoring doesn't flush if buffer has recent activity"""
+
         async def async_test():
             # Set last activity to recent time (within timeout)
             self.timeout_manager._last_activity = time.time() - 0.3  # 0.3 seconds ago
@@ -244,6 +238,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_monitor_timeout_updates_activity_after_flush(self):
         """Test that timeout monitoring updates activity timestamp after successful flush"""
+
         async def async_test():
             # Set last activity to past time
             self.timeout_manager._last_activity = time.time() - 2.0
@@ -265,13 +260,10 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
     def test_weak_reference_cleanup(self):
         """Test that weak references allow proper garbage collection"""
+
         async def async_test():
             # Create a manager with timeout monitoring
-            manager = BufferTimeoutManager(
-                self.mock_batch_processor,
-                self.mock_kafka_executor,
-                timeout=1.0
-            )
+            manager = BufferTimeoutManager(self.mock_batch_processor, self.mock_kafka_executor, timeout=1.0)
             manager.start_timeout_monitoring()
 
             # Wait a bit for task to start

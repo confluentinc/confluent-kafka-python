@@ -18,12 +18,11 @@
 
 from typing import Any, Dict, List, Optional
 
-from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
-from .error import (ConsumeError,
-                    KeyDeserializationError,
-                    ValueDeserializationError)
-from .serialization import (SerializationContext,
-                            MessageField)
+from confluent_kafka.cimpl import Consumer as _ConsumerImpl
+from confluent_kafka.cimpl import Message
+
+from .error import ConsumeError, KeyDeserializationError, ValueDeserializationError
+from .serialization import MessageField, SerializationContext
 
 
 class DeserializingConsumer(_ConsumerImpl):
@@ -106,7 +105,11 @@ class DeserializingConsumer(_ConsumerImpl):
         if error is not None:
             raise ConsumeError(error, kafka_message=msg)
 
-        ctx = SerializationContext(msg.topic(), MessageField.VALUE, msg.headers())
+        topic = msg.topic()
+        if topic is None:
+            raise TypeError("Message topic is None")
+        ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
+
         value = msg.value()
         if self._value_deserializer is not None:
             try:

@@ -55,14 +55,31 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 
    ```bash
    python3 -c "import confluent_kafka; print('Setup successful!')"
-   ```
+
+#### Local Setup with UV
+
+Alternative setup instructions tested with python 3.11
+
+```bash
+# Modify pyproject.toml to require python version >=3.11
+# This fixes the cel-python dependency conflict
+uv venv --python 3.11
+source .venv/bin/activate
+
+uv sync --extra dev --extra tests
+uv pip install trivup setuptools
+pytest tests/
+
+# When making changes, change project.version in pyproject.toml before re-running:
+uv sync --extra dev --extra tests
+```
 
 <!-- markdownlint-enable MD029 -->
 
 ## Project layout
 
 - `src/confluent_kafka/` — core sync client APIs
-- `src/confluent_kafka/experimental/aio/` — AsyncIO Producer/Consumer (first-class asyncio, not generated)
+- `src/confluent_kafka/aio/` — AsyncIO Producer/Consumer (first-class asyncio, not generated)
 - `src/confluent_kafka/schema_registry/` — Schema Registry clients and serdes
 - `tests/` — unit and integration tests (including async producer tests)
 - `examples/` — runnable samples (includes asyncio example)
@@ -103,14 +120,14 @@ python3 tools/unasync.py --check
 
 If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counterparts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the `--check` flag and fail the build.
 
-Note: The AsyncIO Producer/Consumer under `src/confluent_kafka/experimental/aio/` are first-class asyncio implementations and are not generated using `unasync`.
+Note: The AsyncIO Producer/Consumer under `src/confluent_kafka/aio/` are first-class asyncio implementations and are not generated using `unasync`.
 
 ## AsyncIO Producer development (AIOProducer)
 
 Source:
 
-- `src/confluent_kafka/experimental/aio/producer/_AIOProducer.py` (public async API)
-- Internal modules in `src/confluent_kafka/experimental/aio/producer/` and helpers in `src/confluent_kafka/experimental/aio/_common.py`
+- `src/confluent_kafka/aio/producer/_AIOProducer.py` (public async API)
+- Internal modules in `src/confluent_kafka/aio/producer/` and helpers in `src/confluent_kafka/aio/_common.py`
 
 For a complete usage example, see [`examples/asyncio_example.py`](examples/asyncio_example.py).
 
@@ -164,10 +181,43 @@ pytest -q tests/integration
 
 See [tests/README.md](tests/README.md) for instructions on how to run tests.
 
-## Linting & formatting (suggested)
+## Linting & formatting
 
-- Python: `black .` and `flake8` (or `ruff`) per project configuration
-- Markdown: `markdownlint '**/*.md'`
+We use automated tools to maintain consistent code style:
+
+- **black**: Code formatter
+- **isort**: Import sorter 
+- **flake8**: Linter for code quality
+
+### Running formatting checks
+
+```bash
+# Check formatting
+make style-check
+
+# Fix formatting
+make style-fix
+
+# Check only changed files
+make style-check-changed
+make style-fix-changed
+```
+
+### Using tox
+
+```bash
+# Check formatting
+tox -e black,isort
+
+# Check linting
+tox -e flake8
+
+# Check typing
+tox -e mypy
+
+# Run all formatting and linting checks
+tox -e black,isort,flake8,mypy
+```
 
 ## Documentation build
 

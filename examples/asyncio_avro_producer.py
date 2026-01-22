@@ -20,10 +20,10 @@
 import argparse
 import asyncio
 
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
-from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.serialization import MessageField, SerializationContext
 
 
 async def main(args):
@@ -58,8 +58,9 @@ if __name__ == '__main__':
     parser.add_argument('-b', dest='bootstrap_servers', required=True, help='Bootstrap broker(s) (host[:port])')
     parser.add_argument('-s', dest='schema_registry', required=True, help='Schema Registry (http(s)://host[:port])')
     parser.add_argument('--sr-api-key', dest='sr_api_key', default=None, help='Confluent Cloud SR API key (optional)')
-    parser.add_argument('--sr-api-secret', dest='sr_api_secret', default=None,
-                        help='Confluent Cloud SR API secret (optional)')
+    parser.add_argument(
+        '--sr-api-secret', dest='sr_api_secret', default=None, help='Confluent Cloud SR API secret (optional)'
+    )
     parser.add_argument('-t', dest='topic', default='example_asyncio_avro', help='Topic name')
     args = parser.parse_args()
 

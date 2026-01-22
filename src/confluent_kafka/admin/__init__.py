@@ -14,79 +14,78 @@
 
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
+
+Note: Many imports in this file are marked with "# noqa: F401" because they are
+intentionally unused within this module but are exported as part of the public API.
+These imports allow users to access constants and classes directly from the admin
+module (e.g., "from confluent_kafka.admin import CONFIG_SOURCE_DEFAULT_CONFIG").
 """
-import warnings
+
 import concurrent.futures
-from typing import Any, Dict, List, Optional, Union, Tuple, Set
+import warnings
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+from confluent_kafka import ConsumerGroupState as _ConsumerGroupState
+from confluent_kafka import ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions
+from confluent_kafka import IsolationLevel as _IsolationLevel
+
+from .._model import ConsumerGroupType as _ConsumerGroupType
+from .._model import ElectionType as _ElectionType
+from .._model import TopicCollection as _TopicCollection
+from ..cimpl import KafkaException  # noqa: F401
+from ..cimpl import (  # noqa: F401
+    CONFIG_SOURCE_DEFAULT_CONFIG,
+    CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
+    CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG,
+    CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
+    CONFIG_SOURCE_GROUP_CONFIG,
+    CONFIG_SOURCE_STATIC_BROKER_CONFIG,
+    CONFIG_SOURCE_UNKNOWN_CONFIG,
+    OFFSET_INVALID,
+    RESOURCE_ANY,
+    RESOURCE_BROKER,
+    RESOURCE_GROUP,
+    RESOURCE_TOPIC,
+    RESOURCE_TRANSACTIONAL_ID,
+    RESOURCE_UNKNOWN,
+    KafkaError,
+    NewPartitions,
+    NewTopic,
+)
+from ..cimpl import TopicPartition as _TopicPartition
+from ..cimpl import (  # noqa: F401
+    _AdminClientImpl,
+)
+from ._acl import AclOperation  # noqa: F401
+from ._acl import AclBinding, AclBindingFilter, AclPermissionType  # noqa: F401
+from ._cluster import DescribeClusterResult  # noqa: F401
 
 # Unused imports are keeped to be accessible using this public module
-from ._config import (ConfigSource,  # noqa: F401
-                      ConfigEntry,
-                      ConfigResource,
-                      AlterConfigOpType)
-from ._resource import (ResourceType,  # noqa: F401
-                        ResourcePatternType)
-from ._acl import (AclOperation,  # noqa: F401
-                   AclPermissionType,
-                   AclBinding,
-                   AclBindingFilter)
-from ._metadata import (BrokerMetadata,  # noqa: F401
-                        ClusterMetadata,
-                        GroupMember,
-                        GroupMetadata,
-                        PartitionMetadata,
-                        TopicMetadata)
-from ._group import (ConsumerGroupListing,  # noqa: F401
-                     ListConsumerGroupsResult,
-                     ConsumerGroupDescription,
-                     MemberAssignment,
-                     MemberDescription)
-from ._scram import (UserScramCredentialAlteration,  # noqa: F401
-                     UserScramCredentialUpsertion,
-                     UserScramCredentialDeletion,
-                     ScramCredentialInfo,
-                     ScramMechanism,
-                     UserScramCredentialsDescription)
-
-from ._topic import (TopicDescription)  # noqa: F401
-
-from ._cluster import (DescribeClusterResult)  # noqa: F401
-
-from ._listoffsets import (OffsetSpec,  # noqa: F401
-                           ListOffsetsResultInfo)
-
+from ._config import ConfigSource  # noqa: F401
+from ._config import AlterConfigOpType, ConfigEntry, ConfigResource  # noqa: F401
+from ._group import ConsumerGroupListing  # noqa: F401
+from ._group import (  # noqa: F401
+    ConsumerGroupDescription,
+    ListConsumerGroupsResult,
+    MemberAssignment,
+    MemberDescription,
+)
+from ._listoffsets import ListOffsetsResultInfo  # noqa: F401
+from ._listoffsets import OffsetSpec  # noqa: F401
+from ._metadata import BrokerMetadata  # noqa: F401
+from ._metadata import ClusterMetadata, GroupMember, GroupMetadata, PartitionMetadata, TopicMetadata  # noqa: F401
 from ._records import DeletedRecords  # noqa: F401
-
-from .._model import (TopicCollection as _TopicCollection,
-                      ConsumerGroupType as _ConsumerGroupType,
-                      ElectionType as _ElectionType)
-
-from ..cimpl import (KafkaException,  # noqa: F401
-                     KafkaError,
-                     _AdminClientImpl,
-                     NewTopic,
-                     NewPartitions,
-                     TopicPartition as _TopicPartition,
-                     CONFIG_SOURCE_UNKNOWN_CONFIG,
-                     CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
-                     CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
-                     CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG,
-                     CONFIG_SOURCE_STATIC_BROKER_CONFIG,
-                     CONFIG_SOURCE_DEFAULT_CONFIG,
-                     CONFIG_SOURCE_GROUP_CONFIG,
-                     RESOURCE_UNKNOWN,
-                     RESOURCE_ANY,
-                     RESOURCE_TOPIC,
-                     RESOURCE_GROUP,
-                     RESOURCE_BROKER,
-                     RESOURCE_TRANSACTIONAL_ID,
-                     OFFSET_INVALID)
-
-from confluent_kafka import \
-    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions, \
-    ConsumerGroupState as _ConsumerGroupState, \
-    IsolationLevel as _IsolationLevel
-
+from ._resource import ResourcePatternType  # noqa: F401
+from ._resource import ResourceType  # noqa: F401
+from ._scram import UserScramCredentialAlteration  # noqa: F401
+from ._scram import (  # noqa: F401
+    ScramCredentialInfo,
+    ScramMechanism,
+    UserScramCredentialDeletion,
+    UserScramCredentialsDescription,
+    UserScramCredentialUpsertion,
+)
+from ._topic import TopicDescription  # noqa: F401
 
 try:
     string_type = basestring  # type: ignore[name-defined]
@@ -94,7 +93,7 @@ except NameError:
     string_type = str
 
 
-class AdminClient (_AdminClientImpl):
+class AdminClient(_AdminClientImpl):
     """
     AdminClient provides admin operations for Kafka brokers, topics, groups,
     and other resource types supported by the broker.
@@ -154,8 +153,9 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_resource_result(f: concurrent.futures.Future,
-                              futmap: Dict[ConfigResource, concurrent.futures.Future]) -> None:
+    def _make_resource_result(
+        f: concurrent.futures.Future, futmap: Dict[ConfigResource, concurrent.futures.Future]
+    ) -> None:
         """
         Map per-resource results to per-resource futures in futmap.
         The result value of each (successful) future is a ConfigResource.
@@ -184,8 +184,9 @@ class AdminClient (_AdminClientImpl):
         pass
 
     @staticmethod
-    def _make_consumer_groups_result(f: concurrent.futures.Future,
-                                     futmap: Dict[str, concurrent.futures.Future]) -> None:
+    def _make_consumer_groups_result(
+        f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]
+    ) -> None:
         """
         Map per-group results to per-group futures in futmap.
         """
@@ -197,7 +198,8 @@ class AdminClient (_AdminClientImpl):
             len_futures = len(futmap_values)
             if len_results != len_futures:
                 raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures)
+                )
             for i, result in enumerate(results):
                 fut = futmap_values[i]
                 if isinstance(result, KafkaError):
@@ -210,8 +212,9 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_consumer_group_offsets_result(f: concurrent.futures.Future,
-                                            futmap: Dict[str, concurrent.futures.Future]) -> None:
+    def _make_consumer_group_offsets_result(
+        f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]
+    ) -> None:
         """
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
@@ -224,7 +227,8 @@ class AdminClient (_AdminClientImpl):
             len_futures = len(futmap_values)
             if len_results != len_futures:
                 raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures)
+                )
             for i, result in enumerate(results):
                 fut = futmap_values[i]
                 if isinstance(result, KafkaError):
@@ -250,7 +254,8 @@ class AdminClient (_AdminClientImpl):
             len_futures = len(futmap_values)
             if len_results != len_futures:
                 raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures)
+                )
             for i, result in enumerate(results):
                 fut = futmap_values[i]
                 if isinstance(result, KafkaError):
@@ -263,8 +268,9 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_futmap_result_from_list(f: concurrent.futures.Future,
-                                      futmap: Dict[Any, concurrent.futures.Future]) -> None:
+    def _make_futmap_result_from_list(
+        f: concurrent.futures.Future, futmap: Dict[Any, concurrent.futures.Future]
+    ) -> None:
         try:
 
             results = f.result()
@@ -273,7 +279,8 @@ class AdminClient (_AdminClientImpl):
             len_futures = len(futmap_values)
             if len_results != len_futures:
                 raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures)
+                )
             for i, result in enumerate(results):
                 fut = futmap_values[i]
                 if isinstance(result, KafkaError):
@@ -292,13 +299,11 @@ class AdminClient (_AdminClientImpl):
             len_results = len(results)
             len_futures = len(futmap)
             if len(results) != len_futures:
-                raise RuntimeError(
-                    f"Results length {len_results} is different from future-map length {len_futures}")
+                raise RuntimeError(f"Results length {len_results} is different from future-map length {len_futures}")
             for key, value in results.items():
                 fut = futmap.get(key, None)
                 if fut is None:
-                    raise RuntimeError(
-                        f"Key {key} not found in future-map: {futmap}")
+                    raise RuntimeError(f"Key {key} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -315,9 +320,9 @@ class AdminClient (_AdminClientImpl):
         return f
 
     @staticmethod
-    def _make_futures(futmap_keys: List[Any], class_check: Optional[type],
-                      make_result_fn: Any) -> Tuple[concurrent.futures.Future,
-                                                    Dict[Any, concurrent.futures.Future]]:
+    def _make_futures(
+        futmap_keys: List[Any], class_check: Optional[type], make_result_fn: Any
+    ) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -339,9 +344,9 @@ class AdminClient (_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _make_futures_v2(futmap_keys: Union[List[Any], Set[Any]], class_check: Optional[type],
-                         make_result_fn: Any) -> Tuple[concurrent.futures.Future,
-                                                       Dict[Any, concurrent.futures.Future]]:
+    def _make_futures_v2(
+        futmap_keys: Union[List[Any], Set[Any]], class_check: Optional[type], make_result_fn: Any
+    ) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -368,6 +373,7 @@ class AdminClient (_AdminClientImpl):
         any of the values in the map returned by the first future is
         a KafkaError.
         """
+
         def single_future_result(internal_f: concurrent.futures.Future, f: concurrent.futures.Future) -> None:
             try:
                 results = internal_f.result()
@@ -459,11 +465,9 @@ class AdminClient (_AdminClientImpl):
                 if not topic_partition.topic:
                     raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
                 if topic_partition.partition < 0:
-                    raise ValueError(
-                        "Element of 'topic_partitions' must not have negative value for 'partition' field")
+                    raise ValueError("Element of 'topic_partitions' must not have negative value for 'partition' field")
                 if topic_partition.offset < 0:
-                    raise ValueError(
-                        "Element of 'topic_partitions' must not have negative value for 'offset' field")
+                    raise ValueError("Element of 'topic_partitions' must not have negative value for 'offset' field")
 
     @staticmethod
     def _check_describe_user_scram_credentials_request(users: Optional[List[str]]) -> None:
@@ -518,16 +522,21 @@ class AdminClient (_AdminClientImpl):
                 if not isinstance(alteration.mechanism, ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
             else:
-                raise TypeError("Expected each element of list 'alterations' " +
-                                "to be either a UserScramCredentialUpsertion or a " +
-                                "UserScramCredentialDeletion")
+                raise TypeError(
+                    "Expected each element of list 'alterations' "
+                    + "to be either a UserScramCredentialUpsertion or a "
+                    + "UserScramCredentialDeletion"
+                )
 
     @staticmethod
-    def _check_list_offsets_request(topic_partition_offsets: Dict[_TopicPartition, OffsetSpec],
-                                    kwargs: Dict[str, Any]) -> None:
+    def _check_list_offsets_request(
+        topic_partition_offsets: Dict[_TopicPartition, OffsetSpec], kwargs: Dict[str, Any]
+    ) -> None:
         if not isinstance(topic_partition_offsets, dict):
-            raise TypeError("Expected topic_partition_offsets to be " +
-                            "dict of [TopicPartitions,OffsetSpec] for list offsets request")
+            raise TypeError(
+                "Expected topic_partition_offsets to be "
+                + "dict of [TopicPartitions,OffsetSpec] for list offsets request"
+            )
 
         for topic_partition, offset_spec in topic_partition_offsets.items():
             if topic_partition is None:
@@ -557,8 +566,9 @@ class AdminClient (_AdminClientImpl):
             raise TypeError(f"Expected Request to be a list, got '{type(request).__name__}' ")
         for req in request:
             if not isinstance(req, _TopicPartition):
-                raise TypeError("Element of the request list must be of type 'TopicPartition'" +
-                                f" got '{type(req).__name__}' ")
+                raise TypeError(
+                    "Element of the request list must be of type 'TopicPartition'" + f" got '{type(req).__name__}' "
+                )
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
 
@@ -568,15 +578,17 @@ class AdminClient (_AdminClientImpl):
             raise TypeError("Expected 'election_type' to be of type 'ElectionType'")
         if partitions is not None:
             if not isinstance(partitions, list):
-                raise TypeError("Expected 'partitions' to be a list, got " +
-                                f"'{type(partitions).__name__}'")
+                raise TypeError("Expected 'partitions' to be a list, got " + f"'{type(partitions).__name__}'")
             for partition in partitions:
                 if not isinstance(partition, _TopicPartition):
-                    raise TypeError("Element of the 'partitions' list must be of type 'TopicPartition'" +
-                                    f" got '{type(partition).__name__}' ")
+                    raise TypeError(
+                        "Element of the 'partitions' list must be of type 'TopicPartition'"
+                        + f" got '{type(partition).__name__}' "
+                    )
                 if partition.partition < 0:
-                    raise ValueError("Elements of the 'partitions' list must not have negative value" +
-                                     " for 'partition' field")
+                    raise ValueError(
+                        "Elements of the 'partitions' list must not have negative value" + " for 'partition' field"
+                    )
 
     def create_topics(  # type: ignore[override]
         self, new_topics: List[NewTopic], **kwargs: Any
@@ -607,9 +619,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        f, futmap = AdminClient._make_futures([x.topic for x in new_topics],
-                                              None,
-                                              AdminClient._make_topics_result)
+        f, futmap = AdminClient._make_futures([x.topic for x in new_topics], None, AdminClient._make_topics_result)
 
         super(AdminClient, self).create_topics(new_topics, f, **kwargs)
 
@@ -641,19 +651,16 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        f, futmap = AdminClient._make_futures(topics, None,
-                                              AdminClient._make_topics_result)
+        f, futmap = AdminClient._make_futures(topics, None, AdminClient._make_topics_result)
 
         super(AdminClient, self).delete_topics(topics, f, **kwargs)
 
         return futmap
 
     def list_topics(self, *args: Any, **kwargs: Any) -> ClusterMetadata:
-
         return super(AdminClient, self).list_topics(*args, **kwargs)
 
     def list_groups(self, *args: Any, **kwargs: Any) -> List[GroupMetadata]:
-
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
     def create_partitions(  # type: ignore[override]
@@ -684,9 +691,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        f, futmap = AdminClient._make_futures([x.topic for x in new_partitions],
-                                              None,
-                                              AdminClient._make_topics_result)
+        f, futmap = AdminClient._make_futures([x.topic for x in new_partitions], None, AdminClient._make_topics_result)
 
         super(AdminClient, self).create_partitions(new_partitions, f, **kwargs)
 
@@ -719,8 +724,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        f, futmap = AdminClient._make_futures(resources, ConfigResource,
-                                              AdminClient._make_resource_result)
+        f, futmap = AdminClient._make_futures(resources, ConfigResource, AdminClient._make_resource_result)
 
         super(AdminClient, self).describe_configs(resources, f, **kwargs)
 
@@ -767,10 +771,11 @@ class AdminClient (_AdminClientImpl):
         """
         warnings.warn(
             "alter_configs has been deprecated. Use incremental_alter_configs instead.",
-            category=DeprecationWarning, stacklevel=2)
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
 
-        f, futmap = AdminClient._make_futures(resources, ConfigResource,
-                                              AdminClient._make_resource_result)
+        f, futmap = AdminClient._make_futures(resources, ConfigResource, AdminClient._make_resource_result)
 
         super(AdminClient, self).alter_configs(resources, f, **kwargs)
 
@@ -804,8 +809,7 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid type.
         :raises ValueError: Invalid value.
         """
-        f, futmap = AdminClient._make_futures_v2(resources, ConfigResource,
-                                                 AdminClient._make_resource_result)
+        f, futmap = AdminClient._make_futures_v2(resources, ConfigResource, AdminClient._make_resource_result)
 
         super(AdminClient, self).incremental_alter_configs(resources, f, **kwargs)
 
@@ -835,8 +839,7 @@ class AdminClient (_AdminClientImpl):
         if AdminClient._has_duplicates(acls):
             raise ValueError("duplicate ACL bindings not allowed")
 
-        f, futmap = AdminClient._make_futures(acls, AclBinding,
-                                              AdminClient._make_acls_result)
+        f, futmap = AdminClient._make_futures(acls, AclBinding, AdminClient._make_acls_result)
 
         super(AdminClient, self).create_acls(acls, f, **kwargs)
 
@@ -913,16 +916,13 @@ class AdminClient (_AdminClientImpl):
         if AdminClient._has_duplicates(acl_binding_filters):
             raise ValueError("duplicate ACL binding filters not allowed")
 
-        f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter,
-                                              AdminClient._make_acls_result)
+        f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter, AdminClient._make_acls_result)
 
         super(AdminClient, self).delete_acls(acl_binding_filters, f, **kwargs)
 
         return futmap
 
-    def list_consumer_groups(  # type: ignore[override]
-        self, **kwargs: Any
-    ) -> concurrent.futures.Future:
+    def list_consumer_groups(self, **kwargs: Any) -> concurrent.futures.Future:  # type: ignore[override]
         """
         List consumer groups.
 
@@ -997,8 +997,7 @@ class AdminClient (_AdminClientImpl):
         if len(group_ids) == 0:
             raise ValueError("Expected at least one group to be described")
 
-        f, futmap = AdminClient._make_futures(group_ids, None,
-                                              AdminClient._make_consumer_groups_result)
+        f, futmap = AdminClient._make_futures(group_ids, None, AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
 
@@ -1034,16 +1033,13 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(topic_names, list):
             raise TypeError("Expected list of topic names to be described")
 
-        f, futmap = AdminClient._make_futures_v2(topic_names, None,
-                                                 AdminClient._make_futmap_result_from_list)
+        f, futmap = AdminClient._make_futures_v2(topic_names, None, AdminClient._make_futmap_result_from_list)
 
         super(AdminClient, self).describe_topics(topic_names, f, **kwargs)  # type: ignore[arg-type]
 
         return futmap
 
-    def describe_cluster(  # type: ignore[override]
-        self, **kwargs: Any
-    ) -> concurrent.futures.Future:
+    def describe_cluster(self, **kwargs: Any) -> concurrent.futures.Future:  # type: ignore[override]
         """
         Describe cluster.
 
@@ -1093,16 +1089,14 @@ class AdminClient (_AdminClientImpl):
         if len(group_ids) == 0:
             raise ValueError("Expected at least one group to be deleted")
 
-        f, futmap = AdminClient._make_futures(group_ids, string_type,
-                                              AdminClient._make_consumer_groups_result)
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
 
     def list_consumer_group_offsets(  # type: ignore[override]
-        self, list_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions],
-        **kwargs: Any
+        self, list_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: Any
     ) -> Dict[str, concurrent.futures.Future]:
         """
         List offset information for the consumer group and (optional) topic partition provided in the request.
@@ -1134,15 +1128,15 @@ class AdminClient (_AdminClientImpl):
         f, futmap = AdminClient._make_futures(
             [request.group_id for request in list_consumer_group_offsets_request],
             string_type,
-            AdminClient._make_consumer_group_offsets_result)
+            AdminClient._make_consumer_group_offsets_result,
+        )
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
     def alter_consumer_group_offsets(  # type: ignore[override]
-        self, alter_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions],
-        **kwargs: Any
+        self, alter_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: Any
     ) -> Dict[str, concurrent.futures.Future]:
         """
         Alter offset for the consumer group and topic partition provided in the request.
@@ -1168,9 +1162,11 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
-                                              string_type,
-                                              AdminClient._make_consumer_group_offsets_result)
+        f, futmap = AdminClient._make_futures(
+            [request.group_id for request in alter_consumer_group_offsets_request],
+            string_type,
+            AdminClient._make_consumer_group_offsets_result,
+        )
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
 
@@ -1229,7 +1225,8 @@ class AdminClient (_AdminClientImpl):
             internal_f, ret_fut = AdminClient._make_single_future_pair()
         else:
             internal_f, ret_fut = AdminClient._make_futures_v2(  # type: ignore[assignment]
-                users, None, AdminClient._make_futmap_result)
+                users, None, AdminClient._make_futmap_result
+            )
         super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
         return ret_fut
 
@@ -1258,8 +1255,8 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_alter_user_scram_credentials_request(alterations)
 
         f, futmap = AdminClient._make_futures_v2(
-            set([alteration.user for alteration in alterations]), None,
-            AdminClient._make_futmap_result)
+            set([alteration.user for alteration in alterations]), None, AdminClient._make_futmap_result
+        )
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
         return futmap
@@ -1296,13 +1293,13 @@ class AdminClient (_AdminClientImpl):
             del kwargs['isolation_level']
 
         topic_partition_offsets_list = [
-            _TopicPartition(topic_partition.topic, int(topic_partition.partition),
-                            int(offset_spec._value))
-            for topic_partition, offset_spec in topic_partition_offsets.items()]
+            _TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset_spec._value))
+            for topic_partition, offset_spec in topic_partition_offsets.items()
+        ]
 
         f, futmap = AdminClient._make_futures_v2(
-            topic_partition_offsets_list, _TopicPartition,
-            AdminClient._make_futmap_result)
+            topic_partition_offsets_list, _TopicPartition, AdminClient._make_futmap_result
+        )
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
         return futmap
@@ -1341,14 +1338,14 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_delete_records(topic_partition_offsets)
 
         f, futmap = AdminClient._make_futures_v2(
-            topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result)
+            topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result
+        )
 
         super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap
 
     def elect_leaders(  # type: ignore[override]
-        self, election_type: _ElectionType, partitions: Optional[List[_TopicPartition]] = None,
-        **kwargs: Any
+        self, election_type: _ElectionType, partitions: Optional[List[_TopicPartition]] = None, **kwargs: Any
     ) -> concurrent.futures.Future:
         """
         Perform Preferred or Unclean leader election for

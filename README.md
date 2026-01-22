@@ -1,11 +1,8 @@
-# Confluent Python Client for Apache Kafka
+# Confluent's Python Client for Apache Kafka®
 
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
-Confluent's Python Client for Apache Kafka<sup>TM</sup>
-=======================================================
-
-**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka™](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
+**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
 
 **Recommended for Production:** While this client works with any Kafka deployment, it's optimized for and fully supported with [Confluent Cloud](https://www.confluent.io/confluent-cloud/) (fully managed) and [Confluent Platform](https://www.confluent.io/product/compare/) (self-managed), which provide enterprise-grade security, monitoring, and support.
 
@@ -27,7 +24,7 @@ Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
 
 - **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
 - **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
-- **Experimental; AsyncIO Producer**: An experimental fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
+- **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
 - **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
 - **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
 - **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
@@ -54,13 +51,13 @@ Additional examples can be found in the [examples](examples) directory or the [c
 Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
 Finally, the [tests](tests) are useful as a reference for example usage.
-### AsyncIO Producer (experimental)
+### AsyncIO Producer
 
 Use the AsyncIO `Producer` inside async applications to avoid blocking the event loop.
 
 ```python
 import asyncio
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 
 async def main():
     p = AIOProducer({"bootstrap.servers": "mybroker"})
@@ -162,13 +159,12 @@ avro_serializer = AvroSerializer(schema_registry_client,
 # 3. Configure Producer
 producer_conf = {
     'bootstrap.servers': 'localhost:9092',
-    'key.serializer': StringSerializer('utf_8'),
-    'value.serializer': avro_serializer
 }
 producer = Producer(producer_conf)
 
 # 4. Produce messages
-producer.produce('my-topic', key='user1', value=some_user_object)
+serialized_value = avro_serializer(some_user_object)
+producer.produce('my-topic', key='user1', value=serialized_value)
 producer.flush()
 ```
 
@@ -177,7 +173,7 @@ producer.flush()
 Use the `AsyncSchemaRegistryClient` and `Async` serializers with `AIOProducer` and `AIOConsumer`. The configuration is the same as the synchronous client.
 
 ```python
-from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 

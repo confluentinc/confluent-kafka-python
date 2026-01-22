@@ -17,6 +17,9 @@
 #
 
 import os
+import signal
+import time
+
 from confluent_kafka import Consumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
@@ -29,13 +32,25 @@ def _trivup_cluster_type_kraft():
 
 class TestUtils:
     @staticmethod
+    def send_sigint_after_delay(delay_seconds):
+        """Send SIGINT to current process after delay.
+
+        Utility function for testing interruptible poll/flush/consume operations.
+        Used to simulate Ctrl+C in automated tests.
+
+        Args:
+            delay_seconds: Delay in seconds before sending SIGINT
+        """
+        time.sleep(delay_seconds)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    @staticmethod
     def broker_version():
         return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
 
     @staticmethod
     def broker_conf():
-        broker_conf = ['transaction.state.log.replication.factor=1',
-                       'transaction.state.log.min.isr=1']
+        broker_conf = ['transaction.state.log.replication.factor=1', 'transaction.state.log.min.isr=1']
         if TestUtils.use_group_protocol_consumer():
             broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
         return broker_conf
@@ -46,8 +61,7 @@ class TestUtils:
 
     @staticmethod
     def use_kraft():
-        return (TestUtils.use_group_protocol_consumer() or
-                _trivup_cluster_type_kraft())
+        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
 
     @staticmethod
     def use_group_protocol_consumer():
@@ -60,19 +74,27 @@ class TestUtils:
 
     @staticmethod
     def can_upgrade_group_protocol_to_consumer(conf):
-        return (conf is not None and 'group.id' in conf and
-                'group.protocol' not in conf and TestUtils.use_group_protocol_consumer())
+        return (
+            conf is not None
+            and 'group.id' in conf
+            and 'group.protocol' not in conf
+            and TestUtils.use_group_protocol_consumer()
+        )
 
     @staticmethod
     def remove_forbidden_conf_group_protocol_consumer(conf):
-        if (conf is None or
-                not TestUtils.use_group_protocol_consumer() or
-                conf.get('group.protocol', 'consumer') != 'consumer'):
+        if (
+            conf is None
+            or not TestUtils.use_group_protocol_consumer()
+            or conf.get('group.protocol', 'consumer') != 'consumer'
+        ):
             return
-        forbidden_conf_properties = ["session.timeout.ms",
-                                     "partition.assignment.strategy",
-                                     "heartbeat.interval.ms",
-                                     "group.protocol.type"]
+        forbidden_conf_properties = [
+            "session.timeout.ms",
+            "partition.assignment.strategy",
+            "heartbeat.interval.ms",
+            "group.protocol.type",
+        ]
         for prop in forbidden_conf_properties:
             if prop in conf:
                 print(f"Skipping setting forbidden configuration {prop} for `CONSUMER` protocol")
