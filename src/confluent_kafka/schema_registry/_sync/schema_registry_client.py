@@ -122,9 +122,8 @@ class _OAuthClient(_BearerFieldProvider):
         if self.token is None:
             raise ValueError("Token is not set")
 
-        expiry_window = self.token['expires_in'] * self.token_expiry_threshold
-
-        return self.token['expires_at'] < time.time() + expiry_window
+        refresh_buffer = self.token['expires_in'] * (1 - self.token_expiry_threshold)
+        return self.token['expires_at'] < time.time() + refresh_buffer
 
     def get_access_token(self) -> str:
         if not self.token or self.token_expired():
