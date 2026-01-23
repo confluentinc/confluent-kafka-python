@@ -3,10 +3,10 @@
 
 This client supports both FIPS 140-2 and FIPS 140-3 compliance. Use the version mapping below to ensure compliance:
 
-| Compliance Standard | OpenSSL Version | FIPS Provider Version |
-| :--- | :--- | :--- |
-| **FIPS 140-2** | 3.x | 3.0.8 |
-| **FIPS 140-3** | 3.x | 3.1.2 |
+| Compliance Standard | OpenSSL Version | FIPS Provider Version                                                         |
+| :--- | :--- |:------------------------------------------------------------------------------|
+| **FIPS 140-2** | 3.x | [3.0.8](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md) |
+| **FIPS 140-3** | 3.x | [3.1.2](https://github.com/openssl/openssl/blob/openssl-3.1.2/README-FIPS.md) |
 
 For new deployments, we recommend **FIPS 140-3** as FIPS 140-2 certificates issued after September 21, 2026 will no longer be accepted for federal procurement.
 
@@ -102,5 +102,6 @@ The communication between client and Schema Registry is also FIPS compliant if t
 ## References
 * [Generating FIPS module and config file for FIPS 140-2](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
 * [Generating FIPS module and config file for FIPS 140-3](https://github.com/openssl/openssl/blob/openssl-3.1.2/README-FIPS.md)
+* [OpenSSL 3.1.2: FIPS 140-3 Validated](https://openssl-library.org/post/2025-03-11-fips-140-3/)
 * [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html)
 * [librdkafka SSL Information](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl)
