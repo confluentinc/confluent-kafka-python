@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import threading as _locks
 import io
 import logging
 from typing import Any, Callable, Optional, Tuple, Union, cast
@@ -26,13 +27,14 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RuleMode,
     Schema,
-    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC,
     JSON_TYPE,
@@ -84,6 +86,7 @@ def _resolve_named_schema(
                 raise TypeError("Name cannot be None")
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
+
 
 
 class JSONSerializer(BaseSerializer):
@@ -212,6 +215,7 @@ class JSONSerializer(BaseSerializer):
         '_to_dict',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_encode',
     ]
@@ -253,6 +257,7 @@ class JSONSerializer(BaseSerializer):
         self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError(
@@ -440,16 +445,19 @@ class JSONSerializer(BaseSerializer):
         return parsed_schema, ref_registry
 
     def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+        with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        with self._validators_lock:
+            self._validators[schema] = validator
         return validator
+
 
 
 class JSONDeserializer(BaseDeserializer):
@@ -515,6 +523,7 @@ class JSONDeserializer(BaseDeserializer):
         '_schema',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_decode',
     ]
@@ -559,6 +568,7 @@ class JSONDeserializer(BaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
         self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
@@ -611,7 +621,9 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -741,13 +753,15 @@ class JSONDeserializer(BaseDeserializer):
         return parsed_schema, ref_registry
 
     def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+        with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        with self._validators_lock:
+            self._validators[schema] = validator
         return validator

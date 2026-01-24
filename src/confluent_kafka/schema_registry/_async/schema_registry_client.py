@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 import asyncio
+import asyncio as _locks
 import json
 import logging
 import os
@@ -642,6 +643,7 @@ class AsyncSchemaRegistryClient(object):
         self._conf = conf
         self._rest_client = _AsyncRestClient(conf)
         self._cache = _SchemaCache()
+        self._latest_lock = _locks.Lock()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         self._latest_version_cache: Cache[Any, Any]
@@ -1045,7 +1047,8 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._latest_version_cache.get(subject_name, None)
+        async with self._latest_lock:
+            registered_schema = self._latest_version_cache.get(subject_name, None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1056,7 +1059,8 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_version_cache[subject_name] = registered_schema
+        async with self._latest_lock:
+            self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1080,7 +1084,8 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
 
         cache_key = (subject_name, frozenset(metadata.items()), deleted)
-        registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
+        async with self._latest_lock:
+            registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1096,7 +1101,8 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_with_metadata_cache[cache_key] = registered_schema
+        async with self._latest_lock:
+            self._latest_with_metadata_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1548,13 +1554,15 @@ class AsyncSchemaRegistryClient(object):
         result = await self._rest_client.get('contexts', query={'offset': offset, 'limit': limit})
         return result
 
-    def clear_latest_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+    async def clear_latest_caches(self):
+        async with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
 
-    def clear_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+    async def clear_caches(self):
+        async with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
         self._cache.clear()
 
     @staticmethod
