@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio as _locks
 import io
 import logging
 from typing import Any, Callable, Coroutine, Optional, Tuple, Union, cast
@@ -214,6 +215,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         '_to_dict',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_encode',
     ]
@@ -255,6 +257,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError(
@@ -404,7 +407,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         if self._validate and schema is not None and parsed_schema is not None and ref_registry is not None:
             try:
-                validator = self._get_validator(schema, parsed_schema, ref_registry)
+                validator = await self._get_validator(schema, parsed_schema, ref_registry)
                 validator.validate(value)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
@@ -441,16 +444,18 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
 
-    def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+    async def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
+        async with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        async with self._validators_lock:
+            self._validators[schema] = validator
         return validator
 
 
@@ -518,6 +523,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         '_schema',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_decode',
     ]
@@ -562,6 +568,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
         self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
@@ -708,7 +715,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if self._validate:
             if reader_schema_raw is not None and reader_schema is not None and reader_ref_registry is not None:
                 try:
-                    validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
+                    validator = await self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
                     validator.validate(obj_dict)
                 except ValidationError as ve:
                     raise SerializationError(ve.message)
@@ -745,14 +752,16 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
 
-    def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+    async def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
+        async with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        async with self._validators_lock:
+            self._validators[schema] = validator
         return validator
