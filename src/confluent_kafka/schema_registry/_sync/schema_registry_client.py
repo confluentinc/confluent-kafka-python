@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import threading as _locks
 import json
 import logging
 import os
@@ -38,8 +39,8 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     SchemaVersion,
     ServerConfig,
     _BearerFieldProvider,
-    _SchemaCache,
     _StaticFieldProvider,
+    _SchemaCache,
     full_jitter,
     is_retriable,
     is_success,
@@ -441,7 +442,9 @@ class _RestClient(_BaseRestClient):
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None) -> Any:
+    def send_request(
+        self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None
+    ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry, trying each base URL in turn.
 
@@ -640,6 +643,7 @@ class SchemaRegistryClient(object):
         self._conf = conf
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
+        self._latest_lock = _locks.Lock()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         self._latest_version_cache: Cache[Any, Any]
@@ -945,7 +949,9 @@ class SchemaRegistryClient(object):
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
-        response = self._rest_client.post('subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request)
+        response = self._rest_client.post(
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request
+        )
 
         result = RegisteredSchema.from_dict(response)
 
@@ -1041,16 +1047,20 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._latest_version_cache.get(subject_name, None)
+        with self._latest_lock:
+            registered_schema = self._latest_version_cache.get(subject_name, None)
         if registered_schema is not None:
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_version_cache[subject_name] = registered_schema
+        with self._latest_lock:
+            self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1074,7 +1084,8 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         cache_key = (subject_name, frozenset(metadata.items()), deleted)
-        registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
+        with self._latest_lock:
+            registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1090,7 +1101,8 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_with_metadata_cache[cache_key] = registered_schema
+        with self._latest_lock:
+            self._latest_with_metadata_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1126,7 +1138,9 @@ class SchemaRegistryClient(object):
                 return registered_schema
 
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1213,7 +1227,9 @@ class SchemaRegistryClient(object):
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
         else:
-            response = self._rest_client.delete('subjects/{}/versions/{}'.format(_urlencode(subject_name), version))
+            response = self._rest_client.delete(
+                'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
+            )
 
         # Clear cache for both soft and hard deletes to maintain consistency
         self._cache.remove_by_subject_version(subject_name, version)
@@ -1341,7 +1357,9 @@ class SchemaRegistryClient(object):
         )
         return response['is_compatible']
 
-    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
+    def set_config(
+        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None
+    ) -> 'ServerConfig':
         """
         Update global or subject config.
 
@@ -1537,12 +1555,14 @@ class SchemaRegistryClient(object):
         return result
 
     def clear_latest_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+        with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
 
     def clear_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+        with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
         self._cache.clear()
 
     @staticmethod
