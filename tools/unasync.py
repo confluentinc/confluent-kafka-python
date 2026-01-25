@@ -33,7 +33,9 @@ TYPE_HINT_SUBS = [
 SUBS = [
     ('from confluent_kafka.schema_registry.common import asyncinit', ''),
     ('@asyncinit', ''),
+    ('import asyncio as _locks', 'import threading as _locks'),
     ('import asyncio', ''),
+    ('async with self.', 'with self.'),
     ('asyncio.sleep', 'time.sleep'),
     ('._async.', '._sync.'),
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),

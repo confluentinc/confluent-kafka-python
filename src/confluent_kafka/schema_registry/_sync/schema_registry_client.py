@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import ssl
+import threading as _locks
 import time
 import urllib
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
@@ -640,6 +641,7 @@ class SchemaRegistryClient(object):
         self._conf = conf
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
+        self._latest_lock = _locks.Lock()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         self._latest_version_cache: Cache[Any, Any]
@@ -1041,7 +1043,8 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._latest_version_cache.get(subject_name, None)
+        with self._latest_lock:
+            registered_schema = self._latest_version_cache.get(subject_name, None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1050,7 +1053,8 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_version_cache[subject_name] = registered_schema
+        with self._latest_lock:
+            self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1074,7 +1078,8 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         cache_key = (subject_name, frozenset(metadata.items()), deleted)
-        registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
+        with self._latest_lock:
+            registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1090,7 +1095,8 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._latest_with_metadata_cache[cache_key] = registered_schema
+        with self._latest_lock:
+            self._latest_with_metadata_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1537,12 +1543,14 @@ class SchemaRegistryClient(object):
         return result
 
     def clear_latest_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+        with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
 
     def clear_caches(self):
-        self._latest_version_cache.clear()
-        self._latest_with_metadata_cache.clear()
+        with self._latest_lock:
+            self._latest_version_cache.clear()
+            self._latest_with_metadata_cache.clear()
         self._cache.clear()
 
     @staticmethod

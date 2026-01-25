@@ -16,6 +16,7 @@
 # limitations under the License.
 import io
 import logging
+import threading as _locks
 from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import orjson
@@ -212,6 +213,7 @@ class JSONSerializer(BaseSerializer):
         '_to_dict',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_encode',
     ]
@@ -253,6 +255,7 @@ class JSONSerializer(BaseSerializer):
         self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError(
@@ -440,15 +443,17 @@ class JSONSerializer(BaseSerializer):
         return parsed_schema, ref_registry
 
     def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+        with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        with self._validators_lock:
+            self._validators[schema] = validator
         return validator
 
 
@@ -515,6 +520,7 @@ class JSONDeserializer(BaseDeserializer):
         '_schema',
         '_parsed_schemas',
         '_validators',
+        '_validators_lock',
         '_validate',
         '_json_decode',
     ]
@@ -559,6 +565,7 @@ class JSONDeserializer(BaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
+        self._validators_lock = _locks.Lock()
         self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
@@ -741,13 +748,15 @@ class JSONDeserializer(BaseDeserializer):
         return parsed_schema, ref_registry
 
     def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
-        validator = self._validators.get(schema, None)
-        if validator is not None:
-            return validator
+        with self._validators_lock:
+            validator = self._validators.get(schema, None)
+            if validator is not None:
+                return validator
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
         validator = cls(parsed_schema, registry=registry)
 
-        self._validators[schema] = validator
+        with self._validators_lock:
+            self._validators[schema] = validator
         return validator
