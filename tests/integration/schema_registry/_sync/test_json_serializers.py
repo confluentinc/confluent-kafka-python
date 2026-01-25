@@ -19,7 +19,7 @@ import pytest
 
 from confluent_kafka import TopicPartition
 from confluent_kafka.error import ConsumeError, ValueSerializationError
-from confluent_kafka.schema_registry import SchemaRegistryClient, Schema, SchemaReference
+from confluent_kafka.schema_registry import Schema, SchemaReference, SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
 
 
