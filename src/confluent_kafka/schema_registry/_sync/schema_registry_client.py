@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
+import threading as _locks
 import json
 import logging
 import os
 import ssl
-import threading as _locks
 import time
 import urllib
 from typing import Any, Callable, Dict, List, Literal, Optional, Union

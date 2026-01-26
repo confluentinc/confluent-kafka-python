@@ -76,13 +76,7 @@ class AsyncAssociatedNameStrategy:
 
     def __init__(self, cache_capacity: int = DEFAULT_CACHE_CAPACITY):
         self._cache: LRUCache = LRUCache(maxsize=cache_capacity)
-        self._lock: Optional[_locks.Lock] = None
-
-    def _get_lock(self) -> _locks.Lock:
-        """Get or create the lock for the cache."""
-        if self._lock is None:
-            self._lock = _locks.Lock()
-        return self._lock
+        self._lock: _locks.Lock = _locks.Lock()
 
     def _get_cache_key(
         self, topic: str, is_key: bool, record_name: Optional[str]
@@ -211,10 +205,8 @@ class AsyncAssociatedNameStrategy:
         is_key = ctx.field == MessageField.KEY
         cache_key = self._get_cache_key(topic, is_key, record_name)
 
-        lock = self._get_lock()
-
         # Check cache first
-        async with lock:
+        async with self._lock:
             cached_result = self._cache.get(cache_key)
             if cached_result is not None:
                 return cached_result
@@ -224,15 +216,14 @@ class AsyncAssociatedNameStrategy:
 
         # Cache the result
         if result is not None:
-            async with lock:
+            async with self._lock:
                 self._cache[cache_key] = result
 
         return result
 
     async def clear_cache(self) -> None:
         """Clear the association subject name cache."""
-        lock = self._get_lock()
-        async with lock:
+        async with self._lock:
             self._cache.clear()
 
 
