@@ -108,7 +108,10 @@ class AssociatedNameStrategy:
             kafka_cluster_id = conf.get(KAFKA_CLUSTER_ID)
             fallback_config = conf.get(FALLBACK_SUBJECT_NAME_STRATEGY_TYPE)
             if fallback_config is not None:
-                fallback_type = str(fallback_config).upper()
+                if isinstance(fallback_config, SubjectNameStrategyType):
+                    fallback_type = fallback_config.value
+                else:
+                    fallback_type = str(fallback_config).upper()
 
         resource_namespace = kafka_cluster_id if kafka_cluster_id is not None else NAMESPACE_WILDCARD
 
