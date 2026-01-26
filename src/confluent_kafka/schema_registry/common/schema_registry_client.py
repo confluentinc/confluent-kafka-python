@@ -47,6 +47,7 @@ __all__ = [
     'ServerConfig',
     'Schema',
     'RegisteredSchema',
+    'Association',
 ]
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
@@ -1025,3 +1026,65 @@ class RegisteredSchema:
         )
 
         return schema  # type: ignore[return-value]
+
+
+@_attrs_define(frozen=True)
+class Association:
+    """
+    An association between a subject and a resource.
+    """
+
+    subject: Optional[str]
+    guid: Optional[str]
+    resource_name: Optional[str]
+    resource_namespace: Optional[str]
+    resource_id: Optional[str]
+    resource_type: Optional[str]
+    association_type: Optional[str]
+    frozen: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.subject is not None:
+            field_dict["subject"] = self.subject
+        if self.guid is not None:
+            field_dict["guid"] = self.guid
+        if self.resource_name is not None:
+            field_dict["resourceName"] = self.resource_name
+        if self.resource_namespace is not None:
+            field_dict["resourceNamespace"] = self.resource_namespace
+        if self.resource_id is not None:
+            field_dict["resourceId"] = self.resource_id
+        if self.resource_type is not None:
+            field_dict["resourceType"] = self.resource_type
+        if self.association_type is not None:
+            field_dict["associationType"] = self.association_type
+        field_dict["frozen"] = self.frozen
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        subject = d.pop("subject", None)
+        guid = d.pop("guid", None)
+        resource_name = d.pop("resourceName", None)
+        resource_namespace = d.pop("resourceNamespace", None)
+        resource_id = d.pop("resourceId", None)
+        resource_type = d.pop("resourceType", None)
+        association_type = d.pop("associationType", None)
+        frozen = d.pop("frozen", False)
+
+        association = cls(  # type: ignore[call-arg]
+            subject=subject,
+            guid=guid,
+            resource_name=resource_name,
+            resource_namespace=resource_namespace,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            association_type=association_type,
+            frozen=frozen,
+        )
+
+        return association

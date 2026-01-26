@@ -34,13 +34,14 @@ from httpx import Response
 
 from confluent_kafka import version
 from confluent_kafka.schema_registry.common.schema_registry_client import (
+    Association,
     RegisteredSchema,
     Schema,
     SchemaVersion,
     ServerConfig,
     _BearerFieldProvider,
-    _SchemaCache,
     _StaticFieldProvider,
+    _SchemaCache,
     full_jitter,
     is_retriable,
     is_success,
@@ -442,7 +443,9 @@ class _RestClient(_BaseRestClient):
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None) -> Any:
+    def send_request(
+        self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None
+    ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry, trying each base URL in turn.
 
@@ -947,7 +950,9 @@ class SchemaRegistryClient(object):
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
-        response = self._rest_client.post('subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request)
+        response = self._rest_client.post(
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request
+        )
 
         result = RegisteredSchema.from_dict(response)
 
@@ -1049,7 +1054,9 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1132,7 +1139,9 @@ class SchemaRegistryClient(object):
                 return registered_schema
 
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1219,7 +1228,9 @@ class SchemaRegistryClient(object):
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
         else:
-            response = self._rest_client.delete('subjects/{}/versions/{}'.format(_urlencode(subject_name), version))
+            response = self._rest_client.delete(
+                'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
+            )
 
         # Clear cache for both soft and hard deletes to maintain consistency
         self._cache.remove_by_subject_version(subject_name, version)
@@ -1347,7 +1358,9 @@ class SchemaRegistryClient(object):
         )
         return response['is_compatible']
 
-    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
+    def set_config(
+        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None
+    ) -> 'ServerConfig':
         """
         Update global or subject config.
 
@@ -1552,6 +1565,54 @@ class SchemaRegistryClient(object):
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
+
+    def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        offset: int = 0,
+        limit: int = -1
+    ) -> List['Association']:
+        """
+        Retrieves associations for a given resource name and namespace.
+
+        Args:
+            resource_name (str): The name of the resource (e.g., topic name).
+            resource_namespace (str): The namespace of the resource (e.g., kafka cluster ID).
+                Use "-" as a wildcard.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to filter by
+                (e.g., ["key", "value"]).
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[Association]: List of associations matching the criteria.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+        if offset > 0:
+            query['offset'] = offset
+        if limit >= 1:
+            query['limit'] = limit
+
+        response = self._rest_client.get(
+            'associations/resources/{}/{}'.format(
+                _urlencode(resource_namespace),
+                _urlencode(resource_name)
+            ),
+            query
+        )
+
+        return [Association.from_dict(a) for a in response]
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':

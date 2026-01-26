@@ -23,11 +23,17 @@ import pytest
 from fastavro._logical_readers import UUID
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     Metadata,
     MetadataProperties,
     Schema,
-    SchemaRegistryClient,
     header_schema_id_serializer,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import Association
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
+from confluent_kafka.schema_registry._sync.serde import (
+    KAFKA_CLUSTER_ID,
+    FALLBACK_SUBJECT_NAME_STRATEGY_TYPE,
 )
 from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
@@ -2658,3 +2664,393 @@ class AwardedUser(object):
 
     def __eq__(self, other):
         return all([self.award == other.award, self.user == other.user])
+
+
+def test_associated_name_strategy_with_association():
+    """Test that AssociatedNameStrategy returns subject from association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'stringField', 'type': 'string'},
+        ],
+    }
+    obj = {'intField': 123, 'stringField': 'hello'}
+
+    # Add an association for the custom subject
+    association = Association(
+        subject="my-custom-subject-value",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id=None,
+        resource_type="topic",
+        association_type="value",
+        frozen=False,
+    )
+    client.add_association(association)
+
+    # Create serializer with associated name strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the custom subject
+    registered_schema = client.get_latest_version("my-custom-subject-value")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_with_key_association():
+    """Test that AssociatedNameStrategy returns subject for key"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'KeyRecord',
+        'fields': [
+            {'name': 'id', 'type': 'int'},
+        ],
+    }
+    obj = {'id': 42}
+
+    # Add an association for key
+    association = Association(
+        subject="my-key-subject",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id=None,
+        resource_type="topic",
+        association_type="key",
+        frozen=False,
+    )
+    client.add_association(association)
+
+    # Create serializer with associated name strategy for KEY
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.KEY)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the key subject
+    registered_schema = client.get_latest_version("my-key-subject")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_to_topic():
+    """Test fallback to topic_subject_name_strategy when no association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'stringField', 'type': 'string'},
+        ],
+    }
+    obj = {'intField': 456, 'stringField': 'world'}
+
+    # No associations added, should fall back to topic strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Default fallback is topic_subject_name_strategy which returns topic-value
+    registered_schema = client.get_latest_version(_TOPIC + "-value")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_to_record():
+    """Test fallback to record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema with a specific record name
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'value', 'type': 'string'},
+        ],
+    }
+    obj = {'value': 'test'}
+
+    # No associations, configure fallback to RECORD
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.RECORD},
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Should have registered under the record name
+    registered_schema = client.get_latest_version("MyRecord")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_to_topic_record():
+    """Test fallback to topic_record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema with a specific record name
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'data', 'type': 'int'},
+        ],
+    }
+    obj = {'data': 789}
+
+    # No associations, configure fallback to TOPIC_RECORD
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Should have registered under topic-record_name
+    registered_schema = client.get_latest_version(_TOPIC + "-MyRecord")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_none_raises():
+    """Test that NONE fallback raises an error when no association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'value', 'type': 'string'},
+        ],
+    }
+    obj = {'value': 'test'}
+
+    # No associations, configure fallback to NONE
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: "NONE"},
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        ser(obj, ser_ctx)
+
+    assert "No associated subject found" in str(exc_info.value)
+
+
+def test_associated_name_strategy_multiple_associations_raises():
+    """Test that multiple associations raise an error"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'value', 'type': 'string'},
+        ],
+    }
+    obj = {'value': 'test'}
+
+    # Add multiple associations for the same topic/value
+    association1 = Association(
+        subject="subject1",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id=None,
+        resource_type="topic",
+        association_type="value",
+        frozen=False,
+    )
+    association2 = Association(
+        subject="subject2",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id=None,
+        resource_type="topic",
+        association_type="value",
+        frozen=False,
+    )
+    client.add_association(association1)
+    client.add_association(association2)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        ser(obj, ser_ctx)
+
+    assert "Multiple associated subjects found" in str(exc_info.value)
+
+
+def test_associated_name_strategy_with_kafka_cluster_id():
+    """Test that kafka.cluster.id config is used as resource namespace"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+        ],
+    }
+    obj = {'intField': 100}
+
+    # Add an association with specific namespace
+    association = Association(
+        subject="cluster-specific-subject",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="my-cluster-id",
+        resource_id=None,
+        resource_type="topic",
+        association_type="value",
+        frozen=False,
+    )
+    client.add_association(association)
+
+    # Create serializer with matching cluster ID
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {KAFKA_CLUSTER_ID: "my-cluster-id"},
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the cluster-specific subject
+    registered_schema = client.get_latest_version("cluster-specific-subject")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_caching():
+    """Test that results are cached within a strategy instance and serializer works with caching"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'CacheTestRecord',
+        'fields': [
+            {'name': 'count', 'type': 'int'},
+        ],
+    }
+
+    # Add an association
+    association = Association(
+        subject="cached-subject",
+        guid=None,
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id=None,
+        resource_type="topic",
+        association_type="value",
+        frozen=False,
+    )
+    client.add_association(association)
+
+    # Create serializer with associated name strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # First serialization
+    obj1 = {'count': 1}
+    obj_bytes1 = ser(obj1, ser_ctx)
+
+    # Verify it was registered under cached-subject
+    registered_schema = client.get_latest_version("cached-subject")
+    assert registered_schema is not None
+
+    # Deserialize first message
+    deser = AvroDeserializer(client)
+    result1 = deser(obj_bytes1, ser_ctx)
+    assert obj1 == result1
+
+    # Clear associations (but serializer should still work due to caching)
+    client.clear_associations()
+
+    # Second serialization should still work (schema already registered)
+    obj2 = {'count': 2}
+    obj_bytes2 = ser(obj2, ser_ctx)
+
+    # Deserialize second message
+    result2 = deser(obj_bytes2, ser_ctx)
+    assert obj2 == result2

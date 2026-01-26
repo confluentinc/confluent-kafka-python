@@ -20,7 +20,7 @@ from collections import defaultdict
 from threading import Lock
 from typing import Dict, List, Literal, Optional, Union
 
-from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
+from ..common.schema_registry_client import Association, RegisteredSchema, Schema, ServerConfig
 from ..error import SchemaRegistryError
 from .schema_registry_client import SchemaRegistryClient
 
@@ -142,11 +142,53 @@ class _SchemaStore(object):
             self.subject_schemas.clear()
 
 
+class _AssociationStore(object):
+
+    def __init__(self):
+        self.lock = Lock()
+        # Key: (resource_namespace, resource_name, association_type) -> Association
+        self.associations: Dict[tuple, List[Association]] = defaultdict(list)
+
+    def add_association(self, association: Association) -> None:
+        with self.lock:
+            key = (association.resource_namespace, association.resource_name, association.association_type)
+            self.associations[key].append(association)
+
+    def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None
+    ) -> List[Association]:
+        with self.lock:
+            result = []
+            for key, associations in self.associations.items():
+                ns, name, assoc_type = key
+                # Check if namespace matches (or is wildcard)
+                if resource_namespace != "-" and ns != resource_namespace:
+                    continue
+                if name != resource_name:
+                    continue
+                for assoc in associations:
+                    if resource_type is not None and assoc.resource_type != resource_type:
+                        continue
+                    if association_types is not None and assoc.association_type not in association_types:
+                        continue
+                    result.append(assoc)
+            return result
+
+    def clear(self):
+        with self.lock:
+            self.associations.clear()
+
+
 class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def __init__(self, conf: dict):
         super().__init__(conf)
         self._store = _SchemaStore()
+        self._association_store = _AssociationStore()
 
     def register_schema(self, subject_name: str, schema: 'Schema', normalize_schemas: bool = False) -> int:
         registered_schema = self.register_schema_full_response(
@@ -300,3 +342,24 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':  # noqa F821
         return None  # type: ignore[return-value]
+
+    def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        offset: int = 0,
+        limit: int = -1
+    ) -> List['Association']:
+        return self._association_store.get_associations_by_resource_name(
+            resource_name, resource_namespace, resource_type, association_types
+        )
+
+    def add_association(self, association: 'Association') -> None:
+        """Helper method to add associations for testing."""
+        self._association_store.add_association(association)
+
+    def clear_associations(self) -> None:
+        """Helper method to clear all associations for testing."""
+        self._association_store.clear()

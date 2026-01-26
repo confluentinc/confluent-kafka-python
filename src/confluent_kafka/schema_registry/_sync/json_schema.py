@@ -27,13 +27,13 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import (
+    SchemaRegistryClient,
     RuleMode,
     Schema,
-    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
-    topic_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC,
     JSON_TYPE,
@@ -87,6 +87,7 @@ def _resolve_named_schema(
     return ref_registry
 
 
+
 class JSONSerializer(BaseSerializer):
     """
     Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
@@ -132,14 +133,28 @@ class JSONSerializer(BaseSerializer):
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | The type of subject name strategy to use.          |
+    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to TOPIC if neither this nor              |
+    |                             |          | subject.name.strategy is specified.                |
+    +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Configuration dictionary passed to strategies      |
+    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to None.                                  |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Callable(SerializationContext, str) -> str         |
     |                             |          |                                                    |
     | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
     |                             |          | constructed. Standard naming strategies are        |
     |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
+    |                             |          | namespace. Takes precedence over                   |
+    |                             |          | subject.name.strategy.type if both are set.        |
     |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
+    |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
@@ -224,7 +239,9 @@ class JSONSerializer(BaseSerializer):
         'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate': True,
     }
@@ -290,12 +307,11 @@ class JSONSerializer(BaseSerializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -352,7 +368,11 @@ class JSONSerializer(BaseSerializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
+        subject = (
+            self._subject_name_func(ctx, self._schema_name, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, self._schema_name)
+        )
         latest_schema = self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
@@ -457,6 +477,7 @@ class JSONSerializer(BaseSerializer):
         return validator
 
 
+
 class JSONDeserializer(BaseDeserializer):
     """
     Deserializer for JSON encoded data with Confluent Schema Registry
@@ -478,14 +499,28 @@ class JSONDeserializer(BaseDeserializer):
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | The type of subject name strategy to use.          |
+    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to TOPIC if neither this nor              |
+    |                             |          | subject.name.strategy is specified.                |
+    +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Configuration dictionary passed to strategies      |
+    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as     |
+    |                             |          | ASSOCIATED.                                        |
+    |                             |          |                                                    |
+    |                             |          | Defaults to None.                                  |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Callable(SerializationContext, str) -> str         |
     |                             |          |                                                    |
     | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
     |                             |          | constructed. Standard naming strategies are        |
     |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
+    |                             |          | namespace. Takes precedence over                   |
+    |                             |          | subject.name.strategy.type if both are set.        |
     |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
+    |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
@@ -528,7 +563,9 @@ class JSONDeserializer(BaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'validate': True,
     }
@@ -581,12 +618,11 @@ class JSONDeserializer(BaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -618,7 +654,9 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -642,7 +680,11 @@ class JSONDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject)
@@ -655,7 +697,12 @@ class JSONDeserializer(BaseDeserializer):
             writer_schema_raw = self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
-                subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                subject = (
+                    self._subject_name_func(
+                        ctx, writer_schema.get("title"), self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
+                    else self._subject_name_func(ctx, writer_schema.get("title"))
+                )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject)
         else:
