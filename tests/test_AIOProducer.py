@@ -81,6 +81,18 @@ class TestAIOProducer:
         assert producer2._is_closed is True
 
     @pytest.mark.asyncio
+    async def test_async_context_manager(self, mock_producer, mock_common, basic_config):
+        with AIOProducer(basic_config) as producer:
+            assert producer._is_closed is False
+        assert producer._is_closed is True
+
+        with AIOProducer(basic_config) as producer2:
+            assert producer2._is_closed is False
+            await producer2.close()
+        await producer2.close()
+        assert producer2._is_closed is True
+
+    @pytest.mark.asyncio
     async def test_call_method_executor_usage(self, mock_producer, mock_common, basic_config):
         producer = AIOProducer(basic_config)
 
