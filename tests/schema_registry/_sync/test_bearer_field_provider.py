@@ -275,9 +275,15 @@ def test_static_token_comma_separated_pools():
 
 def test_static_field_provider_optional_pool():
     """Test that _StaticFieldProvider works with optional identity pool."""
-    static_field_provider = _StaticFieldProvider(TEST_TOKEN, TEST_CLUSTER, None)
-    bearer_fields = static_field_provider.get_bearer_fields()
+    from confluent_kafka.schema_registry.common.schema_registry_client import _StaticFieldProvider
+    
 
-    assert bearer_fields['bearer.auth.token'] == TEST_TOKEN
-    assert bearer_fields['bearer.auth.logical.cluster'] == TEST_CLUSTER
-    assert 'bearer.auth.identity.pool.id' not in bearer_fields
+    def check_provider():
+        static_field_provider = _StaticFieldProvider(TEST_TOKEN, TEST_CLUSTER, None)
+        bearer_fields = static_field_provider.get_bearer_fields()
+
+        assert bearer_fields['bearer.auth.token'] == TEST_TOKEN
+        assert bearer_fields['bearer.auth.logical.cluster'] == TEST_CLUSTER
+        assert 'bearer.auth.identity.pool.id' not in bearer_fields
+
+    check_provider()
