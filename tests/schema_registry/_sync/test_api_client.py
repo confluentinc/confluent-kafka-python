@@ -22,7 +22,7 @@ import pytest
 
 from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
-from confluent_kafka.schema_registry.schema_registry_client import Schema, SchemaRegistryClient
+from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient, Schema
 from tests.schema_registry.conftest import COUNTER, SCHEMA, SCHEMA_ID, SUBJECTS, USERINFO, VERSION, VERSIONS
 
 """
@@ -459,7 +459,9 @@ def test_schema_equivilence(load_avsc):
         ('test-key', 1, True),
     ],
 )
-def test_test_compatibility_no_error(mock_schema_registry, load_avsc, subject_name, version, expected_compatibility):
+def test_test_compatibility_no_error(
+    mock_schema_registry, load_avsc, subject_name, version, expected_compatibility
+):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
