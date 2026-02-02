@@ -86,7 +86,7 @@ def test_get_token():
 
 
 def test_generate_token_retry_logic():
-    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 5, 1000, 20000)
+    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, 5, 1000, 20000, TEST_POOL)
 
     with (
         patch("confluent_kafka.schema_registry._sync.schema_registry_client.time.sleep") as mock_sleep,
