@@ -51,7 +51,7 @@ TEST_URL = 'http://SchemaRegistry:65534'
 
 
 def test_expiry():
-    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
+    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, 2, 1000, 20000, TEST_POOL)
     # Use consistent test data: expires_at and expires_in should match
     # Token expires in 2 seconds, with 0.8 threshold, should refresh after 1.6 seconds (when 0.4s remaining)
     oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 2}
@@ -61,7 +61,7 @@ def test_expiry():
 
 
 def test_get_token():
-    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
+    oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, 2, 1000, 20000, TEST_POOL)
 
     def update_token1():
         oauth_client.token = {'expires_at': 0, 'expires_in': 1, 'access_token': '123'}
@@ -158,3 +158,126 @@ def test_bearer_field_headers_valid():
     assert headers['Authorization'] == "Bearer {}".format(TEST_CONFIG['bearer.auth.token'])
     assert headers['Confluent-Identity-Pool-Id'] == TEST_CONFIG['bearer.auth.identity.pool.id']
     assert headers['target-sr-cluster'] == TEST_CONFIG['bearer.auth.logical.cluster']
+
+
+def test_bearer_field_headers_optional_identity_pool():
+    """Test that identity pool is optional and header is omitted when not provided."""
+
+    def custom_oauth_no_pool(config: dict) -> dict:
+        return {
+            'bearer.auth.token': TEST_TOKEN,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            # bearer.auth.identity.pool.id is intentionally omitted
+        }
+
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'CUSTOM',
+        'bearer.auth.custom.provider.function': custom_oauth_no_pool,
+        'bearer.auth.custom.provider.config': {},
+    }
+
+    client = SchemaRegistryClient(conf)
+
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
+
+    client._rest_client.handle_bearer_auth(headers)
+
+    assert 'Authorization' in headers
+    assert 'target-sr-cluster' in headers
+    assert headers['Authorization'] == "Bearer {}".format(TEST_TOKEN)
+    assert headers['target-sr-cluster'] == TEST_CLUSTER
+    # Confluent-Identity-Pool-Id should NOT be present when identity pool is omitted
+    assert 'Confluent-Identity-Pool-Id' not in headers
+
+
+def test_bearer_field_headers_comma_separated_pools():
+    """Test that comma-separated pool IDs are passed through as-is in the header."""
+    comma_separated_pools = 'pool-1,pool-2,pool-3'
+
+    def custom_oauth_multi_pool(config: dict) -> dict:
+        return {
+            'bearer.auth.token': TEST_TOKEN,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': comma_separated_pools,
+        }
+
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'CUSTOM',
+        'bearer.auth.custom.provider.function': custom_oauth_multi_pool,
+        'bearer.auth.custom.provider.config': {},
+    }
+
+    client = SchemaRegistryClient(conf)
+
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
+
+    client._rest_client.handle_bearer_auth(headers)
+
+    assert 'Authorization' in headers
+    assert 'Confluent-Identity-Pool-Id' in headers
+    assert 'target-sr-cluster' in headers
+    # Verify comma-separated value is passed through unchanged
+    assert headers['Confluent-Identity-Pool-Id'] == comma_separated_pools
+
+
+def test_static_token_optional_identity_pool():
+    """Test that STATIC_TOKEN credential source works without identity pool."""
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'STATIC_TOKEN',
+        'bearer.auth.token': TEST_TOKEN,
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+        # bearer.auth.identity.pool.id is intentionally omitted
+    }
+
+    client = SchemaRegistryClient(conf)
+
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
+
+    client._rest_client.handle_bearer_auth(headers)
+
+    assert 'Authorization' in headers
+    assert 'target-sr-cluster' in headers
+    assert 'Confluent-Identity-Pool-Id' not in headers
+
+
+def test_static_token_comma_separated_pools():
+    """Test that STATIC_TOKEN credential source supports comma-separated pool IDs."""
+    comma_separated_pools = 'pool-abc,pool-def,pool-ghi'
+
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'STATIC_TOKEN',
+        'bearer.auth.token': TEST_TOKEN,
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+        'bearer.auth.identity.pool.id': comma_separated_pools,
+    }
+
+    client = SchemaRegistryClient(conf)
+
+    headers = {
+        'Accept': "application/vnd.schemaregistry.v1+json," " application/vnd.schemaregistry+json," " application/json"
+    }
+
+    client._rest_client.handle_bearer_auth(headers)
+
+    assert 'Confluent-Identity-Pool-Id' in headers
+    assert headers['Confluent-Identity-Pool-Id'] == comma_separated_pools
+
+
+def test_static_field_provider_optional_pool():
+    """Test that _StaticFieldProvider works with optional identity pool."""
+    static_field_provider = _StaticFieldProvider(TEST_TOKEN, TEST_CLUSTER, None)
+    bearer_fields = static_field_provider.get_bearer_fields()
+
+    assert bearer_fields['bearer.auth.token'] == TEST_TOKEN
+    assert bearer_fields['bearer.auth.logical.cluster'] == TEST_CLUSTER
+    assert 'bearer.auth.identity.pool.id' not in bearer_fields
