@@ -433,8 +433,6 @@ class _RestClient(_BaseRestClient):
         headers["Authorization"] = "Bearer {}".format(bearer_fields['bearer.auth.token'])
         headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
 
-        # Identity pool may be a single pool ID or comma-separated list of pool IDs.
-        # Pass the value as-is to the server; it handles union-of-pools semantics.
         if 'bearer.auth.identity.pool.id' in bearer_fields:
             headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
 
