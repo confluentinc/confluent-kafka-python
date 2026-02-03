@@ -44,6 +44,7 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     full_jitter,
     is_retriable,
     is_success,
+    normalize_identity_pool,
 )
 from confluent_kafka.schema_registry.error import OAuthTokenError, SchemaRegistryError
 
@@ -286,17 +287,13 @@ class _AsyncBaseRestClient(object):
 
             if self.bearer_auth_credentials_source in {'OAUTHBEARER', 'STATIC_TOKEN'}:
                 if 'bearer.auth.logical.cluster' not in conf_copy:
-                    raise ValueError(
-                        "Missing required bearer configuration property: bearer.auth.logical.cluster"
-                    )
+                    raise ValueError("Missing required bearer configuration property: bearer.auth.logical.cluster")
 
                 logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
                 if not isinstance(logical_cluster, str):
                     raise TypeError("logical cluster must be a str, not " + str(type(logical_cluster)))
 
-                identity_pool = conf_copy.pop('bearer.auth.identity.pool.id', None)
-                if identity_pool is not None and not isinstance(identity_pool, str):
-                    raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
+                identity_pool = normalize_identity_pool(conf_copy.pop('bearer.auth.identity.pool.id', None))
 
                 if self.bearer_auth_credentials_source == 'OAUTHBEARER':
                     properties_list = [

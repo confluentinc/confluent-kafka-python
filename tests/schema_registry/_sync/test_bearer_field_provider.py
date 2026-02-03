@@ -275,6 +275,7 @@ def test_static_token_comma_separated_pools():
 
 def test_static_field_provider_optional_pool():
     """Test that _StaticFieldProvider works with optional identity pool."""
+
     from confluent_kafka.schema_registry.common.schema_registry_client import _StaticFieldProvider
 
     def check_provider():
