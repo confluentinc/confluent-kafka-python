@@ -31,6 +31,7 @@ __all__ = [
     'is_success',
     'is_retriable',
     'full_jitter',
+    'normalize_identity_pool',
     '_StaticFieldProvider',
     '_AsyncStaticFieldProvider',
     '_SchemaCache',
@@ -71,33 +72,37 @@ class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
 class _StaticFieldProvider(_BearerFieldProvider):
     """Synchronous static token bearer field provider."""
 
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
         self.token = token
         self.logical_cluster = logical_cluster
         self.identity_pool = identity_pool
 
     def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.token,
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
     """Asynchronous static token bearer field provider."""
 
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
         self.token = token
         self.logical_cluster = logical_cluster
         self.identity_pool = identity_pool
 
     async def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.token,
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 def is_success(status_code: int) -> bool:
@@ -111,6 +116,35 @@ def is_retriable(status_code: int) -> bool:
 def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0**retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
+
+
+def normalize_identity_pool(identity_pool_raw: Any) -> Optional[str]:
+    """
+    Normalize identity pool configuration to a comma-separated string.
+
+    Identity pool can be provided as:
+    - None: Returns None (no identity pool configured)
+    - str: Returns as-is (single pool ID or already comma-separated)
+    - list[str]: Joins with commas (multiple pool IDs)
+
+    Args:
+        identity_pool_raw: The raw identity pool configuration value.
+
+    Returns:
+        A comma-separated string of identity pool IDs, or None.
+
+    Raises:
+        TypeError: If identity_pool_raw is not None, str, or list of strings.
+    """
+    if identity_pool_raw is None:
+        return None
+    if isinstance(identity_pool_raw, str):
+        return identity_pool_raw
+    if isinstance(identity_pool_raw, list):
+        if not all(isinstance(item, str) for item in identity_pool_raw):
+            raise TypeError("All items in identity pool list must be strings")
+        return ",".join(identity_pool_raw)
+    raise TypeError("identity pool id must be a str or list, not " + str(type(identity_pool_raw)))
 
 
 class _SchemaCache(object):
