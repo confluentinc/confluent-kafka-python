@@ -124,7 +124,9 @@ def test_config_auth_userinfo_invalid():
 def test_bearer_config():
     conf = {'url': TEST_URL, 'bearer.auth.credentials.source': "OAUTHBEARER"}
 
-    with pytest.raises(ValueError, match=r"Missing required bearer configuration properties: (.*)"):
+    with pytest.raises(
+        ValueError, match=r"Missing required bearer configuration property: bearer.auth.logical.cluster"
+    ):
         SchemaRegistryClient(conf)
 
 
@@ -148,7 +150,7 @@ def test_oauth_bearer_config_invalid():
         'bearer.auth.identity.pool.id': 1,
     }
 
-    with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
+    with pytest.raises(TypeError, match=r"identity pool id must be a str or list, not (.*)"):
         SchemaRegistryClient(conf)
 
     conf = {
