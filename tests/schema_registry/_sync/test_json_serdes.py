@@ -21,10 +21,10 @@ import json
 import pytest
 
 from confluent_kafka.schema_registry import (
-    SchemaRegistryClient,
     Metadata,
     MetadataProperties,
     Schema,
+    SchemaRegistryClient,
     header_schema_id_serializer,
 )
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer

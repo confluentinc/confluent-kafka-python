@@ -14,9 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import threading as _locks
 import io
 import logging
+import threading as _locks
 from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import orjson
@@ -27,14 +27,13 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import (
-    SchemaRegistryClient,
     RuleMode,
     Schema,
+    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     topic_subject_name_strategy,
 )
-
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC,
     JSON_TYPE,
@@ -86,7 +85,6 @@ def _resolve_named_schema(
                 raise TypeError("Name cannot be None")
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
-
 
 
 class JSONSerializer(BaseSerializer):
@@ -459,7 +457,6 @@ class JSONSerializer(BaseSerializer):
         return validator
 
 
-
 class JSONDeserializer(BaseDeserializer):
     """
     Deserializer for JSON encoded data with Confluent Schema Registry
@@ -621,9 +618,7 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(
-        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
-    ) -> Optional[bytes]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
