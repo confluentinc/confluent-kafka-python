@@ -71,33 +71,37 @@ class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
 class _StaticFieldProvider(_BearerFieldProvider):
     """Synchronous static token bearer field provider."""
 
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
         self.token = token
         self.logical_cluster = logical_cluster
         self.identity_pool = identity_pool
 
     def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.token,
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
     """Asynchronous static token bearer field provider."""
 
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
         self.token = token
         self.logical_cluster = logical_cluster
         self.identity_pool = identity_pool
 
     async def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.token,
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 def is_success(status_code: int) -> bool:
