@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
-import threading as _locks
 import json
 import logging
 import os
 import ssl
+import threading as _locks
 import time
 import urllib
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
@@ -39,8 +39,8 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     SchemaVersion,
     ServerConfig,
     _BearerFieldProvider,
-    _StaticFieldProvider,
     _SchemaCache,
+    _StaticFieldProvider,
     full_jitter,
     is_retriable,
     is_success,
@@ -97,10 +97,10 @@ class _OAuthClient(_BearerFieldProvider):
         scope: str,
         token_endpoint: str,
         logical_cluster: str,
+        identity_pool: str,
         max_retries: int,
         retries_wait_ms: int,
         retries_max_wait_ms: int,
-        identity_pool: Optional[str] = None,
     ):
         self.token = None
         self.logical_cluster = logical_cluster
@@ -113,13 +113,11 @@ class _OAuthClient(_BearerFieldProvider):
         self.token_expiry_threshold = 0.8
 
     def get_bearer_fields(self) -> dict:
-        fields = {
+        return {
             'bearer.auth.token': self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
+            'bearer.auth.identity.pool.id': self.identity_pool,
         }
-        if self.identity_pool is not None:
-            fields['bearer.auth.identity.pool.id'] = self.identity_pool
-        return fields
 
     def token_expired(self) -> bool:
         if self.token is None:
@@ -285,17 +283,19 @@ class _BaseRestClient(object):
             self.auth = None
 
             if self.bearer_auth_credentials_source in {'OAUTHBEARER', 'STATIC_TOKEN'}:
-                if 'bearer.auth.logical.cluster' not in conf_copy:
+                headers = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
+                missing_headers = [header for header in headers if header not in conf_copy]
+                if missing_headers:
                     raise ValueError(
-                        "Missing required bearer configuration property: bearer.auth.logical.cluster"
+                        "Missing required bearer configuration properties: {}".format(", ".join(missing_headers))
                     )
 
                 logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
                 if not isinstance(logical_cluster, str):
                     raise TypeError("logical cluster must be a str, not " + str(type(logical_cluster)))
 
-                identity_pool = conf_copy.pop('bearer.auth.identity.pool.id', None)
-                if identity_pool is not None and not isinstance(identity_pool, str):
+                identity_pool = conf_copy.pop('bearer.auth.identity.pool.id')
+                if not isinstance(identity_pool, str):
                     raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
 
                 if self.bearer_auth_credentials_source == 'OAUTHBEARER':
@@ -335,10 +335,10 @@ class _BaseRestClient(object):
                         self.scope,
                         self.token_endpoint,
                         logical_cluster,
+                        identity_pool,
                         self.max_retries,
                         self.retries_wait_ms,
                         self.retries_max_wait_ms,
-                        identity_pool,
                     )
                 else:  # STATIC_TOKEN
                     if 'bearer.auth.token' not in conf_copy:
@@ -412,8 +412,7 @@ class _RestClient(_BaseRestClient):
         if self.bearer_field_provider is None:
             raise ValueError("Bearer field provider is not set")
         bearer_fields = self.bearer_field_provider.get_bearer_fields()
-        # Note: bearer.auth.identity.pool.id is optional; only token and logical.cluster are required
-        required_fields = ['bearer.auth.token', 'bearer.auth.logical.cluster']
+        required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
 
         missing_fields = []
         for field in required_fields:
@@ -428,10 +427,8 @@ class _RestClient(_BaseRestClient):
             )
 
         headers["Authorization"] = "Bearer {}".format(bearer_fields['bearer.auth.token'])
+        headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
         headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
-
-        if 'bearer.auth.identity.pool.id' in bearer_fields:
-            headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
 
     def get(self, url: str, query: Optional[dict] = None) -> Any:
         return self.send_request(url, method='GET', query=query)
@@ -445,9 +442,7 @@ class _RestClient(_BaseRestClient):
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(
-        self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None
-    ) -> Any:
+    def send_request(self, url: str, method: str, body: Optional[dict] = None, query: Optional[dict] = None) -> Any:
         """
         Sends HTTP request to the SchemaRegistry, trying each base URL in turn.
 
@@ -952,9 +947,7 @@ class SchemaRegistryClient(object):
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
-        response = self._rest_client.post(
-            'subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request
-        )
+        response = self._rest_client.post('subjects/{}?{}'.format(_urlencode(subject_name), query_string), body=request)
 
         result = RegisteredSchema.from_dict(response)
 
@@ -1056,9 +1049,7 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get(
-            'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
-        )
+        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1141,9 +1132,7 @@ class SchemaRegistryClient(object):
                 return registered_schema
 
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get(
-            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
-        )
+        response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -1230,9 +1219,7 @@ class SchemaRegistryClient(object):
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
         else:
-            response = self._rest_client.delete(
-                'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
-            )
+            response = self._rest_client.delete('subjects/{}/versions/{}'.format(_urlencode(subject_name), version))
 
         # Clear cache for both soft and hard deletes to maintain consistency
         self._cache.remove_by_subject_version(subject_name, version)
@@ -1360,9 +1347,7 @@ class SchemaRegistryClient(object):
         )
         return response['is_compatible']
 
-    def set_config(
-        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None
-    ) -> 'ServerConfig':
+    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
         """
         Update global or subject config.
 

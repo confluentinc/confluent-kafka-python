@@ -23,10 +23,10 @@ import pytest
 from fastavro._logical_readers import UUID
 
 from confluent_kafka.schema_registry import (
-    SchemaRegistryClient,
     Metadata,
     MetadataProperties,
     Schema,
+    SchemaRegistryClient,
     header_schema_id_serializer,
 )
 from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
