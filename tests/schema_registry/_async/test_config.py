@@ -150,7 +150,7 @@ def test_oauth_bearer_config_invalid():
         'bearer.auth.identity.pool.id': 1,
     }
 
-    with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
+    with pytest.raises(TypeError, match=r"identity pool id must be a str or list, not (.*)"):
         AsyncSchemaRegistryClient(conf)
 
     conf = {
