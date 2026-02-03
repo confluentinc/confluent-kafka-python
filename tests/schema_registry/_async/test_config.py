@@ -124,7 +124,7 @@ def test_config_auth_userinfo_invalid():
 def test_bearer_config():
     conf = {'url': TEST_URL, 'bearer.auth.credentials.source': "OAUTHBEARER"}
 
-    with pytest.raises(ValueError, match=r"Missing required bearer configuration properties: (.*)"):
+    with pytest.raises(ValueError, match=r"Missing required bearer configuration property: bearer.auth.logical.cluster"):
         AsyncSchemaRegistryClient(conf)
 
 
