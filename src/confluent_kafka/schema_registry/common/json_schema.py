@@ -202,7 +202,7 @@ def _validate_subschemas(
                 ref = subschema.get("$ref")
                 if ref is not None:
                     subschema = resolver.lookup(ref).contents
-                validate(instance=message, schema=subschema, registry=registry, resolver=resolver)
+                validate(instance=message, schema=subschema, registry=registry)
                 return subschema
             except ValidationError:
                 pass
