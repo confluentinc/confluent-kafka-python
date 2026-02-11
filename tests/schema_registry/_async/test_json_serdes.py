@@ -1273,7 +1273,7 @@ async def test_json_oneof_with_refs_nested_refs():
         },
     }
 
-    ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
@@ -1286,7 +1286,7 @@ async def test_json_oneof_with_refs_nested_refs():
     obj['data']['accountId'] = 'ACC123'
     obj['data']['paymentMethod']['details'] = '1234-5678-9012-3456'
 
-    deser = AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
@@ -1332,7 +1332,7 @@ async def test_json_anyof_with_refs():
 
     obj = {"value": {"strValue": "sensitive-data"}}
 
-    ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
@@ -1340,7 +1340,7 @@ async def test_json_anyof_with_refs():
     assert obj['value']['strValue'] != 'sensitive-data'
     obj['value']['strValue'] = 'sensitive-data'
 
-    deser = AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
@@ -1383,7 +1383,7 @@ async def test_json_allof_with_refs():
 
     obj = {"entity": {"id": "entity-123", "createdAt": 1234567890}}
 
-    ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
@@ -1391,7 +1391,7 @@ async def test_json_allof_with_refs():
     assert obj['entity']['id'] != 'entity-123'
     obj['entity']['id'] = 'entity-123'
 
-    deser = AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
@@ -1437,7 +1437,7 @@ async def test_json_deeply_nested_refs():
 
     obj = {"data": {"level2": {"level3": {"secretData": "deep-secret"}}}}
 
-    ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
@@ -1445,7 +1445,7 @@ async def test_json_deeply_nested_refs():
     assert obj['data']['level2']['level3']['secretData'] != 'deep-secret'
     obj['data']['level2']['level3']['secretData'] = 'deep-secret'
 
-    deser = AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
