@@ -1217,12 +1217,7 @@ async def test_json_oneof_with_refs_nested_refs():
         "type": "object",
         "properties": {
             "transactionType": {"type": "string"},
-            "data": {
-                "oneOf": [
-                    {"$ref": "#/$defs/Account"},
-                    {"$ref": "#/$defs/Payment"}
-                ]
-            }
+            "data": {"oneOf": [{"$ref": "#/$defs/Account"}, {"$ref": "#/$defs/Payment"}]},
         },
         "required": ["transactionType", "data"],
         "$defs": {
@@ -1232,33 +1227,24 @@ async def test_json_oneof_with_refs_nested_refs():
                     "accountId": {"type": "string", "confluent:tags": ["PII"]},
                     "partyType": {"type": "string"},
                     "paymentMethod": {"$ref": "#/$defs/PaymentMethod"},  # Nested $ref!
-                    "party": {"$ref": "#/$defs/PartyInfo"}  # Another nested $ref!
+                    "party": {"$ref": "#/$defs/PartyInfo"},  # Another nested $ref!
                 },
-                "required": ["accountId"]
+                "required": ["accountId"],
             },
             "Payment": {
                 "type": "object",
                 "properties": {
                     "paymentId": {"type": "string", "confluent:tags": ["PII"]},
-                    "amount": {"type": "number"}
+                    "amount": {"type": "number"},
                 },
-                "required": ["paymentId", "amount"]
+                "required": ["paymentId", "amount"],
             },
             "PaymentMethod": {
                 "type": "object",
-                "properties": {
-                    "type": {"type": "string"},
-                    "details": {"type": "string", "confluent:tags": ["PII"]}
-                }
+                "properties": {"type": {"type": "string"}, "details": {"type": "string", "confluent:tags": ["PII"]}},
             },
-            "PartyInfo": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "address": {"type": "string"}
-                }
-            }
-        }
+            "PartyInfo": {"type": "object", "properties": {"name": {"type": "string"}, "address": {"type": "string"}}},
+        },
     }
 
     rule = Rule(
@@ -1282,15 +1268,9 @@ async def test_json_oneof_with_refs_nested_refs():
         "data": {
             "accountId": "ACC123",
             "partyType": "Payer",
-            "paymentMethod": {
-                "type": "card",
-                "details": "1234-5678-9012-3456"
-            },
-            "party": {
-                "name": "John Doe",
-                "address": "123 Main St"
-            }
-        }
+            "paymentMethod": {"type": "card", "details": "1234-5678-9012-3456"},
+            "party": {"name": "John Doe", "address": "123 Main St"},
+        },
     }
 
     ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
@@ -1325,28 +1305,14 @@ async def test_json_anyof_with_refs():
 
     schema = {
         "type": "object",
-        "properties": {
-            "value": {
-                "anyOf": [
-                    {"$ref": "#/$defs/StringValue"},
-                    {"$ref": "#/$defs/NumberValue"}
-                ]
-            }
-        },
+        "properties": {"value": {"anyOf": [{"$ref": "#/$defs/StringValue"}, {"$ref": "#/$defs/NumberValue"}]}},
         "$defs": {
             "StringValue": {
                 "type": "object",
-                "properties": {
-                    "strValue": {"type": "string", "confluent:tags": ["PII"]}
-                }
+                "properties": {"strValue": {"type": "string", "confluent:tags": ["PII"]}},
             },
-            "NumberValue": {
-                "type": "object",
-                "properties": {
-                    "numValue": {"type": "number"}
-                }
-            }
-        }
+            "NumberValue": {"type": "object", "properties": {"numValue": {"type": "number"}}},
+        },
     }
 
     rule = Rule(
@@ -1364,11 +1330,7 @@ async def test_json_anyof_with_refs():
     )
     await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        "value": {
-            "strValue": "sensitive-data"
-        }
-    }
+    obj = {"value": {"strValue": "sensitive-data"}}
 
     ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
@@ -1397,28 +1359,11 @@ async def test_json_allof_with_refs():
 
     schema = {
         "type": "object",
-        "properties": {
-            "entity": {
-                "allOf": [
-                    {"$ref": "#/$defs/BaseEntity"},
-                    {"$ref": "#/$defs/Timestamped"}
-                ]
-            }
-        },
+        "properties": {"entity": {"allOf": [{"$ref": "#/$defs/BaseEntity"}, {"$ref": "#/$defs/Timestamped"}]}},
         "$defs": {
-            "BaseEntity": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "confluent:tags": ["PII"]}
-                }
-            },
-            "Timestamped": {
-                "type": "object",
-                "properties": {
-                    "createdAt": {"type": "integer"}
-                }
-            }
-        }
+            "BaseEntity": {"type": "object", "properties": {"id": {"type": "string", "confluent:tags": ["PII"]}}},
+            "Timestamped": {"type": "object", "properties": {"createdAt": {"type": "integer"}}},
+        },
     }
 
     rule = Rule(
@@ -1436,12 +1381,7 @@ async def test_json_allof_with_refs():
     )
     await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        "entity": {
-            "id": "entity-123",
-            "createdAt": 1234567890
-        }
-    }
+    obj = {"entity": {"id": "entity-123", "createdAt": 1234567890}}
 
     ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
@@ -1472,33 +1412,12 @@ async def test_json_deeply_nested_refs():
     # 3-level nesting: oneOf -> Level1 -> Level2 -> Level3
     schema = {
         "type": "object",
-        "properties": {
-            "data": {
-                "oneOf": [
-                    {"$ref": "#/$defs/Level1"}
-                ]
-            }
-        },
+        "properties": {"data": {"oneOf": [{"$ref": "#/$defs/Level1"}]}},
         "$defs": {
-            "Level1": {
-                "type": "object",
-                "properties": {
-                    "level2": {"$ref": "#/$defs/Level2"}
-                }
-            },
-            "Level2": {
-                "type": "object",
-                "properties": {
-                    "level3": {"$ref": "#/$defs/Level3"}
-                }
-            },
-            "Level3": {
-                "type": "object",
-                "properties": {
-                    "secretData": {"type": "string", "confluent:tags": ["PII"]}
-                }
-            }
-        }
+            "Level1": {"type": "object", "properties": {"level2": {"$ref": "#/$defs/Level2"}}},
+            "Level2": {"type": "object", "properties": {"level3": {"$ref": "#/$defs/Level3"}}},
+            "Level3": {"type": "object", "properties": {"secretData": {"type": "string", "confluent:tags": ["PII"]}}},
+        },
     }
 
     rule = Rule(
@@ -1516,15 +1435,7 @@ async def test_json_deeply_nested_refs():
     )
     await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
 
-    obj = {
-        "data": {
-            "level2": {
-                "level3": {
-                    "secretData": "deep-secret"
-                }
-            }
-        }
-    }
+    obj = {"data": {"level2": {"level3": {"secretData": "deep-secret"}}}}
 
     ser = AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.executor.client
