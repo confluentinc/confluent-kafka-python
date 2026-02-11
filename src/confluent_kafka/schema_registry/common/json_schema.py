@@ -202,17 +202,11 @@ def _validate_subschemas(
             try:
                 ref = subschema.get("$ref")
                 if ref is not None:
-                    # Lookup returns both the resolved schema and the resolver with proper context
-                    # for resolving any nested $refs within the resolved schema
-                    lookup_result = resolver.lookup(ref)
-                    subschema = lookup_result.contents
-                    subschema_resolver = lookup_result.resolver
-
-                    # Use validator with _resolver to maintain context for nested $refs
-                    cls = validator_for(subschema)
-                    validator = cls(subschema, registry=registry, _resolver=subschema_resolver)
-                    validator.validate(message)
-
+                    resolved = resolver.lookup(ref)
+                    subschema = resolved.contents
+                    # Pass _resolver (not resolver) to use the new referencing library's
+                    # Resolver with correct context for nested $ref resolution
+                    validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
                 else:
                     validate(instance=message, schema=subschema, registry=registry)
                 return subschema

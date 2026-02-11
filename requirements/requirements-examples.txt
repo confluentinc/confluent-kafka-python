@@ -15,7 +15,7 @@ requests
 avro>=1.11.1,<2
 
 pyrsistent
-jsonschema
+jsonschema >= 4.18.0
 orjson >= 3.10
 
 googleapis-common-protos
