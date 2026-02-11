@@ -6,6 +6,7 @@ from typing import List, Optional, Set, Union
 import httpx
 import referencing
 from jsonschema import ValidationError, validate
+from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
@@ -201,8 +202,13 @@ def _validate_subschemas(
             try:
                 ref = subschema.get("$ref")
                 if ref is not None:
-                    subschema = resolver.lookup(ref).contents
-                validate(instance=message, schema=subschema, registry=registry)
+                    resolved = resolver.lookup(ref)
+                    subschema = resolved.contents
+                    # Pass _resolver (not resolver) to use the new referencing library's
+                    # Resolver with correct context for nested $ref resolution
+                    validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
+                else:
+                    validate(instance=message, schema=subschema, registry=registry)
                 return subschema
             except ValidationError:
                 pass
