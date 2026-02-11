@@ -6,7 +6,6 @@ from typing import List, Optional, Set, Union
 import httpx
 import referencing
 from jsonschema import ValidationError, validate
-from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
