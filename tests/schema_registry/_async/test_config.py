@@ -219,23 +219,103 @@ def test_oauth_bearer_config_invalid():
 
 
 def test_oauth_bearer_config_valid():
-    conf = {
-        'url': TEST_URL,
-        'bearer.auth.credentials.source': "OAUTHBEARER",
-        'bearer.auth.logical.cluster': TEST_CLUSTER,
-        'bearer.auth.identity.pool.id': TEST_POOL,
-        'bearer.auth.client.id': TEST_USERNAME,
-        'bearer.auth.client.secret': TEST_USER_PASSWORD,
-        'bearer.auth.scope': TEST_SCOPE,
-        'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT,
-    }
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': TEST_USERNAME,
+            'bearer.auth.client.secret': TEST_USER_PASSWORD,
+            'bearer.auth.scope': TEST_SCOPE,
+            'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
 
     client = AsyncSchemaRegistryClient(conf)
 
-    assert client._rest_client.client_id == TEST_USERNAME
-    assert client._rest_client.client_secret == TEST_USER_PASSWORD
-    assert client._rest_client.scope == TEST_SCOPE
-    assert client._rest_client.token_endpoint == TEST_ENDPOINT
+    assert client._rest_client.bearer_field_provider.client.client_id == TEST_USERNAME
+    assert client._rest_client.bearer_field_provider.client.client_secret == TEST_USER_PASSWORD
+    assert client._rest_client.bearer_field_provider.client.scope == TEST_SCOPE
+    assert client._rest_client.bearer_field_provider.token_endpoint == TEST_ENDPOINT
+
+
+def test_oauth_bearer_azure_imds_config_invalid():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': 1}
+
+    with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
+        AsyncSchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+            'bearer.auth.logical.cluster': 1,
+            'bearer.auth.identity.pool.id': TEST_POOL}
+
+    with pytest.raises(TypeError, match=r"logical cluster must be a str, not (.*)"):
+        AsyncSchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.issuer.endpoint.url': 1}
+
+    with pytest.raises(TypeError, match=r"bearer.auth.issuer.endpoint.url must be a str, not (.*)"):
+        AsyncSchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.issuer.endpoint.url': 'http://[wrong_url'}
+
+    with pytest.raises(ValueError, match=r"Failed to parse token endpoint URL: (.*)"):
+        AsyncSchemaRegistryClient(conf)
+
+    for url in [{'bearer.auth.issuer.endpoint.url': 'http://test'}, {}]:
+        conf = {'url': TEST_URL,
+                'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+                'bearer.auth.logical.cluster': TEST_CLUSTER,
+                'bearer.auth.identity.pool.id': TEST_POOL,
+                'bearer.auth.issuer.endpoint.query': 1,
+                **url}
+
+        with pytest.raises(TypeError, match=r"bearer.auth.issuer.endpoint.query must be a str, not (.*)"):
+            AsyncSchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL}
+
+    with pytest.raises(ValueError, match=r"bearer.auth.issuer.endpoint.query must be provided (.*)"):
+        AsyncSchemaRegistryClient(conf)
+
+
+def test_oauth_bearer_azure_imds_config_valid():
+    expected_token_endpoints = {
+        'http://alias': 'http://alias',
+        '': 'http://169.254.169.254/metadata/identity/oauth2/token'
+    }
+    query = 'resource=api://test&api-version=2018-02-01'
+
+    for url in [{'bearer.auth.issuer.endpoint.url': 'http://alias'}, {}]:
+        conf = {'url': TEST_URL,
+                'bearer.auth.credentials.source': "OAUTHBEARER_AZURE_IMDS",
+                'bearer.auth.logical.cluster': TEST_CLUSTER,
+                'bearer.auth.identity.pool.id': TEST_POOL,
+                'bearer.auth.issuer.endpoint.query': query,
+                **url}
+
+        client = AsyncSchemaRegistryClient(conf)
+        if 'bearer.auth.issuer.endpoint.url' in url:
+            expected_token_endpoint = expected_token_endpoints[
+                url['bearer.auth.issuer.endpoint.url']
+            ]
+        else:
+            expected_token_endpoint = expected_token_endpoints['']
+        expected_token_endpoint += f'?{query}'
+
+        assert client._rest_client.bearer_field_provider.token_endpoint == expected_token_endpoint
 
 
 def test_static_bearer_config():
@@ -247,6 +327,14 @@ def test_static_bearer_config():
     }
 
     with pytest.raises(ValueError, match='Missing bearer.auth.token'):
+        AsyncSchemaRegistryClient(conf)
+
+
+def test_custom_bearer_config():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': 'CUSTOM'}
+
+    with pytest.raises(ValueError, match='Missing required custom OAuth configuration properties:'):
         AsyncSchemaRegistryClient(conf)
 
 
