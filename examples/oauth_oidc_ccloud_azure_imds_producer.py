@@ -19,13 +19,13 @@
 # This example use Azure IMDS for credential-less authentication
 # through to Schema Registry on Confluent Cloud
 
-import logging
 import argparse
+import logging
+
 from confluent_kafka import Producer
-from confluent_kafka.schema_registry.json_schema import JSONSerializer
-from confluent_kafka.serialization import (StringSerializer,
-                                           SerializationContext, MessageField)
 from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
+from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 
 
 class User(object):
@@ -65,9 +65,7 @@ def user_to_dict(user, ctx):
     """
 
     # User._address must not be serialized; omit from dict
-    return dict(name=user.name,
-                favorite_number=user.favorite_number,
-                favorite_color=user.favorite_color)
+    return dict(name=user.name, favorite_number=user.favorite_number, favorite_color=user.favorite_color)
 
 
 def producer_config(args):
@@ -79,13 +77,14 @@ def producer_config(args):
         'sasl.mechanisms': 'OAUTHBEARER',
         'sasl.oauthbearer.method': 'oidc',
         'sasl.oauthbearer.metadata.authentication.type': 'azure_imds',
-        'sasl.oauthbearer.config': f'query={args.query}'
+        'sasl.oauthbearer.config': f'query={args.query}',
     }
     # These two parameters are only applicable when producing to
     # confluent cloud where some sasl extensions are required.
     if args.logical_cluster and args.identity_pool_id:
-        params['sasl.oauthbearer.extensions'] = 'logicalCluster=' + args.logical_cluster + \
-            ',identityPoolId=' + args.identity_pool_id
+        params['sasl.oauthbearer.extensions'] = (
+            'logicalCluster=' + args.logical_cluster + ',identityPoolId=' + args.identity_pool_id
+        )
 
     return params
 
@@ -126,8 +125,11 @@ def delivery_report(err, msg):
     if err is not None:
         print('Delivery failed for User record {}: {}'.format(msg.key(), err))
         return
-    print('User record {} successfully produced to {} [{}] at offset {}'.format(
-        msg.key(), msg.topic(), msg.partition(), msg.offset()))
+    print(
+        'User record {} successfully produced to {} [{}] at offset {}'.format(
+            msg.key(), msg.topic(), msg.partition(), msg.offset()
+        )
+    )
 
 
 def main(args):
@@ -171,15 +173,11 @@ def main(args):
         producer.poll(0.0)
         try:
             name = input(">")
-            user = User(name=name,
-                        address="NA",
-                        favorite_color="blue",
-                        favorite_number=7)
+            user = User(name=name, address="NA", favorite_color="blue", favorite_number=7)
             serialized_user = json_serializer(user, SerializationContext(topic, MessageField.VALUE))
-            producer.produce(topic=topic,
-                             key=string_serializer(name),
-                             value=serialized_user,
-                             on_delivery=delivery_report)
+            producer.produce(
+                topic=topic, key=string_serializer(name), value=serialized_user, on_delivery=delivery_report
+            )
         except KeyboardInterrupt:
             break
 
@@ -189,19 +187,17 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="OAUTH example with client credentials grant")
-    parser.add_argument('-b', dest="bootstrap_servers", required=True,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-t', dest="topic", default="example_producer_oauth",
-                        help="Topic name")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('--query', dest="query", required=True,
-                        help="Query parameters for Azure IMDS token endpoint")
+    parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
+    parser.add_argument('-t', dest="topic", default="example_producer_oauth", help="Topic name")
+    parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('--query', dest="query", required=True, help="Query parameters for Azure IMDS token endpoint")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
-    parser.add_argument('--logical-schema-registry-cluster',
-                        dest="logical_schema_registry_cluster",
-                        required=False,
-                        help="Logical Schema Registry Cluster.")
+    parser.add_argument(
+        '--logical-schema-registry-cluster',
+        dest="logical_schema_registry_cluster",
+        required=False,
+        help="Logical Schema Registry Cluster.",
+    )
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
 
     main(parser.parse_args())

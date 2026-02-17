@@ -26,6 +26,7 @@
 
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 
+
 def main():
     static_oauth_config = {
         'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
@@ -56,7 +57,8 @@ def main():
         'bearer.auth.credentials.source': 'OAUTHBEARER_AZURE_IMDS',
         'bearer.auth.issuer.endpoint.query': 'resource=&api-version=&client_id=',
         'bearer.auth.logical.cluster': 'lsrc-12345',
-        'bearer.auth.identity.pool.id': 'pool-abcd'}
+        'bearer.auth.identity.pool.id': 'pool-abcd',
+    }
 
     azure_imds_oauth_sr_client = SchemaRegistryClient(azure_imds_oauth_config)
     print(azure_imds_oauth_sr_client.get_subjects())

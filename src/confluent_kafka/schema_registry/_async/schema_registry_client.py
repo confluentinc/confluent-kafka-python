@@ -96,8 +96,9 @@ class _AsyncCustomOAuthClient(_BearerFieldProvider):
 
 
 class _AsyncAbstractOAuthClient(_BearerFieldProvider):
-    def __init__(self, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
+    def __init__(
+        self, logical_cluster: str, identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int
+    ):
         self.logical_cluster: str = logical_cluster
         self.identity_pool: str = identity_pool
         self.max_retries: int = max_retries
@@ -109,7 +110,7 @@ class _AsyncAbstractOAuthClient(_BearerFieldProvider):
         return {
             'bearer.auth.token': await self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool
+            'bearer.auth.identity.pool.id': self.identity_pool,
         }
 
     async def get_access_token(self) -> str:
@@ -140,11 +141,19 @@ class _AsyncAbstractOAuthClient(_BearerFieldProvider):
 
 
 class _AsyncOAuthClient(_AsyncAbstractOAuthClient):
-    def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
-        super().__init__(
-            logical_cluster, identity_pool, max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        scope: str,
+        token_endpoint: str,
+        logical_cluster: str,
+        identity_pool: str,
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
+    ):
+        super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = AsyncOAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint: str = token_endpoint
         self.token_object: dict = None
@@ -160,11 +169,16 @@ class _AsyncOAuthClient(_AsyncAbstractOAuthClient):
 
 
 class _AsyncOAuthAzureIMDSClient(_AsyncAbstractOAuthClient):
-    def __init__(self, token_endpoint: str, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
-        super().__init__(
-            logical_cluster, identity_pool, max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+    def __init__(
+        self,
+        token_endpoint: str,
+        logical_cluster: str,
+        identity_pool: str,
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
+    ):
+        super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = httpx.AsyncClient()
         self.token_endpoint: str = token_endpoint
         self.token_object: dict = None
@@ -175,9 +189,7 @@ class _AsyncOAuthAzureIMDSClient(_AsyncAbstractOAuthClient):
         return int(self.token_object['expires_on']) < time.time() + expiry_window
 
     async def fetch_token(self) -> str:
-        self.token_object = (await self.client.get(self.token_endpoint, headers=[
-            ('Metadata', 'true')
-        ])).json()
+        self.token_object = (await self.client.get(self.token_endpoint, headers=[('Metadata', 'true')])).json()
         return self.token_object['access_token']
 
 
@@ -186,12 +198,16 @@ class _AsyncOAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerOIDCFieldPro
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
         return _AsyncOAuthClient(
-            self.client_id, self.client_secret, self.scope,
+            self.client_id,
+            self.client_secret,
+            self.scope,
             self.token_endpoint,
             self.logical_cluster,
             self.identity_pool,
-            max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+            max_retries,
+            retries_wait_ms,
+            retries_max_wait_ms,
+        )
 
 
 class _AsyncOAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder):
@@ -202,18 +218,17 @@ class _AsyncOAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearerOID
             self.token_endpoint,
             self.logical_cluster,
             self.identity_pool,
-            max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+            max_retries,
+            retries_wait_ms,
+            retries_max_wait_ms,
+        )
 
 
 class _AsyncCustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProviderBuilder):
 
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
-        return _AsyncCustomOAuthClient(
-            self.custom_function,
-            self.custom_config
-        )
+        return _AsyncCustomOAuthClient(self.custom_function, self.custom_config)
 
 
 class _AsyncFieldProviderBuilder:
@@ -222,7 +237,7 @@ class _AsyncFieldProviderBuilder:
         "OAUTHBEARER": _AsyncOAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _AsyncOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
         "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
-        "CUSTOM": _AsyncCustomOAuthBearerFieldProviderBuilder
+        "CUSTOM": _AsyncCustomOAuthBearerFieldProviderBuilder,
     }
 
     @staticmethod
@@ -236,10 +251,7 @@ class _AsyncFieldProviderBuilder:
         bearer_field_provider_builder = _AsyncFieldProviderBuilder.__builders[bearer_auth_credentials_source](conf)
         return (
             bearer_auth_credentials_source,
-            bearer_field_provider_builder.build(
-                max_retries, retries_wait_ms,
-                retries_max_wait_ms
-            )
+            bearer_field_provider_builder.build(max_retries, retries_wait_ms, retries_max_wait_ms),
         )
 
 
@@ -372,10 +384,9 @@ class _AsyncBaseRestClient(object):
                 raise TypeError("retries.max.wait.ms must be a number, not " + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = int(retries_max_wait_ms)
 
-        [self.bearer_auth_credentials_source, self.bearer_field_provider] = \
-            _AsyncFieldProviderBuilder.build(
-            conf_copy, self.max_retries, self.retries_wait_ms,
-            self.retries_max_wait_ms)
+        [self.bearer_auth_credentials_source, self.bearer_field_provider] = _AsyncFieldProviderBuilder.build(
+            conf_copy, self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms
+        )
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
