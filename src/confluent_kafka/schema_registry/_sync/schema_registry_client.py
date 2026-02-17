@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import abc
 import json
 import logging
 import os
@@ -24,36 +24,33 @@ import threading as _locks
 import time
 import urllib
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
-import abc
 from urllib.parse import unquote, urlparse
 
 import certifi
 import httpx
-
+from authlib.integrations.httpx_client import OAuth2Client
 from cachetools import Cache, LRUCache, TTLCache
 from httpx import Response
 
 from confluent_kafka import version
-
-from authlib.integrations.httpx_client import OAuth2Client
-
 from confluent_kafka.schema_registry.common._oauthbearer import (
-    _BearerFieldProvider,
-    _AbstractOAuthBearerOIDCFieldProviderBuilder,
+    _AbstractCustomOAuthBearerFieldProviderBuilder,
     _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
+    _AbstractOAuthBearerOIDCFieldProviderBuilder,
+    _BearerFieldProvider,
     _StaticOAuthBearerFieldProviderBuilder,
-    _AbstractCustomOAuthBearerFieldProviderBuilder)
-from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
+)
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
+    Schema,
     SchemaVersion,
     ServerConfig,
-    is_success,
-    is_retriable,
-    full_jitter,
     _SchemaCache,
-    Schema
+    full_jitter,
+    is_retriable,
+    is_success,
 )
+from confluent_kafka.schema_registry.error import OAuthTokenError, SchemaRegistryError
 
 __all__ = [
     '_urlencode',
@@ -98,8 +95,9 @@ class _CustomOAuthClient(_BearerFieldProvider):
 
 
 class _AbstractOAuthClient(_BearerFieldProvider):
-    def __init__(self, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
+    def __init__(
+        self, logical_cluster: str, identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int
+    ):
         self.logical_cluster: str = logical_cluster
         self.identity_pool: str = identity_pool
         self.max_retries: int = max_retries
@@ -131,7 +129,7 @@ class _AbstractOAuthClient(_BearerFieldProvider):
     def generate_access_token(self) -> None:
         for i in range(self.max_retries + 1):
             try:
-                self.token = self.client.fetch_token(url=self.token_endpoint, grant_type='client_credentials')
+                self.token = self.fetch_token()
                 return
             except Exception as e:
                 if i >= self.max_retries:
@@ -142,11 +140,19 @@ class _AbstractOAuthClient(_BearerFieldProvider):
 
 
 class _OAuthClient(_AbstractOAuthClient):
-    def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
-        super().__init__(
-            logical_cluster, identity_pool, max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        scope: str,
+        token_endpoint: str,
+        logical_cluster: str,
+        identity_pool: str,
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
+    ):
+        super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint: str = token_endpoint
         self.token_object: dict = None
@@ -162,11 +168,16 @@ class _OAuthClient(_AbstractOAuthClient):
 
 
 class _OAuthAzureIMDSClient(_AbstractOAuthClient):
-    def __init__(self, token_endpoint: str, logical_cluster: str,
-                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
-        super().__init__(
-            logical_cluster, identity_pool, max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+    def __init__(
+        self,
+        token_endpoint: str,
+        logical_cluster: str,
+        identity_pool: str,
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
+    ):
+        super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = httpx.Client()
         self.token_endpoint: str = token_endpoint
         self.token_object: dict = None
@@ -177,9 +188,7 @@ class _OAuthAzureIMDSClient(_AbstractOAuthClient):
         return int(self.token_object['expires_on']) < time.time() + expiry_window
 
     def fetch_token(self) -> str:
-        self.token_object = self.client.get(self.token_endpoint, headers=[
-            ('Metadata', 'true')
-        ]).json()
+        self.token_object = (self.client.get(self.token_endpoint, headers=[('Metadata', 'true')])).json()
         return self.token_object['access_token']
 
 
@@ -188,12 +197,16 @@ class _OAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerOIDCFieldProvider
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
         return _OAuthClient(
-            self.client_id, self.client_secret, self.scope,
+            self.client_id,
+            self.client_secret,
+            self.scope,
             self.token_endpoint,
             self.logical_cluster,
             self.identity_pool,
-            max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+            max_retries,
+            retries_wait_ms,
+            retries_max_wait_ms,
+        )
 
 
 class _OAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder):
@@ -204,18 +217,17 @@ class _OAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearerOIDCAzur
             self.token_endpoint,
             self.logical_cluster,
             self.identity_pool,
-            max_retries, retries_wait_ms,
-            retries_max_wait_ms)
+            max_retries,
+            retries_wait_ms,
+            retries_max_wait_ms,
+        )
 
 
 class _CustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProviderBuilder):
 
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
-        return _CustomOAuthClient(
-            self.custom_function,
-            self.custom_config
-        )
+        return _CustomOAuthClient(self.custom_function, self.custom_config)
 
 
 class _FieldProviderBuilder:
@@ -224,7 +236,7 @@ class _FieldProviderBuilder:
         "OAUTHBEARER": _OAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _OAuthBearerOIDCAzureIMDSFieldProviderBuilder,
         "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
-        "CUSTOM": _CustomOAuthBearerFieldProviderBuilder
+        "CUSTOM": _CustomOAuthBearerFieldProviderBuilder,
     }
 
     @staticmethod
@@ -238,10 +250,7 @@ class _FieldProviderBuilder:
         bearer_field_provider_builder = _FieldProviderBuilder.__builders[bearer_auth_credentials_source](conf)
         return (
             bearer_auth_credentials_source,
-            bearer_field_provider_builder.build(
-                max_retries, retries_wait_ms,
-                retries_max_wait_ms
-            )
+            bearer_field_provider_builder.build(max_retries, retries_wait_ms, retries_max_wait_ms),
         )
 
 
@@ -374,10 +383,9 @@ class _BaseRestClient(object):
                 raise TypeError("retries.max.wait.ms must be a number, not " + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = int(retries_max_wait_ms)
 
-        [self.bearer_auth_credentials_source, self.bearer_field_provider] = \
-            _FieldProviderBuilder.build(
-            conf_copy, self.max_retries, self.retries_wait_ms,
-            self.retries_max_wait_ms)
+        [self.bearer_auth_credentials_source, self.bearer_field_provider] = _FieldProviderBuilder.build(
+            conf_copy, self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms
+        )
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:

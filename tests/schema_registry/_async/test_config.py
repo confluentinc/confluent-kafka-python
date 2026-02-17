@@ -338,13 +338,6 @@ def test_custom_bearer_config():
         AsyncSchemaRegistryClient(conf)
 
 
-def test_custom_bearer_config():
-    conf = {'url': TEST_URL, 'bearer.auth.credentials.source': 'CUSTOM'}
-
-    with pytest.raises(ValueError, match='Missing required custom OAuth configuration properties:'):
-        AsyncSchemaRegistryClient(conf)
-
-
 def test_custom_bearer_config_valid():
     def custom_function(config: dict):
         return {}

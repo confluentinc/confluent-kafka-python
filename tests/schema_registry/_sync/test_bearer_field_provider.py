@@ -15,16 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import time
 from unittest.mock import Mock, patch
 
 import pytest
 
 from confluent_kafka.schema_registry._sync.schema_registry_client import (
-    _OAuthClient, _OAuthAzureIMDSClient, SchemaRegistryClient
+    SchemaRegistryClient,
+    _CustomOAuthClient,
+    _OAuthAzureIMDSClient,
+    _OAuthClient,
 )
-from confluent_kafka.schema_registry._sync.schema_registry_client import _CustomOAuthClient
 from confluent_kafka.schema_registry.common._oauthbearer import _StaticFieldProvider
 from confluent_kafka.schema_registry.error import OAuthTokenError
 
