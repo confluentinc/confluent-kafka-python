@@ -156,9 +156,6 @@ class _StaticFieldProvider(_BearerFieldProvider):
 
 
 class _StaticOAuthBearerFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBuilder):
-    required_properties = ['bearer.auth.client.id', 'bearer.auth.client.secret',
-                           'bearer.auth.scope',
-                           'bearer.auth.issuer.endpoint.url']
 
     def __init__(self, conf: dict):
         super().__init__(conf)

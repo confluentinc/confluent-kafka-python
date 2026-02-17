@@ -87,7 +87,7 @@ log = logging.getLogger(__name__)
 
 
 class _AsyncCustomOAuthClient(_BearerFieldProvider):
-    def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
+    def __init__(self, custom_function: Callable[[Dict], Awaitable[Dict]], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
@@ -175,9 +175,9 @@ class _AsyncOAuthAzureIMDSClient(_AsyncAbstractOAuthClient):
         return int(self.token_object['expires_on']) < time.time() + expiry_window
 
     async def fetch_token(self) -> str:
-        self.token_object = await self.client.get(self.token_endpoint, headers=[
+        self.token_object = (await self.client.get(self.token_endpoint, headers=[
             ('Metadata', 'true')
-        ]).json()
+        ])).json()
         return self.token_object['access_token']
 
 

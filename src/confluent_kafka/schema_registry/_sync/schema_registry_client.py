@@ -29,7 +29,6 @@ from urllib.parse import unquote, urlparse
 
 import certifi
 import httpx
-from typing import List, Dict, Optional, Union, Any, Callable
 
 from cachetools import Cache, LRUCache, TTLCache
 from httpx import Response
