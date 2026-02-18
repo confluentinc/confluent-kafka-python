@@ -19,6 +19,7 @@ import pytest
 from httpx import BasicAuth
 
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry.common.schema_registry_client import normalize_identity_pool
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
 from confluent_kafka.schema_registry.serde import RuleError
 
@@ -124,7 +125,9 @@ def test_config_auth_userinfo_invalid():
 def test_bearer_config():
     conf = {'url': TEST_URL, 'bearer.auth.credentials.source': "OAUTHBEARER"}
 
-    with pytest.raises(ValueError, match=r"Missing required bearer configuration properties: (.*)"):
+    with pytest.raises(
+        ValueError, match=r"Missing required bearer configuration property: bearer.auth.logical.cluster"
+    ):
         AsyncSchemaRegistryClient(conf)
 
 
@@ -148,7 +151,7 @@ def test_oauth_bearer_config_invalid():
         'bearer.auth.identity.pool.id': 1,
     }
 
-    with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
+    with pytest.raises(TypeError, match=r"identity pool id must be a str or list, not (.*)"):
         AsyncSchemaRegistryClient(conf)
 
     conf = {
@@ -312,3 +315,15 @@ def test_config_encrypt_executor():
     rule_conf3 = {'key': 'value3'}
     with pytest.raises(RuleError, match="rule config key already set: key"):
         executor.configure(client_conf, rule_conf3)
+
+
+def test_normalize_identity_pool_none():
+    assert normalize_identity_pool(None) is None
+
+
+def test_normalize_identity_pool_string():
+    assert normalize_identity_pool("pool-abc,pool-def") == "pool-abc,pool-def"
+
+
+def test_normalize_identity_pool_list():
+    assert normalize_identity_pool(["pool-abc", "pool-def"]) == "pool-abc,pool-def"
