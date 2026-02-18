@@ -163,8 +163,7 @@ def main(args):
     """
     schema_registry_conf = schema_registry_config(args)
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
-
-    string_serializer = StringSerializer('utf_8')
+    
     json_serializer = JSONSerializer(schema_str, schema_registry_client, user_to_dict)
 
     print('Producing records to topic {}. ^C to exit.'.format(topic))

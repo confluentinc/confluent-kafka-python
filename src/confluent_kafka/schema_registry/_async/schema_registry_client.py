@@ -160,7 +160,7 @@ class _AsyncOAuthClient(_AsyncAbstractOAuthClient):
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
-        expiry_window = self.token_object['expires_in'] * self.token_expiry_threshold
+        expiry_window = self.token_object['expires_in'] * (1 - self.token_expiry_threshold)
         return self.token_object['expires_at'] < time.time() + expiry_window
 
     async def fetch_token(self) -> str:
@@ -185,7 +185,7 @@ class _AsyncOAuthAzureIMDSClient(_AsyncAbstractOAuthClient):
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
-        expiry_window = int(self.token_object['expires_in']) * self.token_expiry_threshold
+        expiry_window = int(self.token_object['expires_in']) * (1 - self.token_expiry_threshold)
         return int(self.token_object['expires_on']) < time.time() + expiry_window
 
     async def fetch_token(self) -> str:
