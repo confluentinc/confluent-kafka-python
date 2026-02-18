@@ -24,7 +24,7 @@ import os
 import ssl
 import time
 import urllib
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Type, Union
 from urllib.parse import unquote, urlparse
 
 import certifi
@@ -38,7 +38,7 @@ from confluent_kafka.schema_registry.common._oauthbearer import (
     _AbstractCustomOAuthBearerFieldProviderBuilder,
     _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
     _AbstractOAuthBearerOIDCFieldProviderBuilder,
-    _BearerFieldProvider,
+    _AsyncBearerFieldProvider,
     _StaticOAuthBearerFieldProviderBuilder,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import (
@@ -86,7 +86,7 @@ except NameError:
 log = logging.getLogger(__name__)
 
 
-class _AsyncCustomOAuthClient(_BearerFieldProvider):
+class _AsyncCustomOAuthClient(_AsyncBearerFieldProvider):
     def __init__(self, custom_function: Callable[[Dict], Awaitable[Dict]], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
@@ -95,7 +95,7 @@ class _AsyncCustomOAuthClient(_BearerFieldProvider):
         return await self.custom_function(self.custom_config)
 
 
-class _AsyncAbstractOAuthClient(_BearerFieldProvider):
+class _AsyncAbstractOAuthClient(_AsyncBearerFieldProvider):
     def __init__(
         self, logical_cluster: str, identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int
     ):
@@ -104,7 +104,7 @@ class _AsyncAbstractOAuthClient(_BearerFieldProvider):
         self.max_retries: int = max_retries
         self.retries_wait_ms: int = retries_wait_ms
         self.retries_max_wait_ms: int = retries_max_wait_ms
-        self.token: str = None
+        self.token: str = ""
 
     async def get_bearer_fields(self) -> dict:
         return {
@@ -156,7 +156,7 @@ class _AsyncOAuthClient(_AsyncAbstractOAuthClient):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = AsyncOAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint: str = token_endpoint
-        self.token_object: dict = None
+        self.token_object: dict = {}
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
@@ -181,7 +181,7 @@ class _AsyncOAuthAzureIMDSClient(_AsyncAbstractOAuthClient):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = httpx.AsyncClient()
         self.token_endpoint: str = token_endpoint
-        self.token_object: dict = None
+        self.token_object: dict = {}
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
@@ -228,12 +228,14 @@ class _AsyncCustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFiel
 
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
+        assert self.custom_function is not None
+        assert self.custom_config is not None
         return _AsyncCustomOAuthClient(self.custom_function, self.custom_config)
 
 
 class _AsyncFieldProviderBuilder:
 
-    __builders = {
+    __builders: Dict[str, Type[Any]] = {
         "OAUTHBEARER": _AsyncOAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _AsyncOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
         "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,

@@ -25,12 +25,20 @@ __all__ = [
     '_StaticOAuthBearerFieldProviderBuilder',
     '_AbstractCustomOAuthBearerFieldProviderBuilder',
     '_AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder',
+    '_BearerFieldProvider',
+    '_AsyncBearerFieldProvider',
 ]
 
 
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_bearer_fields(self) -> dict:
+        raise NotImplementedError
+
+
+class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    async def get_bearer_fields(self) -> dict:
         raise NotImplementedError
 
 
@@ -41,8 +49,8 @@ class _AbstractOAuthBearerFieldProviderBuilder(metaclass=abc.ABCMeta):
 
     def __init__(self, conf: dict):
         self.conf: dict = conf
-        self.logical_cluster: str = None
-        self.identity_pool: str = None
+        self.logical_cluster: str = ""
+        self.identity_pool: str = ""
 
     def _validate(self):
         missing_properties = [
@@ -76,10 +84,10 @@ class _AbstractOAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerFieldProv
 
     def __init__(self, conf: dict):
         super().__init__(conf)
-        self.client_id: str = None
-        self.client_secret: str = None
-        self.scope: str = None
-        self.token_endpoint: str = None
+        self.client_id: str = ""
+        self.client_secret: str = ""
+        self.scope: str = ""
+        self.token_endpoint: str = ""
 
     def _validate(self):
         super()._validate()
@@ -160,7 +168,7 @@ class _StaticOAuthBearerFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBu
 
     def __init__(self, conf: dict):
         super().__init__(conf)
-        self.static_token: str = None
+        self.static_token: str = ""
 
     def _validate(self):
         super()._validate()

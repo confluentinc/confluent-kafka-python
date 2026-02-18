@@ -23,7 +23,7 @@ import ssl
 import threading as _locks
 import time
 import urllib
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 from urllib.parse import unquote, urlparse
 
 import certifi
@@ -103,7 +103,7 @@ class _AbstractOAuthClient(_BearerFieldProvider):
         self.max_retries: int = max_retries
         self.retries_wait_ms: int = retries_wait_ms
         self.retries_max_wait_ms: int = retries_max_wait_ms
-        self.token: str = None
+        self.token: str = ""
 
     def get_bearer_fields(self) -> dict:
         return {
@@ -155,7 +155,7 @@ class _OAuthClient(_AbstractOAuthClient):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint: str = token_endpoint
-        self.token_object: dict = None
+        self.token_object: dict = {}
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
@@ -180,7 +180,7 @@ class _OAuthAzureIMDSClient(_AbstractOAuthClient):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = httpx.Client()
         self.token_endpoint: str = token_endpoint
-        self.token_object: dict = None
+        self.token_object: dict = {}
         self.token_expiry_threshold: float = 0.8
 
     def token_expired(self) -> bool:
@@ -227,12 +227,14 @@ class _CustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProv
 
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
+        assert self.custom_function is not None
+        assert self.custom_config is not None
         return _CustomOAuthClient(self.custom_function, self.custom_config)
 
 
 class _FieldProviderBuilder:
 
-    __builders = {
+    __builders: Dict[str, Type[Any]] = {
         "OAUTHBEARER": _OAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _OAuthBearerOIDCAzureIMDSFieldProviderBuilder,
         "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
