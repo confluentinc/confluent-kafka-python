@@ -71,6 +71,8 @@ def main():
     custom_sr_client = SchemaRegistryClient(custom_sr_config)
     print(custom_sr_client.get_subjects())
 
+
+def identity_pool_examples():
     # Example: Using union-of-pools with comma-separated pool IDs
     union_of_pools_config = {
         'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
@@ -82,6 +84,18 @@ def main():
 
     union_sr_client = SchemaRegistryClient(union_of_pools_config)
     print(union_sr_client.get_subjects())
+
+    # Example: Using union-of-pools with a list of pool IDs
+    union_of_pools_list_config = {
+        'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
+        'bearer.auth.credentials.source': 'STATIC_TOKEN',
+        'bearer.auth.token': 'multi-pool-token',
+        'bearer.auth.logical.cluster': 'lsrc-12345',
+        'bearer.auth.identity.pool.id': ['pool-abc', 'pool-def', 'pool-ghi'],
+    }
+
+    union_list_sr_client = SchemaRegistryClient(union_of_pools_list_config)
+    print(union_list_sr_client.get_subjects())
 
     # Example: Omitting identity pool for auto pool mapping
     auto_pool_config = {

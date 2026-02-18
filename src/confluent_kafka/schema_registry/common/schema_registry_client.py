@@ -118,7 +118,7 @@ def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -
     return random.random() * min(no_jitter_delay, max_delay_ms)
 
 
-def normalize_identity_pool(identity_pool_raw: Any) -> Optional[str]:
+def normalize_identity_pool(identity_pool_raw: str | list[str] | None) -> str | None:
     """
     Normalize identity pool configuration to a comma-separated string.
 
