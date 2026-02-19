@@ -31,7 +31,7 @@ def main():
     BOOTSTRAP = "api://bootstrapid"
     UAMI_CLIENT_ID = "uamiid"
 
-    endpoint_query = f"resource=${BOOTSTRAP}&client_id=${UAMI_CLIENT_ID}"
+    endpoint_query = f"api-version=2025-04-07&resource={BOOTSTRAP}&client_id={UAMI_CLIENT_ID}"
 
     azure_imds_oauth_config = {
         'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
