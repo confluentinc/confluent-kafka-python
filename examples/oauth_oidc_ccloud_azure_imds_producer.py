@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-# This example use Azure IMDS for credential-less authentication
+# This example uses Azure IMDS for credential-less authentication
 # through to Schema Registry on Confluent Cloud
 
 import argparse
