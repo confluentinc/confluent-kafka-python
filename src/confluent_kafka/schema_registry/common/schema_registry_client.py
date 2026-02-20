@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
 import random
 from collections import defaultdict
 from enum import Enum
@@ -26,13 +25,9 @@ from attrs import field as _attrs_field
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',
-    '_BearerFieldProvider',
-    '_AsyncBearerFieldProvider',
     'is_success',
     'is_retriable',
     'full_jitter',
-    '_StaticFieldProvider',
-    '_AsyncStaticFieldProvider',
     '_SchemaCache',
     'RuleKind',
     'RuleMode',
@@ -50,54 +45,6 @@ __all__ = [
 ]
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
-
-
-class _BearerFieldProvider(metaclass=abc.ABCMeta):
-    """Base class for synchronous bearer field providers."""
-
-    @abc.abstractmethod
-    def get_bearer_fields(self) -> dict:
-        raise NotImplementedError
-
-
-class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
-    """Base class for asynchronous bearer field providers."""
-
-    @abc.abstractmethod
-    async def get_bearer_fields(self) -> dict:
-        raise NotImplementedError
-
-
-class _StaticFieldProvider(_BearerFieldProvider):
-    """Synchronous static token bearer field provider."""
-
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    def get_bearer_fields(self) -> dict:
-        return {
-            'bearer.auth.token': self.token,
-            'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
-        }
-
-
-class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
-    """Asynchronous static token bearer field provider."""
-
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    async def get_bearer_fields(self) -> dict:
-        return {
-            'bearer.auth.token': self.token,
-            'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
-        }
 
 
 def is_success(status_code: int) -> bool:
