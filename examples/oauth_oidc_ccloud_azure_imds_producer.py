@@ -17,7 +17,7 @@
 
 
 # This example uses Azure IMDS for credential-less authentication
-# through to Schema Registry on Confluent Cloud
+# to Schema Registry on Confluent Cloud
 
 import argparse
 import logging
