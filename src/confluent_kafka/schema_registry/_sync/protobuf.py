@@ -31,7 +31,6 @@ from confluent_kafka.schema_registry import (
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
     reference_subject_name_strategy,
-    topic_subject_name_strategy,
 )
 from confluent_kafka.schema_registry.common.protobuf import (
     PROTOBUF_TYPE,
@@ -149,14 +148,28 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | The type of subject name strategy to use.            |
+    | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | subject.name.strategy is specified.                  |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Configuration dictionary passed to strategies        |
+    | ``subject.name.strategy.conf``      | dict     | that require additional configuration, such as       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to None.                                    |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
     |                                     |          | constructed. Standard naming strategies are          |
     |                                     |          | defined in the confluent_kafka.schema_registry       |
-    |                                     |          | namespace.                                           |
+    |                                     |          | namespace. Takes precedence over                     |
+    |                                     |          | subject.name.strategy.type if both are set.          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to topic_subject_name_strategy.             |
+    |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
@@ -227,7 +240,9 @@ class ProtobufSerializer(BaseSerializer):
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'skip.known.types': True,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'reference.subject.name.strategy': reference_subject_name_strategy,
         'schema.id.serializer': prefix_schema_id_serializer,
         'use.deprecated.format': False,
@@ -279,19 +294,18 @@ class ProtobufSerializer(BaseSerializer):
         if self._use_deprecated_format:
             raise ValueError("use.deprecated.format is no longer supported")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._ref_reference_subject_func = cast(
             Callable[[Optional[SerializationContext], Any], Optional[str]],
             conf_copy.pop('reference.subject.name.strategy'),
         )
         if not callable(self._ref_reference_subject_func):
-            raise ValueError("subject.name.strategy must be callable")
+            raise ValueError("reference.subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -414,7 +428,15 @@ class ProtobufSerializer(BaseSerializer):
         if not isinstance(message, self._msg_class):
             raise ValueError("message must be of type {} not {}".format(self._msg_class, type(message)))
 
-        subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
+        subject = (
+            (
+                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
+                else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
+            )
+            if ctx
+            else None
+        )
         latest_schema = None
         if subject is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
@@ -508,14 +530,28 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | The type of subject name strategy to use.            |
+    | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | subject.name.strategy is specified.                  |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Configuration dictionary passed to strategies        |
+    | ``subject.name.strategy.conf``      | dict     | that require additional configuration, such as       |
+    |                                     |          | ASSOCIATED.                                          |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to None.                                    |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
-    |                                     |          | constructed. Standard naming strategies     are      |
-    |                                     |          | defined in the confluent_kafka.    schema_registry   |
-    |                                     |          | namespace    .                                       |
+    |                                     |          | constructed. Standard naming strategies are          |
+    |                                     |          | defined in the confluent_kafka.schema_registry       |
+    |                                     |          | namespace. Takes precedence over                     |
+    |                                     |          | subject.name.strategy.type if both are set.          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to topic_subject_name_strategy.             |
+    |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
     |                                     |          |   -> io.BytesIO                                      |
@@ -534,7 +570,9 @@ class ProtobufDeserializer(BaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'use.deprecated.format': False,
     }
@@ -566,12 +604,11 @@ class ProtobufDeserializer(BaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
+            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
+            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -619,7 +656,11 @@ class ProtobufDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
@@ -634,7 +675,11 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
+                subject = (
+                    self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
+                    else self._subject_name_func(ctx, writer_desc.full_name)
+                )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject, fmt='serialized')
         else:
