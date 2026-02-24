@@ -31,6 +31,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -55,6 +56,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -77,6 +79,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -103,6 +106,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -123,6 +127,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -143,6 +148,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -197,24 +203,27 @@ blocks:
         - name: Build and Tests with 'classic' group protocol
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
         - name: Build and Tests with 'consumer' group protocol
           commands:
             - sem-version python 3.11
             - sem-version java 17
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
         - name: Build, Test, and Report coverage
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export RUN_COVERAGE=true
             - tools/source-package-verification.sh
@@ -237,8 +246,9 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX x64) +docs"
@@ -256,8 +266,9 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX arm64) +docs"
@@ -275,8 +286,9 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
+            - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
@@ -302,13 +314,14 @@ blocks:
           commands:
             # Setup Python environment
             - sem-version python 3.11
-            - python3 -m venv _venv && source _venv/bin/activate
+            - pip install uv
+            - uv venv _venv && source _venv/bin/activate
 
             # Install ducktape framework and additional dependencies
-            - pip install ducktape psutil
+            - uv pip install ducktape psutil
 
             # Install existing test requirements
-            - pip install -r requirements/requirements-tests-install.txt
+            - uv pip install -r requirements/requirements-tests-install.txt
 
             # Build and install confluent-kafka from source
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
@@ -316,7 +329,7 @@ blocks:
             - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
             - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
-            - python3 -m pip install -e .
+            - uv pip install -e .
 
             # Store project root for reliable navigation
             - PROJECT_ROOT="${PWD}"
