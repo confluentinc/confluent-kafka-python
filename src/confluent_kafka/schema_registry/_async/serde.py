@@ -133,7 +133,8 @@ class AsyncAssociatedNameStrategy:
             )
         except SchemaRegistryError as e:
             if e.http_status_code == 404:
-                return STRATEGY_TYPE_MAP[fallback_strategy](ctx, record_name)
+                # Treat 404 as no associations found and fall through to existing fallback logic
+                associations = []
             else:
                 raise
 
