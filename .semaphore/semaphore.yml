@@ -29,7 +29,7 @@ blocks:
             - sem-version python 3.11
             - pip install twine build
             - python3 -m build -s
-            - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive dist/*
+            - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive --verbose dist/*
             - echo "Vault setup and Test PyPI upload verified"
 promotions:
   - name: "Publish to PyPI"
