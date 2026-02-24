@@ -601,6 +601,22 @@ blocks:
             - ls *.tgz |xargs -n1 tar -xvf
             - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
             - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive wheelhouse/*
+  - name: "Verify Test PyPI Release"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Publish to Test PyPI"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Verify
+          commands:
+            - checkout
+            - sem-version python 3.11
+            - export CK_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+            - tools/test-released-wheels.sh $CK_VERSION test
 promotions:
   - name: "Publish to PyPI"
     pipeline_file: publish-pypi.yml
