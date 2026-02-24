@@ -53,11 +53,7 @@ $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
 
-# Ensure we have pip installed if using uv
-uv pip install pip || true
-
-python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
-    pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
+uv pip install $install_pkgs
 
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
