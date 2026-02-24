@@ -61,11 +61,9 @@ function run_single_in_docker {
         echo "WARNING: Don't know what platform I'm on: $(uname -a)"
     fi
 
-    # Don't install pip from distro packaging since it pulls
-    # in a plethora of possibly outdated Python requirements that
-    # might interfere with the newer packages from PyPi, such as six.
-    # Instead install it directly from PyPa.
+    # Install pip and uv for package management
     curl https://bootstrap.pypa.io/get-pip.py | python3.9
+    pip install uv
 
     /io/tools/smoketest.sh "$wheelhouse"
 }
