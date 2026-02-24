@@ -68,9 +68,7 @@ blocks:
     task:
       agent:
         machine:
-          # TODO: Re-enable when arm64 agents are available
-          # type: s1-macos-15-arm64-8
-          type: s1-prod-ubuntu24-04-amd64-1
+          type: s1-macos-15-arm64-8
       env_vars:
         - name: OS_NAME
           value: osx
@@ -81,12 +79,10 @@ blocks:
       jobs:
         - name: Build
           commands:
-            # TODO: Re-enable when arm64 agents are stable
-            # - sem-version python 3.11
-            # - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
-            # - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            # - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-            - echo "OSX arm64 wheel build temporarily skipped"
+            - sem-version python 3.11
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
+            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
     run:
       when: "tag =~ '.*'"
@@ -95,9 +91,7 @@ blocks:
     task:
       agent:
         machine:
-          # TODO: Re-enable when arm64 agents are available
-          # type: s1-macos-15-arm64-8
-          type: s1-prod-ubuntu24-04-amd64-1
+          type: s1-macos-15-arm64-8
       env_vars:
         - name: OS_NAME
           value: osx
@@ -112,12 +106,10 @@ blocks:
       jobs:
         - name: Build
           commands:
-            # TODO: Re-enable when arm64 agents are stable
-            # - sem-version python 3.13
-            # - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            # - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
-            # - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
-            - echo "OSX arm64 wheel build temporarily skipped"
+            - sem-version python 3.13
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -177,17 +169,15 @@ blocks:
       jobs:
         - name: Build
           commands:
-            # TODO: Re-enable Windows wheel build when fixed
-            # - ".\\tools\\mingw-w64\\setup-msys2.ps1"
-            # - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
-            # - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
-            # - sem-version python 3.11.9
-            # - bash tools/mingw-w64/semaphore_commands.sh
-            # - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
-            # - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-            # - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
-            # - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
-            - echo "Windows wheel build temporarily skipped"
+            - ".\\tools\\mingw-w64\\setup-msys2.ps1"
+            - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+            - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+            - sem-version python 3.11.9
+            - bash tools/mingw-w64/semaphore_commands.sh
+            - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
+            - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+            - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
   - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
     dependencies: []
     task:
@@ -275,9 +265,7 @@ blocks:
     task:
       agent:
         machine:
-          # TODO: Re-enable when arm64 agents are available
-          # type: s1-macos-15-arm64-8
-          type: s1-prod-ubuntu24-04-amd64-1
+          type: s1-macos-15-arm64-8
       env_vars:
         - name: OS_NAME
           value: osx
@@ -286,12 +274,11 @@ blocks:
       jobs:
         - name: Build
           commands:
-            # TODO: Re-enable when arm64 agents are stable
-            # - sem-version python 3.11
-            # - python3 -m venv _venv && source _venv/bin/activate
-            # - chmod u+r+x tools/source-package-verification.sh
-            # - tools/source-package-verification.sh
-            - echo "OSX arm64 source package verification temporarily skipped"
+            - sem-version python 3.11
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
     dependencies: []
     task:
@@ -505,23 +492,21 @@ blocks:
       jobs:
         - name: Verify
           commands:
-            # TODO: Re-enable Windows wheel verification when fixed
-            # - sem-version python 3.11.9
-            # - pip install --upgrade pip pytest
-            # - pip install -r requirements/requirements-tests-install.txt
-            # - artifact pull workflow artifacts
-            # - cd artifacts
-            # - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
-            # - cd ..
-            # - pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
-            # - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
-            # - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
-            # - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
-            # - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
-            # - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
-            # - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
-            # - pytest tests\test_error.py
-            - echo "Windows wheel verification temporarily skipped"
+            - sem-version python 3.11.9
+            - pip install --upgrade pip pytest
+            - pip install -r requirements/requirements-tests-install.txt
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
+            - cd ..
+            - pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests\test_error.py
   - name: "Pre-release Validation"
     run:
       when: "tag =~ '.*'"
