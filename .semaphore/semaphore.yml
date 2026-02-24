@@ -30,8 +30,8 @@ blocks:
             - echo "TWINE_USERNAME is set - $([ -n \"$TWINE_USERNAME\" ] && echo yes || echo no)"
             - echo "TWINE_PASSWORD is set - $([ -n \"$TWINE_PASSWORD\" ] && echo yes || echo no)"
             - python3 -m build -s
-            - twine check dist/*
-            - echo "Vault setup and twine check passed"
+            - twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+            - echo "Vault setup and Test PyPI upload verified"
 promotions:
   - name: "Publish to PyPI"
     pipeline_file: publish-pypi.yml
