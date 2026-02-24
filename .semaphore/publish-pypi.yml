@@ -6,12 +6,12 @@ agent:
 blocks:
   - name: "Publish to PyPI"
     task:
-      secrets:
-        - name: v1/ci/kv/pypi/pypi.org
       jobs:
         - name: Upload
           commands:
             - checkout
+            - vault-setup
+            - . vault-sem-get-secret v1/ci/kv/pypi/pypi.org
             - sem-version python 3.11
             - pip install twine
             - artifact pull workflow artifacts
