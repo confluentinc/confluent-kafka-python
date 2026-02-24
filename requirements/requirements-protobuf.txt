@@ -1,2 +1,2 @@
 googleapis-common-protos
-protobuf
+protobuf>=5.29.6
