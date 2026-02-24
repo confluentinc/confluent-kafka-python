@@ -43,6 +43,10 @@ __all__ = [
     'Schema',
     'RegisteredSchema',
     'Association',
+    'AssociationInfo',
+    'AssociationCreateOrUpdateInfo',
+    'AssociationCreateOrUpdateRequest',
+    'AssociationResponse',
 ]
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
