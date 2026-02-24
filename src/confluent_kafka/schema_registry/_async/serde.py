@@ -291,7 +291,7 @@ class AsyncBaseSerde(object):
             if not callable(subject_name_strategy):
                 raise ValueError("subject.name.strategy must be callable")
             self._subject_name_func = subject_name_strategy
-            self._strategy_accepts_client = False
+            self._strategy_accepts_client = isinstance(subject_name_strategy, AsyncAssociatedNameStrategy)
             return
 
         # If a type is provided, resolve it to a callable
