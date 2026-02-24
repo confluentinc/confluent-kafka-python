@@ -657,9 +657,13 @@ class ProtobufDeserializer(BaseDeserializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
-            if self._strategy_accepts_client
-            else self._subject_name_func(ctx, None)
+            (
+                self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
+                else self._subject_name_func(ctx, None)
+            )
+            if ctx
+            else None
         )
         latest_schema = None
         if subject is not None and self._registry is not None:
@@ -676,9 +680,14 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
                 subject = (
-                    self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
-                    if self._strategy_accepts_client
-                    else self._subject_name_func(ctx, writer_desc.full_name)
+                    (
+                        self._subject_name_func(
+                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                        if self._strategy_accepts_client
+                        else self._subject_name_func(ctx, writer_desc.full_name)
+                    )
+                    if ctx
+                    else None
                 )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject, fmt='serialized')
