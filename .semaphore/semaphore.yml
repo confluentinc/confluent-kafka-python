@@ -24,13 +24,17 @@ blocks:
           commands:
             - checkout
             - vault-setup
+            - env | cut -d= -f1 | sort > /tmp/env_before
             - . vault-sem-get-secret v1/ci/kv/pypi/test.pypi.org
+            - env | cut -d= -f1 | sort > /tmp/env_after
+            - echo "=== New env vars after vault secret ==="
+            - diff /tmp/env_before /tmp/env_after || true
+            - echo "=== Checking for .pypirc ==="
+            - ls -la ~/.pypirc 2>/dev/null || echo "No .pypirc found"
             - sem-version python 3.11
             - pip install twine build
-            - echo "TWINE_USERNAME is set - $([ -n \"$TWINE_USERNAME\" ] && echo yes || echo no)"
-            - echo "TWINE_PASSWORD is set - $([ -n \"$TWINE_PASSWORD\" ] && echo yes || echo no)"
             - python3 -m build -s
-            - twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+            - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive dist/*
             - echo "Vault setup and Test PyPI upload verified"
 promotions:
   - name: "Publish to PyPI"
