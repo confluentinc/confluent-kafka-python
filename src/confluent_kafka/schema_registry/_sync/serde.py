@@ -17,11 +17,19 @@
 #
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set
+import threading as _locks
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-from confluent_kafka.schema_registry import RegisteredSchema
+from cachetools import LRUCache
+
+from confluent_kafka.schema_registry import (
+    RegisteredSchema,
+    SchemaRegistryClient,
+    topic_subject_name_strategy,
+)
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.common.serde import (
+    STRATEGY_TYPE_MAP,
     ErrorAction,
     FieldTransformer,
     Migration,
@@ -31,17 +39,203 @@ from confluent_kafka.schema_registry.common.serde import (
     RuleContext,
     RuleError,
     SchemaId,
+    SubjectNameStrategyType,
 )
+from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
-from confluent_kafka.serialization import Deserializer, SerializationContext, SerializationError, Serializer
+from confluent_kafka.serialization import (
+    Deserializer,
+    MessageField,
+    SerializationContext,
+    SerializationError,
+    Serializer,
+)
 
 __all__ = [
+    'AssociatedNameStrategy',
     'BaseSerde',
     'BaseSerializer',
     'BaseDeserializer',
+    'KAFKA_CLUSTER_ID',
+    'FALLBACK_SUBJECT_NAME_STRATEGY_TYPE',
 ]
 
 log = logging.getLogger(__name__)
+
+
+KAFKA_CLUSTER_ID = "kafka.cluster.id"
+NAMESPACE_WILDCARD = "-"
+FALLBACK_SUBJECT_NAME_STRATEGY_TYPE = "fallback.subject.name.strategy.type"
+DEFAULT_CACHE_CAPACITY = 1000
+
+
+class AssociatedNameStrategy:
+    """
+    A subject name strategy that retrieves the associated subject name from schema registry
+    by querying associations for the topic.
+
+    This class encapsulates a cache for subject name lookups to avoid repeated API calls.
+
+    Args:
+        cache_capacity (int): Maximum number of entries to cache. Defaults to 1000.
+    """
+
+    def __init__(self, cache_capacity: int = DEFAULT_CACHE_CAPACITY):
+        self._cache: LRUCache = LRUCache(maxsize=cache_capacity)
+        self._lock: _locks.Lock = _locks.Lock()
+
+    def _get_cache_key(self, topic: str, is_key: bool, record_name: Optional[str]) -> Tuple[str, bool, Optional[str]]:
+        """Create a cache key from topic, is_key, and record_name."""
+        return (topic, is_key, record_name)
+
+    def _load_subject_name(
+        self,
+        topic: str,
+        is_key: bool,
+        record_name: Optional[str],
+        ctx: SerializationContext,
+        schema_registry_client: SchemaRegistryClient,
+        conf: Optional[dict],
+    ) -> Optional[str]:
+        """Load the subject name from schema registry (not cached)."""
+        # Determine resource namespace from config
+        kafka_cluster_id = None
+        fallback_strategy = SubjectNameStrategyType.TOPIC  # default fallback
+
+        if conf is not None:
+            kafka_cluster_id = conf.get(KAFKA_CLUSTER_ID)
+            fallback_config = conf.get(FALLBACK_SUBJECT_NAME_STRATEGY_TYPE)
+            if fallback_config is not None:
+                if isinstance(fallback_config, SubjectNameStrategyType):
+                    fallback_strategy = fallback_config
+                else:
+                    try:
+                        fallback_strategy = SubjectNameStrategyType(str(fallback_config).upper())
+                    except ValueError:
+                        valid_fallbacks = [
+                            e.value for e in SubjectNameStrategyType if e != SubjectNameStrategyType.ASSOCIATED
+                        ]
+                        raise ValueError(
+                            f"Invalid value for {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE}: {fallback_config}. "
+                            f"Valid values are: {', '.join(valid_fallbacks)}"
+                        )
+
+        resource_namespace = kafka_cluster_id if kafka_cluster_id is not None else NAMESPACE_WILDCARD
+
+        # Determine association type based on whether this is key or value
+        association_type = "key" if is_key else "value"
+
+        # Query schema registry for associations
+        try:
+            associations = schema_registry_client.get_associations_by_resource_name(
+                resource_name=topic,
+                resource_namespace=resource_namespace,
+                resource_type="topic",
+                association_types=[association_type],
+                offset=0,
+                limit=-1,
+            )
+        except SchemaRegistryError as e:
+            if e.http_status_code == 404:
+                # Treat 404 as no associations found and fall through to existing fallback logic
+                associations = []
+            else:
+                raise
+
+        if len(associations) > 1:
+            raise SerializationError(f"Multiple associated subjects found for topic {topic}")
+        elif len(associations) == 1:
+            return associations[0].subject
+        else:
+            # No associations found, use fallback strategy
+            if fallback_strategy == SubjectNameStrategyType.NONE:
+                raise SerializationError(f"No associated subject found for topic {topic}")
+            elif fallback_strategy == SubjectNameStrategyType.ASSOCIATED:
+                raise ValueError(
+                    f"Invalid value for {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE}: {fallback_strategy.value}. "
+                    f"ASSOCIATED cannot be used as a fallback strategy."
+                )
+
+            return STRATEGY_TYPE_MAP[fallback_strategy](ctx, record_name)
+
+    def __call__(
+        self,
+        ctx: Optional[SerializationContext],
+        record_name: Optional[str],
+        schema_registry_client: SchemaRegistryClient,
+        conf: Optional[dict] = None,
+    ) -> Optional[str]:
+        """
+        Retrieves the associated subject name from schema registry by querying
+        associations for the topic.
+
+        The topic is passed as the resource name to schema registry. If there is a
+        configuration property named "kafka.cluster.id", then its value will be passed
+        as the resource namespace; otherwise the value "-" will be passed as the
+        resource namespace.
+
+        If more than one subject is returned from the query, a SerializationError
+        will be raised. If no subjects are returned from the query, then the behavior
+        will fall back to topic_subject_name_strategy, unless the configuration property
+        "fallback.subject.name.strategy.type" is set to "RECORD", "TOPIC_RECORD", or "NONE".
+
+        Results are cached using an LRU cache to avoid repeated API calls.
+
+        Args:
+            ctx (SerializationContext): Metadata pertaining to the serialization
+                operation. **Required** - must contain topic and field information.
+
+            record_name (Optional[str]): Record name (used for fallback strategies).
+
+            schema_registry_client (SchemaRegistryClient): SchemaRegistryClient instance.
+
+            conf (Optional[dict]): Configuration dictionary. Supports:
+                - "kafka.cluster.id": Kafka cluster ID to use as resource namespace.
+                - "fallback.subject.name.strategy.type": Fallback strategy when no
+                  associations are found. One of "TOPIC", "RECORD", "TOPIC_RECORD", or "NONE".
+                  Defaults to "TOPIC".
+
+        Returns:
+            Optional[str]: The subject name from the association, or from the fallback strategy.
+
+        Raises:
+            SerializationError: If multiple associated subjects are found for the topic,
+                or if no subjects are found and fallback is set to "NONE".
+            ValueError: If ctx is None.
+        """
+        if ctx is None:
+            raise ValueError(
+                "SerializationContext is required for AssociatedNameStrategy. "
+                "Either provide a SerializationContext or use a different strategy."
+            )
+
+        topic = ctx.topic
+        if topic is None:
+            return None
+
+        is_key = ctx.field == MessageField.KEY
+        cache_key = self._get_cache_key(topic, is_key, record_name)
+
+        # Check cache first
+        with self._lock:
+            cached_result = self._cache.get(cache_key)
+            if cached_result is not None:
+                return cached_result
+
+        # Not in cache, load from schema registry
+        result = self._load_subject_name(topic, is_key, record_name, ctx, schema_registry_client, conf)
+
+        # Cache the result
+        if result is not None:
+            with self._lock:
+                self._cache[cache_key] = result
+
+        return result
+
+    def clear_cache(self) -> None:
+        """Clear the association subject name cache."""
+        with self._lock:
+            self._cache.clear()
 
 
 class BaseSerde(object):
@@ -51,6 +245,8 @@ class BaseSerde(object):
         '_use_latest_with_metadata',
         '_registry',
         '_rule_registry',
+        '_strategy_accepts_client',
+        '_subject_name_conf',
         '_subject_name_func',
         '_field_transformer',
     ]
@@ -60,8 +256,79 @@ class BaseSerde(object):
     _use_latest_with_metadata: Optional[Dict[str, str]]
     _registry: Any  # SchemaRegistryClient
     _rule_registry: Any  # RuleRegistry
+    _subject_name_conf: Optional[dict]
     _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
     _field_transformer: Optional[FieldTransformer]
+
+    def configure_subject_name_strategy(
+        self,
+        subject_name_strategy_type: Optional[Union[SubjectNameStrategyType, str]] = None,
+        subject_name_strategy_conf: Optional[dict] = None,
+        subject_name_strategy: Optional[Callable] = None,
+    ) -> None:
+        """
+        Configure the subject name strategy for this serde.
+
+        This method supports both the legacy callable approach and the new type-based approach.
+        If both `subject_name_strategy` (as a callable) and `subject_name_strategy_type` are
+        provided, the callable takes precedence.
+
+        Args:
+            subject_name_strategy: A callable that implements the subject name strategy.
+                Signature: (SerializationContext, str) -> str or
+                          (SerializationContext, str, SchemaRegistryClient, dict) -> str
+
+            subject_name_strategy_type: The type of subject name strategy to use.
+                Can be a SubjectNameStrategyType enum value or a string
+                ("TOPIC", "RECORD", "TOPIC_RECORD", "ASSOCIATED").
+
+            subject_name_strategy_conf: Configuration dictionary passed to strategies
+                that accept extra parameters (like ASSOCIATED).
+
+        Raises:
+            ValueError: If the strategy is not callable or the type is invalid.
+        """
+        self._subject_name_conf = subject_name_strategy_conf
+
+        # If a callable is provided, use it directly (backward compatible)
+        if subject_name_strategy is not None:
+            if not callable(subject_name_strategy):
+                raise ValueError("subject.name.strategy must be callable")
+            self._subject_name_func = subject_name_strategy
+            self._strategy_accepts_client = isinstance(subject_name_strategy, AssociatedNameStrategy)
+            return
+
+        # If a type is provided, resolve it to a callable
+        if subject_name_strategy_type is not None:
+            # Convert string to enum if needed
+            if isinstance(subject_name_strategy_type, str):
+                try:
+                    subject_name_strategy_type = SubjectNameStrategyType(subject_name_strategy_type.upper())
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid subject.name.strategy.type: {subject_name_strategy_type}. "
+                        f"Valid values are: {[e.value for e in SubjectNameStrategyType]}"
+                    )
+
+            # Handle ASSOCIATED specially since it needs schema_registry_client
+            if subject_name_strategy_type == SubjectNameStrategyType.ASSOCIATED:
+                self._subject_name_func = AssociatedNameStrategy()
+                self._strategy_accepts_client = True
+            elif subject_name_strategy_type == SubjectNameStrategyType.NONE:
+                raise ValueError(
+                    f"Invalid subject.name.strategy.type: {subject_name_strategy_type}. "
+                    f"NONE cannot be used as a subject name strategy."
+                )
+            elif subject_name_strategy_type in STRATEGY_TYPE_MAP:
+                self._subject_name_func = STRATEGY_TYPE_MAP[subject_name_strategy_type]
+                self._strategy_accepts_client = False
+            else:
+                raise ValueError(f"Unknown subject.name.strategy.type: {subject_name_strategy_type}")
+            return
+
+        # Default to topic_subject_name_strategy
+        self._subject_name_func = topic_subject_name_strategy
+        self._strategy_accepts_client = False
 
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
