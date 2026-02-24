@@ -403,7 +403,7 @@ class _AsyncBaseRestClient(object):
     async def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    async def delete(self, url: str) -> Any:
+    async def delete(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
     async def put(self, url: str, body: Optional[dict] = None) -> Any:
@@ -453,8 +453,8 @@ class _AsyncRestClient(_AsyncBaseRestClient):
     async def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         return await self.send_request(url, method='POST', body=body)
 
-    async def delete(self, url: str) -> Any:
-        return await self.send_request(url, method='DELETE')
+    async def delete(self, url: str, query: Optional[dict] = None) -> Any:
+        return await self.send_request(url, method='DELETE', query=query)
 
     async def put(self, url: str, body: Optional[dict] = None) -> Any:
         return await self.send_request(url, method='PUT', body=body)
@@ -1676,11 +1676,8 @@ class AsyncSchemaRegistryClient(object):
             query['associationType'] = association_types
 
         await self._rest_client.delete(
-            'associations/resources/{}?{}'.format(
-                _urlencode(resource_id),
-                '&'.join(f"{k}={v}" if not isinstance(v, list)
-                         else '&'.join(f"{k}={item}" for item in v) for k, v in query.items())
-            )
+            'associations/resources/{}'.format(_urlencode(resource_id)),
+            query=query
         )
 
     @staticmethod

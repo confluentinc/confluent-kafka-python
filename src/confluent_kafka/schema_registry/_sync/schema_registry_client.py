@@ -402,7 +402,7 @@ class _BaseRestClient(object):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    def delete(self, url: str) -> Any:
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
@@ -452,8 +452,8 @@ class _RestClient(_BaseRestClient):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         return self.send_request(url, method='POST', body=body)
 
-    def delete(self, url: str) -> Any:
-        return self.send_request(url, method='DELETE')
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
+        return self.send_request(url, method='DELETE', query=query)
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
@@ -1655,15 +1655,7 @@ class SchemaRegistryClient(object):
         if association_types is not None:
             query['associationType'] = association_types
 
-        self._rest_client.delete(
-            'associations/resources/{}?{}'.format(
-                _urlencode(resource_id),
-                '&'.join(
-                    f"{k}={v}" if not isinstance(v, list) else '&'.join(f"{k}={item}" for item in v)
-                    for k, v in query.items()
-                ),
-            )
-        )
+        self._rest_client.delete('associations/resources/{}'.format(_urlencode(resource_id)), query=query)
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':
