@@ -256,6 +256,7 @@ class BaseSerde(object):
     _use_latest_with_metadata: Optional[Dict[str, str]]
     _registry: Any  # SchemaRegistryClient
     _rule_registry: Any  # RuleRegistry
+    _strategy_accepts_client: bool
     _subject_name_conf: Optional[dict]
     _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
     _field_transformer: Optional[FieldTransformer]
