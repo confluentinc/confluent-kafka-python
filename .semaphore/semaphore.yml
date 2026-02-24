@@ -3,6 +3,16 @@ name: build-test-release
 agent:
   machine:
     type: s1-prod-ubuntu24-04-amd64-1
+execution_time_limit:
+  hours: 3
+global_job_config:
+  env_vars:
+    - name: LIBRDKAFKA_VERSION
+      value: v2.13.0
+  prologue:
+    commands:
+      - checkout
+      - mkdir artifacts
 blocks:
   - name: "Verify Test PyPI Access"
     task:
@@ -22,3 +32,17 @@ blocks:
             - python3 -m build -s
             - twine check dist/*
             - echo "Vault setup and twine check passed"
+promotions:
+  - name: "Publish to PyPI"
+    pipeline_file: publish-pypi.yml
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu24-04-amd64-1
+    jobs:
+      - name: SonarQube
+        commands:
+          - checkout
+          - artifact pull workflow coverage.xml
+          - emit-sonarqube-data --run_only_sonar_scan
