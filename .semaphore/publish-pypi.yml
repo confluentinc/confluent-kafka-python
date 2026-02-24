@@ -1,0 +1,21 @@
+version: v1.0
+name: publish-pypi
+agent:
+  machine:
+    type: s1-prod-ubuntu24-04-amd64-1
+blocks:
+  - name: "Publish to PyPI"
+    task:
+      jobs:
+        - name: Upload
+          commands:
+            - checkout
+            - vault-setup
+            - . vault-sem-get-secret v1/ci/kv/pypi/pypi.org
+            - sem-version python 3.11
+            - pip install twine
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
+            - twine upload wheelhouse/*
