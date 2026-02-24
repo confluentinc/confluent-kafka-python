@@ -53,14 +53,14 @@ for py in 3.9 ; do
 
         trap cleanup EXIT
 
-        python$py -m pip install virtualenv
+        pip install uv
 
-        virtualenv -p python$py $venvdir
+        uv venv -p python$py $venvdir
         source $venvdir/bin/activate
         hash -r
 
-        pip install -U pip pkginfo
-        pip install -r requirements/requirements-tests-install.txt
+        uv pip install pkginfo
+        uv pip install -r requirements/requirements-tests-install.txt
 
         # Get the packages version so we can pin the install
         # command to this version (which hopefully loads it from the wheeldir
@@ -74,11 +74,11 @@ for py in 3.9 ; do
             exit 1
         fi
 
-        pip install --find-links "$wheeldir" confluent-kafka==$version
+        uv pip install --find-links "$wheeldir" confluent-kafka==$version
         # Install a prebuilt version of fastavro that doesn't require a gcc toolchain
-        pip install --find-links "$wheeldir" --only-binary :fastavro: confluent-kafka[avro]==$version
-        pip install --find-links "$wheeldir" confluent-kafka[protobuf]==$version
-        pip install --find-links "$wheeldir" confluent-kafka[json]==$version
+        uv pip install --find-links "$wheeldir" --only-binary fastavro confluent-kafka[avro]==$version
+        uv pip install --find-links "$wheeldir" confluent-kafka[protobuf]==$version
+        uv pip install --find-links "$wheeldir" confluent-kafka[json]==$version
     fi
 
 
