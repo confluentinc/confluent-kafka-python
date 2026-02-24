@@ -570,9 +570,30 @@ blocks:
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
-promotions:
   - name: "Publish to Test PyPI"
-    pipeline_file: publish-test-pypi.yml
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Packaging"
+    task:
+      secrets:
+        - name: v1/ci/kv/pypi/test.pypi.org
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Upload
+          commands:
+            - sem-version python 3.11
+            - pip install twine
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
+            - twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/*
+promotions:
+  - name: "Publish to PyPI"
+    pipeline_file: publish-pypi.yml
 after_pipeline:
   task:
     agent:
