@@ -42,6 +42,9 @@ from confluent_kafka.schema_registry.common._oauthbearer import (
     _StaticOAuthBearerFieldProviderBuilder,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import (
+    Association,
+    AssociationCreateOrUpdateRequest,
+    AssociationResponse,
     RegisteredSchema,
     Schema,
     SchemaVersion,
@@ -1578,6 +1581,107 @@ class AsyncSchemaRegistryClient(object):
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
+
+    async def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        offset: int = 0,
+        limit: int = -1
+    ) -> List['Association']:
+        """
+        Retrieves associations for a given resource name and namespace.
+
+        Args:
+            resource_name (str): The name of the resource (e.g., topic name).
+            resource_namespace (str): The namespace of the resource (e.g., kafka cluster ID).
+                Use "-" as a wildcard.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to filter by
+                (e.g., ["key", "value"]).
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[Association]: List of associations matching the criteria.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+        if offset > 0:
+            query['offset'] = offset
+        if limit >= 1:
+            query['limit'] = limit
+
+        response = await self._rest_client.get(
+            'associations/resources/{}/{}'.format(
+                _urlencode(resource_namespace),
+                _urlencode(resource_name)
+            ),
+            query
+        )
+
+        return [Association.from_dict(a) for a in response]
+
+    async def create_association(
+        self,
+        request: 'AssociationCreateOrUpdateRequest'
+    ) -> 'AssociationResponse':
+        """
+        Creates an association between a subject and a resource.
+
+        Args:
+            request (AssociationCreateOrUpdateRequest): The association create or update request.
+
+        Returns:
+            AssociationResponse: The response containing the created associations.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        response = await self._rest_client.post('associations', body=request.to_dict())
+        return AssociationResponse.from_dict(response)
+
+    async def delete_associations(
+        self,
+        resource_id: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        cascade_lifecycle: bool = False
+    ) -> None:
+        """
+        Deletes associations for a resource.
+
+        Args:
+            resource_id (str): The resource identifier.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to delete
+                (e.g., ["key", "value"]). If not specified, all associations are deleted.
+            cascade_lifecycle (bool): Whether to cascade the lifecycle policy to dependent schemas.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {'cascadeLifecycle': str(cascade_lifecycle).lower()}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+
+        await self._rest_client.delete(
+            'associations/resources/{}?{}'.format(
+                _urlencode(resource_id),
+                '&'.join(f"{k}={v}" if not isinstance(v, list)
+                         else '&'.join(f"{k}={item}" for item in v) for k, v in query.items())
+            )
+        )
 
     @staticmethod
     def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
