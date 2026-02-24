@@ -166,12 +166,19 @@ blocks:
           value: windows
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - ".\\tools\\mingw-w64\\setup-msys2.ps1"
+          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+          - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
       jobs:
         - name: Build
+          env_vars:
+            - name: CHERE_INVOKING
+              value: 'yes'
+            - name: MSYSTEM
+              value: UCRT64
           commands:
-            - ".\\tools\\mingw-w64\\setup-msys2.ps1"
-            - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
-            - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
             - sem-version python 3.11.9
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
