@@ -10,12 +10,13 @@ blocks:
         - name: Upload
           commands:
             - checkout
-            - vault-setup
-            - . vault-sem-get-secret v1/ci/kv/pypi/pypi.org
+            - . vault-setup
+            - export TWINE_USERNAME=__token__
+            - export TWINE_PASSWORD="$(vault kv get -format=json v1/ci/kv/pypi/pypi.org | jq -r '.data.data."confluent-kafka"')"
             - sem-version python 3.11
             - pip install twine
             - artifact pull workflow artifacts
             - cd artifacts
             - ls *.tgz |xargs -n1 tar -xvf
             - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
-            - twine upload wheelhouse/*
+            - twine upload --non-interactive wheelhouse/*
