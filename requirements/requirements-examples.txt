@@ -19,13 +19,14 @@ jsonschema >= 4.18.0
 orjson >= 3.10
 
 googleapis-common-protos
-protobuf
+protobuf >= 5.29.6
 
 azure-identity
 azure-keyvault-keys
 boto3>=1.35
 botocore>=1.35
 cel-python>=0.4.0
+
 google-auth
 google-api-core
 google-cloud-kms
