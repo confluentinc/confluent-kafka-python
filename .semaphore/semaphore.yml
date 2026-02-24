@@ -13,7 +13,6 @@ global_job_config:
     commands:
       - checkout
       - mkdir artifacts
-      - pip install uv
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
@@ -32,6 +31,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -56,6 +56,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -78,6 +79,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -104,6 +106,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -124,6 +127,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.13
+            - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -144,6 +148,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -198,6 +203,7 @@ blocks:
         - name: Build and Tests with 'classic' group protocol
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -206,6 +212,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - sem-version java 17
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -214,6 +221,7 @@ blocks:
         - name: Build, Test, and Report coverage
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -238,6 +246,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -257,6 +266,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -276,6 +286,7 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
+            - pip install uv
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -303,6 +314,7 @@ blocks:
           commands:
             # Setup Python environment
             - sem-version python 3.11
+            - pip install uv
             - uv venv _venv && source _venv/bin/activate
 
             # Install ducktape framework and additional dependencies

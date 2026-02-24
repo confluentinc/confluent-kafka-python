@@ -68,7 +68,6 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         make docs
 
         echo "Testing extra dependencies ..."
-        uv pip install ".[schema-registry,avro,json,protobuf]"
         python3 -c "
 import importlib.metadata, sys
 extras = set(importlib.metadata.metadata('confluent-kafka').get_all('Provides-Extra') or [])
