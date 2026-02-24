@@ -25,7 +25,7 @@ blocks:
             - checkout
             - . vault-setup
             - export TWINE_USERNAME=__token__
-            - export TWINE_PASSWORD="$(vault kv get -field=token v1/ci/kv/pypi/test.pypi.org)"
+            - export TWINE_PASSWORD="$(vault kv get -format=json v1/ci/kv/pypi/test.pypi.org | jq -r '.data.data."confluent-kafka"')"
             - sem-version python 3.11
             - pip install twine build
             - python3 -m build -s
