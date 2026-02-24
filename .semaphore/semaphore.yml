@@ -17,7 +17,8 @@ blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -37,7 +38,8 @@ blocks:
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -61,7 +63,8 @@ blocks:
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -83,7 +86,8 @@ blocks:
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -109,7 +113,8 @@ blocks:
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -129,7 +134,8 @@ blocks:
   - name: "Wheels: Linux x64"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -149,7 +155,8 @@ blocks:
   - name: "Wheels: Windows"
     run:
       when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
           machine:
@@ -510,7 +517,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - tools/pre-release-validation.sh
-  - name: "Packaging"
+  - name: "Source Distribution"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -522,6 +529,28 @@ blocks:
     task:
       agent:
         machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Build
+          commands:
+            - sem-version python 3.11
+            - pip install build
+            - python -m build -s
+            - ls dist/
+            - artifact push workflow dist/ --destination artifacts/sdist/
+  - name: "Packaging"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Wheel Verification: Linux x64"
+      - "Wheel Verification: Linux arm64"
+      - "Wheel Verification: OSX x64"
+      - "Wheel Verification: OSX arm64"
+      - "Wheel Verification: Windows"
+      - "Source Distribution"
+    task:
+      agent:
+        machine:
           type: s1-prod-ubuntu24-04-amd64-3
       jobs:
         - name: "Packaging all artifacts"
@@ -529,12 +558,55 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts
             - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
             - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
             - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
+  - name: "Publish to Test PyPI"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Packaging"
+    task:
+      secrets:
+        - name: v1/ci/kv/pypi/test.pypi.org
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Upload
+          commands:
+            - sem-version python 3.11
+            - pip install twine
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
+            - twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/*
+  - name: "Publish to PyPI"
+    run:
+      when: "tag =~ '^v' AND tag !~ 'rc' AND tag !~ 'dev' AND tag !~ 'post'"
+    dependencies:
+      - "Packaging"
+    task:
+      secrets:
+        - name: v1/ci/kv/pypi/pypi.org
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Upload
+          commands:
+            - sem-version python 3.11
+            - pip install twine
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
+            - twine upload wheelhouse/*
 
 after_pipeline:
   task:
