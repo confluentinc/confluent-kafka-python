@@ -61,11 +61,15 @@ else
     errors=$((errors + 1))
 fi
 
-# 3. CHANGELOG.md should have a section for this version
-if grep -q "^## v${pyproject_version}" CHANGELOG.md; then
-    echo "OK:   CHANGELOG.md has entry for v${pyproject_version}"
+# 3. CHANGELOG.md should have a section for the base version (strip dev/rc/post suffixes)
+base_version=$(echo "$pyproject_version" | sed 's/\.\?\(dev\|rc\|post\)[0-9]*$//')
+if grep -q "^## v${base_version}" CHANGELOG.md; then
+    echo "OK:   CHANGELOG.md has entry for v${base_version}"
+elif [[ "$pyproject_version" == "$base_version" ]]; then
+    echo "FAIL: CHANGELOG.md missing '## v${base_version}' section (required for final release)"
+    errors=$((errors + 1))
 else
-    echo "WARN: CHANGELOG.md missing '## v${pyproject_version}' section"
+    echo "WARN: CHANGELOG.md missing '## v${base_version}' section"
     warnings=$((warnings + 1))
 fi
 
