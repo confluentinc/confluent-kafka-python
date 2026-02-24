@@ -681,8 +681,7 @@ class ProtobufDeserializer(BaseDeserializer):
             if subject is None:
                 subject = (
                     (
-                        self._subject_name_func(
-                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                        self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
                         if self._strategy_accepts_client
                         else self._subject_name_func(ctx, writer_desc.full_name)
                     )

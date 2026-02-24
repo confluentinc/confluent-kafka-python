@@ -23,9 +23,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from cachetools import LRUCache
 
 from confluent_kafka.schema_registry import (
+    AsyncSchemaRegistryClient,
     RegisteredSchema,
     topic_subject_name_strategy,
-    SchemaRegistryClient,
 )
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
@@ -91,7 +91,7 @@ class AsyncAssociatedNameStrategy:
         is_key: bool,
         record_name: Optional[str],
         ctx: SerializationContext,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: AsyncSchemaRegistryClient,
         conf: Optional[dict]
     ) -> Optional[str]:
         """Load the subject name from schema registry (not cached)."""
@@ -158,7 +158,7 @@ class AsyncAssociatedNameStrategy:
         self,
         ctx: Optional[SerializationContext],
         record_name: Optional[str],
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: AsyncSchemaRegistryClient,
         conf: Optional[dict] = None
     ) -> Optional[str]:
         """
@@ -183,7 +183,7 @@ class AsyncAssociatedNameStrategy:
 
             record_name (Optional[str]): Record name (used for fallback strategies).
 
-            schema_registry_client (SchemaRegistryClient): SchemaRegistryClient instance.
+            schema_registry_client (AsyncSchemaRegistryClient): AsyncSchemaRegistryClient instance.
 
             conf (Optional[dict]): Configuration dictionary. Supports:
                 - "kafka.cluster.id": Kafka cluster ID to use as resource namespace.
@@ -272,7 +272,7 @@ class AsyncBaseSerde(object):
         Args:
             subject_name_strategy: A callable that implements the subject name strategy.
                 Signature: (SerializationContext, str) -> str or
-                          (SerializationContext, str, SchemaRegistryClient, dict) -> str
+                          (SerializationContext, str, AsyncSchemaRegistryClient, dict) -> str
 
             subject_name_strategy_type: The type of subject name strategy to use.
                 Can be a SubjectNameStrategyType enum value or a string
