@@ -1649,7 +1649,7 @@ class SchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: if the request was unsuccessful.
         """
-        query: Dict[str, Any] = {'cascadeLifecycle': str(cascade_lifecycle).lower()}
+        query: Dict[str, Any] = {'cascadeLifecycle': cascade_lifecycle}
         if resource_type is not None:
             query['resourceType'] = resource_type
         if association_types is not None:
