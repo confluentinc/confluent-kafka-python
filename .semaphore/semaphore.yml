@@ -459,10 +459,21 @@ blocks:
       jobs:
         - name: Verify
           commands:
-            - sem-version python 3.9
+            - checkout
+            - sem-version python 3.11
+            - pip install uv
+            - uv pip install --system pytest
+            - uv pip install --system -r requirements/requirements-tests-install.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - tools/test-wheels.sh artifacts/wheelhouse
+            - uv pip install --system --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: OSX arm64"
     run:
       when: "tag =~ '.*'"
@@ -481,10 +492,21 @@ blocks:
       jobs:
         - name: Verify
           commands:
-            - sem-version python 3.9
+            - checkout
+            - sem-version python 3.11
+            - pip install uv
+            - uv pip install --system pytest
+            - uv pip install --system -r requirements/requirements-tests-install.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - tools/test-wheels.sh artifacts/wheelhouse
+            - uv pip install --system --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: Windows"
     run:
       when: "tag =~ '.*'"
