@@ -5,6 +5,7 @@ agent:
     type: s1-prod-ubuntu24-04-amd64-1
 blocks:
   - name: "Publish to Test PyPI"
+    dependencies: []
     task:
       jobs:
         - name: Upload
