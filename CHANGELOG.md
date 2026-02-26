@@ -1,10 +1,27 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+### Enhancements
+
+- Add Confluent-Client-Version header to requests to SR, Python client (#2148)
+
+## v2.13.1
+
+v2.13.1 is a maintenance release with the following fixes and enhancements:
+
+### Enhancements
+
+- Add Confluent-Client-Version header to requests to SR, Python client (#2148)
+- Add UAMI OAuth changes (#2189)
 
 ### Fixes
 
 - Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
 - Fixed type hinting of `KafkaError` class, `Consumer.__init()__`, `Producer.__init()__`, `Producer.produce()` and `Consumer.commit()` and introduced a script in tools directory to keep error codes up to date. Fixes Issue [#2168](https://github.com/confluentinc/confluent-kafka-python/issues/2168).
+- Fix the token expiration logic in SR Oauth (#2177)
+- Ensure use of cachetools is thread-safe (#2178)
+- remove passing resolver in json validate (#2186)
+- Fix JSON schema resolver bug (#2188)
+
 
 ## v2.13.0 - 2025-12-15
 
