@@ -16,7 +16,7 @@ global_job_config:
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -37,6 +37,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -62,7 +64,7 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -85,6 +87,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -111,6 +115,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -131,6 +137,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -152,7 +160,7 @@ blocks:
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -184,8 +192,6 @@ blocks:
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
   - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
-    run:
-      when: "false"
     dependencies: []
     task:
       agent:
@@ -233,8 +239,6 @@ blocks:
             - test-results publish test-output
             - artifact push workflow coverage.xml
   - name: "Source package verification with Python 3 (Linux arm64)"
-    run:
-      when: "false"
     dependencies: []
     task:
       agent:
@@ -255,8 +259,6 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX x64) +docs"
-    run:
-      when: "false"
     dependencies: []
     task:
       agent:
@@ -277,8 +279,6 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX arm64) +docs"
-    run:
-      when: "false"
     dependencies: []
     task:
       agent:
@@ -299,8 +299,6 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
-    run:
-      when: "false"
     dependencies: []
     task:
       agent:
@@ -403,7 +401,7 @@ blocks:
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Wheel Verification: Linux x64"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Linux x64"
     task:
@@ -424,7 +422,7 @@ blocks:
             - tools/test-wheels.sh artifacts/wheelhouse
   - name: "Wheel Verification: Linux arm64"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Linux arm64"
     task:
@@ -445,7 +443,7 @@ blocks:
             - tools/test-wheels.sh artifacts/wheelhouse
   - name: "Wheel Verification: OSX x64"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
@@ -478,7 +476,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: OSX arm64"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
@@ -511,7 +509,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: Windows"
     run:
-      when: "false"
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Windows"
     task:
@@ -542,6 +540,8 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests\test_error.py
   - name: "Pre-release Validation"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -553,11 +553,14 @@ blocks:
             - sem-version python 3.11
             - tools/pre-release-validation.sh
   - name: "Source Distribution"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: Linux x64"
-      - "Wheels: Linux arm64"
-      - "Wheels: OSX x64 - Python 3.13-3.14"
-      - "Wheels: OSX arm64 - Python 3.13-3.14"
+      - "Wheel Verification: Linux x64"
+      - "Wheel Verification: Linux arm64"
+      - "Wheel Verification: OSX x64"
+      - "Wheel Verification: OSX arm64"
+      - "Wheel Verification: Windows"
     task:
       agent:
         machine:
@@ -571,6 +574,8 @@ blocks:
             - ls dist/
             - artifact push workflow dist/ --destination artifacts/sdist/
   - name: "Packaging"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Source Distribution"
     task:

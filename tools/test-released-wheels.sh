@@ -50,15 +50,7 @@ for version in "${python_versions[@]}"; do
 
     if [ "$2" = "test" ]; then
         echo "Installing confluent_kafka from test PyPI"
-        echo "DEBUG: UV_INDEX=${UV_INDEX:-<unset>}"
-        echo "DEBUG: UV_INDEX_URL=${UV_INDEX_URL:-<unset>}"
-        echo "DEBUG: UV_EXTRA_INDEX_URL=${UV_EXTRA_INDEX_URL:-<unset>}"
-        echo "DEBUG: PIP_INDEX_URL=${PIP_INDEX_URL:-<unset>}"
-        echo "DEBUG: PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL:-<unset>}"
-        echo "DEBUG: PIP_CONFIG_FILE=${PIP_CONFIG_FILE:-<unset>}"
-        pip config list 2>/dev/null || echo "DEBUG: pip config not available"
-        uv pip config list 2>/dev/null || echo "DEBUG: uv pip config not available"
-        install_cmd="UV_INDEX= UV_INDEX_URL= UV_EXTRA_INDEX_URL= PIP_INDEX_URL= PIP_EXTRA_INDEX_URL= PIP_CONFIG_FILE=/dev/null uv pip install --no-cache --no-config --no-deps --prerelease allow -v --index-url https://test.pypi.org/simple/ confluent_kafka==$1"
+        install_cmd="PIP_CONFIG_FILE=/dev/null uv pip install --no-cache --no-config --no-deps --prerelease allow --index-url https://test.pypi.org/simple/ confluent_kafka==$1"
     else
         echo "Installing confluent_kafka"
         install_cmd="uv pip install confluent_kafka==$1"
