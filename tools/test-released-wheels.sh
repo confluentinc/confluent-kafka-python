@@ -50,11 +50,25 @@ for version in "${python_versions[@]}"; do
 
     if [ "$2" = "test" ]; then
         echo "Installing confluent_kafka from test PyPI"
-        UV_INDEX= uv pip install --no-config --index-url https://test.pypi.org/simple/ confluent_kafka==$1
+        install_cmd="UV_INDEX= uv pip install --no-config --index-url https://test.pypi.org/simple/ confluent_kafka==$1"
     else
         echo "Installing confluent_kafka"
-        uv pip install confluent_kafka==$1
+        install_cmd="uv pip install confluent_kafka==$1"
     fi
+
+    max_retries=20
+    retry_interval=30
+    for attempt in $(seq 1 $max_retries); do
+        if eval $install_cmd; then
+            break
+        fi
+        if [ $attempt -eq $max_retries ]; then
+            echo "Failed to install confluent_kafka==$1 after $max_retries attempts"
+            exit 1
+        fi
+        echo "Attempt $attempt/$max_retries failed, retrying in ${retry_interval}s..."
+        sleep $retry_interval
+    done
 
     echo "Testing confluent_kafka"
     output=$(python -c 'import confluent_kafka as ck ; print("py:", ck.version(), "c:", ck.libversion())')
