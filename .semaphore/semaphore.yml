@@ -16,8 +16,9 @@ global_job_config:
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
-      when: "tag =~ '.*'"
-    dependencies: []
+      when: "false"
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -36,9 +37,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -62,8 +62,9 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
-      when: "tag =~ '.*'"
-    dependencies: []
+      when: "false"
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -84,9 +85,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -111,9 +111,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -132,9 +131,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -154,8 +152,9 @@ blocks:
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
     run:
-      when: "tag =~ '.*'"
-    dependencies: []
+      when: "false"
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
           machine:
@@ -185,6 +184,8 @@ blocks:
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
   - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
+    run:
+      when: "false"
     dependencies: []
     task:
       agent:
@@ -232,6 +233,8 @@ blocks:
             - test-results publish test-output
             - artifact push workflow coverage.xml
   - name: "Source package verification with Python 3 (Linux arm64)"
+    run:
+      when: "false"
     dependencies: []
     task:
       agent:
@@ -252,6 +255,8 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX x64) +docs"
+    run:
+      when: "false"
     dependencies: []
     task:
       agent:
@@ -272,6 +277,8 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX arm64) +docs"
+    run:
+      when: "false"
     dependencies: []
     task:
       agent:
@@ -292,6 +299,8 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
+    run:
+      when: "false"
     dependencies: []
     task:
       agent:
@@ -392,17 +401,178 @@ blocks:
 
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
-  - name: "Packaging"
+  - name: "Wheel Verification: Linux x64"
     run:
-      when: "tag =~ '.*'"
+      when: "false"
+    dependencies:
+      - "Wheels: Linux x64"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-3
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Verify
+          commands:
+            - sem-version python 3.9
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-wheels.sh artifacts/wheelhouse
+  - name: "Wheel Verification: Linux arm64"
+    run:
+      when: "false"
+    dependencies:
+      - "Wheels: Linux arm64"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-arm64-1
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: arm64
+      jobs:
+        - name: Verify
+          commands:
+            - sem-version python 3.9
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-wheels.sh artifacts/wheelhouse
+  - name: "Wheel Verification: OSX x64"
+    run:
+      when: "false"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
+    task:
+      agent:
+        machine:
+          type: s1-macos-15-amd64-6
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Verify
+          commands:
+            - checkout
+            - sem-version python 3.11
+            - pip install uv
+            - uv pip install --system pytest
+            - uv pip install --system -r requirements/requirements-tests-install.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --system --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
+  - name: "Wheel Verification: OSX arm64"
+    run:
+      when: "false"
+    dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
-      - "Wheels: Linux arm64"
-      - "Wheels: Linux x64"
+    task:
+      agent:
+        machine:
+          type: s1-macos-15-arm64-8
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: arm64
+      jobs:
+        - name: Verify
+          commands:
+            - checkout
+            - sem-version python 3.11
+            - pip install uv
+            - uv pip install --system pytest
+            - uv pip install --system -r requirements/requirements-tests-install.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --system --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
+  - name: "Wheel Verification: Windows"
+    run:
+      when: "false"
+    dependencies:
       - "Wheels: Windows"
+    task:
+      agent:
+        machine:
+          type: s1-prod-windows
+      env_vars:
+        - name: OS_NAME
+          value: windows
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Verify
+          commands:
+            - sem-version python 3.11.9
+            - python -m pip install --upgrade pip pytest
+            - python -m pip install -r requirements/requirements-tests-install.txt
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
+            - cd ..
+            - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests\test_error.py
+  - name: "Pre-release Validation"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Validate
+          commands:
+            - sem-version python 3.11
+            - tools/pre-release-validation.sh
+  - name: "Source Distribution"
+    dependencies:
+      - "Wheels: Linux x64"
+      - "Wheels: Linux arm64"
+      - "Wheels: OSX x64 - Python 3.13-3.14"
+      - "Wheels: OSX arm64 - Python 3.13-3.14"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Build
+          commands:
+            - sem-version python 3.11
+            - pip install build
+            - python -m build -s
+            - ls dist/
+            - artifact push workflow dist/ --destination artifacts/sdist/
+  - name: "Packaging"
+    dependencies:
+      - "Source Distribution"
     task:
       agent:
         machine:
@@ -413,13 +583,16 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts
             - ls *.tgz |xargs -n1 tar -xvf
+            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
             - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
             - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
-
+promotions:
+  - name: "Publish to Test PyPI"
+    pipeline_file: publish-test-pypi.yml
 after_pipeline:
   task:
     agent:
