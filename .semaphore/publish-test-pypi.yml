@@ -6,8 +6,6 @@ agent:
 blocks:
   - name: "Publish to Test PyPI"
     dependencies: []
-    run:
-      when: "tag =~ '.*'"
     task:
       jobs:
         - name: Upload
