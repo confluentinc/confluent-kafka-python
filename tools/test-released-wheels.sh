@@ -41,6 +41,10 @@ for version in "${python_versions[@]}"; do
 
     pip install uv
 
+    venvdir=$(mktemp -d /tmp/_venvXXXXXX)
+    uv venv -p python$version $venvdir
+    source $venvdir/bin/activate
+
     echo "Uninstalling confluent_kafka if already installed"
     uv pip uninstall confluent_kafka > /dev/null 2>&1 || true
 
@@ -56,6 +60,9 @@ for version in "${python_versions[@]}"; do
     output=$(python -c 'import confluent_kafka as ck ; print("py:", ck.version(), "c:", ck.libversion())')
     echo -e "\e[1;32m$output\e[0m"
     echo "Successfully tested confluent_kafka version $1 with Python version $version"
+
+    deactivate
+    rm -rf "$venvdir"
     echo
     echo
 done
