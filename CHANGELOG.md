@@ -1,9 +1,5 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-### Enhancements
-
-- Add Confluent-Client-Version header to requests to SR, Python client (#2148)
-
 ## v2.13.1
 
 v2.13.1 is a maintenance release with the following fixes and enhancements:
