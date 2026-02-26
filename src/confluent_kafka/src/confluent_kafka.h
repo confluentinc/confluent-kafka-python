@@ -38,7 +38,7 @@
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.13.0"
+#define CFL_VERSION_STR "2.13.2rc1"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -46,16 +46,16 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x020d00ff
+#define MIN_RD_KAFKA_VERSION 0x020d02ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.13.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.13.2 or later. "        \
         "Install the latest version of librdkafka from Homebrew by running "   \
         "`brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.13.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.13.2 or later. "        \
         "Install the latest version of librdkafka from the Confluent "         \
         "repositories, see http://docs.confluent.io/current/installation.html"
 #endif
@@ -63,10 +63,10 @@
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.13.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+        "confluent-kafka-python requires librdkafka v2.13.2 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.13.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+        "confluent-kafka-python requires librdkafka v2.13.2 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
