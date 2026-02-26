@@ -15,6 +15,8 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
+    run:
+      when: "false"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -59,6 +61,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
+    run:
+      when: "false"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -147,6 +151,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
+    run:
+      when: "false"
     dependencies:
       - "Pre-release Validation"
     task:
@@ -550,11 +556,8 @@ blocks:
     dependencies:
       - "Wheels: Linux x64"
       - "Wheels: Linux arm64"
-      - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
-      - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
-      - "Wheels: Windows"
     task:
       agent:
         machine:
