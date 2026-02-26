@@ -339,7 +339,7 @@ class EncryptionExecutorTransform(object):
             if self._executor.client is None:
                 raise RuleError("client not configured")
             dek = self._executor.client.get_dek(key.kek_name, key.subject, key.algorithm, version, key.deleted)
-            return dek if dek and dek.encrypted_key_material else None
+            return dek if dek and (dek.encrypted_key_material or dek.key_material) else None
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 404:
                 return None

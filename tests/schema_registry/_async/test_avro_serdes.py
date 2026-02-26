@@ -15,9 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import base64
 import json
 import time
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 
 import pytest
 from fastavro._logical_readers import UUID
@@ -36,12 +38,20 @@ from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFiel
 from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
+    Dek,
     DekAlgorithm,
+    DekId,
     DekRegistryClient,
+    KekId,
+)
+from confluent_kafka.schema_registry.rules.encryption.dek_registry.mock_dek_registry_client import (
+    MockDekRegistryClient,
 )
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
     Clock,
+    Cryptor,
     EncryptionExecutor,
+    EncryptionExecutorTransform,
     FieldEncryptionExecutor,
 )
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
@@ -2011,6 +2021,165 @@ async def test_avro_encryption_with_union():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # reset encrypted fields
+    assert obj['stringField'] != 'hi'
+    obj['stringField'] = 'hi'
+    obj['bytesField'] = b'foobar'
+
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+class SharedKekMockDekRegistryClient(MockDekRegistryClient):
+    """Mock that simulates server-side DEK generation for shared KEKs.
+
+    For a shared KEK the real server generates the raw DEK, wraps it with the
+    KMS, and returns it to the client with ``key_material`` (plaintext) set and
+    ``encrypted_key_material`` absent.  This subclass reproduces that behaviour
+    so that unit/integration tests can exercise the shared-KEK code path without
+    a live Schema Registry.
+    """
+
+    def register_dek(
+        self,
+        kek_name: str,
+        subject: str,
+        encrypted_key_material: str,
+        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
+        version: int = 1,
+    ) -> Dek:
+        kek = self._kek_cache.get_kek(KekId(name=kek_name, deleted=False))
+        if encrypted_key_material is None and kek is not None and kek.shared:
+            # Simulate server: generate a fresh raw DEK and return it as key_material.
+            raw_key = Cryptor(algorithm).generate_key()
+            key_mat = base64.b64encode(raw_key).decode("utf-8")
+            cache_key = DekId(kek_name=kek_name, subject=subject, version=version, algorithm=algorithm, deleted=False)
+            dek = Dek(
+                kek_name=kek_name,
+                subject=subject,
+                version=version,
+                algorithm=algorithm,
+                encrypted_key_material=None,
+                key_material=key_mat,
+                ts=int(round(time.time() * 1000)),
+            )
+            self._dek_cache.set(cache_key, dek)
+            return dek
+        return super().register_dek(kek_name, subject, encrypted_key_material, algorithm, version)
+
+
+def test_retrieve_dek_from_registry_shared_kek():
+    """_retrieve_dek_from_registry must return a DEK whose only key material is
+    key_material (shared KEK path, no encrypted_key_material)."""
+    dek = Dek(
+        kek_name="kek1",
+        subject=_SUBJECT,
+        version=1,
+        algorithm=DekAlgorithm.AES256_GCM,
+        encrypted_key_material=None,
+        key_material="c29tZWtleQ==",
+    )
+    mock_client = MagicMock()
+    mock_client.get_dek.return_value = dek
+
+    mock_executor = MagicMock()
+    mock_executor.client = mock_client
+
+    transform = EncryptionExecutorTransform.__new__(EncryptionExecutorTransform)
+    transform._executor = mock_executor
+
+    key = DekId(kek_name="kek1", subject=_SUBJECT, version=1, algorithm=DekAlgorithm.AES256_GCM, deleted=False)
+    result = transform._retrieve_dek_from_registry(key)
+
+    assert result is not None
+    assert result.key_material == "c29tZWtleQ=="
+    assert result.encrypted_key_material is None
+
+
+def test_retrieve_dek_from_registry_no_key_material_returns_none():
+    """_retrieve_dek_from_registry must return None when neither key_material
+    nor encrypted_key_material is set."""
+    dek = Dek(
+        kek_name="kek1",
+        subject=_SUBJECT,
+        version=1,
+        algorithm=DekAlgorithm.AES256_GCM,
+        encrypted_key_material=None,
+    )
+    mock_client = MagicMock()
+    mock_client.get_dek.return_value = dek
+
+    mock_executor = MagicMock()
+    mock_executor.client = mock_client
+
+    transform = EncryptionExecutorTransform.__new__(EncryptionExecutorTransform)
+    transform._executor = mock_executor
+
+    key = DekId(kek_name="kek1", subject=_SUBJECT, version=1, algorithm=DekAlgorithm.AES256_GCM, deleted=False)
+    result = transform._retrieve_dek_from_registry(key)
+
+    assert result is None
+
+
+async def test_avro_encryption_shared_kek():
+    """Full serialize/deserialize round-trip with a shared KEK.
+
+    A shared KEK means the server (not the client) manages key wrapping.  The
+    DEK returned by the registry has ``key_material`` populated and
+    ``encrypted_key_material`` absent.  Previously _retrieve_dek_from_registry
+    incorrectly returned None for such DEKs, causing "no dek found during
+    consume".
+    """
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string', 'confluent:tags': ['PII']},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes', 'confluent:tags': ['PII']},
+        ],
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek-shared", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey",
+                    "encrypt.kek.shared": "true"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    # Replace the executor's DEK client with one that handles shared KEKs.
+    executor.executor.client = SharedKekMockDekRegistryClient({'url': _BASE_URL})
     dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
