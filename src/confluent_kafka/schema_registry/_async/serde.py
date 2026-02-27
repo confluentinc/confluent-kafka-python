@@ -325,9 +325,9 @@ class AsyncBaseSerde(object):
                 )
             return
 
-        # Default to topic_subject_name_strategy
-        self._subject_name_func = topic_subject_name_strategy
-        self._strategy_accepts_client = False
+        # Default to AsyncAssociatedNameStrategy (falls back to TOPIC when no associations found)
+        self._subject_name_func = AsyncAssociatedNameStrategy()
+        self._strategy_accepts_client = True
 
     async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:

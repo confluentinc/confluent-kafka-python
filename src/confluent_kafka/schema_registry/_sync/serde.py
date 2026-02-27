@@ -327,9 +327,9 @@ class BaseSerde(object):
                 raise ValueError(f"Unknown subject.name.strategy.type: {subject_name_strategy_type}")
             return
 
-        # Default to topic_subject_name_strategy
-        self._subject_name_func = topic_subject_name_strategy
-        self._strategy_accepts_client = False
+        # Default to AssociatedNameStrategy (falls back to TOPIC when no associations found)
+        self._subject_name_func = AssociatedNameStrategy()
+        self._strategy_accepts_client = True
 
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
