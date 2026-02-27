@@ -49,6 +49,15 @@ from confluent_kafka.schema_registry.schema_registry_client import (
     SchemaReference,
     ServerConfig,
 )
+from confluent_kafka.schema_registry._async.serde import (
+    FALLBACK_SUBJECT_NAME_STRATEGY_TYPE,
+    KAFKA_CLUSTER_ID,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import (
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+)
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 from tests.schema_registry._async.test_avro_serdes import FakeClock
@@ -1449,3 +1458,288 @@ async def test_json_deeply_nested_refs():
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
+
+
+_JSON_SCHEMA = json.dumps({
+    "type": "object",
+    "title": "MyRecord",
+    "properties": {
+        "name": {"type": "string"},
+        "id": {"type": "integer"},
+    },
+})
+_JSON_OBJ = {"name": "Kafka", "id": 123}
+
+
+async def test_json_associated_name_strategy_with_association():
+    """Test that AssociatedNameStrategy returns subject from association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="json-resource-id-1",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-custom-subject-value",
+                association_type="value",
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    registered_schema = await client.get_latest_version("my-custom-subject-value")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_with_key_association():
+    """Test that AssociatedNameStrategy returns subject for key"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="json-resource-id-2",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-key-subject",
+                association_type="key",
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.KEY)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    registered_schema = await client.get_latest_version("my-key-subject")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_fallback_to_topic():
+    """Test fallback to topic_subject_name_strategy when no association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    registered_schema = await client.get_latest_version(_TOPIC + "-value")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_fallback_to_record():
+    """Test fallback to record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.RECORD},
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    # JSON record name comes from schema "title"
+    registered_schema = await client.get_latest_version("MyRecord")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_fallback_to_topic_record():
+    """Test fallback to topic_record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    # JSON topic-record subject: "topic1-MyRecord"
+    registered_schema = await client.get_latest_version(_TOPIC + "-MyRecord")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_fallback_none_raises():
+    """Test that NONE fallback raises an error when no association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: "NONE"},
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        await ser(_JSON_OBJ, ser_ctx)
+
+    assert "No associated subject found" in str(exc_info.value)
+
+
+async def test_json_associated_name_strategy_multiple_associations_raises():
+    """Test that multiple associations raise an error"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="json-resource-id-3",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="json-subject-1",
+                association_type="value",
+            ),
+            AssociationCreateOrUpdateInfo(
+                subject="json-subject-2",
+                association_type="value",
+            ),
+        ],
+    )
+    await client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        await ser(_JSON_OBJ, ser_ctx)
+
+    assert "Multiple associated subjects found" in str(exc_info.value)
+
+
+async def test_json_associated_name_strategy_with_kafka_cluster_id():
+    """Test that kafka.cluster.id config is used as resource namespace"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="my-cluster-id",
+        resource_id="json-resource-id-4",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="cluster-specific-json-subject",
+                association_type="value",
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {KAFKA_CLUSTER_ID: "my-cluster-id"},
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(_JSON_OBJ, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert _JSON_OBJ == obj2
+
+    registered_schema = await client.get_latest_version("cluster-specific-json-subject")
+    assert registered_schema is not None
+
+
+async def test_json_associated_name_strategy_caching():
+    """Test that results are cached within a strategy instance and serializer works with caching"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="json-resource-id-5",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="json-cached-subject",
+                association_type="value",
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    obj1 = {"name": "Kafka", "id": 1}
+    obj_bytes1 = await ser(obj1, ser_ctx)
+
+    registered_schema = await client.get_latest_version("json-cached-subject")
+    assert registered_schema is not None
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    result1 = await deser(obj_bytes1, ser_ctx)
+    assert obj1 == result1
+
+    # Delete associations (but serializer should still work due to caching)
+    await client.delete_associations("json-resource-id-5")
+
+    obj2 = {"name": "Kafka", "id": 2}
+    obj_bytes2 = await ser(obj2, ser_ctx)
+
+    result2 = await deser(obj_bytes2, ser_ctx)
+    assert obj2 == result2
