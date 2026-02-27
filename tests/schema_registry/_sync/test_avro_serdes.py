@@ -30,7 +30,7 @@ from confluent_kafka.schema_registry import (
     header_schema_id_serializer,
 )
 from confluent_kafka.schema_registry._sync.serde import (
-    FALLBACK_SUBJECT_NAME_STRATEGY_TYPE,
+    FALLBACK_TYPE,
     KAFKA_CLUSTER_ID,
 )
 from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
@@ -2822,7 +2822,7 @@ def test_associated_name_strategy_fallback_to_record():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.RECORD},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.RECORD},
     }
     ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -2857,7 +2857,7 @@ def test_associated_name_strategy_fallback_to_topic_record():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
     }
     ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -2892,7 +2892,7 @@ def test_associated_name_strategy_fallback_none_raises():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: "NONE"},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: "NONE"},
     }
     ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -2951,7 +2951,7 @@ def test_associated_name_strategy_multiple_associations_raises():
 
 
 def test_associated_name_strategy_with_kafka_cluster_id():
-    """Test that kafka.cluster.id config is used as resource namespace"""
+    """Test that subject.name.strategy.kafka.cluster.id config is used as resource namespace"""
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
 

@@ -50,7 +50,7 @@ from confluent_kafka.schema_registry.schema_registry_client import (
     ServerConfig,
 )
 from confluent_kafka.schema_registry._async.serde import (
-    FALLBACK_SUBJECT_NAME_STRATEGY_TYPE,
+    FALLBACK_TYPE,
     KAFKA_CLUSTER_ID,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import (
@@ -1570,7 +1570,7 @@ async def test_json_associated_name_strategy_fallback_to_record():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.RECORD},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.RECORD},
     }
     ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1593,7 +1593,7 @@ async def test_json_associated_name_strategy_fallback_to_topic_record():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
     }
     ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1616,7 +1616,7 @@ async def test_json_associated_name_strategy_fallback_none_raises():
     ser_conf = {
         'auto.register.schemas': True,
         'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-        'subject.name.strategy.conf': {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE: "NONE"},
+        'subject.name.strategy.conf': {FALLBACK_TYPE: "NONE"},
     }
     ser = await AsyncJSONSerializer(_JSON_SCHEMA, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -1664,7 +1664,7 @@ async def test_json_associated_name_strategy_multiple_associations_raises():
 
 
 async def test_json_associated_name_strategy_with_kafka_cluster_id():
-    """Test that kafka.cluster.id config is used as resource namespace"""
+    """Test that subject.name.strategy.kafka.cluster.id config is used as resource namespace"""
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
 

@@ -52,15 +52,15 @@ __all__ = [
     'AsyncBaseSerializer',
     'AsyncBaseDeserializer',
     'KAFKA_CLUSTER_ID',
-    'FALLBACK_SUBJECT_NAME_STRATEGY_TYPE',
+    'FALLBACK_TYPE',
 ]
 
 log = logging.getLogger(__name__)
 
 
-KAFKA_CLUSTER_ID = "kafka.cluster.id"
+KAFKA_CLUSTER_ID = "subject.name.strategy.kafka.cluster.id"
 NAMESPACE_WILDCARD = "-"
-FALLBACK_SUBJECT_NAME_STRATEGY_TYPE = "fallback.subject.name.strategy.type"
+FALLBACK_TYPE = "subject.name.strategy.fallback.type"
 DEFAULT_CACHE_CAPACITY = 1000
 
 
@@ -105,7 +105,7 @@ class AsyncAssociatedNameStrategy:
 
         if conf is not None:
             kafka_cluster_id = conf.get(KAFKA_CLUSTER_ID)
-            fallback_config = conf.get(FALLBACK_SUBJECT_NAME_STRATEGY_TYPE)
+            fallback_config = conf.get(FALLBACK_TYPE)
             if fallback_config is not None:
                 if isinstance(fallback_config, SubjectNameStrategyType):
                     fallback_strategy = fallback_config
@@ -116,7 +116,7 @@ class AsyncAssociatedNameStrategy:
                         valid_fallbacks = [e.value for e in SubjectNameStrategyType
                                            if e != SubjectNameStrategyType.ASSOCIATED]
                         raise ValueError(
-                            f"Invalid value for {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE}: {fallback_config}. "
+                            f"Invalid value for {FALLBACK_TYPE}: {fallback_config}. "
                             f"Valid values are: {', '.join(valid_fallbacks)}"
                         )
 
@@ -152,7 +152,7 @@ class AsyncAssociatedNameStrategy:
                 raise SerializationError(f"No associated subject found for topic {topic}")
             elif fallback_strategy == SubjectNameStrategyType.ASSOCIATED:
                 raise ValueError(
-                    f"Invalid value for {FALLBACK_SUBJECT_NAME_STRATEGY_TYPE}: {fallback_strategy.value}. "
+                    f"Invalid value for {FALLBACK_TYPE}: {fallback_strategy.value}. "
                     f"ASSOCIATED cannot be used as a fallback strategy."
                 )
 
@@ -177,7 +177,7 @@ class AsyncAssociatedNameStrategy:
         If more than one subject is returned from the query, a SerializationError
         will be raised. If no subjects are returned from the query, then the behavior
         will fall back to topic_subject_name_strategy, unless the configuration property
-        "fallback.subject.name.strategy.type" is set to "RECORD", "TOPIC_RECORD", or "NONE".
+        "subject.name.strategy.fallback.type" is set to "RECORD", "TOPIC_RECORD", or "NONE".
 
         Results are cached using an LRU cache to avoid repeated API calls.
 
@@ -190,8 +190,8 @@ class AsyncAssociatedNameStrategy:
             schema_registry_client (AsyncSchemaRegistryClient): AsyncSchemaRegistryClient instance.
 
             conf (Optional[dict]): Configuration dictionary. Supports:
-                - "kafka.cluster.id": Kafka cluster ID to use as resource namespace.
-                - "fallback.subject.name.strategy.type": Fallback strategy when no
+                - "subject.name.strategy.kafka.cluster.id": Kafka cluster ID to use as resource namespace.
+                - "subject.name.strategy.fallback.type": Fallback strategy when no
                   associations are found. One of "TOPIC", "RECORD", "TOPIC_RECORD", or "NONE".
                   Defaults to "TOPIC".
 
