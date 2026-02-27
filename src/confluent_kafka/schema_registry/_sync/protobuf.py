@@ -152,7 +152,7 @@ class ProtobufSerializer(BaseSerializer):
     | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
     |                                     |          | ASSOCIATED.                                          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | Defaults to ASSOCIATED if neither this nor                |
     |                                     |          | subject.name.strategy is specified.                  |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Configuration dictionary passed to strategies        |
@@ -534,7 +534,7 @@ class ProtobufDeserializer(BaseDeserializer):
     | ``subject.name.strategy.type``      | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,       |
     |                                     |          | ASSOCIATED.                                          |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to TOPIC if neither this nor                |
+    |                                     |          | Defaults to ASSOCIATED if neither this nor                |
     |                                     |          | subject.name.strategy is specified.                  |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Configuration dictionary passed to strategies        |
