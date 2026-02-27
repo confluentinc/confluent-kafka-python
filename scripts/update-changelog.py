@@ -81,9 +81,7 @@ def build_entry(version, enhancements, fixes):
     ver_plain = version.lstrip("v")  # noqa: F841
 
     lines = [f"## {version} - {today}", ""]
-    lines.append(
-        f"{version} is a maintenance release with the following fixes and enhancements:"
-    )
+    lines.append(f"{version} is a maintenance release with the following fixes and enhancements:")
 
     if enhancements:
         lines += ["", "### Enhancements", ""]
