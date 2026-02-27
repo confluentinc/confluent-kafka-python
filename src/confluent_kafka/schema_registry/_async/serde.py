@@ -99,6 +99,10 @@ class AsyncAssociatedNameStrategy:
         kafka_cluster_id = None
         fallback_strategy = SubjectNameStrategyType.TOPIC  # default fallback
 
+        # If no client is available, skip association lookup and use fallback directly
+        if schema_registry_client is None:
+            return topic_subject_name_strategy(ctx, record_name)
+
         if conf is not None:
             kafka_cluster_id = conf.get(KAFKA_CLUSTER_ID)
             fallback_config = conf.get(FALLBACK_SUBJECT_NAME_STRATEGY_TYPE)
