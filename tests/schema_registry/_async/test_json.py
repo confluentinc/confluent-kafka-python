@@ -77,6 +77,7 @@ async def test_custom_json_encoder():
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
         schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
     )
+    mock_schema_registry_client.get_associations_by_resource_name.return_value = []
 
     # Use orjson.dumps as the custom encoder
     serializer = await AsyncJSONSerializer(
@@ -136,6 +137,7 @@ async def test_custom_encoder_decoder_chain():
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
         schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
     )
+    mock_schema_registry_client.get_associations_by_resource_name.return_value = []
 
     def custom_encoder(obj):
         return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
@@ -176,6 +178,7 @@ async def test_custom_encoding_with_complex_data():
     mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
         schema_id=1, guid=None, schema=Schema(schema_str), subject="topic-name-value", version=1
     )
+    mock_schema_registry_client.get_associations_by_resource_name.return_value = []
 
     def custom_encoder(obj):
         return json.dumps(obj, indent=2)
