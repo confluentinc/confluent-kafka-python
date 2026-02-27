@@ -54,9 +54,7 @@ def next_version(tag):
 
 def commits_since(tag):
     """Return list of (subject, body) tuples for non-merge commits since tag."""
-    raw = run(
-        ["git", "log", f"{tag}..HEAD", "--no-merges", "--format=%x1e%s%x1f%b"]
-    )
+    raw = run(["git", "log", f"{tag}..HEAD", "--no-merges", "--format=%x1e%s%x1f%b"])
     commits = []
     for record in raw.split("\x1e"):
         record = record.strip()
@@ -80,7 +78,7 @@ def is_fix(subject, body):
 def build_entry(version, enhancements, fixes):
     today = date.today().strftime("%Y-%m-%d")
     # Strip leading 'v' for the prose description but keep it in the heading
-    ver_plain = version.lstrip("v")
+    ver_plain = version.lstrip("v")  # noqa: F841
 
     lines = [f"## {version} - {today}", ""]
     lines.append(
