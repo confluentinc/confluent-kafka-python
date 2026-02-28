@@ -17,6 +17,12 @@ import concurrent.futures
 import logging
 from typing import Any, Callable, Dict, Optional
 
+try:
+    from typing import Self
+except ImportError:
+    # FIXME: remove once we depend on Python >= 3.11
+    from typing_extensions import Self
+
 import confluent_kafka
 
 from .. import _common as _common
@@ -69,6 +75,12 @@ class AIOProducer:
         self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
         if buffer_timeout > 0:
             self._buffer_timeout_manager.start_timeout_monitoring()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_) -> None:
+        await self.close()
 
     async def close(self) -> None:
         """Close the producer and cleanup resources
