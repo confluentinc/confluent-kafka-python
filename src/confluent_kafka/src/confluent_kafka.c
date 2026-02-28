@@ -36,13 +36,6 @@
 /**
  * @brief KNOWN ISSUES
  *
- *  - Partitioners will cause a dead-lock with librdkafka, because:
- *     GIL + topic lock in topic_new  is different lock order than
- *     topic lock in msg_partitioner + GIL.
- *     This needs to be sorted out in librdkafka, preferably making the
- *     partitioner run without any locks taken.
- *     Until this is fixed the partitioner is ignored and librdkafka's
- *     default will be used.
  *  - KafkaError type .tp_doc allocation is lost on exit.
  *
  */
