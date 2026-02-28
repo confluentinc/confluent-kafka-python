@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import pytest
+import pytest 
 
 from confluent_kafka import (
     OFFSET_INVALID,
@@ -785,3 +785,25 @@ def test_uninitialized_consumer_methods():
 
     with pytest.raises(RuntimeError, match="Consumer closed"):
         consumer.consumer_group_metadata()
+
+def test_paused():
+    """ Tests that Consumer.paused() returns the correct partitions. """
+
+    conf = {'group.id': 'test', 'bootstrap.servers': 'localhost'}
+    c = Consumer(conf)
+    
+    tp = TopicPartition("test_topic", 1)
+
+    assert len(c.paused()) == 0
+
+    c.assign([tp])
+    c.pause([tp])
+
+    paused_list = c.paused()
+    assert len(paused_list) == 1
+    assert paused_list[0].topic == "test_topic"
+    assert paused_list[0].partition == 1
+
+    c.resume([tp])
+    assert len(c.paused()) == 0
+    c.close()
