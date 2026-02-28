@@ -711,9 +711,13 @@ class AvroDeserializer(BaseDeserializer):
         if self._from_dict is not None:
             if ctx is None:
                 raise TypeError("SerializationContext cannot be None")
-            return self._from_dict(obj_dict, ctx)
+            obj_dict = self._from_dict(obj_dict, ctx)
 
-        return obj_dict
+        return {
+            "record": obj_dict,
+            "schema_id": schema_id,
+            "writer_schema": writer_schema
+        }
 
     def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
