@@ -5,6 +5,7 @@ import subprocess
 PYTHON_SOAK_TEST_BRANCH = 'master'
 
 LIBRDKAFKA_VERSIONS = [
+    '2.13.2',
     '2.13.0',
     '2.12.1',
     '2.11.1',
@@ -20,7 +21,7 @@ LIBRDKAFKA_VERSIONS = [
 ]
 
 PYTHON_VERSIONS = [
-    '2.13.2rc1',
+    '2.13.2',
     '2.13.0',
     '2.12.1',
     '2.11.1',
