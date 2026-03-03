@@ -98,10 +98,6 @@ class LocalSchemaRepository(repository.AbstractSchemaRepository):
             # but named_schemas may only have the short reference name (e.g., "Name").
             short_name = subject.rsplit('.', 1)[-1]
             return self.schemas.get(short_name)
-        # Reverse: subject is a short name but schemas may be stored under a FQN.
-        for key, value in self.schemas.items():
-            if '.' in key and key.rsplit('.', 1)[-1] == subject:
-                return value
         return None
 
 
