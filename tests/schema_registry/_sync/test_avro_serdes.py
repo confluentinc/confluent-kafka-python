@@ -304,6 +304,41 @@ def test_avro_serialize_references():
     assert obj == obj2
 
 
+def test_avro_serialize_references_with_namespace():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    obj = {'payload': {'id': '123'}}
+    ref_schema = {
+        'type': 'record',
+        'name': 'ReferencedRecord',
+        'namespace': 'example.references',
+        'fields': [
+            {'name': 'id', 'type': 'string'},
+        ],
+    }
+    client.register_schema('test-ReferencedRecord', Schema(json.dumps(ref_schema)))
+    schema = {
+        'type': 'record',
+        'name': 'ReferencingRecord',
+        'namespace': 'example.references',
+        'fields': [
+            {'name': 'payload', 'type': 'ReferencedRecord'},
+        ],
+    }
+    refs = [SchemaReference('ReferencedRecord', 'test-ReferencedRecord', 1)]
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_avro_serialize_union():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
