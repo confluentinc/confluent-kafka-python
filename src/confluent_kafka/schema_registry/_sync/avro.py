@@ -76,6 +76,12 @@ def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistry
             if ref.name is None:
                 raise TypeError("Name cannot be None")
             named_schemas[ref.name] = parsed_schema
+            # Also store under fully-qualified name so fastavro can resolve
+            # namespace-qualified type references
+            if isinstance(parsed_schema, dict) and 'name' in parsed_schema:
+                fqn = parsed_schema['name']
+                if fqn != ref.name:
+                    named_schemas[fqn] = parsed_schema
     return named_schemas
 
 

@@ -90,15 +90,7 @@ class LocalSchemaRepository(repository.AbstractSchemaRepository):
         self.schemas = schemas
 
     def load(self, subject):
-        schema = self.schemas.get(subject)
-        if schema is not None:
-            return schema
-        if '.' in subject:
-            # Fastavro may request fully qualified names (e.g., "namespace.Name")
-            # but named_schemas may only have the short reference name (e.g., "Name").
-            short_name = subject.rsplit('.', 1)[-1]
-            return self.schemas.get(short_name)
-        return None
+        return self.schemas.get(subject)
 
 
 def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]) -> AvroSchema:
