@@ -189,16 +189,22 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
     assert ctx.headers is None
 
 
-def test_avro_serializer_subject_name_strategy_default(load_avsc):
+def test_avro_serializer_subject_name_strategy_default(mock_schema_registry, load_avsc):
     """
-    Ensures record_subject_name_strategy returns the correct record name
+    Ensures the default subject name strategy returns the correct subject name
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, load_avsc('basic_schema.avsc'))
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
-    assert test_serializer._subject_name_func(ctx, test_serializer._schema_name) == 'test_subj-value'
+    if test_serializer._strategy_accepts_client:
+        result = test_serializer._subject_name_func(
+            ctx, test_serializer._schema_name, test_client, test_serializer._subject_name_conf
+        )
+    else:
+        result = test_serializer._subject_name_func(ctx, test_serializer._schema_name)
+    assert result == 'test_subj-value'
 
 
 def test_avro_serializer_schema_loads_union(load_avsc):
