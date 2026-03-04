@@ -508,6 +508,8 @@ class _RestClient(_BaseRestClient):
                 response = self.send_http_request(base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
+                    if response.status_code == 204 or not response.content:
+                        return None
                     return response.json()
 
                 if not is_retriable(response.status_code) or i == len(self.base_urls) - 1:

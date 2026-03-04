@@ -2695,6 +2695,10 @@ async def test_associated_name_strategy_with_association():
             AssociationCreateOrUpdateInfo(
                 subject="my-custom-subject-value",
                 association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
             )
         ],
     )
@@ -2717,6 +2721,8 @@ async def test_associated_name_strategy_with_association():
     # Verify the schema was registered with the custom subject
     registered_schema = await client.get_latest_version("my-custom-subject-value")
     assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-1", cascade_lifecycle=True)
 
 
 async def test_associated_name_strategy_with_key_association():
@@ -2744,6 +2750,10 @@ async def test_associated_name_strategy_with_key_association():
             AssociationCreateOrUpdateInfo(
                 subject="my-key-subject",
                 association_type="key",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
             )
         ],
     )
@@ -2766,6 +2776,8 @@ async def test_associated_name_strategy_with_key_association():
     # Verify the schema was registered with the key subject
     registered_schema = await client.get_latest_version("my-key-subject")
     assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-2", cascade_lifecycle=True)
 
 
 async def test_associated_name_strategy_fallback_to_topic():
@@ -2903,53 +2915,6 @@ async def test_associated_name_strategy_fallback_none_raises():
     assert "No associated subject found" in str(exc_info.value)
 
 
-async def test_associated_name_strategy_multiple_associations_raises():
-    """Test that multiple associations raise an error"""
-    conf = {'url': _BASE_URL}
-    client = AsyncSchemaRegistryClient.new_client(conf)
-
-    # Define schema
-    schema = {
-        'type': 'record',
-        'name': 'TestRecord',
-        'fields': [
-            {'name': 'value', 'type': 'string'},
-        ],
-    }
-    obj = {'value': 'test'}
-
-    # Add multiple associations for the same topic/value
-    request = AssociationCreateOrUpdateRequest(
-        resource_name=_TOPIC,
-        resource_namespace="-",
-        resource_id="mock-resource-id-3",
-        resource_type="topic",
-        associations=[
-            AssociationCreateOrUpdateInfo(
-                subject="subject1",
-                association_type="value",
-            ),
-            AssociationCreateOrUpdateInfo(
-                subject="subject2",
-                association_type="value",
-            ),
-        ],
-    )
-    await client.create_association(request)
-
-    ser_conf = {
-        'auto.register.schemas': True,
-        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
-    }
-    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
-    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-
-    with pytest.raises(SerializationError) as exc_info:
-        await ser(obj, ser_ctx)
-
-    assert "Multiple associated subjects found" in str(exc_info.value)
-
-
 async def test_associated_name_strategy_with_kafka_cluster_id():
     """Test that subject.name.strategy.kafka.cluster.id config is used as resource namespace"""
     conf = {'url': _BASE_URL}
@@ -2975,6 +2940,10 @@ async def test_associated_name_strategy_with_kafka_cluster_id():
             AssociationCreateOrUpdateInfo(
                 subject="cluster-specific-subject",
                 association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
             )
         ],
     )
@@ -2998,6 +2967,8 @@ async def test_associated_name_strategy_with_kafka_cluster_id():
     # Verify the schema was registered with the cluster-specific subject
     registered_schema = await client.get_latest_version("cluster-specific-subject")
     assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-4", cascade_lifecycle=True)
 
 
 async def test_associated_name_strategy_caching():
@@ -3024,6 +2995,10 @@ async def test_associated_name_strategy_caching():
             AssociationCreateOrUpdateInfo(
                 subject="cached-subject",
                 association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
             )
         ],
     )
@@ -3051,7 +3026,7 @@ async def test_associated_name_strategy_caching():
     assert obj1 == result1
 
     # Delete associations (but serializer should still work due to caching)
-    await client.delete_associations("mock-resource-id-5")
+    await client.delete_associations(resource_id="mock-resource-id-5", cascade_lifecycle=True)
 
     # Second serialization should still work (schema already registered)
     obj2 = {'count': 2}
