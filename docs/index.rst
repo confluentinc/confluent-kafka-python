@@ -1074,8 +1074,10 @@ addition to the properties dictated by the underlying librdkafka C library:
   commit error, or None on success. *list(TopicPartition)* is the list of partitions with their committed
   offsets or per-partition errors.
 
-* ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
-  provided ``logging.Handler`` instance.
+* ``logger=logging.Logger`` kwarg: forward logs from the Kafka client to the
+  provided ``logging.Logger`` instance.
+  The client calls ``logger.log(level, msg, *args)`` internally, which matches
+  the ``logging.Logger`` interface (not ``logging.Handler``).
   To avoid spontaneous calls from non-Python threads the log messages
   will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
   For example:
