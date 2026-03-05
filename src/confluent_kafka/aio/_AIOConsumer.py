@@ -16,6 +16,12 @@ import asyncio
 import concurrent.futures
 from typing import Any, Callable, Dict, Optional, Tuple
 
+try:
+    from typing import Self
+except ImportError:
+    # FIXME: remove once we depend on Python >= 3.11
+    from typing_extensions import Self
+
 import confluent_kafka
 
 from . import _common as _common
@@ -45,6 +51,12 @@ class AIOConsumer:
         wrap_conf_callback(loop, consumer_conf, 'on_commit')
 
         self._consumer: confluent_kafka.Consumer = confluent_kafka.Consumer(consumer_conf)
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_) -> None:
+        await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
