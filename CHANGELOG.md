@@ -1,5 +1,13 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.13.3 - unreleased
+
+### Enhancements
+
+- Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
+
+### Fixes
+
 ## v2.13.2 - 2026-03-02
 
 v2.13.2 is a maintenance release with the following fixes and enhancements:
