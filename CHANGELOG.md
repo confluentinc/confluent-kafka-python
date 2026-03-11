@@ -1,5 +1,13 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.13.3 - unreleased
+
+### Enhancements
+
+### Fixes
+
+- Fix type annotations for context manager hooks so that they are correct for subclasses (#2181)
+
 ## v2.13.2 - 2026-03-02
 
 v2.13.2 is a maintenance release with the following fixes and enhancements:
