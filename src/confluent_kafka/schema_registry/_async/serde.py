@@ -27,7 +27,6 @@ from confluent_kafka.schema_registry import (
     RegisteredSchema,
     topic_subject_name_strategy,
 )
-from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.common.serde import (
     STRATEGY_TYPE_MAP,
@@ -42,9 +41,15 @@ from confluent_kafka.schema_registry.common.serde import (
     SchemaId,
     SubjectNameStrategyType,
 )
+from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
-from confluent_kafka.serialization import (Deserializer, MessageField,
-                                           SerializationContext, SerializationError, Serializer)
+from confluent_kafka.serialization import (
+    Deserializer,
+    MessageField,
+    SerializationContext,
+    SerializationError,
+    Serializer,
+)
 
 __all__ = [
     'AsyncAssociatedNameStrategy',
@@ -79,9 +84,7 @@ class AsyncAssociatedNameStrategy:
         self._cache: LRUCache = LRUCache(maxsize=cache_capacity)
         self._lock: _locks.Lock = _locks.Lock()
 
-    def _get_cache_key(
-        self, topic: str, is_key: bool, record_name: Optional[str]
-    ) -> Tuple[str, bool, Optional[str]]:
+    def _get_cache_key(self, topic: str, is_key: bool, record_name: Optional[str]) -> Tuple[str, bool, Optional[str]]:
         """Create a cache key from topic, is_key, and record_name."""
         return (topic, is_key, record_name)
 
@@ -92,7 +95,7 @@ class AsyncAssociatedNameStrategy:
         record_name: Optional[str],
         ctx: SerializationContext,
         schema_registry_client: AsyncSchemaRegistryClient,
-        conf: Optional[dict]
+        conf: Optional[dict],
     ) -> Optional[str]:
         """Load the subject name from schema registry (not cached)."""
         # Determine resource namespace from config
@@ -113,8 +116,9 @@ class AsyncAssociatedNameStrategy:
                     try:
                         fallback_strategy = SubjectNameStrategyType(str(fallback_config).upper())
                     except ValueError:
-                        valid_fallbacks = [e.value for e in SubjectNameStrategyType
-                                           if e != SubjectNameStrategyType.ASSOCIATED]
+                        valid_fallbacks = [
+                            e.value for e in SubjectNameStrategyType if e != SubjectNameStrategyType.ASSOCIATED
+                        ]
                         raise ValueError(
                             f"Invalid value for {FALLBACK_TYPE}: {fallback_config}. "
                             f"Valid values are: {', '.join(valid_fallbacks)}"
@@ -133,7 +137,7 @@ class AsyncAssociatedNameStrategy:
                 resource_type="topic",
                 association_types=[association_type],
                 offset=0,
-                limit=-1
+                limit=-1,
             )
         except SchemaRegistryError as e:
             if e.http_status_code == 404:
@@ -163,7 +167,7 @@ class AsyncAssociatedNameStrategy:
         ctx: Optional[SerializationContext],
         record_name: Optional[str],
         schema_registry_client: AsyncSchemaRegistryClient,
-        conf: Optional[dict] = None
+        conf: Optional[dict] = None,
     ) -> Optional[str]:
         """
         Retrieves the associated subject name from schema registry by querying
@@ -324,9 +328,7 @@ class AsyncBaseSerde(object):
                 self._subject_name_func = STRATEGY_TYPE_MAP[subject_name_strategy_type]
                 self._strategy_accepts_client = False
             else:
-                raise ValueError(
-                    f"Unknown subject.name.strategy.type: {subject_name_strategy_type}"
-                )
+                raise ValueError(f"Unknown subject.name.strategy.type: {subject_name_strategy_type}")
             return
 
         # Default to AsyncAssociatedNameStrategy (falls back to TOPIC when no associations found)

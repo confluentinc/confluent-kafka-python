@@ -23,8 +23,8 @@ from typing import Dict, List, Literal, Optional, Union
 from ..common.schema_registry_client import (
     Association,
     AssociationCreateOrUpdateRequest,
-    AssociationResponse,
     AssociationInfo,
+    AssociationResponse,
     RegisteredSchema,
     Schema,
     ServerConfig,
@@ -159,10 +159,7 @@ class _AssociationStore(object):
         # Key: (resource_namespace, resource_name) -> resource_id
         self.resource_id_index: Dict[tuple, str] = {}
 
-    def create_association(
-        self,
-        request: AssociationCreateOrUpdateRequest
-    ) -> AssociationResponse:
+    def create_association(self, request: AssociationCreateOrUpdateRequest) -> AssociationResponse:
         with self.lock:
             resource_id = request.resource_id
             resource_name = request.resource_name
@@ -187,13 +184,15 @@ class _AssociationStore(object):
                         frozen=assoc_info.frozen if assoc_info.frozen is not None else False,
                     )
                     self.associations_by_resource_id[resource_id].append(association)
-                    created_associations.append(AssociationInfo(
-                        subject=assoc_info.subject,
-                        association_type=assoc_info.association_type,
-                        lifecycle=assoc_info.lifecycle,
-                        frozen=assoc_info.frozen if assoc_info.frozen is not None else False,
-                        schema=assoc_info.schema,
-                    ))
+                    created_associations.append(
+                        AssociationInfo(
+                            subject=assoc_info.subject,
+                            association_type=assoc_info.association_type,
+                            lifecycle=assoc_info.lifecycle,
+                            frozen=assoc_info.frozen if assoc_info.frozen is not None else False,
+                            schema=assoc_info.schema,
+                        )
+                    )
 
             return AssociationResponse(
                 resource_name=resource_name,
@@ -234,7 +233,7 @@ class _AssociationStore(object):
         resource_name: str,
         resource_namespace: str,
         resource_type: Optional[str] = None,
-        association_types: Optional[List[str]] = None
+        association_types: Optional[List[str]] = None,
     ) -> List[Association]:
         with self.lock:
             result = []
@@ -425,16 +424,13 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         resource_type: Optional[str] = None,
         association_types: Optional[List[str]] = None,
         offset: int = 0,
-        limit: int = -1
+        limit: int = -1,
     ) -> List['Association']:
         return self._association_store.get_associations_by_resource_name(
             resource_name, resource_namespace, resource_type, association_types
         )
 
-    async def create_association(
-        self,
-        request: 'AssociationCreateOrUpdateRequest'
-    ) -> 'AssociationResponse':
+    async def create_association(self, request: 'AssociationCreateOrUpdateRequest') -> 'AssociationResponse':
         """
         Creates an association between a subject and a resource.
 
@@ -451,7 +447,7 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         resource_id: str,
         resource_type: Optional[str] = None,
         association_types: Optional[List[str]] = None,
-        cascade_lifecycle: bool = False
+        cascade_lifecycle: bool = False,
     ) -> None:
         """
         Deletes associations for a resource.

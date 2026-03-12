@@ -704,7 +704,8 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             subject = (
                 (
                     await self._subject_name_func(
-                        ctx, writer_schema.get("name"), self._registry, self._subject_name_conf)
+                        ctx, writer_schema.get("name"), self._registry, self._subject_name_conf
+                    )
                     if self._strategy_accepts_client
                     else self._subject_name_func(ctx, writer_schema.get("name"))
                 )

@@ -24,6 +24,15 @@ import pytest
 from confluent_kafka.schema_registry import Metadata, MetadataProperties, Schema, header_schema_id_serializer
 from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufDeserializer, AsyncProtobufSerializer
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.serde import (
+    FALLBACK_TYPE,
+    KAFKA_CLUSTER_ID,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import (
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+)
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.protobuf import _schema_to_str
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
@@ -46,15 +55,6 @@ from confluent_kafka.schema_registry.schema_registry_client import (
     RuleSet,
     ServerConfig,
 )
-from confluent_kafka.schema_registry._async.serde import (
-    FALLBACK_TYPE,
-    KAFKA_CLUSTER_ID,
-)
-from confluent_kafka.schema_registry.common.schema_registry_client import (
-    AssociationCreateOrUpdateInfo,
-    AssociationCreateOrUpdateRequest,
-)
-from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 

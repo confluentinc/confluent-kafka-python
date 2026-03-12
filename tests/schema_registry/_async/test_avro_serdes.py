@@ -29,16 +29,16 @@ from confluent_kafka.schema_registry import (
     Schema,
     header_schema_id_serializer,
 )
+from confluent_kafka.schema_registry._async.serde import (
+    FALLBACK_TYPE,
+    KAFKA_CLUSTER_ID,
+)
+from confluent_kafka.schema_registry.avro import AsyncAvroDeserializer, AsyncAvroSerializer
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     AssociationCreateOrUpdateInfo,
     AssociationCreateOrUpdateRequest,
 )
 from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
-from confluent_kafka.schema_registry._async.serde import (
-    KAFKA_CLUSTER_ID,
-    FALLBACK_TYPE,
-)
-from confluent_kafka.schema_registry.avro import AsyncAvroDeserializer, AsyncAvroSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor

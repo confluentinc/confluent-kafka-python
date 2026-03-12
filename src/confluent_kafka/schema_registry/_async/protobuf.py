@@ -435,7 +435,8 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         subject = (
             (
                 await self._subject_name_func(
-                    ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf)
+                    ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf
+                )
                 if self._strategy_accepts_client
                 else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
             )
@@ -690,7 +691,8 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
                 subject = (
                     (
                         await self._subject_name_func(
-                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf
+                        )
                         if self._strategy_accepts_client
                         else self._subject_name_func(ctx, writer_desc.full_name)
                     )

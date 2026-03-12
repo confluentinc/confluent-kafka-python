@@ -204,7 +204,8 @@ async def test_avro_serializer_subject_name_strategy_default(mock_schema_registr
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     if test_serializer._strategy_accepts_client:
         result = await test_serializer._subject_name_func(
-            ctx, test_serializer._schema_name, test_client, test_serializer._subject_name_conf)
+            ctx, test_serializer._schema_name, test_client, test_serializer._subject_name_conf
+        )
     else:
         result = test_serializer._subject_name_func(ctx, test_serializer._schema_name)
     assert result == 'test_subj-value'

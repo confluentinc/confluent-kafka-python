@@ -1169,8 +1169,9 @@ class AssociationCreateOrUpdateRequest:
         resource_id = d.pop("resourceId", None)
         resource_type = d.pop("resourceType", None)
         associations_list = d.pop("associations", None)
-        associations = [AssociationCreateOrUpdateInfo.from_dict(a)
-                        for a in associations_list] if associations_list else None
+        associations = (
+            [AssociationCreateOrUpdateInfo.from_dict(a) for a in associations_list] if associations_list else None
+        )
 
         return cls(  # type: ignore[call-arg]
             resource_name=resource_name,

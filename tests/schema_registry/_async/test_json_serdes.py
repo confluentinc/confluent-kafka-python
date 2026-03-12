@@ -27,6 +27,15 @@ from confluent_kafka.schema_registry import (
     Schema,
     header_schema_id_serializer,
 )
+from confluent_kafka.schema_registry._async.serde import (
+    FALLBACK_TYPE,
+    KAFKA_CLUSTER_ID,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import (
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+)
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.json_schema import AsyncJSONDeserializer, AsyncJSONSerializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
@@ -49,15 +58,6 @@ from confluent_kafka.schema_registry.schema_registry_client import (
     SchemaReference,
     ServerConfig,
 )
-from confluent_kafka.schema_registry._async.serde import (
-    FALLBACK_TYPE,
-    KAFKA_CLUSTER_ID,
-)
-from confluent_kafka.schema_registry.common.schema_registry_client import (
-    AssociationCreateOrUpdateInfo,
-    AssociationCreateOrUpdateRequest,
-)
-from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 from tests.schema_registry._async.test_avro_serdes import FakeClock
@@ -1460,14 +1460,16 @@ async def test_json_deeply_nested_refs():
     assert obj == obj2
 
 
-_JSON_SCHEMA = json.dumps({
-    "type": "object",
-    "title": "MyRecord",
-    "properties": {
-        "name": {"type": "string"},
-        "id": {"type": "integer"},
-    },
-})
+_JSON_SCHEMA = json.dumps(
+    {
+        "type": "object",
+        "title": "MyRecord",
+        "properties": {
+            "name": {"type": "string"},
+            "id": {"type": "integer"},
+        },
+    }
+)
 _JSON_OBJ = {"name": "Kafka", "id": 123}
 
 

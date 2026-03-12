@@ -1591,7 +1591,7 @@ class AsyncSchemaRegistryClient(object):
         resource_type: Optional[str] = None,
         association_types: Optional[List[str]] = None,
         offset: int = 0,
-        limit: int = -1
+        limit: int = -1,
     ) -> List['Association']:
         """
         Retrieves associations for a given resource name and namespace.
@@ -1623,19 +1623,12 @@ class AsyncSchemaRegistryClient(object):
             query['limit'] = limit
 
         response = await self._rest_client.get(
-            'associations/resources/{}/{}'.format(
-                _urlencode(resource_namespace),
-                _urlencode(resource_name)
-            ),
-            query
+            'associations/resources/{}/{}'.format(_urlencode(resource_namespace), _urlencode(resource_name)), query
         )
 
         return [Association.from_dict(a) for a in response]
 
-    async def create_association(
-        self,
-        request: 'AssociationCreateOrUpdateRequest'
-    ) -> 'AssociationResponse':
+    async def create_association(self, request: 'AssociationCreateOrUpdateRequest') -> 'AssociationResponse':
         """
         Creates an association between a subject and a resource.
 
@@ -1656,7 +1649,7 @@ class AsyncSchemaRegistryClient(object):
         resource_id: str,
         resource_type: Optional[str] = None,
         association_types: Optional[List[str]] = None,
-        cascade_lifecycle: bool = False
+        cascade_lifecycle: bool = False,
     ) -> None:
         """
         Deletes associations for a resource.
@@ -1677,10 +1670,7 @@ class AsyncSchemaRegistryClient(object):
         if association_types is not None:
             query['associationType'] = association_types
 
-        await self._rest_client.delete(
-            'associations/resources/{}'.format(_urlencode(resource_id)),
-            query=query
-        )
+        await self._rest_client.delete('associations/resources/{}'.format(_urlencode(resource_id)), query=query)
 
     @staticmethod
     def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
