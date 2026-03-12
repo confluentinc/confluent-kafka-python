@@ -377,9 +377,9 @@ class ProtobufSerializer(BaseSerializer):
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep), references=dep_refs, schema_type='PROTOBUF')
             if self._auto_register:
-                self._registry.register_schema(subject, schema)
+                self._registry.register_schema(subject, schema, normalize_schemas=self._normalize_schemas)
 
-            reference = self._registry.lookup_schema(subject, schema)
+            reference = self._registry.lookup_schema(subject, schema, normalize_schemas=self._normalize_schemas)
             # schema_refs are per file descriptor
             schema_refs.append(SchemaReference(dep.name, subject, reference.version))
         return schema_refs
