@@ -376,17 +376,21 @@ class AsyncBaseSerde(object):
     ) -> Any:
         if message is None or target is None:
             return message
+        enabled_env: Optional[str] = None
         rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
             if target is not None and target.rule_set is not None:
+                enabled_env = target.rule_set.enable_at
                 rules = target.rule_set.migration_rules
         elif rule_mode == RuleMode.DOWNGRADE:
             if source is not None and source.rule_set is not None:
+                enabled_env = source.rule_set.enable_at
                 rules = source.rule_set.migration_rules
                 rules = rules[:] if rules else []
                 rules.reverse()
         else:
             if target is not None and target.rule_set is not None:
+                enabled_env = target.rule_set.enable_at
                 if rule_phase == RulePhase.ENCODING:
                     rules = target.rule_set.encoding_rules
                 else:
@@ -401,7 +405,11 @@ class AsyncBaseSerde(object):
 
         for index in range(len(rules)):
             rule = rules[index]
-            if self._is_disabled(rule):
+            ctx = RuleContext(
+                enabled_env, ser_ctx, source, target, subject, rule_mode, rule, index, rules, inline_tags,
+                field_transformer
+            )
+            if self._is_disabled(ctx, rule):
                 continue
             if rule.mode == RuleMode.WRITEREAD:
                 if rule_mode != RuleMode.READ and rule_mode != RuleMode.WRITE:
@@ -411,10 +419,6 @@ class AsyncBaseSerde(object):
                     continue
             elif rule.mode != rule_mode:
                 continue
-
-            ctx = RuleContext(
-                ser_ctx, source, target, subject, rule_mode, rule, index, rules, inline_tags, field_transformer
-            )
             if rule.type is None:
                 self._run_action(
                     ctx,
@@ -476,12 +480,15 @@ class AsyncBaseSerde(object):
             return override.on_failure
         return rule.on_failure
 
-    def _is_disabled(self, rule: Rule) -> Optional[bool]:
+    def _is_disabled(self, ctx: RuleContext, rule: Rule) -> Optional[bool]:
         if rule.type is None:
             return rule.disabled
         override = self._rule_registry.get_override(rule.type)
         if override is not None and override.disabled is not None:
             return override.disabled
+        enabled_env = ctx.enabled_env if ctx.enabled_env is not None else "ALL"
+        if enabled_env != "ALL" and enabled_env != "CLIENT":
+            return True
         return rule.disabled
 
     def _run_action(
