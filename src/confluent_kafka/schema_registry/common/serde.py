@@ -97,6 +97,7 @@ class FieldContext(object):
 
 class RuleContext(object):
     __slots__ = [
+        'enabled_env',
         'ser_ctx',
         'source',
         'target',
@@ -112,6 +113,7 @@ class RuleContext(object):
 
     def __init__(
         self,
+        enabled_env: Optional[str],
         ser_ctx: SerializationContext,
         source: Optional[Schema],
         target: Optional[Schema],
@@ -123,6 +125,7 @@ class RuleContext(object):
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer,
     ):
+        self.enabled_env = enabled_env
         self.ser_ctx = ser_ctx
         self.source = source
         self.target = target

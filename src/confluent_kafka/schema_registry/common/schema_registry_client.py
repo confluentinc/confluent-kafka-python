@@ -462,6 +462,7 @@ class RuleSet:
     migration_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
     domain_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
     encoding_rules: Optional[List["Rule"]] = _attrs_field(hash=False, default=None)
+    enable_at: Optional[str] = _attrs_field(default=None)
 
     def to_dict(self) -> Dict[str, Any]:
         _migration_rules: Optional[List[Dict[str, Any]]] = None
@@ -493,6 +494,8 @@ class RuleSet:
             field_dict["domainRules"] = _domain_rules
         if _encoding_rules is not None:
             field_dict["encodingRules"] = _encoding_rules
+        if self.enable_at is not None:
+            field_dict["enableAt"] = self.enable_at
 
         return field_dict
 
@@ -517,16 +520,20 @@ class RuleSet:
             encoding_rules_item = Rule.from_dict(encoding_rules_item_data)
             encoding_rules.append(encoding_rules_item)
 
+        enable_at = d.pop("enableAt", None)
+
         rule_set = cls(  # type: ignore[call-arg]
             migration_rules=migration_rules,
             domain_rules=domain_rules,
             encoding_rules=encoding_rules,
+            enable_at=enable_at,
         )
 
         return rule_set
 
     def __hash__(self):
-        return hash(frozenset((self.migration_rules or []) + (self.domain_rules or []) + (self.encoding_rules or [])))
+        return hash((frozenset((self.migration_rules or []) + (self.domain_rules or [])
+                               + (self.encoding_rules or [])), self.enable_at))
 
 
 @_attrs_define
