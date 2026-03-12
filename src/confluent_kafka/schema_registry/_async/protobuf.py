@@ -381,9 +381,9 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep), references=dep_refs, schema_type='PROTOBUF')
             if self._auto_register:
-                await self._registry.register_schema(subject, schema)
+                await self._registry.register_schema(subject, schema, normalize_schemas=self._normalize_schemas)
 
-            reference = self._registry.lookup_schema(
+            reference = await self._registry.lookup_schema(
                 subject, schema, normalize_schemas=self._normalize_schemas
             )
             # schema_refs are per file descriptor

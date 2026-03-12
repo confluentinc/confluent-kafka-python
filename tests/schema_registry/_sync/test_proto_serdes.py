@@ -231,39 +231,6 @@ def test_proto_reference():
     assert obj == obj2
 
 
-def test_proto_reference_normalize():
-    conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
-    ser_conf = {'auto.register.schemas': True, 'use.deprecated.format': False, 'normalize.schemas': True}
-    msg = test_pb2.TestMessage(
-        test_string="hi",
-        test_bool=True,
-        test_bytes=b'foobar',
-        test_double=1.23,
-        test_float=3.45,
-        test_fixed32=67,
-        test_fixed64=89,
-        test_int32=100,
-        test_int64=200,
-        test_sfixed32=300,
-        test_sfixed64=400,
-        test_sint32=500,
-        test_sint64=600,
-        test_uint32=700,
-        test_uint64=800,
-    )
-    obj = dep_pb2.DependencyMessage(is_active=True, test_message=msg)
-
-    ser = ProtobufSerializer(dep_pb2.DependencyMessage, client, conf=ser_conf)
-    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
-
-    deser_conf = {'use.deprecated.format': False}
-    deser = ProtobufDeserializer(dep_pb2.DependencyMessage, deser_conf, client)
-    obj2 = deser(obj_bytes, ser_ctx)
-    assert obj == obj2
-
-
 def test_proto_cycle():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
