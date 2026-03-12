@@ -167,11 +167,11 @@ class _AssociationStore(object):
             resource_type = request.resource_type
 
             # Index resource_id by (namespace, name)
-            if resource_name and resource_namespace:
+            if resource_name and resource_namespace and resource_id:
                 self.resource_id_index[(resource_namespace, resource_name)] = resource_id
 
             created_associations = []
-            if request.associations:
+            if request.associations and resource_id is not None:
                 for assoc_info in request.associations:
                     association = Association(
                         subject=assoc_info.subject,

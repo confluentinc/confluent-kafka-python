@@ -297,9 +297,9 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             raise ValueError("use.deprecated.format is no longer supported")
 
         self.configure_subject_name_strategy(
-            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
-            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
-            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
 
         self._ref_reference_subject_func = cast(
@@ -612,9 +612,9 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self.configure_subject_name_strategy(
-            subject_name_strategy_type=conf_copy.pop('subject.name.strategy.type'),
-            subject_name_strategy_conf=conf_copy.pop('subject.name.strategy.conf'),
-            subject_name_strategy=conf_copy.pop('subject.name.strategy'),
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
 
         self._schema_id_deserializer = cast(

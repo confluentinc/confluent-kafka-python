@@ -262,7 +262,7 @@ class AsyncBaseSerde(object):
     _rule_registry: Any  # RuleRegistry
     _strategy_accepts_client: bool
     _subject_name_conf: Optional[dict]
-    _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
+    _subject_name_func: Callable[..., Any]
     _field_transformer: Optional[FieldTransformer]
 
     def configure_subject_name_strategy(
