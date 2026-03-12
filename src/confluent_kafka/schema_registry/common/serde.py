@@ -25,12 +25,21 @@ from enum import Enum
 from threading import Lock
 from typing import Any, Callable, Dict, List, Optional, Set, TypeVar
 
-from confluent_kafka.schema_registry import _MAGIC_BYTE_V0, _MAGIC_BYTE_V1, RegisteredSchema
+from confluent_kafka.schema_registry import (
+    _MAGIC_BYTE_V0,
+    _MAGIC_BYTE_V1,
+    RegisteredSchema,
+    record_subject_name_strategy,
+    topic_record_subject_name_strategy,
+    topic_subject_name_strategy,
+)
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = [
+    'STRATEGY_TYPE_MAP',
+    'SubjectNameStrategyType',
     'FieldType',
     'FieldContext',
     'RuleContext',
@@ -50,6 +59,23 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+
+
+class SubjectNameStrategyType(str, Enum):
+    NONE = "NONE"
+    TOPIC = "TOPIC"
+    RECORD = "RECORD"
+    TOPIC_RECORD = "TOPIC_RECORD"
+    ASSOCIATED = "ASSOCIATED"
+
+
+# Mapping from SubjectNameStrategyType to strategy functions.
+# NONE and ASSOCIATED are handled specially and not included here.
+STRATEGY_TYPE_MAP = {
+    SubjectNameStrategyType.TOPIC: topic_subject_name_strategy,
+    SubjectNameStrategyType.RECORD: record_subject_name_strategy,
+    SubjectNameStrategyType.TOPIC_RECORD: topic_record_subject_name_strategy,
+}
 
 
 class FieldType(str, Enum):

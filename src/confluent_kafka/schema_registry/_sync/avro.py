@@ -26,7 +26,6 @@ from confluent_kafka.schema_registry import (
     SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
-    topic_subject_name_strategy,
 )
 from confluent_kafka.schema_registry.common.avro import (
     AVRO_TYPE,
@@ -127,14 +126,28 @@ class AvroSerializer(BaseSerializer):
     |                                   |          |                                                  |
     |                                   |          | Defaults to None.                                |
     +-----------------------------------+----------+--------------------------------------------------+
+    | ``subject.name.strategy.type``    | str      | The type of subject name strategy to use.        |
+    |                                   |          | Valid values are: TOPIC, RECORD, TOPIC_RECORD,   |
+    |                                   |          | ASSOCIATED.                                      |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to ASSOCIATED if neither this nor            |
+    |                                   |          | subject.name.strategy is specified.              |
+    +-----------------------------------+----------+--------------------------------------------------+
+    | ``subject.name.strategy.conf``    | dict     | Configuration dictionary passed to strategies    |
+    |                                   |          | that require additional configuration, such as   |
+    |                                   |          | ASSOCIATED.                                      |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to None.                                |
+    +-----------------------------------+----------+--------------------------------------------------+
     | ``subject.name.strategy``         | callable | Callable(SerializationContext, str) -> str       |
     |                                   |          |                                                  |
     |                                   |          | Defines how Schema Registry subject names are    |
     |                                   |          | constructed. Standard naming strategies are      |
     |                                   |          | defined in the confluent_kafka.schema_registry   |
-    |                                   |          | namespace.                                       |
+    |                                   |          | namespace. Takes precedence over                 |
+    |                                   |          | subject.name.strategy.type if both are set.      |
     |                                   |          |                                                  |
-    |                                   |          | Defaults to topic_subject_name_strategy.         |
+    |                                   |          | Defaults to None.                                |
     +-----------------------------------+----------+--------------------------------------------------+
     | ``schema.id.serializer``          | callable | Callable(bytes, SerializationContext, schema_id) |
     |                                   |          |   -> bytes                                       |
@@ -226,7 +239,9 @@ class AvroSerializer(BaseSerializer):
         'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate.strict': False,
         'validate.strict.allow.default': False,
@@ -288,12 +303,11 @@ class AvroSerializer(BaseSerializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -375,7 +389,11 @@ class AvroSerializer(BaseSerializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
+        subject = (
+            self._subject_name_func(ctx, self._schema_name, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, self._schema_name)
+        )
         latest_schema = self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(AVRO_TYPE, latest_schema.schema_id, latest_schema.guid)
@@ -482,14 +500,28 @@ class AvroDeserializer(BaseDeserializer):
     |                             |          |                                                  |
     |                             |          | Defaults to None.                                |
     +-----------------------------+----------+--------------------------------------------------+
+    |                             |          | The type of subject name strategy to use.        |
+    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,   |
+    |                             |          | ASSOCIATED.                                      |
+    |                             |          |                                                  |
+    |                             |          | Defaults to ASSOCIATED if neither this nor            |
+    |                             |          | subject.name.strategy is specified.              |
+    +-----------------------------+----------+--------------------------------------------------+
+    |                             |          | Configuration dictionary passed to strategies    |
+    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as   |
+    |                             |          | ASSOCIATED.                                      |
+    |                             |          |                                                  |
+    |                             |          | Defaults to None.                                |
+    +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Callable(SerializationContext, str) -> str       |
     |                             |          |                                                  |
     | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are    |
     |                             |          | constructed. Standard naming strategies are      |
     |                             |          | defined in the confluent_kafka.schema_registry   |
-    |                             |          | namespace.                                       |
+    |                             |          | namespace. Takes precedence over                 |
+    |                             |          | subject.name.strategy.type if both are set.      |
     |                             |          |                                                  |
-    |                             |          | Defaults to topic_subject_name_strategy.         |
+    |                             |          | Defaults to None.                                |
     +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Callable(bytes, SerializationContext, schema_id) |
     |                             |          |   -> io.BytesIO                                  |
@@ -534,7 +566,9 @@ class AvroDeserializer(BaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
     }
 
@@ -576,12 +610,11 @@ class AvroDeserializer(BaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -648,7 +681,15 @@ class AvroDeserializer(BaseDeserializer):
                 "Schema Registry serializer".format(len(data))
             )
 
-        subject = self._subject_name_func(ctx, None) if ctx else None
+        subject = (
+            (
+                self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
+                else self._subject_name_func(ctx, None)
+            )
+            if ctx
+            else None
+        )
         latest_schema = None
         if subject is not None:
             latest_schema = self._get_reader_schema(subject)
@@ -658,9 +699,15 @@ class AvroDeserializer(BaseDeserializer):
 
         writer_schema_raw = self._get_writer_schema(schema_id, subject)
         writer_schema = self._get_parsed_schema(writer_schema_raw)
-        if subject is None:
+        if subject is None and isinstance(writer_schema, dict):
             subject = (
-                self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
+                (
+                    self._subject_name_func(ctx, writer_schema.get("name"), self._registry, self._subject_name_conf)
+                    if self._strategy_accepts_client
+                    else self._subject_name_func(ctx, writer_schema.get("name"))
+                )
+                if ctx
+                else None
             )
             if subject is not None:
                 latest_schema = self._get_reader_schema(subject)
