@@ -128,7 +128,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
     |                                   |          | Valid values are: TOPIC, RECORD, TOPIC_RECORD,   |
     |                                   |          | ASSOCIATED.                                      |
     |                                   |          |                                                  |
-    |                                   |          | Defaults to ASSOCIATED if neither this nor            |
+    |                                   |          | Defaults to ASSOCIATED if neither this nor       |
     |                                   |          | subject.name.strategy is specified.              |
     +-----------------------------------+----------+--------------------------------------------------+
     | ``subject.name.strategy.conf``    | dict     | Configuration dictionary passed to strategies    |
@@ -486,48 +486,48 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
     Deserializer for Avro binary encoded data with Confluent Schema Registry
     framing.
 
-    +-----------------------------+----------+--------------------------------------------------+
-    | Property Name               | Type     | Description                                      |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | Whether to use the latest subject version for    |
-    | ``use.latest.version``      | bool     | deserialization.                                 |
-    |                             |          |                                                  |
-    |                             |          | Defaults to False.                               |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | Whether to use the latest subject version with   |
-    | ``use.latest.with.metadata``| dict     | the given metadata.                              |
-    |                             |          |                                                  |
-    |                             |          | Defaults to None.                                |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | The type of subject name strategy to use.        |
-    |``subject.name.strategy.type``| str     | Valid values are: TOPIC, RECORD, TOPIC_RECORD,   |
-    |                             |          | ASSOCIATED.                                      |
-    |                             |          |                                                  |
-    |                             |          | Defaults to ASSOCIATED if neither this nor            |
-    |                             |          | subject.name.strategy is specified.              |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | Configuration dictionary passed to strategies    |
-    |``subject.name.strategy.conf``| dict    | that require additional configuration, such as   |
-    |                             |          | ASSOCIATED.                                      |
-    |                             |          |                                                  |
-    |                             |          | Defaults to None.                                |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | Callable(SerializationContext, str) -> str       |
-    |                             |          |                                                  |
-    | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are    |
-    |                             |          | constructed. Standard naming strategies are      |
-    |                             |          | defined in the confluent_kafka.schema_registry   |
-    |                             |          | namespace. Takes precedence over                 |
-    |                             |          | subject.name.strategy.type if both are set.      |
-    |                             |          |                                                  |
-    |                             |          | Defaults to None.                                |
-    +-----------------------------+----------+--------------------------------------------------+
-    |                             |          | Callable(bytes, SerializationContext, schema_id) |
-    |                             |          |   -> io.BytesIO                                  |
-    |                             |          |                                                  |
-    | ``schema.id.deserializer``  | callable | Defines how the schema id/guid is deserialized.  |
-    |                             |          | Defaults to dual_schema_id_deserializer.         |
-    +-----------------------------+----------+--------------------------------------------------+
+    +----------------------------------+----------+--------------------------------------------------+
+    | Property Name                    | Type     | Description                                      |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version for    |
+    | ``use.latest.version``           | bool     | deserialization.                                 |
+    |                                  |          |                                                  |
+    |                                  |          | Defaults to False.                               |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version with   |
+    | ``use.latest.with.metadata``     | dict     | the given metadata.                              |
+    |                                  |          |                                                  |
+    |                                  |          | Defaults to None.                                |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | The type of subject name strategy to use.        |
+    | ``subject.name.strategy.type``   | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,   |
+    |                                  |          | ASSOCIATED.                                      |
+    |                                  |          |                                                  |
+    |                                  |          | Defaults to ASSOCIATED if neither this nor       |
+    |                                  |          | subject.name.strategy is specified.              |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | Configuration dictionary passed to strategies    |
+    | ``subject.name.strategy.conf``   | dict     | that require additional configuration, such as   |
+    |                                  |          | ASSOCIATED.                                      |
+    |                                  |          |                                                  |
+    |                                  |          | Defaults to None.                                |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | Callable(SerializationContext, str) -> str       |
+    |                                  |          |                                                  |
+    | ``subject.name.strategy``        | callable | Defines how Schema Registry subject names are    |
+    |                                  |          | constructed. Standard naming strategies are      |
+    |                                  |          | defined in the confluent_kafka.schema_registry   |
+    |                                  |          | namespace. Takes precedence over                 |
+    |                                  |          | subject.name.strategy.type if both are set.      |
+    |                                  |          |                                                  |
+    |                                  |          | Defaults to None.                                |
+    +----------------------------------+----------+--------------------------------------------------+
+    |                                  |          | Callable(bytes, SerializationContext, schema_id) |
+    |                                  |          |   -> io.BytesIO                                  |
+    |                                  |          |                                                  |
+    | ``schema.id.deserializer``       | callable | Defines how the schema id/guid is deserialized.  |
+    |                                  |          | Defaults to dual_schema_id_deserializer.         |
+    +----------------------------------+----------+--------------------------------------------------+
 
     Note:
         By default, Avro complex types are returned as dicts. This behavior can
