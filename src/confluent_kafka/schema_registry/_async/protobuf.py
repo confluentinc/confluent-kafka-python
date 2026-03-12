@@ -383,9 +383,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             if self._auto_register:
                 await self._registry.register_schema(subject, schema, normalize_schemas=self._normalize_schemas)
 
-            reference = await self._registry.lookup_schema(
-                subject, schema, normalize_schemas=self._normalize_schemas
-            )
+            reference = await self._registry.lookup_schema(subject, schema, normalize_schemas=self._normalize_schemas)
             # schema_refs are per file descriptor
             schema_refs.append(SchemaReference(dep.name, subject, reference.version))
         return schema_refs
