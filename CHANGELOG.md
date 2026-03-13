@@ -2,6 +2,11 @@
 
 ## v2.xx.x
 
+### Enhancements
+
+- Add AssociatedNameStrategy (#2194)
+- Add enableAt to RuleSet (#2218)
+
 ### Fixes
 
 - Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
