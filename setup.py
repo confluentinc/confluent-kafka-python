@@ -23,6 +23,7 @@ module = Extension(
         os.path.join(ext_dir, 'confluent_kafka.c'),
         os.path.join(ext_dir, 'Producer.c'),
         os.path.join(ext_dir, 'Consumer.c'),
+        os.path.join(ext_dir, 'ShareConsumer.c'),
         os.path.join(ext_dir, 'Metadata.c'),
         os.path.join(ext_dir, 'AdminTypes.c'),
         os.path.join(ext_dir, 'Admin.c'),
