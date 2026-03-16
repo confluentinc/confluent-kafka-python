@@ -5,6 +5,8 @@
 ### Enhancements
 
 - Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
+- Add AssociatedNameStrategy (#2194)
+- Add enableAt to RuleSet (#2218)
 
 ### Fixes
 
