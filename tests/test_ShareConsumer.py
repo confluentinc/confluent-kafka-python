@@ -5,17 +5,16 @@ Unit tests for ShareConsumer class.
 """
 import pytest
 
-
 try:
     from confluent_kafka import ShareConsumer
+
     SHARE_CONSUMER_AVAILABLE = True
 except ImportError:
     SHARE_CONSUMER_AVAILABLE = False
 
 
 pytestmark = pytest.mark.skipif(
-    not SHARE_CONSUMER_AVAILABLE,
-    reason="ShareConsumer requires librdkafka with KIP-932 support"
+    not SHARE_CONSUMER_AVAILABLE, reason="ShareConsumer requires librdkafka with KIP-932 support"
 )
 
 
@@ -28,22 +27,26 @@ def test_constructor_requires_config():
 
 def test_constructor_with_valid_config():
     """ShareConsumer can be created with valid configuration."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
     assert sc is not None
     sc.close()
 
 
 def test_subscribe():
     """Test subscribe() method."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
 
     sc.subscribe(['test-topic'])
 
@@ -56,11 +59,13 @@ def test_subscribe():
 
 def test_unsubscribe():
     """Test unsubscribe() method."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
 
     sc.subscribe(['test-topic'])
     sc.unsubscribe()
@@ -73,12 +78,13 @@ def test_unsubscribe():
 
 def test_consume_batch_no_broker():
     """Test consume_batch() returns empty list when no broker available."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'socket.timeout.ms': '100',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
 
     sc.subscribe(['test-topic'])
 
@@ -90,14 +96,15 @@ def test_consume_batch_no_broker():
     sc.close()
 
 
-
 def test_close_idempotent():
     """Test that close() can be called multiple times."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
 
     sc.close()
     sc.close()  # Should not raise
@@ -105,11 +112,13 @@ def test_close_idempotent():
 
 def test_any_method_after_close_throws_exception():
     """Test that all operations on a closed consumer raise RuntimeError."""
-    sc = ShareConsumer({
-        'group.id': 'test-share-group',
-        'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
 
     sc.subscribe(['test-topic'])
     sc.close()
@@ -134,9 +143,11 @@ def test_any_method_after_close_throws_exception():
 def test_required_group_id():
     """Test that group.id is required."""
     with pytest.raises(ValueError) as ex:
-        ShareConsumer({
-            'bootstrap.servers': 'localhost:9092',
-        })
+        ShareConsumer(
+            {
+                'bootstrap.servers': 'localhost:9092',
+            }
+        )
     assert ex.match('group.id must be set')
 
 
@@ -148,7 +159,7 @@ def test_concurrent_consumers():
     kafka_config = {
         'group.id': 'test-share-group-integration',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     }
 
     sc1 = ShareConsumer(kafka_config)
@@ -162,10 +173,8 @@ def test_concurrent_consumers():
         messages2 = sc2.consume_batch(timeout=2.0)
 
         # Verify no overlap (share group semantics)
-        offsets1 = {(msg.topic(), msg.partition(), msg.offset())
-                    for msg in messages1 if not msg.error()}
-        offsets2 = {(msg.topic(), msg.partition(), msg.offset())
-                    for msg in messages2 if not msg.error()}
+        offsets1 = {(msg.topic(), msg.partition(), msg.offset()) for msg in messages1 if not msg.error()}
+        offsets2 = {(msg.topic(), msg.partition(), msg.offset()) for msg in messages2 if not msg.error()}
 
         assert len(offsets1.intersection(offsets2)) == 0
 
