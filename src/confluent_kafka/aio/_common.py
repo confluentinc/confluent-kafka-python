@@ -83,5 +83,6 @@ def wrap_common_callbacks(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any])
     wrap_conf_callback(loop, conf, 'error_cb')
     wrap_conf_callback(loop, conf, 'throttle_cb')
     wrap_conf_callback(loop, conf, 'stats_cb')
-    wrap_conf_callback(loop, conf, 'oauth_cb')
+    # oauth_cb must NOT be wrapped because it is invoked by librdkafka's background thread
+    # wrap_conf_callback(loop, conf, 'oauth_cb')
     wrap_conf_logger(loop, conf)
