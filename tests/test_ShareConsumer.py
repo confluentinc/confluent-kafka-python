@@ -31,7 +31,7 @@ def test_constructor_with_valid_config():
     sc = ShareConsumer({
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
     assert sc is not None
     sc.close()
@@ -42,7 +42,7 @@ def test_subscribe():
     sc = ShareConsumer({
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
 
     sc.subscribe(['test-topic'])
@@ -59,7 +59,7 @@ def test_unsubscribe():
     sc = ShareConsumer({
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
 
     sc.subscribe(['test-topic'])
@@ -77,7 +77,7 @@ def test_consume_batch_no_broker():
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
         'socket.timeout.ms': '100',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
 
     sc.subscribe(['test-topic'])
@@ -96,7 +96,7 @@ def test_close_idempotent():
     sc = ShareConsumer({
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
 
     sc.close()
@@ -108,7 +108,7 @@ def test_any_method_after_close_throws_exception():
     sc = ShareConsumer({
         'group.id': 'test-share-group',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     })
 
     sc.subscribe(['test-topic'])
@@ -148,7 +148,7 @@ def test_concurrent_consumers():
     kafka_config = {
         'group.id': 'test-share-group-integration',
         'bootstrap.servers': 'localhost:9092',
-        'session.timeout.ms': 100,
+        'socket.timeout.ms': 100,
     }
 
     sc1 = ShareConsumer(kafka_config)
