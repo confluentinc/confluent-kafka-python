@@ -8,7 +8,7 @@ import time
 import pytest
 
 import confluent_kafka
-from confluent_kafka import Consumer, KafkaException, Producer
+from confluent_kafka import Consumer, Producer
 from confluent_kafka.admin import AdminClient
 from tests.common import TestConsumer
 
