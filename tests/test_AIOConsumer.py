@@ -165,3 +165,9 @@ class TestAIOConsumer:
             await consumer.poll(timeout=1.0)
 
         assert exc_info.value.args[0].code() == KafkaError._TRANSPORT
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager(self, mock_consumer, mock_common, basic_config):
+        """Test AIOConsumer handles network errors gracefully."""
+        async with AIOConsumer(basic_config) as _:
+            pass
