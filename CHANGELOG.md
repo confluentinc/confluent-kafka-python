@@ -2,6 +2,10 @@
 
 ## v2.xx.x
 
+### Enhancements
+
+- Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
+
 ### Fixes
 
 - Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
