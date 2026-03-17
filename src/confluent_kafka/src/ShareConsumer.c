@@ -289,6 +289,8 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
         }
 
         if (!CallState_end((Handle *)self, &cs)) {
+                for (i = 0; i < rkmessages_size; i++)
+                        rd_kafka_message_destroy(rkmessages[i]);
                 free(rkmessages);
                 if (error)
                         rd_kafka_error_destroy(error);
@@ -345,17 +347,12 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self) {
         if (!self->rkshare)
                 Py_RETURN_NONE;
 
-        /* Attempt to close consumer - may fail if broker unreachable */
         CallState_begin((Handle *)self, &cs);
         err = rd_kafka_share_consumer_close(self->rkshare);
-        CallState_end((Handle *)self, &cs);
-
-        /* Always destroy handle, to ensures resources are freed even if broker communication fails. */
-        CallState_begin((Handle *)self, &cs);
         rd_kafka_share_destroy(self->rkshare);
-        CallState_end((Handle *)self, &cs);
-
         self->rkshare = NULL;
+        if (!CallState_end((Handle *)self, &cs))
+                return NULL;
 
         if (err) {
                 cfl_PyErr_Format(err, "Failed to close consumer: %s",
@@ -438,7 +435,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  This method should be called to properly clean up the share consumer\n"
      "  and leave the share group.\n"
      "\n"
-     "  :raises RuntimeError: on error\n"
+     "  :raises KafkaException: on error\n"
      "\n"},
 
     {NULL}};
