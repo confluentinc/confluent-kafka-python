@@ -537,8 +537,12 @@ class RuleSet:
         return rule_set
 
     def __hash__(self):
-        return hash((frozenset((self.migration_rules or []) + (self.domain_rules or [])
-                               + (self.encoding_rules or [])), self.enable_at))
+        return hash(
+            (
+                frozenset((self.migration_rules or []) + (self.domain_rules or []) + (self.encoding_rules or [])),
+                self.enable_at,
+            )
+        )
 
 
 @_attrs_define

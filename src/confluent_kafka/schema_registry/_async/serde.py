@@ -406,8 +406,17 @@ class AsyncBaseSerde(object):
         for index in range(len(rules)):
             rule = rules[index]
             ctx = RuleContext(
-                enabled_env, ser_ctx, source, target, subject, rule_mode, rule, index, rules, inline_tags,
-                field_transformer
+                enabled_env,
+                ser_ctx,
+                source,
+                target,
+                subject,
+                rule_mode,
+                rule,
+                index,
+                rules,
+                inline_tags,
+                field_transformer,
             )
             if self._is_disabled(ctx, rule):
                 continue
