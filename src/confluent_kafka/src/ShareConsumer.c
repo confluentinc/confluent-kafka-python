@@ -38,13 +38,14 @@
  ****************************************************************************/
 
 typedef struct {
-        Handle base;  /* first member — (Handle *)self cast is always safe */
-                      /* base.rk, base.u unused: share uses rkshare, no rebalance */
+        Handle base; /* first member — (Handle *)self cast is always safe */
+        /* base.rk, base.u unused: share uses rkshare, no rebalance */
 
         rd_kafka_share_t *rkshare;
 
-        /* TODO: Remove after interface of librdkafka is updated to return double pointer */
-        size_t max_poll_records;
+        /* TODO: Remove after interface of librdkafka is updated to return
+         * double pointer */
+        size_t batch_size;
 
 } ShareConsumerHandle;
 
@@ -70,9 +71,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static int ShareConsumer_traverse(ShareConsumerHandle *self,
-                                  visitproc visit,
-                                  void *arg) {
+static int
+ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
         return Handle_traverse((Handle *)self, visit, arg);
 }
 
@@ -80,10 +80,9 @@ static int ShareConsumer_traverse(ShareConsumerHandle *self,
 /**
  * @brief Subscribe to topics.
  */
-static PyObject *
-ShareConsumer_subscribe(ShareConsumerHandle *self,
-                        PyObject *args,
-                        PyObject *kwargs) {
+static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
+                                         PyObject *args,
+                                         PyObject *kwargs) {
         PyObject *tlist;
         static char *kws[] = {"topics", NULL};
         rd_kafka_topic_partition_list_t *c_topics;
@@ -108,7 +107,7 @@ ShareConsumer_subscribe(ShareConsumerHandle *self,
         /* Build partition list from topic name strings */
         c_topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
         for (i = 0; i < PyList_Size(tlist); i++) {
-                PyObject *o   = PyList_GetItem(tlist, i);
+                PyObject *o = PyList_GetItem(tlist, i);
                 PyObject *uo, *uo8 = NULL;
                 if (!(uo = cfl_PyObject_Unistr(o))) {
                         PyErr_SetString(PyExc_TypeError,
@@ -201,15 +200,14 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self) {
  * @brief Consume a batch of messages from the share consumer.
  *
  */
-static PyObject *
-ShareConsumer_consume_batch(ShareConsumerHandle *self,
-                            PyObject *args,
-                            PyObject *kwargs) {
-        double tmout              = -1.0f;
-        static char *kws[]        = {"timeout", NULL};
+static PyObject *ShareConsumer_consume_batch(ShareConsumerHandle *self,
+                                             PyObject *args,
+                                             PyObject *kwargs) {
+        double tmout                    = -1.0f;
+        static char *kws[]              = {"timeout", NULL};
         rd_kafka_message_t **rkmessages = NULL;
-        size_t rkmessages_size = 0;
-        rd_kafka_error_t *error = NULL;
+        size_t rkmessages_size          = 0;
+        rd_kafka_error_t *error         = NULL;
         PyObject *msglist;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
@@ -228,9 +226,10 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
                 return NULL;
 
 
-        rkmessages = malloc(self->max_poll_records * sizeof(*rkmessages));
+        rkmessages = malloc(self->batch_size * sizeof(*rkmessages));
         if (!rkmessages) {
-                PyErr_SetString(PyExc_MemoryError, "Failed to allocate message array");
+                PyErr_SetString(PyExc_MemoryError,
+                                "Failed to allocate message array");
                 return NULL;
         }
 
@@ -241,10 +240,9 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
         /* Chunked polling pattern for signal interruptibility */
         if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
                 /* Short timeout: single call */
-                error = rd_kafka_share_consume_batch(self->rkshare,
-                                                     total_timeout_ms,
-                                                     rkmessages,
-                                                     &rkmessages_size);
+                error = rd_kafka_share_consume_batch(
+                    self->rkshare, total_timeout_ms, rkmessages,
+                    &rkmessages_size);
         } else {
                 /* Long timeout: chunked with signal checking */
                 while (1) {
@@ -253,8 +251,9 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
                                 /* Infinite timeout */
                                 chunk_timeout_ms = CHUNK_TIMEOUT_MS;
                         } else {
-                                int remaining = total_timeout_ms -
-                                                (chunk_count * CHUNK_TIMEOUT_MS);
+                                int remaining =
+                                    total_timeout_ms -
+                                    (chunk_count * CHUNK_TIMEOUT_MS);
                                 if (remaining <= 0) {
                                         /* Timeout expired */
                                         break;
@@ -279,7 +278,8 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
                                 break;
                         }
 
-                        /* No messages yet — check for Ctrl+C before next chunk. */
+                        /* No messages yet — check for Ctrl+C before next chunk.
+                         */
                         chunk_count++;
                         if (check_signals_between_chunks((Handle *)self, &cs)) {
                                 free(rkmessages);
@@ -307,8 +307,9 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
                         PyErr_Format(PyExc_RuntimeError, "Fatal error: %s",
                                      error_str);
                 } else {
-                        PyErr_Format(KafkaException, "Error: %s (retriable: %s)",
-                                     error_str, is_retriable ? "yes" : "no");
+                        PyErr_Format(KafkaException,
+                                     "Error: %s (retriable: %s)", error_str,
+                                     is_retriable ? "yes" : "no");
                 }
 
                 rd_kafka_error_destroy(error);
@@ -320,8 +321,7 @@ ShareConsumer_consume_batch(ShareConsumerHandle *self,
         msglist = PyList_New(rkmessages_size);
 
         for (i = 0; i < rkmessages_size; i++) {
-                PyObject *msgobj =
-                    Message_new0((Handle *)self, rkmessages[i]);
+                PyObject *msgobj = Message_new0((Handle *)self, rkmessages[i]);
 
 #ifdef RD_KAFKA_V_HEADERS
                 rd_kafka_message_detach_headers(
@@ -444,9 +444,8 @@ static PyMethodDef ShareConsumer_methods[] = {
 /**
  * @brief Initialize ShareConsumer.
  */
-static int ShareConsumer_init(PyObject *selfobj,
-                              PyObject *args,
-                              PyObject *kwargs) {
+static int
+ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         ShareConsumerHandle *self = (ShareConsumerHandle *)selfobj;
         char errstr[512];
         rd_kafka_conf_t *conf;
@@ -463,21 +462,18 @@ static int ShareConsumer_init(PyObject *selfobj,
                                        kwargs)))
                 return -1; /* Exception raised by common_conf_setup() */
 
-        /* TODO: Remove after interface of librdkafka is updated to return double pointer */
-        self->max_poll_records = 10005;
+        /* TODO: Remove after interface of librdkafka is updated to return
+         * double pointer */
+        self->batch_size = 10005;
 
-        self->rkshare = rd_kafka_share_consumer_new(conf, errstr,
-                                                    sizeof(errstr));
+        self->rkshare =
+            rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
         if (!self->rkshare) {
                 cfl_PyErr_Format(rd_kafka_last_error(),
                                  "Failed to create share consumer: %s", errstr);
                 rd_kafka_conf_destroy(conf);
                 return -1;
         }
-
-        /* TODO: rd_kafka_share_poll_set_consumer() does not exist in KIP-932 API.
-         * Share consumers may have a different event forwarding model.
-         * Call this once librdkafka adds a share-level wrapper for it. */
 
         /* TODO: call rd_kafka_set_log_queue() once librdkafka adds a
          * rd_kafka_share_set_log_queue() wrapper — needs rd_kafka_t *, which
@@ -494,9 +490,8 @@ static int ShareConsumer_init(PyObject *selfobj,
 /**
  * @brief ShareConsumer __new__ method.
  */
-static PyObject *ShareConsumer_new(PyTypeObject *type,
-                                   PyObject *args,
-                                   PyObject *kwargs) {
+static PyObject *
+ShareConsumer_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
         return type->tp_alloc(type, 0);
 }
 
@@ -523,9 +518,8 @@ PyTypeObject ShareConsumerType = {
     0,                                                    /*tp_getattro*/
     0,                                                    /*tp_setattro*/
     0,                                                    /*tp_as_buffer*/
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-    "A high-level Apache Kafka share consumer (KIP-932)\n"
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+    "A high-level Apache Kafka share consumer\n"
     "\n"
     ".. py:function:: ShareConsumer(config)\n"
     "\n"
@@ -543,7 +537,7 @@ PyTypeObject ShareConsumerType = {
     ":param dict config: Configuration properties. At a minimum, "
     "``group.id`` **must** be set and ``bootstrap.servers`` **should** be "
     "set.\n"
-    "\n", /*tp_doc*/
+    "\n",                                 /*tp_doc*/
     (traverseproc)ShareConsumer_traverse, /* tp_traverse */
     (inquiry)ShareConsumer_clear,         /* tp_clear */
     0,                                    /* tp_richcompare */
