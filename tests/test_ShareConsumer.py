@@ -4,18 +4,7 @@
 Unit tests for ShareConsumer class.
 """
 import pytest
-
-try:
-    from confluent_kafka import ShareConsumer
-
-    SHARE_CONSUMER_AVAILABLE = True
-except ImportError:
-    SHARE_CONSUMER_AVAILABLE = False
-
-
-pytestmark = pytest.mark.skipif(
-    not SHARE_CONSUMER_AVAILABLE, reason="ShareConsumer requires librdkafka with KIP-932 support"
-)
+from confluent_kafka import ShareConsumer
 
 
 def test_constructor_requires_config():
@@ -181,3 +170,130 @@ def test_concurrent_consumers():
     finally:
         sc1.close()
         sc2.close()
+
+
+def test_error_cb():
+    """Test that error_cb fires for ShareConsumer when broker is unreachable."""
+    error_called = []
+
+    def my_error_cb(error):
+        error_called.append(error)
+
+    sc = ShareConsumer({
+        'group.id': 'test-share-error-cb',
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'error_cb': my_error_cb,
+    })
+
+    sc.subscribe(['test-topic'])
+    sc.consume_batch(timeout=0.5)
+
+    assert len(error_called) > 0, "error_cb should have been called"
+    sc.close()
+
+
+def test_error_cb_exception_propagates():
+    """Test that an exception raised in error_cb propagates to consume_batch."""
+    error_called = []
+
+    def error_cb_that_raises(error):
+        error_called.append(error)
+        raise RuntimeError("Test exception from error_cb")
+
+    sc = ShareConsumer({
+        'group.id': 'test-share-error-cb-exc',
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_that_raises,
+    })
+
+    sc.subscribe(['test-topic'])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        sc.consume_batch(timeout=0.5)
+
+    assert "Test exception from error_cb" in str(exc_info.value)
+    assert len(error_called) > 0
+    # close() may also drain pending callbacks and re-raise, so ignore
+    try:
+        sc.close()
+    except RuntimeError:
+        pass
+
+
+def test_stats_cb():
+    """Test that stats_cb fires for ShareConsumer."""
+    stats_called = []
+
+    def my_stats_cb(stats_json):
+        stats_called.append(stats_json)
+
+    sc = ShareConsumer({
+        'group.id': 'test-share-stats-cb',
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'statistics.interval.ms': 100,
+        'stats_cb': my_stats_cb,
+    })
+
+    sc.subscribe(['test-topic'])
+    sc.consume_batch(timeout=0.5)
+
+    assert len(stats_called) > 0, "stats_cb should have been called"
+    # Verify we got valid JSON string
+    import json
+    parsed = json.loads(stats_called[0])
+    assert 'name' in parsed
+    sc.close()
+
+
+def test_stats_cb_exception_propagates():
+    """Test that an exception raised in stats_cb propagates to consume_batch."""
+    stats_called = []
+
+    def stats_cb_that_raises(stats_json):
+        stats_called.append(stats_json)
+        raise RuntimeError("Test exception from stats_cb")
+
+    sc = ShareConsumer({
+        'group.id': 'test-share-stats-cb-exc',
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'statistics.interval.ms': 100,
+        'stats_cb': stats_cb_that_raises,
+    })
+
+    sc.subscribe(['test-topic'])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        sc.consume_batch(timeout=0.5)
+
+    assert "Test exception from stats_cb" in str(exc_info.value)
+    assert len(stats_called) > 0
+    sc.close()
+
+
+def test_throttle_cb():
+    """Test that throttle_cb can be registered without crashing.
+
+    throttle_cb requires broker-side throttling to fire, which can't be
+    triggered in a unit test. We verify it can be set and doesn't crash.
+    """
+    throttle_called = []
+
+    def my_throttle_cb(event):
+        throttle_called.append(event)
+
+    sc = ShareConsumer({
+        'group.id': 'test-share-throttle-cb',
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'throttle_cb': my_throttle_cb,
+    })
+
+    sc.subscribe(['test-topic'])
+
+    # throttle_cb won't fire without broker throttling — just verify no crash
+    sc.consume_batch(timeout=0.2)
+    sc.close()
