@@ -35,6 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
+import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 from typing_extensions import Literal, Self
@@ -325,6 +326,8 @@ class Producer:
         self,
         config: Dict[str, Any],
         /,
+        *,
+        logger: Optional[logging.Logger] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -333,6 +336,10 @@ class Producer:
 
         Args:
             config: Configuration dictionary.
+            logger: Optional ``logging.Logger`` instance to forward Kafka client
+                log messages to. The client calls ``logger.log(level, msg, *args)``
+                internally. Log messages are only forwarded when
+                ``producer.poll()`` or ``producer.flush()`` are called.
             **kwargs: Additional config as keyword args (overrides dict values).
 
         Example:
@@ -341,11 +348,15 @@ class Producer:
         """
         ...
     @overload
-    def __init__(self, **config: Any) -> None:
+    def __init__(self, *, logger: Optional[logging.Logger] = None, **config: Any) -> None:
         """
         Create Producer with keyword arguments only.
 
         Args:
+            logger: Optional ``logging.Logger`` instance to forward Kafka client
+                log messages to. The client calls ``logger.log(level, msg, *args)``
+                internally. Log messages are only forwarded when
+                ``producer.poll()`` or ``producer.flush()`` are called.
             **config: Configuration as keyword args.
                       Note: Use underscores (bootstrap_servers) not dots (bootstrap.servers) in kwargs.
 
@@ -408,6 +419,8 @@ class Consumer:
         self,
         config: dict[str, Any],
         /,
+        *,
+        logger: Optional[logging.Logger] = None,
         **kwargs: Any
     ) -> None:
         """
@@ -416,6 +429,10 @@ class Consumer:
 
         Args:
             config: Configuration dictionary. Must include 'group.id'.
+            logger: Optional ``logging.Logger`` instance to forward Kafka client
+                log messages to. The client calls ``logger.log(level, msg, *args)``
+                internally. Log messages are only forwarded when
+                ``consumer.poll()`` is called.
             **kwargs: Additional config as keyword args (overrides dict values).
 
         Example:
@@ -424,11 +441,15 @@ class Consumer:
         """
         ...
     @overload
-    def __init__(self, **config: Any) -> None:
+    def __init__(self, *, logger: Optional[logging.Logger] = None, **config: Any) -> None:
         """
         Create Consumer with keyword arguments only.
 
         Args:
+            logger: Optional ``logging.Logger`` instance to forward Kafka client
+                log messages to. The client calls ``logger.log(level, msg, *args)``
+                internally. Log messages are only forwarded when
+                ``consumer.poll()`` is called.
             **config: Configuration as keyword args. Must include group_id.
                       Note: Use underscores (group_id) not dots (group.id) in kwargs.
 
