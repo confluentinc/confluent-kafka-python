@@ -1,5 +1,20 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.xx.x
+
+### Enhancements
+
+- Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
+- Add AssociatedNameStrategy (#2194)
+- Add enableAt to RuleSet (#2218)
+
+### Fixes
+
+- Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
+- Fix type annotations for context manager hooks so that they are correct for subclasses (#2181)
+- Fix OAuth callback handling for Async IO clients to prevent initialization failures (#2219)
+
+
 ## v2.13.2 - 2026-03-02
 
 v2.13.2 is a maintenance release with the following fixes and enhancements:

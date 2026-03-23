@@ -42,6 +42,11 @@ __all__ = [
     'ServerConfig',
     'Schema',
     'RegisteredSchema',
+    'Association',
+    'AssociationInfo',
+    'AssociationCreateOrUpdateInfo',
+    'AssociationCreateOrUpdateRequest',
+    'AssociationResponse',
 ]
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
@@ -462,6 +467,7 @@ class RuleSet:
     migration_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
     domain_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
     encoding_rules: Optional[List["Rule"]] = _attrs_field(hash=False, default=None)
+    enable_at: Optional[str] = _attrs_field(default=None)
 
     def to_dict(self) -> Dict[str, Any]:
         _migration_rules: Optional[List[Dict[str, Any]]] = None
@@ -493,6 +499,8 @@ class RuleSet:
             field_dict["domainRules"] = _domain_rules
         if _encoding_rules is not None:
             field_dict["encodingRules"] = _encoding_rules
+        if self.enable_at is not None:
+            field_dict["enableAt"] = self.enable_at
 
         return field_dict
 
@@ -517,16 +525,24 @@ class RuleSet:
             encoding_rules_item = Rule.from_dict(encoding_rules_item_data)
             encoding_rules.append(encoding_rules_item)
 
+        enable_at = d.pop("enableAt", None)
+
         rule_set = cls(  # type: ignore[call-arg]
             migration_rules=migration_rules,
             domain_rules=domain_rules,
             encoding_rules=encoding_rules,
+            enable_at=enable_at,
         )
 
         return rule_set
 
     def __hash__(self):
-        return hash(frozenset((self.migration_rules or []) + (self.domain_rules or []) + (self.encoding_rules or [])))
+        return hash(
+            (
+                frozenset((self.migration_rules or []) + (self.domain_rules or []) + (self.encoding_rules or [])),
+                self.enable_at,
+            )
+        )
 
 
 @_attrs_define
@@ -972,3 +988,251 @@ class RegisteredSchema:
         )
 
         return schema  # type: ignore[return-value]
+
+
+@_attrs_define(frozen=True)
+class Association:
+    """
+    An association between a subject and a resource.
+    """
+
+    subject: Optional[str]
+    guid: Optional[str]
+    resource_name: Optional[str]
+    resource_namespace: Optional[str]
+    resource_id: Optional[str]
+    resource_type: Optional[str]
+    association_type: Optional[str]
+    frozen: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.subject is not None:
+            field_dict["subject"] = self.subject
+        if self.guid is not None:
+            field_dict["guid"] = self.guid
+        if self.resource_name is not None:
+            field_dict["resourceName"] = self.resource_name
+        if self.resource_namespace is not None:
+            field_dict["resourceNamespace"] = self.resource_namespace
+        if self.resource_id is not None:
+            field_dict["resourceId"] = self.resource_id
+        if self.resource_type is not None:
+            field_dict["resourceType"] = self.resource_type
+        if self.association_type is not None:
+            field_dict["associationType"] = self.association_type
+        field_dict["frozen"] = self.frozen
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        subject = d.pop("subject", None)
+        guid = d.pop("guid", None)
+        resource_name = d.pop("resourceName", None)
+        resource_namespace = d.pop("resourceNamespace", None)
+        resource_id = d.pop("resourceId", None)
+        resource_type = d.pop("resourceType", None)
+        association_type = d.pop("associationType", None)
+        frozen = d.pop("frozen", False)
+
+        association = cls(  # type: ignore[call-arg]
+            subject=subject,
+            guid=guid,
+            resource_name=resource_name,
+            resource_namespace=resource_namespace,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            association_type=association_type,
+            frozen=frozen,
+        )
+
+        return association
+
+
+@_attrs_define
+class AssociationInfo:
+    """
+    Information about an association in a response.
+    """
+
+    subject: Optional[str] = None
+    association_type: Optional[str] = None
+    lifecycle: Optional[str] = None
+    frozen: bool = False
+    schema: Optional['Schema'] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.subject is not None:
+            field_dict["subject"] = self.subject
+        if self.association_type is not None:
+            field_dict["associationType"] = self.association_type
+        if self.lifecycle is not None:
+            field_dict["lifecycle"] = self.lifecycle
+        field_dict["frozen"] = self.frozen
+        if self.schema is not None:
+            field_dict["schema"] = self.schema.to_dict()
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        subject = d.pop("subject", None)
+        association_type = d.pop("associationType", None)
+        lifecycle = d.pop("lifecycle", None)
+        frozen = d.pop("frozen", False)
+        schema_dict = d.pop("schema", None)
+        schema = Schema.from_dict(schema_dict) if schema_dict else None
+
+        return cls(  # type: ignore[call-arg]
+            subject=subject,
+            association_type=association_type,
+            lifecycle=lifecycle,
+            frozen=frozen,
+            schema=schema,
+        )
+
+
+@_attrs_define
+class AssociationCreateOrUpdateInfo:
+    """
+    Information about an association to create or update.
+    """
+
+    subject: Optional[str] = None
+    association_type: Optional[str] = None
+    lifecycle: Optional[str] = None
+    frozen: Optional[bool] = None
+    schema: Optional['Schema'] = None
+    normalize: Optional[bool] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.subject is not None:
+            field_dict["subject"] = self.subject
+        if self.association_type is not None:
+            field_dict["associationType"] = self.association_type
+        if self.lifecycle is not None:
+            field_dict["lifecycle"] = self.lifecycle
+        if self.frozen is not None:
+            field_dict["frozen"] = self.frozen
+        if self.schema is not None:
+            field_dict["schema"] = self.schema.to_dict()
+        if self.normalize is not None:
+            field_dict["normalize"] = self.normalize
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        subject = d.pop("subject", None)
+        association_type = d.pop("associationType", None)
+        lifecycle = d.pop("lifecycle", None)
+        frozen = d.pop("frozen", None)
+        schema_dict = d.pop("schema", None)
+        schema = Schema.from_dict(schema_dict) if schema_dict else None
+        normalize = d.pop("normalize", None)
+
+        return cls(  # type: ignore[call-arg]
+            subject=subject,
+            association_type=association_type,
+            lifecycle=lifecycle,
+            frozen=frozen,
+            schema=schema,
+            normalize=normalize,
+        )
+
+
+@_attrs_define
+class AssociationCreateOrUpdateRequest:
+    """
+    Request to create or update associations.
+    """
+
+    resource_name: Optional[str] = None
+    resource_namespace: Optional[str] = None
+    resource_id: Optional[str] = None
+    resource_type: Optional[str] = None
+    associations: Optional[List[AssociationCreateOrUpdateInfo]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.resource_name is not None:
+            field_dict["resourceName"] = self.resource_name
+        if self.resource_namespace is not None:
+            field_dict["resourceNamespace"] = self.resource_namespace
+        if self.resource_id is not None:
+            field_dict["resourceId"] = self.resource_id
+        if self.resource_type is not None:
+            field_dict["resourceType"] = self.resource_type
+        if self.associations is not None:
+            field_dict["associations"] = [a.to_dict() for a in self.associations]
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        resource_name = d.pop("resourceName", None)
+        resource_namespace = d.pop("resourceNamespace", None)
+        resource_id = d.pop("resourceId", None)
+        resource_type = d.pop("resourceType", None)
+        associations_list = d.pop("associations", None)
+        associations = (
+            [AssociationCreateOrUpdateInfo.from_dict(a) for a in associations_list] if associations_list else None
+        )
+
+        return cls(  # type: ignore[call-arg]
+            resource_name=resource_name,
+            resource_namespace=resource_namespace,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            associations=associations,
+        )
+
+
+@_attrs_define
+class AssociationResponse:
+    """
+    Response from creating or updating associations.
+    """
+
+    resource_name: Optional[str] = None
+    resource_namespace: Optional[str] = None
+    resource_id: Optional[str] = None
+    resource_type: Optional[str] = None
+    associations: Optional[List[AssociationInfo]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        if self.resource_name is not None:
+            field_dict["resourceName"] = self.resource_name
+        if self.resource_namespace is not None:
+            field_dict["resourceNamespace"] = self.resource_namespace
+        if self.resource_id is not None:
+            field_dict["resourceId"] = self.resource_id
+        if self.resource_type is not None:
+            field_dict["resourceType"] = self.resource_type
+        if self.associations is not None:
+            field_dict["associations"] = [a.to_dict() for a in self.associations]
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        resource_name = d.pop("resourceName", None)
+        resource_namespace = d.pop("resourceNamespace", None)
+        resource_id = d.pop("resourceId", None)
+        resource_type = d.pop("resourceType", None)
+        associations_list = d.pop("associations", None)
+        associations = [AssociationInfo.from_dict(a) for a in associations_list] if associations_list else None
+
+        return cls(  # type: ignore[call-arg]
+            resource_name=resource_name,
+            resource_namespace=resource_namespace,
+            resource_id=resource_id,
+            resource_type=resource_type,
+            associations=associations,
+        )
