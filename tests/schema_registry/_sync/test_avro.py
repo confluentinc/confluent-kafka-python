@@ -99,6 +99,33 @@ def test_avro_serializer_config_use_latest_version(mock_schema_registry):
     assert COUNTER['GET'].get('/subjects/{}/versions/latest'.format(subject)) - before_latest == 1
 
 
+def test_avro_serializer_config_use_schema_id_avoids_lookup_schema(mock_schema_registry):
+    """
+    Ensures use.schema.id avoids a redundant lookup_schema round-trip.
+    """
+    conf = {'url': TEST_URL}
+    test_client = SchemaRegistryClient(conf)
+    topic = "test-use-schema-id"
+    subject = topic + '-key'
+    before_lookup = COUNTER['POST'].get('/subjects/{}'.format(subject), 0)
+    get_schema_calls = {'count': 0}
+    original_get = test_client._rest_client.get
+
+    def patched_get(url, query=None):
+        if url == 'schemas/ids/47':
+            get_schema_calls['count'] += 1
+            return {'id': 47, 'subject': subject, 'version': 1, 'schema': '"string"'}
+        return original_get(url, query)
+
+    test_client._rest_client.get = patched_get
+    test_serializer = AvroSerializer(test_client, None, conf={'auto.register.schemas': False, 'use.schema.id': 47})
+
+    test_serializer("test", SerializationContext(topic, MessageField.KEY))
+
+    assert get_schema_calls['count'] == 1
+    assert COUNTER['POST'].get('/subjects/{}'.format(subject), 0) - before_lookup == 0
+
+
 def test_avro_serializer_config_subject_name_strategy():
     """
     Ensures subject.name.strategy is applied

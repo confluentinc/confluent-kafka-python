@@ -802,6 +802,8 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        if subject_name is not None:
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema.schema
 
