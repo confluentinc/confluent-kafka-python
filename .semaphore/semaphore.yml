@@ -26,11 +26,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
@@ -48,8 +47,6 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
         - name: CIBW_SKIP
           value: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
@@ -57,6 +54,7 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.13
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
@@ -76,11 +74,10 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
@@ -100,8 +97,6 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
-        - name: ARCH
-          value: arm64
         - name: CIBW_SKIP
           value: cp38-* cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
@@ -109,6 +104,7 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.13
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
@@ -126,11 +122,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.13
             - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
@@ -148,11 +143,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
@@ -200,10 +194,9 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       prologue:
         commands:
+          - export ARCH=x64
           - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
           - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
       jobs:
@@ -247,11 +240,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
@@ -267,11 +259,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
@@ -287,11 +278,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
@@ -307,8 +297,6 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
         - name: BENCHMARK_BOUNDS_CONFIG
           value: tests/ducktape/producer_benchmark_bounds.json
         - name: BENCHMARK_ENVIRONMENT
@@ -320,6 +308,7 @@ blocks:
         - name: Build and Tests
           commands:
             # Setup Python environment
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
             - uv venv _venv && source _venv/bin/activate
@@ -411,11 +400,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=x64
             - sem-version python 3.9
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -432,11 +420,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=arm64
             - sem-version python 3.9
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -454,11 +441,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=x64
             - checkout
             - sem-version python 3.11
             - pip install uv
@@ -487,13 +473,12 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Verify
           commands:
             - checkout
             - sem-version python 3.11
+            - export ARCH=arm64
             - pip install uv
             - uv pip install --system pytest
             - uv pip install --system -r requirements/requirements-tests-install.txt
