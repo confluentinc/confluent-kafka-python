@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.13.2
+      value: v2.14.0-RC1
   prologue:
     commands:
       - checkout
@@ -211,6 +211,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - pip install uv
+            - echo "ARCH=$ARCH, OS_NAME=$OS_NAME"
             # use a virtualenv
             - uv venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh

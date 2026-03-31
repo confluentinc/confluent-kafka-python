@@ -23,6 +23,7 @@ for version in 3.9.0 4.0.0; do
 done
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+echo "Installing librdkafka from source for testing: lib_dir=$lib_dir"
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
 export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
 export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
