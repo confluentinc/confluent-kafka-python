@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.xx.x
+## v2.14.0rc1
 
 ### Enhancements
 
@@ -13,6 +13,12 @@
 - Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
 - Fix type annotations for context manager hooks so that they are correct for subclasses (#2181)
 - Fix OAuth callback handling for Async IO clients to prevent initialization failures (#2219)
+
+
+confluent-kafka-python v2.14.0rc1 is based on librdkafka v2.14.0-RC1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0-RC1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 
 ## v2.13.2 - 2026-03-02
