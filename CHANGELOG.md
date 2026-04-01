@@ -1,6 +1,8 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.14.0rc1
+## v2.14.0 - 2026-04-01
+
+v2.14.0 is a feature release with the following features, fixes and enhancements:
 
 ### Enhancements
 
@@ -15,8 +17,8 @@
 - Fix OAuth callback handling for Async IO clients to prevent initialization failures (#2219)
 
 
-confluent-kafka-python v2.14.0rc1 is based on librdkafka v2.14.0-RC1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0-RC1)
+confluent-kafka-python v2.14.0 is based on librdkafka v2.14.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
