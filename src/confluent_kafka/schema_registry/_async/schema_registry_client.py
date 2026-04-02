@@ -571,7 +571,11 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         response = None
         for i in range(self.max_retries + 1):
             response = await self.session.request(
-                method, url="/".join([base_url, url]), headers=headers, content=body, params=query
+                method,
+                url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                headers=headers,
+                content=body,
+                params=query,
             )
 
             if is_success(response.status_code):
