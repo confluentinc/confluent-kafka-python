@@ -1,5 +1,12 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.xx.x
+
+### Fixes
+
+- Fix URL joining in Python client (#2228)
+
+
 ## v2.14.0 - 2026-04-01
 
 v2.14.0 is a feature release with the following features, fixes and enhancements:
