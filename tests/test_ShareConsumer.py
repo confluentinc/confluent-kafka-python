@@ -4,6 +4,7 @@
 Unit tests for ShareConsumer class.
 """
 import pytest
+
 from confluent_kafka import ShareConsumer
 
 
@@ -179,12 +180,14 @@ def test_error_cb():
     def my_error_cb(error):
         error_called.append(error)
 
-    sc = ShareConsumer({
-        'group.id': 'test-share-error-cb',
-        'bootstrap.servers': 'localhost:19999',
-        'socket.timeout.ms': 100,
-        'error_cb': my_error_cb,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-error-cb',
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': my_error_cb,
+        }
+    )
 
     sc.subscribe(['test-topic'])
     sc.consume_batch(timeout=0.5)
@@ -201,12 +204,14 @@ def test_error_cb_exception_propagates():
         error_called.append(error)
         raise RuntimeError("Test exception from error_cb")
 
-    sc = ShareConsumer({
-        'group.id': 'test-share-error-cb-exc',
-        'bootstrap.servers': 'localhost:19999',
-        'socket.timeout.ms': 100,
-        'error_cb': error_cb_that_raises,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-error-cb-exc',
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': error_cb_that_raises,
+        }
+    )
 
     sc.subscribe(['test-topic'])
 
@@ -229,13 +234,15 @@ def test_stats_cb():
     def my_stats_cb(stats_json):
         stats_called.append(stats_json)
 
-    sc = ShareConsumer({
-        'group.id': 'test-share-stats-cb',
-        'bootstrap.servers': 'localhost:19999',
-        'socket.timeout.ms': 100,
-        'statistics.interval.ms': 100,
-        'stats_cb': my_stats_cb,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-stats-cb',
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'statistics.interval.ms': 100,
+            'stats_cb': my_stats_cb,
+        }
+    )
 
     sc.subscribe(['test-topic'])
     sc.consume_batch(timeout=0.5)
@@ -243,6 +250,7 @@ def test_stats_cb():
     assert len(stats_called) > 0, "stats_cb should have been called"
     # Verify we got valid JSON string
     import json
+
     parsed = json.loads(stats_called[0])
     assert 'name' in parsed
     sc.close()
@@ -256,13 +264,15 @@ def test_stats_cb_exception_propagates():
         stats_called.append(stats_json)
         raise RuntimeError("Test exception from stats_cb")
 
-    sc = ShareConsumer({
-        'group.id': 'test-share-stats-cb-exc',
-        'bootstrap.servers': 'localhost:19999',
-        'socket.timeout.ms': 100,
-        'statistics.interval.ms': 100,
-        'stats_cb': stats_cb_that_raises,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-stats-cb-exc',
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'statistics.interval.ms': 100,
+            'stats_cb': stats_cb_that_raises,
+        }
+    )
 
     sc.subscribe(['test-topic'])
 
@@ -285,12 +295,14 @@ def test_throttle_cb():
     def my_throttle_cb(event):
         throttle_called.append(event)
 
-    sc = ShareConsumer({
-        'group.id': 'test-share-throttle-cb',
-        'bootstrap.servers': 'localhost:19999',
-        'socket.timeout.ms': 100,
-        'throttle_cb': my_throttle_cb,
-    })
+    sc = ShareConsumer(
+        {
+            'group.id': 'test-share-throttle-cb',
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'throttle_cb': my_throttle_cb,
+        }
+    )
 
     sc.subscribe(['test-topic'])
 
