@@ -61,6 +61,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         if (self->rkshare) {
                 CallState cs;
                 CallState_begin((Handle *)self, &cs);
+                /* TODO KIP-932: Use rd_kafka_share_destroy_flags() once
+                 * available in the librdkafka public API. */
                 rd_kafka_share_destroy(self->rkshare);
                 self->rkshare = NULL;
                 CallState_end((Handle *)self, &cs);
@@ -197,12 +199,12 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self) {
 
 
 /**
- * @brief Consume a batch of messages from the share consumer.
+ * @brief Poll for a batch of messages from the share consumer.
  *
  */
-static PyObject *ShareConsumer_consume_batch(ShareConsumerHandle *self,
-                                             PyObject *args,
-                                             PyObject *kwargs) {
+static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
+                                    PyObject *args,
+                                    PyObject *kwargs) {
         double tmout                    = -1.0f;
         static char *kws[]              = {"timeout", NULL};
         rd_kafka_message_t **rkmessages = NULL;
@@ -299,20 +301,7 @@ static PyObject *ShareConsumer_consume_batch(ShareConsumerHandle *self,
 
         /* Handle error from rd_kafka_share_consume_batch() */
         if (error) {
-                const char *error_str = rd_kafka_error_string(error);
-                int is_fatal          = rd_kafka_error_is_fatal(error);
-                int is_retriable      = rd_kafka_error_is_retriable(error);
-
-                if (is_fatal) {
-                        PyErr_Format(PyExc_RuntimeError, "Fatal error: %s",
-                                     error_str);
-                } else {
-                        PyErr_Format(KafkaException,
-                                     "Error: %s (retriable: %s)", error_str,
-                                     is_retriable ? "yes" : "no");
-                }
-
-                rd_kafka_error_destroy(error);
+                cfl_PyErr_from_error_destroy(error);
                 free(rkmessages);
                 return NULL;
         }
@@ -348,6 +337,8 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self) {
                 Py_RETURN_NONE;
 
         CallState_begin((Handle *)self, &cs);
+        /* TODO KIP-932: rd_kafka_share_consumer_close() return type will change
+         * to rd_kafka_error_t *. Update error handling accordingly. */
         err = rd_kafka_share_consumer_close(self->rkshare);
         rd_kafka_share_destroy(self->rkshare);
         self->rkshare = NULL;
@@ -358,6 +349,36 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self) {
                 cfl_PyErr_Format(err, "Failed to close consumer: %s",
                                  rd_kafka_err2str(err));
                 return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/**
+ * @brief Context manager entry — returns self.
+ */
+static PyObject *ShareConsumer_enter(ShareConsumerHandle *self) {
+        Py_INCREF(self);
+        return (PyObject *)self;
+}
+
+/**
+ * @brief Context manager exit — calls close().
+ */
+static PyObject *ShareConsumer_exit(ShareConsumerHandle *self, PyObject *args) {
+        PyObject *exc_type, *exc_value, *exc_traceback;
+
+        if (!PyArg_UnpackTuple(args, "__exit__", 3, 3, &exc_type, &exc_value,
+                               &exc_traceback))
+                return NULL;
+
+        /* Cleanup: call close() */
+        if (self->rkshare) {
+                PyObject *result = ShareConsumer_close(self);
+                if (!result)
+                        return NULL;
+                Py_DECREF(result);
         }
 
         Py_RETURN_NONE;
@@ -399,14 +420,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "\n"},
 
-    {"consume_batch", (PyCFunction)ShareConsumer_consume_batch,
-     METH_VARARGS | METH_KEYWORDS,
-     ".. py:function:: consume_batch([timeout=-1])\n"
+    {"poll", (PyCFunction)ShareConsumer_poll, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: poll([timeout=-1])\n"
      "\n"
-     "  Consume a batch of messages from the share consumer.\n"
-     "\n"
-     "  This is the ONLY consumption method for ShareConsumer.\n"
-     "  Share consumers do NOT have a poll() method - they are batch-only.\n"
+     "  Poll for a batch of messages from the share consumer.\n"
      "\n"
      "  The application must check each Message object's error() method\n"
      "  to distinguish between proper messages (error() returns None)\n"
@@ -421,9 +438,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "                        Default: -1 (infinite)\n"
      "  :returns: List of Message objects (possibly empty on timeout)\n"
      "  :rtype: list(Message)\n"
-     "  :raises RuntimeError: if called on a closed share consumer or on "
-     "fatal error\n"
-     "  :raises KafkaException: on non-fatal errors\n"
+     "  :raises KafkaException: on error\n"
+     "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
@@ -437,6 +453,15 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"
      "  :raises KafkaException: on error\n"
      "\n"},
+
+    /* TODO KIP-932: Add set_sasl_credentials once librdkafka exposes
+     * rd_kafka_sasl_set_credentials() (or the underlying rd_kafka_t *)
+     * for rd_kafka_share_t handles. */
+
+    {"__enter__", (PyCFunction)ShareConsumer_enter, METH_NOARGS,
+     "Context manager entry."},
+    {"__exit__", (PyCFunction)ShareConsumer_exit, METH_VARARGS,
+     "Context manager exit. Automatically closes the share consumer."},
 
     {NULL}};
 
@@ -529,10 +554,6 @@ PyTypeObject ShareConsumerType = {
     "\n"
     "assigned to multiple consumers. Messages are delivered to only one "
     "consumer.\n"
-    "\n"
-    ".. note::\n"
-    "   ShareConsumer only supports batch consumption via consume_batch().\n"
-    "   There is NO poll() method for single messages.\n"
     "\n"
     ":param dict config: Configuration properties. At a minimum, "
     "``group.id`` **must** be set and ``bootstrap.servers`` **should** be "

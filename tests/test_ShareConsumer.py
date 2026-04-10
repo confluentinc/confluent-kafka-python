@@ -66,8 +66,8 @@ def test_unsubscribe():
     sc.close()
 
 
-def test_consume_batch_no_broker():
-    """Test consume_batch() returns empty list when no broker available."""
+def test_poll_no_broker():
+    """Test poll() returns empty list when no broker available."""
     sc = ShareConsumer(
         {
             'group.id': 'test-share-group',
@@ -79,11 +79,31 @@ def test_consume_batch_no_broker():
     sc.subscribe(['test-topic'])
 
     # Should timeout and return empty list
-    messages = sc.consume_batch(timeout=0.1)
+    messages = sc.poll(timeout=0.1)
     assert isinstance(messages, list)
     # May be empty or contain error messages
 
     sc.close()
+
+
+def test_context_manager():
+    """Test that ShareConsumer works as a context manager and closes on exit."""
+    with ShareConsumer(
+        {
+            'group.id': 'test-share-group',
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    ) as sc:
+        assert sc is not None
+        sc.subscribe(['test-topic'])
+        subscription = sc.subscription()
+        assert 'test-topic' in subscription
+
+    # After exiting the context manager, the consumer should be closed
+    with pytest.raises(RuntimeError) as ex:
+        sc.subscribe(['test-topic'])
+    assert ex.match('Share consumer closed')
 
 
 def test_close_idempotent():
@@ -126,7 +146,7 @@ def test_any_method_after_close_throws_exception():
     assert ex.match('Share consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
-        sc.consume_batch(timeout=0.1)
+        sc.poll(timeout=0.1)
     assert ex.match('Share consumer closed')
 
 
@@ -159,8 +179,8 @@ def test_concurrent_consumers():
         sc1.subscribe(['test-topic'])
         sc2.subscribe(['test-topic'])
 
-        messages1 = sc1.consume_batch(timeout=2.0)
-        messages2 = sc2.consume_batch(timeout=2.0)
+        messages1 = sc1.poll(timeout=2.0)
+        messages2 = sc2.poll(timeout=2.0)
 
         # Verify no overlap (share group semantics)
         offsets1 = {(msg.topic(), msg.partition(), msg.offset()) for msg in messages1 if not msg.error()}
@@ -190,14 +210,14 @@ def test_error_cb():
     )
 
     sc.subscribe(['test-topic'])
-    sc.consume_batch(timeout=0.5)
+    sc.poll(timeout=0.5)
 
     assert len(error_called) > 0, "error_cb should have been called"
     sc.close()
 
 
 def test_error_cb_exception_propagates():
-    """Test that an exception raised in error_cb propagates to consume_batch."""
+    """Test that an exception raised in error_cb propagates to poll."""
     error_called = []
 
     def error_cb_that_raises(error):
@@ -216,7 +236,7 @@ def test_error_cb_exception_propagates():
     sc.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        sc.consume_batch(timeout=0.5)
+        sc.poll(timeout=0.5)
 
     assert "Test exception from error_cb" in str(exc_info.value)
     assert len(error_called) > 0
@@ -245,7 +265,7 @@ def test_stats_cb():
     )
 
     sc.subscribe(['test-topic'])
-    sc.consume_batch(timeout=0.5)
+    sc.poll(timeout=0.5)
 
     assert len(stats_called) > 0, "stats_cb should have been called"
     # Verify we got valid JSON string
@@ -257,7 +277,7 @@ def test_stats_cb():
 
 
 def test_stats_cb_exception_propagates():
-    """Test that an exception raised in stats_cb propagates to consume_batch."""
+    """Test that an exception raised in stats_cb propagates to poll."""
     stats_called = []
 
     def stats_cb_that_raises(stats_json):
@@ -277,7 +297,7 @@ def test_stats_cb_exception_propagates():
     sc.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        sc.consume_batch(timeout=0.5)
+        sc.poll(timeout=0.5)
 
     assert "Test exception from stats_cb" in str(exc_info.value)
     assert len(stats_called) > 0
@@ -307,5 +327,5 @@ def test_throttle_cb():
     sc.subscribe(['test-topic'])
 
     # throttle_cb won't fire without broker throttling — just verify no crash
-    sc.consume_batch(timeout=0.2)
+    sc.poll(timeout=0.2)
     sc.close()
