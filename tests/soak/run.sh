@@ -17,12 +17,18 @@ topic="pysoak-$TESTID-$librdkafka_version"
 logfile="${TESTID}.log.bz2"
 limit=$((50 * 1024 * 1024)) # 50MB
 export HOSTNAME=$(hostname)
+
+share_flag=""
+if [[ "${SHARE:-}" == "true" ]]; then
+    share_flag="--share"
+fi
+
 echo "Starting soak client using topic $topic. Logging to $logfile."
 set +x
 while [ "$run" = true ]; do
     # Ignore SIGINT in children (inherited)
     trap "" SIGINT
-    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 |& tee /dev/tty | bzip2 > $logfile &
+    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 $share_flag |& tee /dev/tty | bzip2 > $logfile &
     PID=$!
     terminate_last() {
         # List children of $PID only
