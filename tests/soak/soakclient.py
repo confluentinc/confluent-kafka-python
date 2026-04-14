@@ -339,7 +339,7 @@ class SoakClient(object):
         """Share consumer error callback"""
         self.logger.error("share: error_cb: {}".format(err))
         self.share_error_cb_cnt += 1
-        self.incr_counter("share.errorcb", 1)
+        self.incr_counter("consumer.errorcb", 1)
 
     def share_status(self):
         """Print share consumer status"""
@@ -384,7 +384,7 @@ class SoakClient(object):
             except Exception as ex:
                 self.logger.error("share: consume_batch exception: {}".format(ex))
                 self.share_err_cnt += 1
-                self.incr_counter("share.error", 1)
+                self.incr_counter("consumer.error", 1)
                 continue
 
             if not messages:
@@ -394,7 +394,7 @@ class SoakClient(object):
                 if msg.error() is not None:
                     self.logger.error("share: error: {}".format(msg.error()))
                     self.share_err_cnt += 1
-                    self.incr_counter("share.error", 1)
+                    self.incr_counter("consumer.error", 1)
                     continue
 
                 try:
@@ -408,10 +408,10 @@ class SoakClient(object):
                         )
                     )
                     self.share_msg_err_cnt += 1
-                    self.incr_counter("share.msgerr", 1)
+                    self.incr_counter("consumer.msgerr", 1)
 
                 self.share_msg_cnt += 1
-                self.incr_counter("share.msg", 1)
+                self.incr_counter("consumer.msg", 1)
 
                 # end-to-end latency
                 headers = dict(msg.headers())
@@ -419,7 +419,7 @@ class SoakClient(object):
                 if txtime is not None:
                     latency = time.time() - float(txtime)
                     self.set_gauge(
-                        "share.e2e_latency", latency,
+                        "consumer.e2e_latency", latency,
                         tags={"partition": "{}".format(msg.partition())}
                     )
 
@@ -446,7 +446,7 @@ class SoakClient(object):
                             )
                         )
                         self.share_msg_dup_cnt += (hw + 1) - msg.offset()
-                        self.incr_counter("share.msgdup", 1)
+                        self.incr_counter("consumer.msgdup", 1)
                     elif msg.offset() > hw + 1:
                         self.logger.warning(
                             "share: Lost messages, now at {} "
@@ -457,7 +457,7 @@ class SoakClient(object):
                             )
                         )
                         self.share_msg_miss_cnt += msg.offset() - (hw + 1)
-                        self.incr_counter("share.missedmsg", 1)
+                        self.incr_counter("consumer.missedmsg", 1)
 
                 hwmarks[hwkey] = msg.offset()
 
@@ -642,10 +642,10 @@ class SoakClient(object):
             self.share_consumer = ShareConsumer(sconf)
 
             # Initialize counters to zero
-            self.incr_counter("share.error", 0)
-            self.incr_counter("share.msgdup", 0)
-            self.incr_counter("share.msgerr", 0)
-            self.incr_counter("share.errorcb", 0)
+            self.incr_counter("consumer.error", 0)
+            self.incr_counter("consumer.msgdup", 0)
+            self.incr_counter("consumer.msgerr", 0)
+            self.incr_counter("consumer.errorcb", 0)
 
             # Create and start share consumer thread
             self.share_thread = threading.Thread(target=self.share_thread_main)
