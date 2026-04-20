@@ -270,8 +270,8 @@ def test_consume_accumulates_messages_produced_in_waves(kafka_cluster):
     msglist = consumer.consume(num_messages=10, timeout=10.0)
 
     # Should have accumulated messages across multiple waves
-    assert len(msglist) >= 10, (
-        f"Expected at least 10 messages accumulated across waves, got {len(msglist)}. "
+    assert len(msglist) == 10, (
+        f"Expected exactly 10 messages accumulated across waves, got {len(msglist)}. "
         f"consume() may be returning early on the first wave."
     )
 
