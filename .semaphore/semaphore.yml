@@ -205,7 +205,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
         - name: Build and Tests with 'consumer' group protocol
@@ -214,7 +214,7 @@ blocks:
             - sem-version java 17
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
@@ -223,7 +223,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export RUN_COVERAGE=true
             - tools/source-package-verification.sh
@@ -247,7 +247,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX x64) +docs"
@@ -266,7 +266,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX arm64) +docs"
@@ -285,7 +285,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
@@ -311,7 +311,7 @@ blocks:
             - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
 
             # Install ducktape framework and additional dependencies
             - uv pip install ducktape psutil
