@@ -1119,7 +1119,8 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
-        Py_ssize_t i, n = 0;
+        Py_ssize_t i, msgs_received_count = 0;
+        Py_ssize_t chunk_msg_count;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
@@ -1156,10 +1157,10 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
          * ThreadPool. Only use wakeable poll for
          * blocking calls that need to be interruptible. */
         if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
-                n = (Py_ssize_t)rd_kafka_consume_batch_queue(
+                msgs_received_count = (Py_ssize_t)rd_kafka_consume_batch_queue(
                     rkqu, total_timeout_ms, rkmessages, num_messages);
 
-                if (n < 0) {
+                if (msgs_received_count < 0) {
                         /* Error - need to restore GIL before setting error */
                         PyEval_RestoreThread(cs.thread_state);
                         free(rkmessages);
@@ -1178,13 +1179,20 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                                 break;
                         }
 
-                        /* Consume with chunk timeout */
-                        n = (Py_ssize_t)rd_kafka_consume_batch_queue(
-                            rkqu, chunk_timeout_ms, rkmessages, num_messages);
+                        /* Consume with chunk timeout, appending after
+                         * already-accumulated messages */
+                        chunk_msg_count =
+                            (Py_ssize_t)rd_kafka_consume_batch_queue(
+                                rkqu, chunk_timeout_ms,
+                                rkmessages + msgs_received_count,
+                                num_messages -
+                                    (unsigned int)msgs_received_count);
 
-                        if (n < 0) {
-                                /* Error - need to restore GIL before setting
-                                 * error */
+                        if (chunk_msg_count < 0) {
+                                /* Error - destroy accumulated messages,
+                                 * restore GIL, and raise */
+                                for (i = 0; i < msgs_received_count; i++)
+                                        rd_kafka_message_destroy(rkmessages[i]);
                                 PyEval_RestoreThread(cs.thread_state);
                                 free(rkmessages);
                                 cfl_PyErr_Format(
@@ -1193,8 +1201,10 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                                 return NULL;
                         }
 
-                        /* If we got messages, exit the loop */
-                        if (n > 0) {
+                        msgs_received_count += chunk_msg_count;
+
+                        /* If we got all requested messages, exit the loop */
+                        if (msgs_received_count >= (Py_ssize_t)num_messages) {
                                 break;
                         }
 
@@ -1202,6 +1212,8 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
 
                         /* Check for signals between chunks */
                         if (check_signals_between_chunks(self, &cs)) {
+                                for (i = 0; i < msgs_received_count; i++)
+                                        rd_kafka_message_destroy(rkmessages[i]);
                                 free(rkmessages);
                                 return NULL;
                         }
@@ -1210,7 +1222,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
 
         /* Final GIL restore and signal check */
         if (!CallState_end(self, &cs)) {
-                for (i = 0; i < n; i++) {
+                for (i = 0; i < msgs_received_count; i++) {
                         rd_kafka_message_destroy(rkmessages[i]);
                 }
                 free(rkmessages);
@@ -1218,9 +1230,9 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
         /* Create Python list from messages  */
-        msglist = PyList_New(n);
+        msglist = PyList_New(msgs_received_count);
 
-        for (i = 0; i < n; i++) {
+        for (i = 0; i < msgs_received_count; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
 #ifdef RD_KAFKA_V_HEADERS
                 /** Have to detach headers outside Message_new0 because it
