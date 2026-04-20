@@ -1161,12 +1161,11 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                     rkqu, total_timeout_ms, rkmessages, num_messages);
 
                 if (msgs_received_count < 0) {
-                        /* Error - need to restore GIL before setting error */
-                        PyEval_RestoreThread(cs.thread_state);
+                        if (CallState_end(self, &cs))
+                                cfl_PyErr_Format(
+                                    rd_kafka_last_error(), "%s",
+                                    rd_kafka_err2str(rd_kafka_last_error()));
                         free(rkmessages);
-                        cfl_PyErr_Format(
-                            rd_kafka_last_error(), "%s",
-                            rd_kafka_err2str(rd_kafka_last_error()));
                         return NULL;
                 }
         } else {
@@ -1189,15 +1188,14 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                                     (unsigned int)msgs_received_count);
 
                         if (chunk_msg_count < 0) {
-                                /* Error - destroy accumulated messages,
-                                 * restore GIL, and raise */
                                 for (i = 0; i < msgs_received_count; i++)
                                         rd_kafka_message_destroy(rkmessages[i]);
-                                PyEval_RestoreThread(cs.thread_state);
+                                if (CallState_end(self, &cs))
+                                        cfl_PyErr_Format(
+                                            rd_kafka_last_error(), "%s",
+                                            rd_kafka_err2str(
+                                                rd_kafka_last_error()));
                                 free(rkmessages);
-                                cfl_PyErr_Format(
-                                    rd_kafka_last_error(), "%s",
-                                    rd_kafka_err2str(rd_kafka_last_error()));
                                 return NULL;
                         }
 
