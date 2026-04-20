@@ -119,6 +119,41 @@ def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     consumer.close()
 
 
+def test_poll_returns_early_after_delivery_callback(kafka_cluster):
+    """Test that poll() returns early after delivery callback fires."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-poll-early-return')
+
+    delivery_called = []
+
+    def delivery_callback(err, msg):
+        delivery_called.append(time.time())
+
+    producer_conf = kafka_cluster.client_conf(
+        {
+            'socket.timeout.ms': 100,
+            'message.timeout.ms': 10000,
+        }
+    )
+    producer = kafka_cluster.cimpl_producer(producer_conf)
+
+    producer.produce(topic, value=b'early-return-test', on_delivery=delivery_callback)
+
+    # Poll with a long timeout — should return early once callback fires
+    poll_timeout = 5.0
+    start = time.time()
+    events = producer.poll(timeout=poll_timeout)
+    elapsed = time.time() - start
+
+    assert len(delivery_called) == 1, "Expected delivery callback to fire"
+    assert events > 0, "Expected at least 1 event served"
+    assert elapsed < poll_timeout - 1.0, (
+        f"poll({poll_timeout}) took {elapsed:.2f}s — should have returned "
+        f"early after delivery callback, not blocked for full timeout"
+    )
+
+    producer.close()
+
+
 def test_flush_message_delivery_with_wakeable_pattern(kafka_cluster):
     """Test that flush() correctly delivers messages when using wakeable pattern.
 
