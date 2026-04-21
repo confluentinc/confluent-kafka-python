@@ -37,9 +37,9 @@ from .cimpl import (
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
     Consumer,
+    ShareConsumer,
     Message,
     Producer,
-    ShareConsumer,
     TopicPartition,
     Uuid,
     consistent,
@@ -57,6 +57,7 @@ __all__ = [
     "Consumer",
     "ShareConsumer",
     "aio",
+
     "KafkaError",
     "KafkaException",
     "kafkatest",

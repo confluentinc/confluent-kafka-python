@@ -1,5 +1,8 @@
 #!/bin/bash
 #
+# TODO KIP-932: This script is temporary until share consumer support
+# lands in a released librdkafka version.
+#
 # Build librdkafka from a git branch and install it into a NuGet-compatible
 # directory layout that matches what install-librdkafka.sh produces.
 #
@@ -30,7 +33,7 @@ fi
 echo "$0: Building librdkafka branch '$BRANCH' into '$DEST'"
 
 ARCH=${ARCH:-x64}
-SRC=/tmp/librdkafka-branch-src
+SRC=/tmp/librdkafka-${BRANCH}
 INSTALL=$SRC/install
 
 [[ -d "$DEST" ]] || mkdir -p "$DEST"
@@ -39,8 +42,18 @@ rm -rf "$SRC"
 git clone --depth 1 --branch "$BRANCH" \
     https://github.com/confluentinc/librdkafka.git "$SRC"
 
+if [[ $OSTYPE == linux* ]]; then
+    sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev libsasl2-dev liblz4-dev libzstd-dev
+fi
+
 pushd "$SRC"
-./configure --prefix="$INSTALL" --disable-debug-symbols
+
+CONFIGURE_OPTS="--prefix=$INSTALL --disable-debug-symbols"
+if [[ $OSTYPE == linux* ]]; then
+    CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-gssapi"
+fi
+
+./configure $CONFIGURE_OPTS
 make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
 make install
 popd

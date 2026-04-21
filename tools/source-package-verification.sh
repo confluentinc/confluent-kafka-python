@@ -23,6 +23,7 @@ for version in 3.9.0 4.0.0; do
 done
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+# TODO KIP-932: Remove LIBRDKAFKA_BRANCH fallback once LIBRDKAFKA_VERSION includes share consumer support
 if [[ -n $LIBRDKAFKA_BRANCH ]]; then
     tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
 else
