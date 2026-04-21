@@ -8,7 +8,10 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.13.2
+      value: v2.14.0
+    # TODO KIP-932: Remove LIBRDKAFKA_BRANCH once LIBRDKAFKA_VERSION includes share consumer support
+    - name: LIBRDKAFKA_BRANCH
+      value: dev_kip-932_queues-for-kafka
   prologue:
     commands:
       - checkout
@@ -26,13 +29,13 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -48,8 +51,6 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
         - name: CIBW_SKIP
           value: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
@@ -57,8 +58,10 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -76,13 +79,13 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -100,8 +103,6 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
-        - name: ARCH
-          value: arm64
         - name: CIBW_SKIP
           value: cp38-* cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
@@ -109,8 +110,10 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -126,13 +129,13 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -148,13 +151,13 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -187,6 +190,7 @@ blocks:
           commands:
             - sem-version python 3.11.9
             - bash tools/mingw-w64/semaphore_commands.sh
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
@@ -200,10 +204,9 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       prologue:
         commands:
+          - export ARCH=x64
           - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
           - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
       jobs:
@@ -212,7 +215,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
         - name: Build and Tests with 'consumer' group protocol
@@ -221,7 +224,7 @@ blocks:
             - sem-version java 17
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
@@ -230,7 +233,7 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export RUN_COVERAGE=true
             - tools/source-package-verification.sh
@@ -247,15 +250,14 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX x64) +docs"
@@ -267,15 +269,14 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Build
           commands:
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (OSX arm64) +docs"
@@ -287,15 +288,14 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
+            - export ARCH=arm64
             - sem-version python 3.11
             - pip install uv
             # use a virtualenv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
   - name: "Ducktape Performance Tests (Linux x64)"
@@ -307,8 +307,6 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
         - name: BENCHMARK_BOUNDS_CONFIG
           value: tests/ducktape/producer_benchmark_bounds.json
         - name: BENCHMARK_ENVIRONMENT
@@ -320,9 +318,10 @@ blocks:
         - name: Build and Tests
           commands:
             # Setup Python environment
+            - export ARCH=x64
             - sem-version python 3.11
             - pip install uv
-            - uv venv _venv && source _venv/bin/activate
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
 
             # Install ducktape framework and additional dependencies
             - uv pip install ducktape psutil
@@ -330,9 +329,15 @@ blocks:
             # Install existing test requirements
             - uv pip install -r requirements/requirements-tests-install.txt
 
+            # TODO KIP-932: Remove LIBRDKAFKA_BRANCH fallback once LIBRDKAFKA_VERSION includes share consumer support
             # Build and install confluent-kafka from source
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - |
+              if [[ -n $LIBRDKAFKA_BRANCH ]]; then
+                tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+              else
+                tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+              fi
             - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
             - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
@@ -411,11 +416,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: x64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=x64
             - sem-version python 3.9
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -432,11 +436,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=arm64
             - sem-version python 3.9
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -454,11 +457,10 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: x64
       jobs:
         - name: Verify
           commands:
+            - export ARCH=x64
             - checkout
             - sem-version python 3.11
             - pip install uv
@@ -487,13 +489,12 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Verify
           commands:
             - checkout
             - sem-version python 3.11
+            - export ARCH=arm64
             - pip install uv
             - uv pip install --system pytest
             - uv pip install --system -r requirements/requirements-tests-install.txt

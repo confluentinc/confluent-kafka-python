@@ -37,6 +37,7 @@ from .cimpl import (
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
     Consumer,
+    ShareConsumer,
     Message,
     Producer,
     TopicPartition,
@@ -54,7 +55,9 @@ from .serializing_producer import SerializingProducer
 __all__ = [
     "admin",
     "Consumer",
+    "ShareConsumer",
     "aio",
+
     "KafkaError",
     "KafkaException",
     "kafkatest",
