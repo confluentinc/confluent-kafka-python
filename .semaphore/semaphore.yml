@@ -9,6 +9,9 @@ global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v2.13.2
+    # TODO KIP-932: Remove LIBRDKAFKA_BRANCH once LIBRDKAFKA_VERSION includes share consumer support
+    - name: LIBRDKAFKA_BRANCH
+      value: dev_kip-932_queues-for-kafka
   prologue:
     commands:
       - checkout
@@ -33,6 +36,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -59,6 +63,7 @@ blocks:
           commands:
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -83,6 +88,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -111,6 +117,7 @@ blocks:
           commands:
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
@@ -133,6 +140,7 @@ blocks:
           commands:
             - sem-version python 3.13
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -155,6 +163,7 @@ blocks:
           commands:
             - sem-version python 3.11
             - pip install uv
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -187,6 +196,7 @@ blocks:
           commands:
             - sem-version python 3.11.9
             - bash tools/mingw-w64/semaphore_commands.sh
+            # TODO KIP-932: Add LIBRDKAFKA_BRANCH fallback for share consumer support
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
@@ -330,9 +340,15 @@ blocks:
             # Install existing test requirements
             - uv pip install -r requirements/requirements-tests-install.txt
 
+            # TODO KIP-932: Remove LIBRDKAFKA_BRANCH fallback once LIBRDKAFKA_VERSION includes share consumer support
             # Build and install confluent-kafka from source
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - |
+              if [[ -n $LIBRDKAFKA_BRANCH ]]; then
+                tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+              else
+                tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+              fi
             - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
             - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
