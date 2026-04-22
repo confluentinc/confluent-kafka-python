@@ -13,6 +13,31 @@ python3 -m pip install confluent-kafka
 
 If you get a build error or require Kerberos/GSSAPI support please read the next section: *Install from source*
 
+## Optional integrations
+
+Some integrations are opt-in via PyPI extras. Install with the bracket
+syntax — each extra pulls in only the dependencies it needs, so users who
+don't opt in see zero additional packages in their environment:
+
+```bash
+# Schema Registry client
+python3 -m pip install 'confluent-kafka[schemaregistry]'
+
+# Avro / JSON Schema / Protobuf serializers
+python3 -m pip install 'confluent-kafka[avro]'
+python3 -m pip install 'confluent-kafka[json]'
+python3 -m pip install 'confluent-kafka[protobuf]'
+
+# Schema rules + client-side field-level encryption (AWS/Azure/GCP/Vault KMS)
+python3 -m pip install 'confluent-kafka[rules]'
+
+# AWS STS GetWebIdentityToken OAUTHBEARER token provider
+python3 -m pip install 'confluent-kafka[oauthbearer-aws]'
+```
+
+See [DESIGN_AWS_OAUTHBEARER.md](DESIGN_AWS_OAUTHBEARER.md) for details on the
+AWS OAUTHBEARER integration.
+
 
 ## Install from source
 

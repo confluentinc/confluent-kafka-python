@@ -47,6 +47,7 @@ Additional examples can be found in the [examples](examples) directory or the [c
 - Integration with asyncio.
 - (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
 - [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
+- AWS IAM Outbound Identity Federation OAUTHBEARER authentication — opt in with `pip install 'confluent-kafka[oauthbearer-aws]'`. See [DESIGN_AWS_OAUTHBEARER.md](DESIGN_AWS_OAUTHBEARER.md) and [examples/oauth_aws_producer.py](examples/oauth_aws_producer.py).
 
 Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
