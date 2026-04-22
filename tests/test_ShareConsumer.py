@@ -3,6 +3,7 @@
 """
 Unit tests for ShareConsumer class.
 """
+
 import pytest
 
 from confluent_kafka import ShareConsumer

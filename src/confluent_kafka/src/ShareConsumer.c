@@ -165,7 +165,7 @@ static PyObject *ShareConsumer_unsubscribe(ShareConsumerHandle *self,
  * @brief Get current topic subscription.
  */
 static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
-                                             PyObject *ignore) {
+                                            PyObject *ignore) {
         rd_kafka_topic_partition_list_t *c_topics;
         rd_kafka_resp_err_t err;
         PyObject *topics;
@@ -486,8 +486,9 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
          * rd_kafka_share_set_log_queue() wrapper — needs rd_kafka_t *, which
          * is opaque inside rd_kafka_share_t in the public API. */
 
-        /* TODO KIP-932: call rd_kafka_sasl_background_callbacks_enable() for OAuth once
-         * librdkafka adds a share-level wrapper for the same reason. */
+        /* TODO KIP-932: call rd_kafka_sasl_background_callbacks_enable() for
+         * OAuth once librdkafka adds a share-level wrapper for the same reason.
+         */
 
 
         return 0;
