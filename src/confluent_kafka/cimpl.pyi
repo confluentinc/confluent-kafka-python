@@ -63,12 +63,14 @@ class KafkaError:
     DELEGATION_TOKEN_REQUEST_NOT_ALLOWED: int
     DUPLICATE_RESOURCE: int
     DUPLICATE_SEQUENCE_NUMBER: int
+    DUPLICATE_VOTER: int
     ELECTION_NOT_NEEDED: int
     ELIGIBLE_LEADERS_NOT_AVAILABLE: int
     FEATURE_UPDATE_FAILED: int
     FENCED_INSTANCE_ID: int
     FENCED_LEADER_EPOCH: int
     FENCED_MEMBER_EPOCH: int
+    FENCED_STATE_EPOCH: int
     FETCH_SESSION_ID_NOT_FOUND: int
     GROUP_AUTHORIZATION_FAILED: int
     GROUP_ID_NOT_FOUND: int
@@ -89,20 +91,26 @@ class KafkaError:
     INVALID_PRODUCER_EPOCH: int
     INVALID_PRODUCER_ID_MAPPING: int
     INVALID_RECORD: int
+    INVALID_RECORD_STATE: int
+    INVALID_REGISTRATION: int
+    INVALID_REGULAR_EXPRESSION: int
     INVALID_REPLICATION_FACTOR: int
     INVALID_REPLICA_ASSIGNMENT: int
     INVALID_REQUEST: int
     INVALID_REQUIRED_ACKS: int
+    INVALID_SHARE_SESSION_EPOCH: int
     INVALID_SESSION_TIMEOUT: int
     INVALID_TIMESTAMP: int
     INVALID_TRANSACTION_TIMEOUT: int
     INVALID_TXN_STATE: int
     INVALID_UPDATE_VERSION: int
+    INVALID_VOTER_KEY: int
     KAFKA_STORAGE_ERROR: int
     LEADER_NOT_AVAILABLE: int
     LISTENER_NOT_FOUND: int
     LOG_DIR_NOT_FOUND: int
     MEMBER_ID_REQUIRED: int
+    MISMATCHED_ENDPOINT_TYPE: int
     MSG_SIZE_TOO_LARGE: int
     NETWORK_EXCEPTION: int
     NON_EMPTY_GROUP: int
@@ -131,19 +139,26 @@ class KafkaError:
     RESOURCE_NOT_FOUND: int
     SASL_AUTHENTICATION_FAILED: int
     SECURITY_DISABLED: int
+    SHARE_SESSION_LIMIT_REACHED: int
+    SHARE_SESSION_NOT_FOUND: int
     STALE_BROKER_EPOCH: int
     STALE_CTRL_EPOCH: int
     STALE_MEMBER_EPOCH: int
+    STREAMS_INVALID_TOPOLOGY: int
+    STREAMS_INVALID_TOPOLOGY_EPOCH: int
+    STREAMS_TOPOLOGY_FENCED: int
     TELEMETRY_TOO_LARGE: int
     THROTTLING_QUOTA_EXCEEDED: int
     TOPIC_ALREADY_EXISTS: int
     TOPIC_AUTHORIZATION_FAILED: int
     TOPIC_DELETION_DISABLED: int
     TOPIC_EXCEPTION: int
+    TRANSACTION_ABORTABLE: int
     TRANSACTIONAL_ID_AUTHORIZATION_FAILED: int
     TRANSACTION_COORDINATOR_FENCED: int
     UNACCEPTABLE_CREDENTIAL: int
     UNKNOWN: int
+    UNKNOWN_CONTROLLER_ID: int
     UNKNOWN_LEADER_EPOCH: int
     UNKNOWN_MEMBER_ID: int
     UNKNOWN_PRODUCER_ID: int
@@ -154,9 +169,11 @@ class KafkaError:
     UNSTABLE_OFFSET_COMMIT: int
     UNSUPPORTED_ASSIGNOR: int
     UNSUPPORTED_COMPRESSION_TYPE: int
+    UNSUPPORTED_ENDPOINT_TYPE: int
     UNSUPPORTED_FOR_MESSAGE_FORMAT: int
     UNSUPPORTED_SASL_MECHANISM: int
     UNSUPPORTED_VERSION: int
+    VOTER_NOT_FOUND: int
     _ALL_BROKERS_DOWN: int
     _APPLICATION: int
     _ASSIGNMENT_LOST: int
@@ -386,7 +403,7 @@ class Producer:
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
     def __len__(self) -> int: ...
     def __bool__(self) -> bool: ...
-    def __enter__(self) -> "Producer": ...
+    def __enter__(self) -> Self: ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
 
 class Consumer:
@@ -525,7 +542,7 @@ class Consumer:
     ) -> None: ...
     def committed(self, partitions: List[TopicPartition], timeout: float = -1) -> List[TopicPartition]: ...
     def close(self) -> None: ...
-    def __enter__(self) -> "Consumer": ...
+    def __enter__(self) -> Self: ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def offsets_for_times(self, partitions: List[TopicPartition], timeout: float = -1) -> List[TopicPartition]: ...
@@ -534,6 +551,22 @@ class Consumer:
     def consumer_group_metadata(self) -> Any: ...  # ConsumerGroupMetadata
     def memberid(self) -> str: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
+
+class ShareConsumer:
+    """Share Consumer for queue-like message consumption (KIP-932)."""
+    @overload
+    def __init__(self, config: Dict[str, Any]) -> None: ...
+    @overload
+    def __init__(self, config: Dict[str, Any], /, **kwargs: Any) -> None: ...
+    @overload
+    def __init__(self, **config: Any) -> None: ...
+    def subscribe(self, topics: List[str]) -> None: ...
+    def unsubscribe(self) -> None: ...
+    def subscription(self) -> List[str]: ...
+    def poll(self, timeout: float = -1) -> List[Message]: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> "ShareConsumer": ...
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
 
 class _AdminClientImpl:
     def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...

@@ -38,7 +38,7 @@
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.13.2"
+#define CFL_VERSION_STR "2.14.0"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -46,16 +46,16 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x020d02ff
+#define MIN_RD_KAFKA_VERSION 0x020e00ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.13.2 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.14.0 or later. "        \
         "Install the latest version of librdkafka from Homebrew by running "   \
         "`brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.13.2 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.14.0 or later. "        \
         "Install the latest version of librdkafka from the Confluent "         \
         "repositories, see http://docs.confluent.io/current/installation.html"
 #endif
@@ -63,10 +63,10 @@
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.13.2 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+    "confluent-kafka-python requires librdkafka v2.14.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.13.2 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+    "confluent-kafka-python requires librdkafka v2.14.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -440,10 +440,11 @@ extern PyTypeObject TopicPartitionType;
 /**
  * Error messages for uninitialized/closed Handle objects
  */
-#define ERR_MSG_PRODUCER_CLOSED     "Producer has been closed"
-#define ERR_MSG_ADMIN_CLIENT_CLOSED "AdminClient has been closed"
-#define ERR_MSG_CONSUMER_CLOSED     "Consumer closed"
-#define ERR_MSG_HANDLE_CLOSED       "Handle has been closed"
+#define ERR_MSG_PRODUCER_CLOSED       "Producer has been closed"
+#define ERR_MSG_ADMIN_CLIENT_CLOSED   "AdminClient has been closed"
+#define ERR_MSG_CONSUMER_CLOSED       "Consumer closed"
+#define ERR_MSG_SHARE_CONSUMER_CLOSED "Share consumer closed"
+#define ERR_MSG_HANDLE_CLOSED         "Handle has been closed"
 
 #define PY_RD_KAFKA_ADMIN                                                      \
         100 /* There is no Admin client type in librdkafka,                    \
@@ -624,6 +625,19 @@ static CFL_UNUSED CFL_INLINE int check_signals_between_chunks(Handle *self,
  ****************************************************************************/
 
 extern PyTypeObject ConsumerType;
+
+
+/****************************************************************************
+ *
+ *
+ * ShareConsumer
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+extern PyTypeObject ShareConsumerType;
 
 
 /****************************************************************************

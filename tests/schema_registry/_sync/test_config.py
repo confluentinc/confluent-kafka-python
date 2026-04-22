@@ -15,8 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import re
+from unittest.mock import Mock
+
 import pytest
-from httpx import BasicAuth
+from httpx import BasicAuth, Response
 
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
@@ -59,6 +62,18 @@ def test_config_url_trailing_slash():
     conf = {'url': 'http://SchemaRegistry:65534/'}
     test_client = SchemaRegistryClient(conf)
     assert test_client._rest_client.base_urls == [TEST_URL]
+
+
+@pytest.mark.asyncio
+def test_config_url_no_double_slash():
+    conf = {'url': 'http://SchemaRegistry:65534/'}
+    test_client = SchemaRegistryClient(conf)
+    mock_response = Response(200, json={'subject': 'test'})
+    test_client._rest_client.session.request = Mock(return_value=mock_response)
+    test_client._rest_client.send_request('/subjects', method='GET')
+    called_url = test_client._rest_client.session.request.call_args.kwargs['url']
+    # Ensure no double slashes exist beyond the scheme (http://)
+    assert '//' not in re.sub(r'^https?://', '', called_url)
 
 
 def test_config_ssl_key_no_certificate():

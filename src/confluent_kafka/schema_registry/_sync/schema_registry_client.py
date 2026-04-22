@@ -41,6 +41,9 @@ from confluent_kafka.schema_registry.common._oauthbearer import (
     _StaticOAuthBearerFieldProviderBuilder,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import (
+    Association,
+    AssociationCreateOrUpdateRequest,
+    AssociationResponse,
     RegisteredSchema,
     Schema,
     SchemaVersion,
@@ -399,7 +402,7 @@ class _BaseRestClient(object):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    def delete(self, url: str) -> Any:
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
@@ -449,8 +452,8 @@ class _RestClient(_BaseRestClient):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         return self.send_request(url, method='POST', body=body)
 
-    def delete(self, url: str) -> Any:
-        return self.send_request(url, method='DELETE')
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
+        return self.send_request(url, method='DELETE', query=query)
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
@@ -505,6 +508,8 @@ class _RestClient(_BaseRestClient):
                 response = self.send_http_request(base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
+                    if response.status_code == 204 or not response.content:
+                        return None
                     return response.json()
 
                 if not is_retriable(response.status_code) or i == len(self.base_urls) - 1:
@@ -563,7 +568,11 @@ class _RestClient(_BaseRestClient):
         response = None
         for i in range(self.max_retries + 1):
             response = self.session.request(
-                method, url="/".join([base_url, url]), headers=headers, content=body, params=query
+                method,
+                url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                headers=headers,
+                content=body,
+                params=query,
             )
 
             if is_success(response.status_code):
@@ -797,6 +806,8 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        if subject_name is not None:
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema.schema
 
@@ -1565,6 +1576,94 @@ class SchemaRegistryClient(object):
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
+
+    def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        offset: int = 0,
+        limit: int = -1,
+    ) -> List['Association']:
+        """
+        Retrieves associations for a given resource name and namespace.
+
+        Args:
+            resource_name (str): The name of the resource (e.g., topic name).
+            resource_namespace (str): The namespace of the resource (e.g., kafka cluster ID).
+                Use "-" as a wildcard.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to filter by
+                (e.g., ["key", "value"]).
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[Association]: List of associations matching the criteria.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+        if offset > 0:
+            query['offset'] = offset
+        if limit >= 1:
+            query['limit'] = limit
+
+        response = self._rest_client.get(
+            'associations/resources/{}/{}'.format(_urlencode(resource_namespace), _urlencode(resource_name)), query
+        )
+
+        return [Association.from_dict(a) for a in response]
+
+    def create_association(self, request: 'AssociationCreateOrUpdateRequest') -> 'AssociationResponse':
+        """
+        Creates an association between a subject and a resource.
+
+        Args:
+            request (AssociationCreateOrUpdateRequest): The association create or update request.
+
+        Returns:
+            AssociationResponse: The response containing the created associations.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        response = self._rest_client.post('associations', body=request.to_dict())
+        return AssociationResponse.from_dict(response)
+
+    def delete_associations(
+        self,
+        resource_id: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        cascade_lifecycle: bool = False,
+    ) -> None:
+        """
+        Deletes associations for a resource.
+
+        Args:
+            resource_id (str): The resource identifier.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to delete
+                (e.g., ["key", "value"]). If not specified, all associations are deleted.
+            cascade_lifecycle (bool): Whether to cascade the lifecycle policy to dependent schemas.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {'cascadeLifecycle': cascade_lifecycle}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+
+        self._rest_client.delete('associations/resources/{}'.format(_urlencode(resource_id)), query=query)
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':
