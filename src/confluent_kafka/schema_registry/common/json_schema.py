@@ -88,20 +88,38 @@ def transform(
         finally:
             schema["type"] = original_type  # restore original type
     all_of = schema.get("allOf")
-    if all_of is not None:
-        subschema = _validate_subschemas(all_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     any_of = schema.get("anyOf")
-    if any_of is not None:
-        subschema = _validate_subschemas(any_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     one_of = schema.get("oneOf")
-    if one_of is not None:
-        subschema = _validate_subschemas(one_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
+    if all_of is not None or any_of is not None or one_of is not None:
+        if all_of is not None:
+            for subschema in all_of:
+                message = transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
+        elif one_of is not None:
+            for subschema in one_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    message = transform(ctx, resolved, ref_registry, ref_resolver, path, message, field_transform)
+                    break
+        else:  # any_of
+            for subschema in any_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    message = transform(ctx, resolved, ref_registry, ref_resolver, path, message, field_transform)
+        # Also visit sibling properties/items at this level
+        # (siblings to allOf/anyOf/oneOf).
+        props = schema.get("properties")
+        if props is not None and isinstance(message, dict):
+            for prop_name, prop_schema in props.items():
+                if isinstance(prop_schema, dict):
+                    _transform_field(
+                        ctx, path, prop_name, message, prop_schema, ref_registry, ref_resolver, field_transform
+                    )
+        items = schema.get("items")
+        if items is not None and isinstance(message, list):
+            message = [
+                transform(ctx, items, ref_registry, ref_resolver, path, item, field_transform) for item in message
+            ]
+        return message
     items = schema.get("items")
     if items is not None:
         if isinstance(message, list):
@@ -197,21 +215,37 @@ def _validate_subschemas(
         The validated schema if the message is valid against the subschemas, otherwise None.
     """
     for subschema in subschemas:
-        if isinstance(subschema, dict):
-            try:
-                ref = subschema.get("$ref")
-                if ref is not None:
-                    resolved = resolver.lookup(ref)
-                    subschema = resolved.contents
-                    # Pass _resolver (not resolver) to use the new referencing library's
-                    # Resolver with correct context for nested $ref resolution
-                    validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
-                else:
-                    validate(instance=message, schema=subschema, registry=registry)
-                return subschema
-            except ValidationError:
-                pass
+        resolved = _validate_subschema(subschema, message, registry, resolver)
+        if resolved is not None:
+            return resolved
     return None
+
+
+def _validate_subschema(
+    subschema: JsonSchema,
+    message: JsonMessage,
+    registry: Registry,
+    resolver: Resolver,
+) -> Optional[JsonSchema]:
+    """
+    Validate the message against a single subschema.
+    Returns the resolved subschema (with $ref followed) if valid, otherwise None.
+    """
+    if not isinstance(subschema, dict):
+        return None
+    try:
+        ref = subschema.get("$ref")
+        if ref is not None:
+            resolved = resolver.lookup(ref)
+            subschema = resolved.contents
+            # Pass _resolver (not resolver) to use the new referencing library's
+            # Resolver with correct context for nested $ref resolution
+            validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
+        else:
+            validate(instance=message, schema=subschema, registry=registry)
+        return subschema
+    except ValidationError:
+        return None
 
 
 def get_type(schema: JsonSchema) -> FieldType:
