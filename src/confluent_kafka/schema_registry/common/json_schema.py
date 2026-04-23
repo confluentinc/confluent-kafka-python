@@ -100,7 +100,7 @@ def transform(
                 if resolved is not None:
                     message = transform(ctx, resolved, ref_registry, ref_resolver, path, message, field_transform)
                     break
-        else:  # any_of
+        elif any_of is not None:
             for subschema in any_of:
                 resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
                 if resolved is not None:
