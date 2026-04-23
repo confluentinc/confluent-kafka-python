@@ -592,16 +592,8 @@ async def test_json_cel_field_transform_all_of():
             "pins": {
                 "type": "object",
                 "allOf": [
-                    {
-                        "properties": {
-                            "pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}
-                        }
-                    },
-                    {
-                        "properties": {
-                            "npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}
-                        }
-                    },
+                    {"properties": {"pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                    {"properties": {"npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
                 ],
             }
         },
@@ -643,16 +635,8 @@ async def test_json_cel_field_transform_nested_any_of():
             "pins": {
                 "type": "object",
                 "anyOf": [
-                    {
-                        "properties": {
-                            "pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}
-                        }
-                    },
-                    {
-                        "properties": {
-                            "npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}
-                        }
-                    },
+                    {"properties": {"pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                    {"properties": {"npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
                 ],
             }
         },
