@@ -509,21 +509,24 @@ async def test_avro_diamond_dependency_references():
     await client.register_schema(
         'diamond-OrderDetails',
         Schema(
-            json.dumps(order_schema), 'AVRO',
+            json.dumps(order_schema),
+            'AVRO',
             [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
         ),
     )
     await client.register_schema(
         'diamond-InvoiceDetails',
         Schema(
-            json.dumps(invoice_schema), 'AVRO',
+            json.dumps(invoice_schema),
+            'AVRO',
             [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
         ),
     )
     await client.register_schema(
         _SUBJECT,
         Schema(
-            json.dumps(root_schema), 'AVRO',
+            json.dumps(root_schema),
+            'AVRO',
             [
                 SchemaReference(f'{ns}.OrderDetails', 'diamond-OrderDetails', 1),
                 SchemaReference(f'{ns}.InvoiceDetails', 'diamond-InvoiceDetails', 1),
