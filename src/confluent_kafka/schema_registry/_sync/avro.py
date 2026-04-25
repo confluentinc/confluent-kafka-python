@@ -60,7 +60,7 @@ def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistry
     :param schema_registry_client: SchemaRegistryClient to use for retrieval.
     :return: named_schemas dict.
     """
-    named_schemas = {}
+    named_schemas: Dict[str, AvroSchema] = {}
     if schema.references is not None:
         for ref in schema.references:
             if ref.subject is None or ref.version is None:
@@ -69,18 +69,26 @@ def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistry
             ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
             if referenced_schema.schema.schema_str is None:
                 raise TypeError("Schema string cannot be None")
-
-            parsed_schema = parse_schema_with_repo(referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
-            named_schemas.update(ref_named_schemas)
             if ref.name is None:
                 raise TypeError("Name cannot be None")
-            named_schemas[ref.name] = parsed_schema
+            named_schemas.update(ref_named_schemas)
+            # Store the raw (unparsed) schema dict. Pre-parsing here would inline
+            # any sub-references inside this schema; if the same sub-reference is
+            # also reachable through another sibling reference (a "diamond"
+            # dependency), the top-level load_schema would then inject duplicate
+            # inline definitions and fail with "redefined named type". Keeping
+            # the raw form lets the top-level load_schema resolve every named
+            # type exactly once.
+            raw_schema = json.loads(referenced_schema.schema.schema_str)
+            named_schemas[ref.name] = raw_schema
             # Also store under fully-qualified name so fastavro can resolve
             # namespace-qualified type references
-            if isinstance(parsed_schema, dict) and 'name' in parsed_schema:
-                fqn = parsed_schema['name']
+            if isinstance(raw_schema, dict) and 'name' in raw_schema:
+                ns = raw_schema.get('namespace')
+                name = raw_schema['name']
+                fqn = f"{ns}.{name}" if ns and '.' not in name else name
                 if fqn != ref.name:
-                    named_schemas[fqn] = parsed_schema
+                    named_schemas[fqn] = raw_schema
     return named_schemas
 
 
