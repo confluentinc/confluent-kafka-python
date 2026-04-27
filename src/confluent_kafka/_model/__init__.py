@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum, IntEnum
+from enum import Enum
 from typing import List, Optional
 
 from .. import cimpl
@@ -195,12 +195,13 @@ class ElectionType(Enum):
         return self.value < other.value
 
 
-class AcknowledgeType(IntEnum):
+class AcknowledgeType(Enum):
     """
-    Share Consumer acknowledgement type.
-
-    Used to tell the broker how to
+    Share Consumer acknowledgement type used to tell the broker how to
     handle a polled message in explicit acknowledgement mode.
+
+    Values:
+    -------
     """
 
     #: Record was processed successfully — broker will not redeliver it.
@@ -209,3 +210,8 @@ class AcknowledgeType(IntEnum):
     RELEASE = 2
     #: Permanently failed — do NOT redeliver (poison pill).
     REJECT = 3
+
+    def __index__(self) -> int:
+        # Allow passing AcknowledgeType.ACCEPT directly where an int is
+        # expected e.g., in consumer.acknowledge(msg, AcknowledgeType.ACCEPT).
+        return self.value
