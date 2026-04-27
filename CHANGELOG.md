@@ -6,6 +6,7 @@
 
 - Fix URL joining in Python client (#2228)
 - Handle anyOf/allOf in JSON transforms (#2237)
+- Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 
 
 ## v2.14.0 - 2026-04-01
