@@ -311,6 +311,115 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
 
 /**
+ * @brief Acknowledge previously polled message.
+ *
+ * Internally delegates to rd_kafka_share_acknowledge_offset() because the
+ * Python Message object does not retain the underlying rd_kafka_message_t
+ * pointer (Message_new0 copies fields out and destroys the rkm)
+ */
+static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
+                                           PyObject *args,
+                                           PyObject *kwargs) {
+        Message *msg  = NULL;
+        int ack_type  = (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT;
+        PyObject *uo8 = NULL;
+        const char *topic;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = {"message", "ack_type", NULL};
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!|i", kws,
+                                         &MessageType, &msg, &ack_type))
+                return NULL;
+
+        if (ack_type < (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT ||
+            ack_type > (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT) {
+                PyErr_Format(PyExc_ValueError,
+                             "Invalid ack_type %d (expected 1=ACCEPT, "
+                             "2=RELEASE, or 3=REJECT)",
+                             ack_type);
+                return NULL;
+        }
+
+        if (!msg->topic || msg->topic == Py_None) {
+                PyErr_SetString(PyExc_ValueError, "Message topic is None");
+                return NULL;
+        }
+
+        topic = cfl_PyUnistr_AsUTF8(msg->topic, &uo8);
+        if (!topic) {
+                Py_XDECREF(uo8);
+                return NULL;
+        }
+
+        err = rd_kafka_share_acknowledge_offset(
+            self->rkshare, topic, msg->partition, msg->offset,
+            (rd_kafka_share_AcknowledgeType_t)ack_type);
+
+        Py_XDECREF(uo8);
+
+        if (err) {
+                cfl_PyErr_Format(err, "Failed to acknowledge message: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/**
+ * @brief Acknowledge a message by topic/partition/offset directly.
+ */
+static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
+                                                  PyObject *args,
+                                                  PyObject *kwargs) {
+        const char *topic;
+        int partition;
+        long long offset;
+        int ack_type = (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = {"topic", "partition", "offset", "ack_type", NULL};
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "siL|i", kws, &topic,
+                                         &partition, &offset, &ack_type))
+                return NULL;
+
+        if (ack_type < (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT ||
+            ack_type > (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT) {
+                PyErr_Format(PyExc_ValueError,
+                             "Invalid ack_type %d (expected 1=ACCEPT, "
+                             "2=RELEASE, or 3=REJECT)",
+                             ack_type);
+                return NULL;
+        }
+
+        err = rd_kafka_share_acknowledge_offset(
+            self->rkshare, topic, (int32_t)partition, (int64_t)offset,
+            (rd_kafka_share_AcknowledgeType_t)ack_type);
+
+        if (err) {
+                cfl_PyErr_Format(err, "Failed to acknowledge offset: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/**
  * @brief Close the share consumer.
  */
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
@@ -423,6 +532,44 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
+     "\n"},
+
+    {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: acknowledge(message, "
+     "[ack_type=AcknowledgeType.ACCEPT])\n"
+     "\n"
+     "  Acknowledge a previously polled message in explicit acknowledgement\n"
+     "  mode. Tells the broker how to handle the record.\n"
+     "\n"
+     "  :param Message message: A message returned by poll().\n"
+     "  :param AcknowledgeType ack_type: ACCEPT (default), RELEASE, or "
+     "REJECT.\n"
+     "  :raises KafkaException: if the consumer is not in explicit\n"
+     "                          acknowledgement mode, the message is no "
+     "longer\n"
+     "                          in-flight, or the offset is a GAP record.\n"
+     "  :raises ValueError: if ack_type is not 1, 2, or 3, or if "
+     "message.topic()\n"
+     "                      is None.\n"
+     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "\n"},
+
+    {"acknowledge_offset", (PyCFunction)ShareConsumer_acknowledge_offset,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: acknowledge_offset(topic, partition, offset, "
+     "[ack_type=AcknowledgeType.ACCEPT])\n"
+     "\n"
+     "  Acknowledge a message by topic/partition/offset.\n"
+     "\n"
+     "  :param str topic: Topic name.\n"
+     "  :param int partition: Partition id.\n"
+     "  :param int offset: Offset to acknowledge.\n"
+     "  :param AcknowledgeType ack_type: ACCEPT (default), RELEASE, or "
+     "REJECT.\n"
+     "  :raises KafkaException: same conditions as :py:func:`acknowledge`.\n"
+     "  :raises ValueError: if ack_type is not 1, 2, or 3.\n"
+     "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
     {"close", (PyCFunction)ShareConsumer_close, METH_NOARGS,
