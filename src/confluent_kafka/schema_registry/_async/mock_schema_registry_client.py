@@ -152,7 +152,7 @@ class _SchemaStore(object):
 
 class _AssociationStore(object):
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lock = Lock()
         # Key: resource_id -> List[Association]
         self.associations_by_resource_id: Dict[str, List[Association]] = defaultdict(list)
