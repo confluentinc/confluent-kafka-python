@@ -193,3 +193,25 @@ class ElectionType(Enum):
         if not isinstance(other, ElectionType):
             return NotImplemented
         return self.value < other.value
+
+
+class AcknowledgeType(Enum):
+    """
+    Share Consumer acknowledgement type used to tell the broker how to
+    handle a polled message in explicit acknowledgement mode.
+
+    Values:
+    -------
+    """
+
+    #: Record was processed successfully — broker will not redeliver it.
+    ACCEPT = 1
+    #: Could not process — return to the share group for another delivery attempt.
+    RELEASE = 2
+    #: Permanently failed — do NOT redeliver (poison pill).
+    REJECT = 3
+
+    def __index__(self) -> int:
+        # Allow passing AcknowledgeType.ACCEPT directly where an int is
+        # expected e.g., in consumer.acknowledge(msg, AcknowledgeType.ACCEPT).
+        return self.value
