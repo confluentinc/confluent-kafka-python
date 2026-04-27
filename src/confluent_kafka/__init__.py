@@ -20,6 +20,7 @@ import os
 
 from ._model import Node  # noqa: F401
 from ._model import (
+    AcknowledgeType,
     ConsumerGroupState,
     ConsumerGroupTopicPartitions,
     ConsumerGroupType,
@@ -86,6 +87,7 @@ __all__ = [
     "TopicCollection",
     "TopicPartitionInfo",
     "ElectionType",
+    "AcknowledgeType",
 ]
 
 
