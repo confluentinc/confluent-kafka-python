@@ -25,7 +25,6 @@ from confluent_kafka.admin import (
     ConfigResource,
 )
 
-
 BOOTSTRAP_SERVERS = 'localhost:9092'
 POLL_TIMEOUT = 10.0  # share session warm-up takes a few seconds
 
@@ -39,8 +38,7 @@ def _unique_id():
 
 def _broker_reachable():
     try:
-        p = Producer({'bootstrap.servers': BOOTSTRAP_SERVERS,
-                      'socket.timeout.ms': 2000})
+        p = Producer({'bootstrap.servers': BOOTSTRAP_SERVERS, 'socket.timeout.ms': 2000})
         return len(p.list_topics(timeout=2.0).brokers) > 0
     except Exception:
         return False
@@ -174,8 +172,7 @@ def test_implicit_mode_autocommits_on_next_poll():
         _warmup(sc2)
         leftovers = _collect(sc2, 1, timeout=5.0)
         assert leftovers == [], (
-            f'expected no redelivery, got {[m.value() for m in leftovers]} '
-            f'(produced {produced})'
+            f'expected no redelivery, got {[m.value() for m in leftovers]} ' f'(produced {produced})'
         )
     finally:
         sc2.close()
@@ -379,10 +376,7 @@ def _set_group_configs(group_id, configs):
     admin = AdminClient({'bootstrap.servers': BOOTSTRAP_SERVERS})
     res = ConfigResource(ConfigResource.Type.GROUP, group_id)
     for name, value in configs.items():
-        res.add_incremental_config(
-            ConfigEntry(name, str(value),
-                        incremental_operation=AlterConfigOpType.SET)
-        )
+        res.add_incremental_config(ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET))
     for f in admin.incremental_alter_configs([res]).values():
         f.result(timeout=10)
 
@@ -400,8 +394,7 @@ def test_lock_elapsed_acknowledge_does_not_consume_record():
     _create_topic(topic)
 
     try:
-        _set_group_configs(group,
-                           {'share.record.lock.duration.ms': SHORT_LOCK_MS})
+        _set_group_configs(group, {'share.record.lock.duration.ms': SHORT_LOCK_MS})
     except KafkaException as e:
         pytest.skip(f'cannot lower share group lock duration: {e}')
 
@@ -438,10 +431,7 @@ def test_lock_elapsed_acknowledge_does_not_consume_record():
             except KafkaException:
                 continue
             for m in batch:
-                if (
-                    m.error() is None
-                    and (m.topic(), m.partition(), m.offset()) == coords
-                ):
+                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
                     seen_again = True
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
                     break
@@ -463,8 +453,7 @@ def test_lock_elapsed_record_redelivered_to_same_consumer():
     _create_topic(topic)
 
     try:
-        _set_group_configs(group,
-                           {'share.record.lock.duration.ms': SHORT_LOCK_MS})
+        _set_group_configs(group, {'share.record.lock.duration.ms': SHORT_LOCK_MS})
     except KafkaException as e:
         pytest.skip(f'cannot lower share group lock duration: {e}')
 
@@ -491,9 +480,7 @@ def test_lock_elapsed_record_redelivered_to_same_consumer():
         seen_again = False
         while not seen_again and time.monotonic() < deadline:
             for m in sc.poll(timeout=2.0):
-                if m.error() is None and (
-                    m.topic(), m.partition(), m.offset()
-                ) == coords:
+                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
                     seen_again = True
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
                     break
@@ -543,17 +530,13 @@ def test_delivery_attempt_limit_archives_record():
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:
             for m in sc.poll(timeout=2.0):
-                if (
-                    m.error() is None
-                    and (m.topic(), m.partition(), m.offset()) == coords
-                ):
+                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
                     pytest.fail(
                         f'record {coords} was redelivered after hitting '
                         f'delivery.attempt.limit — broker should have archived it'
                     )
     finally:
         sc.close()
-
 
 
 @pytest.mark.integration
@@ -566,18 +549,19 @@ def test_open_transaction_stalls_share_group():
     group = f'g_{_unique_id()}'
     _create_topic(topic)
 
-    txn_producer = Producer({
-        'bootstrap.servers': BOOTSTRAP_SERVERS,
-        'transactional.id': f'txn_{_unique_id()}',
-    })
+    txn_producer = Producer(
+        {
+            'bootstrap.servers': BOOTSTRAP_SERVERS,
+            'transactional.id': f'txn_{_unique_id()}',
+        }
+    )
     try:
         txn_producer.init_transactions(10)
     except KafkaException as e:
         pytest.skip(f'broker does not support transactions: {e}')
 
     try:
-        _set_group_configs(group,
-                           {'share.isolation.level': 'read_committed'})
+        _set_group_configs(group, {'share.isolation.level': 'read_committed'})
     except KafkaException as e:
         pytest.skip(f'cannot set share.isolation.level on group: {e}')
 
@@ -595,15 +579,13 @@ def test_open_transaction_stalls_share_group():
         # While the transaction is open, read_committed must NOT deliver.
         stalled = _collect(sc, 1, timeout=5.0)
         assert stalled == [], (
-            f'open transaction did not stall the share group: '
-            f'received {[m.value() for m in stalled]}'
+            f'open transaction did not stall the share group: ' f'received {[m.value() for m in stalled]}'
         )
 
         # Commit the transaction — records should now flow.
         txn_producer.commit_transaction(10)
 
-        msgs = _collect(sc, 3, POLL_TIMEOUT,
-                        ack_type=AcknowledgeType.ACCEPT)
+        msgs = _collect(sc, 3, POLL_TIMEOUT, ack_type=AcknowledgeType.ACCEPT)
         assert len(msgs) == 3, f'expected 3 msgs after commit, got {len(msgs)}'
     finally:
         sc.close()
