@@ -780,6 +780,24 @@ Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Consumer_paused (Handle *self, PyObject *args) {
+
+    rd_kafka_topic_partition_list_t *partitions;
+    rd_kafka_resp_err_t err;
+    PyObject *py_list;
+
+    err = rd_kafka_assignment(self->rk, &partitions);
+    if (err) {
+        PyErr_SetString(PyExc_RuntimeError, rd_kafka_err2str(err));
+        return NULL;
+    }
+
+    py_list = c_parts_to_py(partitions);
+
+    rd_kafka_topic_partition_list_destroy(partitions);
+    return py_list;
+}
+
 static PyObject *
 Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
 
@@ -1558,6 +1576,7 @@ static PyMethodDef Consumer_methods[] = {
      "  :rtype: None\n"
      "  :raises: KafkaException\n"
      "\n"},
+    {"paused", (PyCFunction)Consumer_paused, METH_NOARGS, "Returns currently paused partitions"},
     {"resume", (PyCFunction)Consumer_resume, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: resume(partitions)\n"
      "\n"
