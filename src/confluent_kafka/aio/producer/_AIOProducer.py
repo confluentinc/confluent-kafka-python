@@ -17,8 +17,11 @@ import concurrent.futures
 import logging
 from typing import Any, Callable, Dict, Optional
 
-# FIXME: import from typing once we depend on Python >= 3.11
-from typing_extensions import Self
+try:
+    from typing import Self
+except ImportError:
+    # FIXME: drop fallback once we require Python >= 3.11
+    from typing_extensions import Self
 
 import confluent_kafka
 

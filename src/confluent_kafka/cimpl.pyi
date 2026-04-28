@@ -35,9 +35,13 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
 
-from typing_extensions import Literal, Self
+try:
+    from typing import Self
+except ImportError:
+    # FIXME: drop fallback once we require Python >= 3.11
+    from typing_extensions import Self
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
