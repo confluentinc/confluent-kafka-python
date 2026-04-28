@@ -73,7 +73,8 @@ from ._group import (  # noqa: F401
 from ._listoffsets import ListOffsetsResultInfo  # noqa: F401
 from ._listoffsets import OffsetSpec  # noqa: F401
 from ._metadata import BrokerMetadata  # noqa: F401
-from ._metadata import ClusterMetadata, GroupMember, GroupMetadata, PartitionMetadata, TopicMetadata  # noqa: F401
+from ._metadata import ClusterMetadata, GroupMember, GroupMetadata, TopicMetadata  # noqa: F401
+from ._metadata import PartitionMetadata as PartitionMetadata  # noqa: F401
 from ._records import DeletedRecords  # noqa: F401
 from ._resource import ResourcePatternType  # noqa: F401
 from ._resource import ResourceType  # noqa: F401
