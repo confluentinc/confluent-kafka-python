@@ -32,7 +32,7 @@ POLL_TIMEOUT = 10.0
 SHORT_LOCK_MS = 15000  # broker minimum
 LOCK_EXPIRY_BUFFER_S = 5
 
-ERR_STATE = -172          # RD_KAFKA_RESP_ERR__STATE
+ERR_STATE = -172  # RD_KAFKA_RESP_ERR__STATE
 ERR_INVALID_RECORD = 121  # INVALID_RECORD_STATE
 
 
@@ -72,9 +72,7 @@ def _produce(topic, count, prefix='msg', partition=None):
 def _create_topic(topic, num_partitions=1):
     if num_partitions > 1:
         admin = AdminClient({'bootstrap.servers': BOOTSTRAP_SERVERS})
-        fs = admin.create_topics(
-            [NewTopic(topic, num_partitions=num_partitions, replication_factor=1)]
-        )
+        fs = admin.create_topics([NewTopic(topic, num_partitions=num_partitions, replication_factor=1)])
         for f in fs.values():
             try:
                 f.result(timeout=10)
@@ -89,11 +87,7 @@ def _create_topic(topic, num_partitions=1):
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         md = p.list_topics(topic, timeout=2.0)
-        if (
-            topic in md.topics
-            and md.topics[topic].partitions
-            and len(md.topics[topic].partitions) >= num_partitions
-        ):
+        if topic in md.topics and md.topics[topic].partitions and len(md.topics[topic].partitions) >= num_partitions:
             return
         time.sleep(0.1)
     raise RuntimeError(f'topic {topic!r} did not appear in metadata')
@@ -138,9 +132,7 @@ def _set_group_configs(group_id, configs):
     admin = AdminClient({'bootstrap.servers': BOOTSTRAP_SERVERS})
     res = ConfigResource(ConfigResource.Type.GROUP, group_id)
     for name, value in configs.items():
-        res.add_incremental_config(
-            ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET)
-        )
+        res.add_incremental_config(ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET))
     for f in admin.incremental_alter_configs([res]).values():
         f.result(timeout=10)
 
@@ -421,10 +413,7 @@ def test_committed_releases_archive_at_delivery_limit():
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:
             for m in sc.poll(timeout=2.0):
-                if (
-                    m.error() is None
-                    and (m.topic(), m.partition(), m.offset()) == coords
-                ):
+                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
                     pytest.fail(f'record {coords} redelivered after 5 releases')
     finally:
         sc.close()
@@ -486,10 +475,7 @@ def test_partial_ack_commit_then_unacked_blocks_poll():
         assert gathered
 
         if len(gathered) < 2:
-            pytest.skip(
-                f'broker returned only {len(gathered)} record; '
-                'need ≥2 to exercise partial ack'
-            )
+            pytest.skip(f'broker returned only {len(gathered)} record; ' 'need ≥2 to exercise partial ack')
 
         sc.acknowledge(gathered[0], AcknowledgeType.ACCEPT)
         sc.commit(asynchronous=False, timeout=10.0)
@@ -862,8 +848,7 @@ def test_sync_commit_releases_gil():
         after = counter['n']
 
         assert after - before > 100, (
-            f'background thread made only {after - before} increments — '
-            f'GIL likely not released'
+            f'background thread made only {after - before} increments — ' f'GIL likely not released'
         )
     finally:
         stop.set()

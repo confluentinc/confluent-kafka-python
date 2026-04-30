@@ -423,10 +423,12 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
  * @brief Commit pending acknowledgements.
  *
  * Implicit mode auto-converts ACQUIRED → ACCEPT inside librdkafka before
- * sending. Sync mode returns a per-partition result list; async mode returns None.
- * By default, commit is asynchronous. In async mode, the application receives no immediate feedback.
- * In sync mode, the application blocks until the broker responds or the timeout expires, and receives 
- * a list of TopicPartition where each entry's .error field carries the per-partition acknowledgement result.
+ * sending. Sync mode returns a per-partition result list; async mode returns
+ * None. By default, commit is asynchronous. In async mode, the application
+ * receives no immediate feedback. In sync mode, the application blocks until
+ * the broker responds or the timeout expires, and receives a list of
+ * TopicPartition where each entry's .error field carries the per-partition
+ * acknowledgement result.
  */
 static PyObject *ShareConsumer_commit(ShareConsumerHandle *self,
                                       PyObject *args,
@@ -463,8 +465,8 @@ static PyObject *ShareConsumer_commit(ShareConsumerHandle *self,
         }
 
         thread_state = PyEval_SaveThread();
-        error        = rd_kafka_share_commit_sync(
-            self->rkshare, cfl_timeout_ms(tmout), &c_parts);
+        error = rd_kafka_share_commit_sync(self->rkshare, cfl_timeout_ms(tmout),
+                                           &c_parts);
         PyEval_RestoreThread(thread_state);
 
         if (error) {
@@ -637,8 +639,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
-    {"commit", (PyCFunction)ShareConsumer_commit,
-     METH_VARARGS | METH_KEYWORDS,
+    {"commit", (PyCFunction)ShareConsumer_commit, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: commit([asynchronous=True], [timeout=-1])\n"
      "\n"
      "  Commit pending acknowledgements.\n"
