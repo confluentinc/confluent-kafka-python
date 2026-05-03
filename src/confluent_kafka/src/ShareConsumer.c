@@ -48,13 +48,28 @@ typedef struct {
 } ShareConsumerHandle;
 
 
+static void ShareConsumer_clear0(ShareConsumerHandle *self) {
+        /* consumer_conf_set_special INCREFs on_commit into
+         * base.u.Consumer.on_commit for any consumer type, even though
+         * ShareConsumer never registers the offset commit trampoline so the
+         * callback can't fire. Match the INCREF with a DECREF here to avoid
+         * leaking the user's callback. Mirrors Consumer_clear0. */
+        if (self->base.u.Consumer.on_commit) {
+                Py_DECREF(self->base.u.Consumer.on_commit);
+                self->base.u.Consumer.on_commit = NULL;
+        }
+}
+
 static int ShareConsumer_clear(ShareConsumerHandle *self) {
+        ShareConsumer_clear0(self);
         Handle_clear(&self->base);
         return 0;
 }
 
 static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         PyObject_GC_UnTrack(self);
+
+        ShareConsumer_clear0(self);
 
         if (self->rkshare) {
                 CallState cs;
@@ -73,6 +88,10 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
+        /* See ShareConsumer_clear: pair the DECREF with a Py_VISIT so cyclic
+         * GC can find on_commit if a user accidentally passed one. */
+        if (self->base.u.Consumer.on_commit)
+                Py_VISIT(self->base.u.Consumer.on_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -187,6 +206,10 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
 
         /* Return List[str] of topic names, not List[TopicPartition]. */
         topics = PyList_New(c_topics->cnt);
+        if (!topics) {
+                rd_kafka_topic_partition_list_destroy(c_topics);
+                return NULL;
+        }
         for (i = 0; i < c_topics->cnt; i++) {
                 PyList_SET_ITEM(topics, i,
                                 PyUnicode_FromString(c_topics->elems[i].topic));
@@ -290,9 +313,22 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         /* Build Python list from all returned messages. */
         msglist = PyList_New(rkmessages_size);
+        if (!msglist) {
+                for (i = 0; i < rkmessages_size; i++)
+                        rd_kafka_message_destroy(rkmessages[i]);
+                free(rkmessages);
+                return NULL;
+        }
 
         for (i = 0; i < rkmessages_size; i++) {
                 PyObject *msgobj = Message_new0(&self->base, rkmessages[i]);
+                if (!msgobj) {
+                        Py_DECREF(msglist);
+                        for (; i < rkmessages_size; i++)
+                                rd_kafka_message_destroy(rkmessages[i]);
+                        free(rkmessages);
+                        return NULL;
+                }
 
 #ifdef RD_KAFKA_V_HEADERS
                 /** Have to detach headers outside Message_new0 because it
@@ -465,6 +501,9 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
         self->base.type = RD_KAFKA_CONSUMER;
 
+        /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from Consumer.c:
+         * it makes common_conf_setup enforce "group.id must be set", which
+         * share consumers also need. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
                 return -1; /* Exception raised by common_conf_setup() */
@@ -472,6 +511,17 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         /* TODO KIP-932: Remove after interface of librdkafka is updated to
          * return double pointer */
         self->batch_size = 10005;
+
+        /* TODO KIP-932: callback dispatch needs verification. error_cb /
+         * stats_cb / throttle_cb trampolines call CallState_get(), which
+         * asserts (process abort) on a missing CallState. Regular Consumer
+         * pins callbacks to the user thread via rd_kafka_poll_set_consumer;
+         * share has no equivalent. It works today only because
+         * rd_kafka_share_consume_batch drains rk_rep at entry/exit'
+         * The KIP-932 design doc guarantees this for
+         * share_acknowledgement_commit_cb but not the legacy callbacks —
+         * Alternatively add a share poll_set_consumer
+         * analogue. */
 
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
