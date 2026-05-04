@@ -49,12 +49,24 @@ class TestUtils:
 
     @staticmethod
     def broker_version():
+        if TestUtils.use_group_protocol_share():
+            # KIP-932 share groups require Kafka 4.1+ with the share rebalance
+            # protocol.
+            return '4.2.0'
         return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
 
     @staticmethod
     def broker_conf():
         broker_conf = ['transaction.state.log.replication.factor=1', 'transaction.state.log.min.isr=1']
-        if TestUtils.use_group_protocol_consumer():
+        if TestUtils.use_group_protocol_share():
+            broker_conf.extend(
+                [
+                    'group.coordinator.rebalance.protocols=classic,consumer,share',
+                    'share.coordinator.state.topic.replication.factor=1',
+                    'share.coordinator.state.topic.min.isr=1',
+                ]
+            )
+        elif TestUtils.use_group_protocol_consumer():
             broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
         return broker_conf
 
@@ -64,11 +76,19 @@ class TestUtils:
 
     @staticmethod
     def use_kraft():
-        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+        return (
+            TestUtils.use_group_protocol_consumer()
+            or TestUtils.use_group_protocol_share()
+            or _trivup_cluster_type_kraft()
+        )
 
     @staticmethod
     def use_group_protocol_consumer():
         return _GROUP_PROTOCOL_ENV in os.environ and os.environ[_GROUP_PROTOCOL_ENV] == 'consumer'
+
+    @staticmethod
+    def use_group_protocol_share():
+        return _GROUP_PROTOCOL_ENV in os.environ and os.environ[_GROUP_PROTOCOL_ENV] == 'share'
 
     @staticmethod
     def update_conf_group_protocol(conf=None):

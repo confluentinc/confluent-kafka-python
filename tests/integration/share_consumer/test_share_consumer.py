@@ -17,13 +17,29 @@
 
 """Integration tests for ShareConsumer"""
 
+import os
 import time
 
+import pytest
+
 from tests.common import (
+    TestUtils,
     drain_share_consumers,
     unique_id,
     warmup_share_consumers,
 )
+
+# KIP-932 share groups require Kafka 4.1+ with the share rebalance protocol
+# enabled. Skip unless either:
+#   - TEST_CONSUMER_GROUP_PROTOCOL=share is set.
+#   - or BROKERS is set.
+if not (TestUtils.use_group_protocol_share() or os.environ.get('BROKERS')):
+    pytest.skip(
+        'Share consumer tests require Kafka 4.1+ with share rebalance protocol enabled. '
+        'Run with TEST_CONSUMER_GROUP_PROTOCOL=share or set BROKERS=<bootstrap.servers> '
+        'to point at a KIP-932-capable cluster.',
+        allow_module_level=True,
+    )
 
 
 def test_concurrent_consumers(kafka_cluster):

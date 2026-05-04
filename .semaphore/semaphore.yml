@@ -228,6 +228,16 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
+        - name: Build and Tests with 'share' group protocol
+          commands:
+            - sem-version python 3.11
+            - sem-version java 17
+            - pip install uv
+            # use a virtualenv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - export TEST_CONSUMER_GROUP_PROTOCOL=share
+            - tools/source-package-verification.sh
         - name: Build, Test, and Report coverage
           commands:
             - sem-version python 3.11
