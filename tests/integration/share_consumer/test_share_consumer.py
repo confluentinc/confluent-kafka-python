@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for ShareConsumer (KIP-932)."""
+"""Integration tests for ShareConsumer"""
 
 import time
 
@@ -80,9 +80,7 @@ def test_basic_consume_records(kafka_cluster):
 
         received = drain_share_consumers([sc], n)[0]
         values = sorted(m.value() for m in received)
-        assert values == sorted(expected), (
-            f"Value mismatch: expected {sorted(expected)}, got {values}"
-        )
+        assert values == sorted(expected), f"Value mismatch: expected {sorted(expected)}, got {values}"
     finally:
         sc.close()
 
@@ -136,9 +134,9 @@ def test_multi_topic_subscription(kafka_cluster):
         received = drain_share_consumers([sc], 2 * n_per_topic)[0]
         topics_seen = {m.topic() for m in received}
         assert topics_seen == {topic_a, topic_b}, f"Expected both topics, got {topics_seen}"
-        assert len(received) == 2 * n_per_topic, (
-            f"Expected {2 * n_per_topic} records across both topics, got {len(received)}"
-        )
+        assert (
+            len(received) == 2 * n_per_topic
+        ), f"Expected {2 * n_per_topic} records across both topics, got {len(received)}"
     finally:
         sc.close()
 
@@ -191,9 +189,7 @@ def test_three_consumers_no_overlap(kafka_cluster):
         producer.flush(timeout=10.0)
 
         received = drain_share_consumers(consumers, n)
-        offset_sets = [
-            {(m.topic(), m.partition(), m.offset()) for m in r} for r in received
-        ]
+        offset_sets = [{(m.topic(), m.partition(), m.offset()) for m in r} for r in received]
 
         for i in range(len(offset_sets)):
             for j in range(i + 1, len(offset_sets)):
@@ -202,8 +198,7 @@ def test_three_consumers_no_overlap(kafka_cluster):
 
         union = set().union(*offset_sets)
         assert len(union) == n, (
-            f"Expected {n} unique records, got {len(union)} "
-            f"(per-consumer counts: {[len(s) for s in offset_sets]})"
+            f"Expected {n} unique records, got {len(union)} " f"(per-consumer counts: {[len(s) for s in offset_sets]})"
         )
     finally:
         for sc in consumers:
