@@ -19,11 +19,14 @@
 import os
 import signal
 import time
+import uuid
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, ShareConsumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 _TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
+
+DEFAULT_BOOTSTRAP_SERVERS = 'localhost:9092'
 
 
 def _trivup_cluster_type_kraft():
@@ -118,3 +121,53 @@ class TestConsumer(Consumer):
             super(TestConsumer, self).incremental_unassign(partitions)
         else:
             super(TestConsumer, self).unassign()
+
+
+def unique_id(prefix):
+    """Generate a topic/group id unique to this test run.
+
+    Avoids cross-test interference when running against a shared broker.
+    """
+    return f'{prefix}-{uuid.uuid4().hex[:10]}'
+
+
+def warmup_share_consumers(consumers, duration_s=8.0):
+    """Drive heartbeats so share consumers register with the share coordinator.
+
+    KIP-932 share groups only deliver records produced after the consumer has
+    joined. Call after subscribing and before producing test records.
+    """
+    deadline = time.time() + duration_s
+    while time.time() < deadline:
+        for sc in consumers:
+            sc.poll(timeout=0.5)
+
+
+def drain_share_consumers(consumers, n_expected, timeout_s=20.0):
+    """Round-robin poll until total non-error messages reach n_expected.
+
+    Returns a list of message lists, one per input consumer, in the same order.
+    Stops early once the expected total is reached, or when timeout_s elapses.
+    """
+    received = [[] for _ in consumers]
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        for sc, bucket in zip(consumers, received):
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    bucket.append(m)
+        if sum(len(b) for b in received) >= n_expected:
+            break
+    return received
+
+
+class TestShareConsumer(ShareConsumer):
+    """Test wrapper around ShareConsumer"""
+
+    __test__ = False  # not a pytest collection target despite the Test* prefix
+
+    def __init__(self, conf=None, **kwargs):
+        merged = {'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS}
+        if conf:
+            merged.update(conf)
+        super().__init__(merged, **kwargs)

@@ -25,7 +25,7 @@ from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from tests.common import TestConsumer
+from tests.common import TestConsumer, TestShareConsumer
 from tests.common._async.consumer import TestAsyncDeserializingConsumer
 from tests.common._async.producer import TestAsyncSerializingProducer
 from tests.common.schema_registry import TestDeserializingConsumer
@@ -133,6 +133,24 @@ class KafkaClusterFixture(object):
             consumer_conf.update(conf)
 
         return TestConsumer(consumer_conf)
+
+    def share_consumer(self, conf=None):
+        """
+        Returns a share consumer bound to this cluster.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+        Returns:
+            ShareConsumer: A new TestShareConsumer instance
+
+        """
+        share_conf = self.client_conf({'group.id': str(uuid1())})
+
+        if conf is not None:
+            share_conf.update(conf)
+
+        return TestShareConsumer(share_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
