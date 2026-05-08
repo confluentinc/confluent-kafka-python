@@ -568,7 +568,11 @@ class _RestClient(_BaseRestClient):
         response = None
         for i in range(self.max_retries + 1):
             response = self.session.request(
-                method, url="/".join([base_url, url]), headers=headers, content=body, params=query
+                method,
+                url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                headers=headers,
+                content=body,
+                params=query,
             )
 
             if is_success(response.status_code):
@@ -802,6 +806,8 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        if subject_name is not None:
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema.schema
 

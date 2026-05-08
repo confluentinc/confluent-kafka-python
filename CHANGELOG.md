@@ -2,6 +2,18 @@
 
 ## v2.xx.x
 
+### Fixes
+
+- Fix URL joining in Python client (#2228)
+- Handle anyOf/allOf in JSON transforms (#2237)
+- Fix redefining a named Avro type in a diamond dependency pattern (#2238)
+- Fix typing_extensions import errors on Python 3.12 (#2232)
+
+
+## v2.14.0 - 2026-04-01
+
+v2.14.0 is a feature release with the following features, fixes and enhancements:
+
 ### Enhancements
 
 - Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
@@ -13,6 +25,12 @@
 - Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
 - Fix type annotations for context manager hooks so that they are correct for subclasses (#2181)
 - Fix OAuth callback handling for Async IO clients to prevent initialization failures (#2219)
+
+
+confluent-kafka-python v2.14.0 is based on librdkafka v2.14.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 
 ## v2.13.2 - 2026-03-02

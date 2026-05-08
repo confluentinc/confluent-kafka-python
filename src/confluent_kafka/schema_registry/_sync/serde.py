@@ -338,6 +338,9 @@ class BaseSerde(object):
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
+            registered_schema = self._registry._cache.get_registered_by_subject_id(subject, self._use_schema_id)
+            if registered_schema is not None:
+                return registered_schema
             return self._registry.lookup_schema(subject, schema, normalize_schemas=False, deleted=True)
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(

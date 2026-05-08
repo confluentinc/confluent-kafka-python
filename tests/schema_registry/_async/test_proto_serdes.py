@@ -155,6 +155,55 @@ async def test_proto_guid_in_header():
     assert obj == obj2
 
 
+async def test_proto_use_schema_id_avoids_redundant_lookup_schema():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=123, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Prime registry/store for this subject and capture its registered schema id.
+    primer = await AsyncProtobufSerializer(
+        example_pb2.Author, client, conf={'auto.register.schemas': True, 'use.deprecated.format': False}
+    )
+    await primer(obj, ser_ctx)
+    registered = await client.get_latest_version(_SUBJECT, fmt='serialized')
+
+    get_schema_calls = {'count': 0}
+    lookup_calls = {'count': 0}
+    original_get_schema = client.get_schema
+    original_lookup_schema = client.lookup_schema
+
+    async def patched_get_schema(schema_id, subject_name=None, fmt=None, reference_format=None):
+        get_schema_calls['count'] += 1
+        schema = await original_get_schema(schema_id, subject_name, fmt, reference_format)
+        if subject_name is not None and registered.schema_id == schema_id:
+            client._cache.set_registered_schema(registered.schema, registered)
+        return schema
+
+    async def patched_lookup_schema(subject_name, schema, normalize_schemas=False, fmt=None, deleted=False):
+        lookup_calls['count'] += 1
+        return await original_lookup_schema(subject_name, schema, normalize_schemas, fmt, deleted)
+
+    client.get_schema = patched_get_schema
+    client.lookup_schema = patched_lookup_schema
+
+    serializer = await AsyncProtobufSerializer(
+        example_pb2.Author,
+        client,
+        conf={
+            'auto.register.schemas': False,
+            'use.schema.id': registered.schema_id,
+            'use.deprecated.format': False,
+        },
+    )
+    await serializer(obj, ser_ctx)
+
+    assert get_schema_calls['count'] == 1
+    assert lookup_calls['count'] == 0
+
+
 async def test_proto_basic_deserialization_no_client():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)

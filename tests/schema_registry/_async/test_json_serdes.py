@@ -582,6 +582,139 @@ async def test_json_cel_field_transform_with_def():
     assert obj2 == newobj
 
 
+async def test_json_cel_field_transform_all_of():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "type": "object",
+        "properties": {
+            "pins": {
+                "type": "object",
+                "allOf": [
+                    {"properties": {"pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                    {"properties": {"npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                ],
+            }
+        },
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        ["PII"],
+        None,
+        "value + '-suffix'",
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
+
+    obj = {'pins': {'pin': 'P123456789', 'npin': 'NP00012345678'}}
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    obj2 = {'pins': {'pin': 'P123456789-suffix', 'npin': 'NP00012345678-suffix'}}
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
+async def test_json_cel_field_transform_nested_any_of():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "type": "object",
+        "properties": {
+            "pins": {
+                "type": "object",
+                "anyOf": [
+                    {"properties": {"pin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                    {"properties": {"npin": {"confluent:tags": ["PII"], "type": ["string", "null"]}}},
+                ],
+            }
+        },
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        ["PII"],
+        None,
+        "value + '-suffix'",
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
+
+    obj = {'pins': {'pin': 'P123456789', 'npin': 'NP00012345678'}}
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    obj2 = {'pins': {'pin': 'P123456789-suffix', 'npin': 'NP00012345678-suffix'}}
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
+async def test_json_cel_field_transform_sibling_any_of():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "type": "object",
+        "properties": {
+            "pins": {
+                "type": "object",
+                "anyOf": [
+                    {"required": ["pin"]},
+                    {"required": ["npin"]},
+                ],
+                "properties": {
+                    "pin": {"confluent:tags": ["PII"], "type": ["string", "null"]},
+                    "npin": {"confluent:tags": ["PII"], "type": ["string", "null"]},
+                },
+            }
+        },
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        ["PII"],
+        None,
+        "value + '-suffix'",
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
+
+    obj = {'pins': {'pin': 'P123456789', 'npin': 'NP00012345678'}}
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    obj2 = {'pins': {'pin': 'P123456789-suffix', 'npin': 'NP00012345678-suffix'}}
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
 async def test_json_cel_field_transform_complex():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)

@@ -467,6 +467,86 @@ async def test_avro_serialize_union_with_references():
     assert obj == obj2
 
 
+async def test_avro_diamond_dependency_references():
+    # Two sibling references (OrderDetails, InvoiceDetails) both depend on the
+    # same named type (Address). Without the fix in _resolve_named_schema, each
+    # branch is pre-parsed with Address inlined, and the top-level parse then
+    # raises SchemaParseException("redefined named type ...Address").
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    ns = "com.example.diamond"
+    address_schema = {
+        'type': 'record',
+        'name': 'Address',
+        'namespace': ns,
+        'fields': [{'name': 'street', 'type': 'string'}],
+    }
+    order_schema = {
+        'type': 'record',
+        'name': 'OrderDetails',
+        'namespace': ns,
+        'fields': [{'name': 'shipping_address', 'type': f'{ns}.Address'}],
+    }
+    invoice_schema = {
+        'type': 'record',
+        'name': 'InvoiceDetails',
+        'namespace': ns,
+        'fields': [{'name': 'billing_address', 'type': f'{ns}.Address'}],
+    }
+    root_schema = {
+        'type': 'record',
+        'name': 'OrderEvent',
+        'namespace': ns,
+        'fields': [
+            {'name': 'order', 'type': f'{ns}.OrderDetails'},
+            {'name': 'invoice', 'type': f'{ns}.InvoiceDetails'},
+        ],
+    }
+
+    await client.register_schema('diamond-Address', Schema(json.dumps(address_schema)))
+    await client.register_schema(
+        'diamond-OrderDetails',
+        Schema(
+            json.dumps(order_schema),
+            'AVRO',
+            [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
+        ),
+    )
+    await client.register_schema(
+        'diamond-InvoiceDetails',
+        Schema(
+            json.dumps(invoice_schema),
+            'AVRO',
+            [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
+        ),
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            json.dumps(root_schema),
+            'AVRO',
+            [
+                SchemaReference(f'{ns}.OrderDetails', 'diamond-OrderDetails', 1),
+                SchemaReference(f'{ns}.InvoiceDetails', 'diamond-InvoiceDetails', 1),
+            ],
+        ),
+    )
+
+    obj = {
+        'order': {'shipping_address': {'street': '123 Main St'}},
+        'invoice': {'billing_address': {'street': '456 Elm St'}},
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 async def test_avro_schema_evolution():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
