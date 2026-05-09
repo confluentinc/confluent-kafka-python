@@ -27,7 +27,7 @@ from tests.common import (
 
 def test_concurrent_consumers(kafka_cluster):
     """Two consumers in the same share group must receive disjoint records."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-concurrent')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-concurrent')
     group_id = unique_id('test-share-group')
     n_messages = 30
 
@@ -61,8 +61,7 @@ def test_concurrent_consumers(kafka_cluster):
             f"got {len(all_offsets)} (sc1={len(offsets1)}, sc2={len(offsets2)})"
         )
         assert len(offsets1) > 0 and len(offsets2) > 0, (
-            f"Records should be distributed across both consumers, "
-            f"got sc1={len(offsets1)}, sc2={len(offsets2)}"
+            f"Records should be distributed across both consumers, " f"got sc1={len(offsets1)}, sc2={len(offsets2)}"
         )
     finally:
         sc1.close()
@@ -71,7 +70,7 @@ def test_concurrent_consumers(kafka_cluster):
 
 def test_basic_consume_records(kafka_cluster):
     """Single share consumer reads all produced records with correct values."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-basic')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-basic')
     n = 10
 
     sc = kafka_cluster.share_consumer()
@@ -93,7 +92,7 @@ def test_basic_consume_records(kafka_cluster):
 
 def test_message_fields_preserved(kafka_cluster):
     """Key, value, and headers round-trip intact through ShareConsumer."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-fields')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-fields')
 
     sc = kafka_cluster.share_consumer()
     try:
@@ -121,8 +120,8 @@ def test_message_fields_preserved(kafka_cluster):
 
 def test_multi_topic_subscription(kafka_cluster):
     """Subscribe to multiple topics; records from all topics are delivered."""
-    topic_a = kafka_cluster.create_topic_and_wait_propogation('test-share-multi-a')
-    topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-multi-b')
+    topic_a = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-multi-a')
+    topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-multi-b')
     n_per_topic = 5
 
     sc = kafka_cluster.share_consumer()
@@ -147,7 +146,7 @@ def test_multi_topic_subscription(kafka_cluster):
 
 def test_records_before_join_not_delivered(kafka_cluster):
     """KIP-932: records produced before consumer joins must not be delivered."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-prejoin')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-prejoin')
     n = 20
 
     producer = kafka_cluster.cimpl_producer()
@@ -180,7 +179,7 @@ def test_records_before_join_not_delivered(kafka_cluster):
 
 def test_three_consumers_no_overlap(kafka_cluster):
     """Three consumers in same share group: no overlap, full coverage."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-three')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-three')
     group_id = unique_id('test-share-three')
     n = 30
 
@@ -221,7 +220,7 @@ def test_three_consumers_no_overlap(kafka_cluster):
 
 def test_independent_share_groups(kafka_cluster):
     """Two consumers in different share groups each see all records."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-independent')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-independent')
     n = 10
 
     sc_a = kafka_cluster.share_consumer()
@@ -250,7 +249,7 @@ def test_independent_share_groups(kafka_cluster):
 
 def test_implicit_ack_no_redelivery(kafka_cluster):
     """Records consumed in poll N are implicitly accepted on later polls; no redelivery."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-ack')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack')
     n = 10
 
     sc = kafka_cluster.share_consumer()
@@ -284,9 +283,114 @@ def test_implicit_ack_no_redelivery(kafka_cluster):
         sc.close()
 
 
+def test_records_redelivered_after_lock_timeout(kafka_cluster):
+    """Defining at-least-once invariant: when a consumer fails to ack within
+    the acquisition-lock window, the broker redelivers the record to another
+    consumer in the same share group.
+
+    Relies on the test broker's reduced lock duration
+    (group.share.record.lock.duration.ms=1000); under the production default
+    of 30s, this test would block for half a minute per run.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-redeliver')
+    group_id = unique_id('test-share-redeliver')
+    n = 5
+
+    sc1 = kafka_cluster.share_consumer({'group.id': group_id})
+    sc2 = kafka_cluster.share_consumer({'group.id': group_id})
+
+    try:
+        sc1.subscribe([topic])
+        sc2.subscribe([topic])
+        # Drive both consumers through the join handshake so neither races
+        # ahead of the other.
+        for _ in range(10):
+            sc1.poll(timeout=0.2)
+            sc2.poll(timeout=0.2)
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(n):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        # sc1 polls ONCE and grabs whichever records the broker assigns to
+        # it. sc1 will then go silent — no further poll, so those records
+        # are never implicitly acked.
+        sc1_received = set()
+        deadline = time.time() + 5.0
+        while time.time() < deadline and not sc1_received:
+            for m in sc1.poll(timeout=0.5):
+                if m.error() is None:
+                    sc1_received.add((m.partition(), m.offset()))
+            if sc1_received:
+                break
+
+        assert sc1_received, "sc1 should have grabbed at least one record before going silent"
+
+        # Wait past the broker's lock duration (1s). After this, records
+        # held by sc1 are eligible for redelivery to any group member.
+        time.sleep(1.5)
+
+        # sc2 keeps polling and must eventually see every record produced —
+        # both its own initial share AND sc1's now-unlocked records.
+        sc2_received = set()
+        deadline = time.time() + 10.0
+        while time.time() < deadline and len(sc2_received) < n:
+            for m in sc2.poll(timeout=0.5):
+                if m.error() is None:
+                    sc2_received.add((m.partition(), m.offset()))
+
+        redelivered = sc1_received & sc2_received
+        assert redelivered, (
+            f"Expected sc1's unacked records to be redelivered to sc2 "
+            f"(at-least-once contract). sc1 had {sc1_received}, "
+            f"sc2 received {sc2_received}, no overlap."
+        )
+    finally:
+        sc1.close()
+        sc2.close()
+
+
+def test_poll_with_zero_timeout(kafka_cluster):
+    """poll(timeout=0) is non-blocking AND delivers records through the
+    non-blocking path correctly.
+
+    Async wrappers (asyncio bridges, custom event loops) integrate by
+    tight-looping with timeout=0 and yielding to other tasks between calls.
+    The contract: poll(0) returns promptly whether or not records are
+    available, and produces records when they exist. A test that only
+    asserts "first call returns fast" wouldn't catch a bug where poll(0)
+    silently fails to surface available records.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-poll-zero')
+    n = 10
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(n):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        collected = []
+        deadline = time.time() + 20.0
+        while time.time() < deadline and len(collected) < n:
+            for m in sc.poll(timeout=0):
+                if m.error() is None:
+                    collected.append((m.partition(), m.offset()))
+
+        assert len(collected) == n, (
+            f"poll(timeout=0) tight-loop should deliver all {n} records, " f"got {len(collected)}"
+        )
+    finally:
+        sc.close()
+
+
 def test_unsubscribe_stops_delivery(kafka_cluster):
     """After unsubscribe, future polls return no records even when broker has new ones."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-unsub')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-unsub')
 
     sc = kafka_cluster.share_consumer()
     try:
@@ -320,8 +424,8 @@ def test_unsubscribe_stops_delivery(kafka_cluster):
 
 def test_resubscribe_to_different_topic(kafka_cluster):
     """subscribe() replaces (does not extend) the prior subscription."""
-    topic_a = kafka_cluster.create_topic_and_wait_propogation('test-share-resub-a')
-    topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-resub-b')
+    topic_a = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-resub-a')
+    topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-resub-b')
 
     sc = kafka_cluster.share_consumer()
     producer = kafka_cluster.cimpl_producer()
@@ -337,9 +441,9 @@ def test_resubscribe_to_different_topic(kafka_cluster):
 
         first = drain_share_consumers([sc], 3)[0]
         assert len(first) == 3, f"Failed to consume from topic_a (got {len(first)}/3)"
-        assert all(m.topic() == topic_a for m in first), (
-            f"Expected only topic_a records, got {[m.topic() for m in first]}"
-        )
+        assert all(
+            m.topic() == topic_a for m in first
+        ), f"Expected only topic_a records, got {[m.topic() for m in first]}"
 
         # Phase 2: switch subscription. Records to topic_a must no longer
         # be delivered; only topic_b records should arrive.
@@ -360,7 +464,7 @@ def test_resubscribe_to_different_topic(kafka_cluster):
 
 def test_messages_in_offset_order_single_consumer(kafka_cluster):
     """Within each partition, single consumer sees records in offset order."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-order')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-order')
     n = 30
 
     sc = kafka_cluster.share_consumer()

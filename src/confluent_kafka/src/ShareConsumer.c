@@ -53,7 +53,12 @@ static void ShareConsumer_clear0(ShareConsumerHandle *self) {
          * base.u.Consumer.on_commit for any consumer type, even though
          * ShareConsumer never registers the offset commit trampoline so the
          * callback can't fire. Match the INCREF with a DECREF here to avoid
-         * leaking the user's callback. Mirrors Consumer_clear0. */
+         * leaking the user's callback. Mirrors Consumer_clear0.
+         *
+         * TODO KIP-932: remove this DECREF dance once on_commit is rejected
+         * at config time (see ShareConsumer_init / common_conf_setup) and
+         * callbacks are properly modeled for share consumers. The reference
+         * shouldn't be acquired in the first place. */
         if (self->base.u.Consumer.on_commit) {
                 Py_DECREF(self->base.u.Consumer.on_commit);
                 self->base.u.Consumer.on_commit = NULL;
@@ -500,10 +505,16 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         }
 
         self->base.type = RD_KAFKA_CONSUMER;
-
-        /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from Consumer.c:
+        /* TODO  KIP-932: RD_KAFKA_CONSUMER is intentional, not a copy-paste from Consumer.c:
          * it makes common_conf_setup enforce "group.id must be set", which
-         * share consumers also need. */
+         * share consumers also need.
+         */
+         
+         /* TODO KIP-932: revisit this once share-consumer config handling has
+         * its own setup path. Today we route through the regular consumer
+         * config setup, which means consumer-only knobs (e.g. on_commit) can
+         * be set silently — see ShareConsumer_clear0. A dedicated
+         * share-consumer path should reject those at config time. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
                 return -1; /* Exception raised by common_conf_setup() */

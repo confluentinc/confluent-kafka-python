@@ -209,6 +209,10 @@ blocks:
           - export ARCH=x64
           - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
           - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
+      # TODO KIP-932: matrix the Python version (3.12, 3.13, 3.14)
+      # across these jobs. Currently every job pins 3.11, which leaves
+      # version-specific issues in the C extension undetected until users hit
+      # them.
       jobs:
         - name: Build and Tests with 'classic' group protocol
           commands:

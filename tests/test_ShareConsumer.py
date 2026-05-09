@@ -18,10 +18,14 @@ from tests.common import (
 
 @pytest.fixture
 def share_consumer():
-    """Default-configured ShareConsumer with teardown."""
+    """Default-configured ShareConsumer with teardown.
+
+    Each test gets a unique group.id so librdkafka's per-group internal state
+    can't leak from one test into the next.
+    """
     sc = TestShareConsumer(
         {
-            'group.id': 'test-share-group',
+            'group.id': unique_id('test-share-group'),
             'socket.timeout.ms': 100,
         }
     )
@@ -39,6 +43,73 @@ def test_constructor_requires_config():
 def test_constructor_with_valid_config(share_consumer):
     """ShareConsumer can be created with valid configuration."""
     assert share_consumer is not None
+
+
+def test_constructor_dict_with_kwargs():
+    """ShareConsumer accepts a positional config dict + keyword arguments
+    (cimpl.pyi overload form 2).
+
+    The positional dict carries Kafka config; the kwargs carry runtime extras
+    like `logger`. If the C extension rejected this form, mypy would bless
+    user code that crashed at runtime.
+    """
+    import logging
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-form2'),
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        },
+        logger=logging.getLogger('test-share-form2'),
+    )
+    sc.close()
+
+
+def test_constructor_kwargs_only():
+    """ShareConsumer accepts configuration entirely via keyword arguments
+    (cimpl.pyi overload form 3), spread from a dict at the call site.
+    """
+    config = {
+        'group.id': unique_id('test-share-form3'),
+        'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 100,
+    }
+    sc = ShareConsumer(**config)
+    sc.close()
+
+
+def test_constructor_rejects_on_commit():
+    """Share consumers have no offset-commit concept. Setting on_commit
+    in the positional config dict OR as a kwarg must be rejected at
+    construction time so the misconfiguration is visible to callers
+    instead of being silently held by librdkafka."""
+    config = {
+        'group.id': unique_id('test-share-no-commit'),
+        'bootstrap.servers': 'localhost:9092',
+    }
+    cb = lambda *a, **kw: None  # noqa: E731
+
+    with pytest.raises(ValueError, match='on_commit is not supported'):
+        ShareConsumer({**config, 'on_commit': cb})
+
+    with pytest.raises(ValueError, match='on_commit is not supported'):
+        ShareConsumer(config, on_commit=cb)
+
+
+def test_subscription_on_fresh_consumer(share_consumer):
+    """A consumer that has never called subscribe() reports an empty
+    subscription. Locks down the no-subscription representation so a future
+    librdkafka change (e.g. None instead of []) is caught immediately."""
+    assert share_consumer.subscription() == []
+
+
+def test_subscribe_replaces_previous(share_consumer):
+    """subscribe() replaces — does NOT extend — the previous subscription.
+    Locks down the documented merge-vs-replace contract."""
+    share_consumer.subscribe(['topic-a'])
+    share_consumer.subscribe(['topic-b'])
+    assert share_consumer.subscription() == ['topic-b']
 
 
 def test_subscribe(share_consumer):
@@ -71,7 +142,7 @@ def test_context_manager():
     """Test that ShareConsumer works as a context manager and closes on exit."""
     with ShareConsumer(
         {
-            'group.id': 'test-share-group',
+            'group.id': unique_id('test-share-ctx'),
             'bootstrap.servers': 'localhost:9092',
             'socket.timeout.ms': 100,
         }
@@ -91,7 +162,7 @@ def test_close_idempotent():
     """Test that close() can be called multiple times."""
     sc = ShareConsumer(
         {
-            'group.id': 'test-share-group',
+            'group.id': unique_id('test-share-close-idem'),
             'bootstrap.servers': 'localhost:9092',
             'socket.timeout.ms': 100,
         }
@@ -110,7 +181,7 @@ def test_any_method_after_close_throws_exception():
     """Test that all operations on a closed consumer raise RuntimeError."""
     sc = ShareConsumer(
         {
-            'group.id': 'test-share-group',
+            'group.id': unique_id('test-share-after-close'),
             'bootstrap.servers': 'localhost:9092',
             'socket.timeout.ms': 100,
         }
@@ -240,7 +311,7 @@ def test_error_cb():
 
     sc = ShareConsumer(
         {
-            'group.id': 'test-share-error-cb',
+            'group.id': unique_id('test-share-error-cb'),
             'bootstrap.servers': 'localhost:19999',
             'socket.timeout.ms': 100,
             'error_cb': my_error_cb,
@@ -257,7 +328,13 @@ def test_error_cb():
 
 
 def test_error_cb_exception_propagates():
-    """Test that an exception raised in error_cb propagates to poll."""
+    """Test that an exception raised in error_cb propagates to poll.
+
+    Scope: only the poll-time propagation path. The teardown disables the
+    callback's raise behaviour before close() so this test isn't coupled to
+    close-time semantics — those are pinned down separately in
+    test_error_cb_exception_during_close.
+    """
     error_called = []
     raising = [True]
 
@@ -268,7 +345,7 @@ def test_error_cb_exception_propagates():
 
     sc = ShareConsumer(
         {
-            'group.id': 'test-share-error-cb-exc',
+            'group.id': unique_id('test-share-error-cb-exc'),
             'bootstrap.servers': 'localhost:19999',
             'socket.timeout.ms': 100,
             'error_cb': error_cb_that_raises,
@@ -283,8 +360,54 @@ def test_error_cb_exception_propagates():
     assert "Test exception from error_cb" in str(exc_info.value)
     assert len(error_called) > 0
 
+    # Disarm before close so this test only asserts poll-time behavior.
     raising[0] = False
     sc.close()
+
+
+def test_error_cb_exception_during_close():
+    """Pin down close() behavior when error_cb is still rigged to raise.
+
+    During close, librdkafka may dispatch one final round of error events
+    (e.g. _ALL_BROKERS_DOWN). If a user callback raises in that path, the
+    exception surfaces from close() — close does not silently swallow it.
+
+    Callers should treat close() as fallible and put their own raise paths
+    behind a guard if they need close() to be infallible.
+    """
+
+    def error_cb_that_raises(error):
+        raise RuntimeError("error_cb raises during close")
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-close-cb-raise'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': error_cb_that_raises,
+        }
+    )
+    sc.subscribe(['test-topic'])
+
+    # Drain the initial poll() exception so the consumer reaches a steady
+    # broker-unreachable state before close.
+    with pytest.raises(RuntimeError):
+        sc.poll(timeout=0.5)
+
+    # Whatever close() does, it MUST be deterministic. Capture and assert.
+    close_raised = None
+    try:
+        sc.close()
+    except RuntimeError as exc:
+        close_raised = exc
+
+    # Document the current contract: close() does NOT pump user-facing
+    # callbacks that would re-raise. If this assertion ever flips, the
+    # contract has changed and the docstring above needs updating.
+    assert close_raised is None, (
+        f"close() raised: {close_raised!r}; if intentional, update the "
+        f"test docstring and treat close() as fallible in user code."
+    )
 
 
 def test_throttle_cb():
@@ -300,7 +423,7 @@ def test_throttle_cb():
 
     sc = ShareConsumer(
         {
-            'group.id': 'test-share-throttle-cb',
+            'group.id': unique_id('test-share-throttle-cb'),
             'bootstrap.servers': 'localhost:19999',
             'socket.timeout.ms': 100,
             'throttle_cb': my_throttle_cb,

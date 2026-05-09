@@ -140,6 +140,16 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0):
 
     Returns a list of message lists, one per input consumer, in the same order.
     Stops early once the expected total is reached, or when timeout_s elapses.
+
+    IMPORTANT: implicit-ack only. This helper assumes share consumers are in
+    implicit-ack mode (the only mode the Python wrapper currently exposes).
+    In implicit mode, the second poll() automatically acknowledges records
+    delivered by the first, so the loop here is safe.
+
+    TODO KIP-932: when explicit-ack mode lands in the Python wrapper
+    (ShareConsumer.acknowledge()), update this helper to ack each message as
+    it's drained, otherwise the broker will return INFLIGHT-records errors
+    on the second poll. Same caveat exists in the librdkafka tests.
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s
