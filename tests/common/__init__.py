@@ -19,15 +19,13 @@
 import os
 import signal
 import time
+import uuid
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, ShareConsumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
-_TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
 
-
-def _trivup_cluster_type_kraft():
-    return _TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[_TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
+DEFAULT_BOOTSTRAP_SERVERS = 'localhost:9092'
 
 
 class TestUtils:
@@ -46,22 +44,31 @@ class TestUtils:
 
     @staticmethod
     def broker_version():
-        return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
+        return '4.2.0'
 
     @staticmethod
     def broker_conf():
-        broker_conf = ['transaction.state.log.replication.factor=1', 'transaction.state.log.min.isr=1']
-        if TestUtils.use_group_protocol_consumer():
-            broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
-        return broker_conf
-
-    @staticmethod
-    def _broker_major_version():
-        return int(TestUtils.broker_version().split('.')[0])
+        return [
+            'transaction.state.log.replication.factor=1',
+            'transaction.state.log.min.isr=1',
+            # KIP-932: enable share groups on this test broker. Production uses
+            # the share.version feature flag; this internal config is what the
+            # Apache Kafka project's own integration tests use.
+            'group.share.enable=true',
+            # KIP-932: __share_group_state topic defaults are RF=3 / min.isr=2
+            # — must be 1/1 on a single-broker test cluster.
+            'share.coordinator.state.topic.replication.factor=1',
+            'share.coordinator.state.topic.min.isr=1',
+            # KIP-932: shorten lock duration to 1s for fast redelivery tests.
+            # Both must be set: actual duration must be >= min.
+            'group.share.record.lock.duration.ms=1000',
+            'group.share.min.record.lock.duration.ms=1000',
+        ]
 
     @staticmethod
     def use_kraft():
-        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+        # broker_version() always returns 4.2.0, which is KRaft-only.
+        return True
 
     @staticmethod
     def use_group_protocol_consumer():
@@ -118,3 +125,59 @@ class TestConsumer(Consumer):
             super(TestConsumer, self).incremental_unassign(partitions)
         else:
             super(TestConsumer, self).unassign()
+
+
+def unique_id(prefix):
+    """Generate a topic/group id unique to this test run.
+
+    Avoids cross-test interference when running against a shared broker.
+    """
+    return f'{prefix}-{uuid.uuid4().hex[:10]}'
+
+
+def drain_share_consumers(consumers, n_expected, timeout_s=20.0):
+    """Round-robin poll until total non-error messages reach n_expected.
+
+    Returns a list of message lists, one per input consumer, in the same order.
+    Stops early once the expected total is reached, or when timeout_s elapses.
+
+    IMPORTANT: implicit-ack only. This helper assumes share consumers are in
+    implicit-ack mode (the only mode the Python wrapper currently exposes).
+    In implicit mode, the second poll() automatically acknowledges records
+    delivered by the first, so the loop here is safe.
+
+    TODO KIP-932: when explicit-ack mode lands in the Python wrapper
+    (ShareConsumer.acknowledge()), update this helper to ack each message as
+    it's drained, otherwise the broker will return INFLIGHT-records errors
+    on the second poll. Same caveat exists in the librdkafka tests.
+    """
+    received = [[] for _ in consumers]
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        for sc, bucket in zip(consumers, received):
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    bucket.append(m)
+        if sum(len(b) for b in received) >= n_expected:
+            break
+    return received
+
+
+class TestShareConsumer(ShareConsumer):
+    """Test wrapper around ShareConsumer.
+
+    Defaults auto.offset.reset to 'earliest' so tests are not sensitive to
+    consumer-group-join timing: records produced before subscribe() are still
+    delivered. Tests that need 'latest' semantics must override explicitly.
+    """
+
+    __test__ = False  # not a pytest collection target despite the Test* prefix
+
+    def __init__(self, conf=None, **kwargs):
+        effective_conf = {
+            'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS,
+            'auto.offset.reset': 'earliest',
+        }
+        if conf:
+            effective_conf.update(conf)
+        super().__init__(effective_conf, **kwargs)

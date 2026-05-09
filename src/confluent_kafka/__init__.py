@@ -39,6 +39,7 @@ from .cimpl import (
     Consumer,
     Message,
     Producer,
+    ShareConsumer,
     TopicPartition,
     Uuid,
     consistent,
@@ -54,6 +55,7 @@ from .serializing_producer import SerializingProducer
 __all__ = [
     "admin",
     "Consumer",
+    "ShareConsumer",
     "aio",
     "KafkaError",
     "KafkaException",
