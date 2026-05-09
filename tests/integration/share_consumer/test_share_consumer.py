@@ -17,29 +17,12 @@
 
 """Integration tests for ShareConsumer"""
 
-import os
 import time
 
-import pytest
-
 from tests.common import (
-    TestUtils,
     drain_share_consumers,
     unique_id,
-    warmup_share_consumers,
 )
-
-# KIP-932 share groups require Kafka 4.1+ with the share rebalance protocol
-# enabled. Skip unless either:
-#   - TEST_CONSUMER_GROUP_PROTOCOL=share is set.
-#   - or BROKERS is set.
-if not (TestUtils.use_group_protocol_share() or os.environ.get('BROKERS')):
-    pytest.skip(
-        'Share consumer tests require Kafka 4.1+ with share rebalance protocol enabled. '
-        'Run with TEST_CONSUMER_GROUP_PROTOCOL=share or set BROKERS=<bootstrap.servers> '
-        'to point at a KIP-932-capable cluster.',
-        allow_module_level=True,
-    )
 
 
 def test_concurrent_consumers(kafka_cluster):
@@ -54,7 +37,11 @@ def test_concurrent_consumers(kafka_cluster):
     try:
         sc1.subscribe([topic])
         sc2.subscribe([topic])
-        warmup_share_consumers([sc1, sc2])
+        # Drive both consumers through the join handshake so neither races
+        # ahead and grabs all records before the other is ready.
+        for _ in range(10):
+            sc1.poll(timeout=0.2)
+            sc2.poll(timeout=0.2)
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n_messages):
@@ -73,6 +60,10 @@ def test_concurrent_consumers(kafka_cluster):
             f"Expected {n_messages} unique records across both consumers, "
             f"got {len(all_offsets)} (sc1={len(offsets1)}, sc2={len(offsets2)})"
         )
+        assert len(offsets1) > 0 and len(offsets2) > 0, (
+            f"Records should be distributed across both consumers, "
+            f"got sc1={len(offsets1)}, sc2={len(offsets2)}"
+        )
     finally:
         sc1.close()
         sc2.close()
@@ -86,7 +77,6 @@ def test_basic_consume_records(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
-        warmup_share_consumers([sc])
 
         expected = [f'msg-{i}'.encode() for i in range(n)]
         producer = kafka_cluster.cimpl_producer()
@@ -108,7 +98,6 @@ def test_message_fields_preserved(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
-        warmup_share_consumers([sc])
 
         producer = kafka_cluster.cimpl_producer()
         produced = []
@@ -139,7 +128,6 @@ def test_multi_topic_subscription(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic_a, topic_b])
-        warmup_share_consumers([sc])
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n_per_topic):
@@ -167,11 +155,14 @@ def test_records_before_join_not_delivered(kafka_cluster):
         producer.produce(topic, value=f'pre-{i}'.encode())
     producer.flush(timeout=10.0)
 
-    sc = kafka_cluster.share_consumer()
+    # Override the suite-wide 'earliest' default: this test asserts that
+    # pre-join records are NOT delivered, which is only the contract under
+    # 'latest'.
+    sc = kafka_cluster.share_consumer({'auto.offset.reset': 'latest'})
     try:
         sc.subscribe([topic])
-        # Combined warmup + drain — pre-join records (if delivered at all)
-        # would arrive within this window.
+        # Observation window — pre-join records (if delivered at all) would
+        # arrive here.
         received = []
         deadline = time.time() + 8.0
         while time.time() < deadline:
@@ -197,7 +188,10 @@ def test_three_consumers_no_overlap(kafka_cluster):
     try:
         for sc in consumers:
             sc.subscribe([topic])
-        warmup_share_consumers(consumers)
+        # Drive every consumer through the join so none race ahead.
+        for _ in range(10):
+            for sc in consumers:
+                sc.poll(timeout=0.2)
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n):
@@ -216,6 +210,10 @@ def test_three_consumers_no_overlap(kafka_cluster):
         assert len(union) == n, (
             f"Expected {n} unique records, got {len(union)} " f"(per-consumer counts: {[len(s) for s in offset_sets]})"
         )
+        assert all(len(s) > 0 for s in offset_sets), (
+            f"Records should be distributed across all three consumers, "
+            f"got per-consumer counts: {[len(s) for s in offset_sets]}"
+        )
     finally:
         for sc in consumers:
             sc.close()
@@ -232,7 +230,6 @@ def test_independent_share_groups(kafka_cluster):
     try:
         sc_a.subscribe([topic])
         sc_b.subscribe([topic])
-        warmup_share_consumers([sc_a, sc_b])
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n):
@@ -259,7 +256,6 @@ def test_implicit_ack_no_redelivery(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
-        warmup_share_consumers([sc])
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n):
@@ -295,7 +291,6 @@ def test_unsubscribe_stops_delivery(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
-        warmup_share_consumers([sc])
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(5):
@@ -329,16 +324,29 @@ def test_resubscribe_to_different_topic(kafka_cluster):
     topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-resub-b')
 
     sc = kafka_cluster.share_consumer()
+    producer = kafka_cluster.cimpl_producer()
     try:
+        # Phase 1: prove the topic_a subscription actually works before we
+        # switch — otherwise we'd never know whether subscribe([topic_b])
+        # was the thing that excluded topic_a or whether topic_a was never
+        # really subscribed to in the first place.
         sc.subscribe([topic_a])
-        warmup_share_consumers([sc])
+        for i in range(3):
+            producer.produce(topic_a, value=f'a-pre-{i}'.encode())
+        producer.flush(timeout=10.0)
 
+        first = drain_share_consumers([sc], 3)[0]
+        assert len(first) == 3, f"Failed to consume from topic_a (got {len(first)}/3)"
+        assert all(m.topic() == topic_a for m in first), (
+            f"Expected only topic_a records, got {[m.topic() for m in first]}"
+        )
+
+        # Phase 2: switch subscription. Records to topic_a must no longer
+        # be delivered; only topic_b records should arrive.
         sc.subscribe([topic_b])
-        warmup_share_consumers([sc])
 
-        producer = kafka_cluster.cimpl_producer()
         for i in range(5):
-            producer.produce(topic_a, value=f'a-{i}'.encode())
+            producer.produce(topic_a, value=f'a-post-{i}'.encode())
             producer.produce(topic_b, value=f'b-{i}'.encode())
         producer.flush(timeout=10.0)
 
@@ -358,7 +366,6 @@ def test_messages_in_offset_order_single_consumer(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
-        warmup_share_consumers([sc])
 
         producer = kafka_cluster.cimpl_producer()
         for i in range(n):
