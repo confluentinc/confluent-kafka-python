@@ -31,6 +31,10 @@ import sys
 #     produced *after* a consumer joins are eligible for delivery; if a
 #     record isn't acked within the broker-configured lock duration, it is
 #     redelivered to another consumer in the share group (at-least-once).
+#     The broker default for that lock duration
+#     (group.share.record.lock.duration.ms) is 30 seconds, so the
+#     redelivery window in production is on the order of half a minute —
+#     not milliseconds.
 #   * No partition-assignment callback. Many consumers can read the same
 #     partition; the broker is responsible for distributing records.
 #

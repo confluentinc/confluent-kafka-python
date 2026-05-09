@@ -505,16 +505,15 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         }
 
         self->base.type = RD_KAFKA_CONSUMER;
-        /* TODO  KIP-932: RD_KAFKA_CONSUMER is intentional, not a copy-paste from Consumer.c:
-         * it makes common_conf_setup enforce "group.id must be set", which
-         * share consumers also need.
-         */
-         
-         /* TODO KIP-932: revisit this once share-consumer config handling has
-         * its own setup path. Today we route through the regular consumer
-         * config setup, which means consumer-only knobs (e.g. on_commit) can
-         * be set silently — see ShareConsumer_clear0. A dedicated
-         * share-consumer path should reject those at config time. */
+        /* TODO KIP-932: RD_KAFKA_CONSUMER is intentional, not a copy-paste
+         * from Consumer.c: it makes common_conf_setup enforce "group.id must
+         * be set", which share consumers also need.
+         *
+         * Revisit this once share-consumer config handling has its own setup
+         * path. Today we route through the regular consumer config setup,
+         * which means consumer-only knobs (e.g. on_commit) can be set
+         * silently — see ShareConsumer_clear0. A dedicated share-consumer
+         * path should reject those at config time. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
                 return -1; /* Exception raised by common_conf_setup() */

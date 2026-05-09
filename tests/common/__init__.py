@@ -42,10 +42,21 @@ class TestUtils:
         time.sleep(delay_seconds)
         os.kill(os.getpid(), signal.SIGINT)
 
+    # TODO KIP-932: broker_version() previously branched on
+    # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
+    # hardcoded to '4.2.0' because share groups require >=4.2.0. Restore the
+    # version-aware form (or replace it with a per-test-suite override) once
+    # share-consumer tests no longer dictate the global broker version.
     @staticmethod
     def broker_version():
         return '4.2.0'
 
+    # TODO KIP-932: broker_conf() now unconditionally appends the share-group
+    # tunables (group.share.enable, share.coordinator.state.topic.*,
+    # group.share.{min.,}record.lock.duration.ms) for ALL integration tests,
+    # not just share-consumer ones. Scope these to a share-consumer-specific
+    # config path so non-share tests don't run against a broker tuned for
+    # 1s lock durations.
     @staticmethod
     def broker_conf():
         return [
@@ -65,6 +76,13 @@ class TestUtils:
             'group.share.min.record.lock.duration.ms=1000',
         ]
 
+    # TODO KIP-932: use_kraft() used to honor the TEST_TRIVUP_CLUSTER_TYPE env
+    # var (and the now-deleted _trivup_cluster_type_kraft helper) so callers
+    # could opt into ZooKeeper. It now hardcodes True because broker 4.2.0 is
+    # KRaft-only. Callers that need ZK (e.g. tests/integration/admin/
+    # test_user_scram_credentials.py) lose their escape hatch — restore the
+    # branching, or drop the ZK code paths from those callers, when the
+    # broker-version pinning is revisited.
     @staticmethod
     def use_kraft():
         # broker_version() always returns 4.2.0, which is KRaft-only.
