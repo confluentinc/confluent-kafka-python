@@ -356,24 +356,24 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
  */
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
                                      PyObject *ignore) {
-        rd_kafka_resp_err_t err;
+        rd_kafka_error_t *error;
         CallState cs;
 
         if (!self->rkshare)
                 Py_RETURN_NONE;
 
         CallState_begin(&self->base, &cs);
-        /* TODO KIP-932: rd_kafka_share_consumer_close() return type will change
-         * to rd_kafka_error_t *. Update error handling accordingly. */
-        err = rd_kafka_share_consumer_close(self->rkshare);
+        error = rd_kafka_share_consumer_close(self->rkshare);
         rd_kafka_share_destroy(self->rkshare);
         self->rkshare = NULL;
-        if (!CallState_end(&self->base, &cs))
+        if (!CallState_end(&self->base, &cs)) {
+                if (error)
+                        rd_kafka_error_destroy(error);
                 return NULL;
+        }
 
-        if (err) {
-                cfl_PyErr_Format(err, "Failed to close consumer: %s",
-                                 rd_kafka_err2str(err));
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
