@@ -267,16 +267,12 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         CallState_begin(&self->base, &cs);
 
-        /* Chunked polling pattern for signal interruptibility */
+        /* Chunked polling pattern for signal interruptibility. */
         while (1) {
                 chunk_timeout_ms = calculate_chunk_timeout(
                     total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
-                if (chunk_timeout_ms == 0) {
-                        /* Timeout expired */
-                        break;
-                }
 
-                /* Consume batch with chunk timeout */
+                /* Consume batch; chunk_timeout_ms==0 means non-blocking drain. */
                 error = rd_kafka_share_consume_batch(
                     self->rkshare, chunk_timeout_ms, rkmessages,
                     &rkmessages_size);
@@ -288,6 +284,11 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
                 /* Exit if messages received */
                 if (rkmessages_size > 0) {
+                        break;
+                }
+
+                /* Exit if total timeout has been exhausted. */
+                if (chunk_timeout_ms == 0) {
                         break;
                 }
 
@@ -328,6 +329,14 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         for (i = 0; i < rkmessages_size; i++) {
                 PyObject *msgobj = Message_new0(&self->base, rkmessages[i]);
                 if (!msgobj) {
+                        /* Cleanup on Message_new0 failure:
+                         * - msglist DECREF releases successfully-built msgobjs
+                         *   for indices [0, i) (PyList_SET_ITEM stole their
+                         *   refs).
+                         * - rkmessages[0..i-1] were already destroyed at the
+                         *   end of their respective loop iterations.
+                         * - rkmessages[i..N-1] (current failure plus any
+                         *   unprocessed) are destroyed by the loop below. */
                         Py_DECREF(msglist);
                         for (; i < rkmessages_size; i++)
                                 rd_kafka_message_destroy(rkmessages[i]);

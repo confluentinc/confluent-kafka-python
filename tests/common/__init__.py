@@ -44,34 +44,27 @@ class TestUtils:
 
     # TODO KIP-932: broker_version() previously branched on
     # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
-    # hardcoded to '4.2.0' because share groups require >=4.2.0. Restore the
-    # version-aware form (or replace it with a per-test-suite override) once
-    # share-consumer tests no longer dictate the global broker version.
+    # hardcoded to '4.2.0' because share groups require >=4.2.0. 
+    # Remove this method if not needed in other contexts
     @staticmethod
     def broker_version():
         return '4.2.0'
 
-    # TODO KIP-932: broker_conf() now unconditionally appends the share-group
-    # tunables (group.share.enable, share.coordinator.state.topic.*,
-    # group.share.{min.,}record.lock.duration.ms) for ALL integration tests,
-    # not just share-consumer ones. Scope these to a share-consumer-specific
-    # config path so non-share tests don't run against a broker tuned for
-    # 1s lock durations.
     @staticmethod
     def broker_conf():
         return [
             'transaction.state.log.replication.factor=1',
             'transaction.state.log.min.isr=1',
-            # KIP-932: enable share groups on this test broker. Production uses
-            # the share.version feature flag; this internal config is what the
-            # Apache Kafka project's own integration tests use.
-            'group.share.enable=true',
+            # Single-broker cluster: __consumer_offsets defaults to RF=3.
+            # Required for classic and KIP-848 consumer offset commits.
+            'offsets.topic.replication.factor=1',
+            'offsets.topic.min.isr=1',
             # KIP-932: __share_group_state topic defaults are RF=3 / min.isr=2
             # — must be 1/1 on a single-broker test cluster.
             'share.coordinator.state.topic.replication.factor=1',
             'share.coordinator.state.topic.min.isr=1',
             # KIP-932: shorten lock duration to 1s for fast redelivery tests.
-            # Both must be set: actual duration must be >= min.
+            # Both must be set: actual duration must be >= min (default min=15000).
             'group.share.record.lock.duration.ms=1000',
             'group.share.min.record.lock.duration.ms=1000',
         ]
@@ -153,11 +146,18 @@ def unique_id(prefix):
     return f'{prefix}-{uuid.uuid4().hex[:10]}'
 
 
-def drain_share_consumers(consumers, n_expected, timeout_s=20.0):
+def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=0.5):
     """Round-robin poll until total non-error messages reach n_expected.
 
     Returns a list of message lists, one per input consumer, in the same order.
     Stops early once the expected total is reached, or when timeout_s elapses.
+
+    Tests with N>2 consumers under the suite-wide
+    group.share.record.lock.duration.ms=1000 
+    should lower poll_timeout_s so a full round-robin round completes within
+    the 1s lock window — otherwise locks expire before the same consumer's
+    next poll can implicit-ack, and records get redelivered to other
+    consumers (i.e. apparent duplicate delivery).
 
     IMPORTANT: implicit-ack only. This helper assumes share consumers are in
     implicit-ack mode (the only mode the Python wrapper currently exposes).
@@ -173,7 +173,7 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0):
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         for sc, bucket in zip(consumers, received):
-            for m in sc.poll(timeout=0.5):
+            for m in sc.poll(timeout=poll_timeout_s):
                 if m.error() is None:
                     bucket.append(m)
         if sum(len(b) for b in received) >= n_expected:

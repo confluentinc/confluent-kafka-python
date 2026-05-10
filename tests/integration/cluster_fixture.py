@@ -22,7 +22,14 @@ from uuid import uuid1
 from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import Producer, SerializingProducer
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import (
+    AdminClient,
+    AlterConfigOpType,
+    ConfigEntry,
+    ConfigResource,
+    NewTopic,
+    ResourceType,
+)
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from tests.common import TestConsumer, TestShareConsumer
@@ -149,6 +156,24 @@ class KafkaClusterFixture(object):
 
         if conf is not None:
             share_conf.update(conf)
+
+        # KIP-932: share.auto.offset.reset is a per-group broker-side config
+        # (default "latest"). Set the broker config to match the client's default of "earliest" so tests 
+        # that rely on auto.offset.reset behavior work without needing to set share.auto.offset.reset in every test
+        reset = share_conf.get('auto.offset.reset', 'earliest')
+        res = ConfigResource(
+            ResourceType.GROUP,
+            share_conf['group.id'],
+            incremental_configs=[
+                ConfigEntry(
+                    'share.auto.offset.reset',
+                    reset,
+                    incremental_operation=AlterConfigOpType.SET,
+                ),
+            ],
+        )
+        for f in self.admin().incremental_alter_configs([res]).values():
+            f.result()
 
         return TestShareConsumer(share_conf)
 

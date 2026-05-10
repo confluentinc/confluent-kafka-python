@@ -22,21 +22,7 @@ import sys
 #
 # A share consumer reads from one or more topics like a queue: many consumers
 # in the same share group can read the same partition, and each record is
-# acknowledged individually instead of via offset commits.
-#
-# Differences from the regular Consumer:
-#   * poll() returns a LIST of messages (possibly empty), not a single
-#     message — share consumers can deliver multiple records per call.
-#   * No commit() / store_offsets() / offset-commit callbacks. Records
-#     produced *after* a consumer joins are eligible for delivery; if a
-#     record isn't acked within the broker-configured lock duration, it is
-#     redelivered to another consumer in the share group (at-least-once).
-#     The broker default for that lock duration
-#     (group.share.record.lock.duration.ms) is 30 seconds, so the
-#     redelivery window in production is on the order of half a minute —
-#     not milliseconds.
-#   * No partition-assignment callback. Many consumers can read the same
-#     partition; the broker is responsible for distributing records.
+# acknowledged implicitly.
 #
 from confluent_kafka import KafkaException, ShareConsumer
 
@@ -69,6 +55,10 @@ if __name__ == '__main__':
         while True:
             messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
             for msg in messages:
+                # This example is fail-fast on per-message
+                # errors — the first error terminates the consumer. For a long-running queue worker, prefer
+                # logging msg.error() and `continue` so transient delivery
+                # errors don't kill the process.
                 if msg.error():
                     raise KafkaException(msg.error())
                 sys.stderr.write(

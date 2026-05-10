@@ -26,7 +26,17 @@ from tests.common import (
 
 
 def test_concurrent_consumers(kafka_cluster):
-    """Two consumers in the same share group must receive disjoint records."""
+    """Two consumers in the same share group must receive disjoint records,
+    and their union must cover every produced record exactly once.
+
+    Per-consumer distribution is intentionally NOT asserted: with a single
+    partition, serial round-robin polling, and batch_size=10005, a single
+    ShareFetch from whichever consumer polls first can drain all records
+    before the other gets a chance. KIP-932 share groups don't guarantee
+    even distribution under those conditions, and librdkafka's analogous
+    test (tests/0171-share_consumer_consume.c::test_multiple_consumers_*)
+    likewise asserts only total-count and not per-consumer counts.
+    """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-concurrent')
     group_id = unique_id('test-share-group')
     n_messages = 30
@@ -59,9 +69,6 @@ def test_concurrent_consumers(kafka_cluster):
         assert len(all_offsets) == n_messages, (
             f"Expected {n_messages} unique records across both consumers, "
             f"got {len(all_offsets)} (sc1={len(offsets1)}, sc2={len(offsets2)})"
-        )
-        assert len(offsets1) > 0 and len(offsets2) > 0, (
-            f"Records should be distributed across both consumers, " f"got sc1={len(offsets1)}, sc2={len(offsets2)}"
         )
     finally:
         sc1.close()
@@ -178,7 +185,13 @@ def test_records_before_join_not_delivered(kafka_cluster):
 
 
 def test_three_consumers_no_overlap(kafka_cluster):
-    """Three consumers in same share group: no overlap, full coverage."""
+    """Three consumers in same share group: no overlap, full coverage.
+
+    Pass poll_timeout_s=0.2 to drain_share_consumers so a 3-consumer round (~0.6s) completes well
+    within the 1s record lock — otherwise locks expire before implicit-ack
+    fires and the broker redelivers to other consumers, breaking the
+    no-overlap invariant we DO want to assert here.
+    """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-three')
     group_id = unique_id('test-share-three')
     n = 30
@@ -197,7 +210,7 @@ def test_three_consumers_no_overlap(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers(consumers, n)
+        received = drain_share_consumers(consumers, n, poll_timeout_s=0.2)
         offset_sets = [{(m.topic(), m.partition(), m.offset()) for m in r} for r in received]
 
         for i in range(len(offset_sets)):
@@ -208,10 +221,6 @@ def test_three_consumers_no_overlap(kafka_cluster):
         union = set().union(*offset_sets)
         assert len(union) == n, (
             f"Expected {n} unique records, got {len(union)} " f"(per-consumer counts: {[len(s) for s in offset_sets]})"
-        )
-        assert all(len(s) > 0 for s in offset_sets), (
-            f"Records should be distributed across all three consumers, "
-            f"got per-consumer counts: {[len(s) for s in offset_sets]}"
         )
     finally:
         for sc in consumers:
@@ -448,6 +457,12 @@ def test_resubscribe_to_different_topic(kafka_cluster):
         # Phase 2: switch subscription. Records to topic_a must no longer
         # be delivered; only topic_b records should arrive.
         sc.subscribe([topic_b])
+
+        # subscribe() is async — drive heartbeats so the new subscription
+        # ({topic_b}) reaches the broker before we produce. Without this,
+        # the broker may still see {topic_a} and deliver a-post-* records.
+        for _ in range(10):
+            sc.poll(timeout=0.2)
 
         for i in range(5):
             producer.produce(topic_a, value=f'a-post-{i}'.encode())
