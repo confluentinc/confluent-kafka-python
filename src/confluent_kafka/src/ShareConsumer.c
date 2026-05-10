@@ -272,7 +272,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
                 chunk_timeout_ms = calculate_chunk_timeout(
                     total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
 
-                /* Consume batch; chunk_timeout_ms==0 means non-blocking drain. */
+                /* Consume batch; chunk_timeout_ms==0 means non-blocking drain.
+                 */
                 error = rd_kafka_share_consume_batch(
                     self->rkshare, chunk_timeout_ms, rkmessages,
                     &rkmessages_size);

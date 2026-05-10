@@ -44,7 +44,7 @@ class TestUtils:
 
     # TODO KIP-932: broker_version() previously branched on
     # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
-    # hardcoded to '4.2.0' because share groups require >=4.2.0. 
+    # hardcoded to '4.2.0' because share groups require >=4.2.0.
     # Remove this method if not needed in other contexts
     @staticmethod
     def broker_version():
@@ -153,7 +153,7 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=
     Stops early once the expected total is reached, or when timeout_s elapses.
 
     Tests with N>2 consumers under the suite-wide
-    group.share.record.lock.duration.ms=1000 
+    group.share.record.lock.duration.ms=1000
     should lower poll_timeout_s so a full round-robin round completes within
     the 1s lock window — otherwise locks expire before the same consumer's
     next poll can implicit-ack, and records get redelivered to other

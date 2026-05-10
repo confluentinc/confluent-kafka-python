@@ -158,7 +158,7 @@ class KafkaClusterFixture(object):
             share_conf.update(conf)
 
         # KIP-932: share.auto.offset.reset is a per-group broker-side config
-        # (default "latest"). Set the broker config to match the client's default of "earliest" so tests 
+        # (default "latest"). Set the broker config to match the client's default of "earliest" so tests
         # that rely on auto.offset.reset behavior work without needing to set share.auto.offset.reset in every test
         reset = share_conf.get('auto.offset.reset', 'earliest')
         res = ConfigResource(

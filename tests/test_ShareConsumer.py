@@ -377,6 +377,7 @@ def test_error_cb_exception_propagates():
 # does. Replace with a test of the disarm-before-close recipe (set the
 # callback's raise flag to False, then close — guaranteed clean) once the
 # share-consumer error-handling docs settle.
+# Validate & Handle this in upcoming callback PRs
 @pytest.mark.skip(reason="TODO KIP-932: timing-dependent; replace with disarm-recipe test")
 def test_error_cb_exception_during_close():
     """Pin down close() behavior when error_cb is still rigged to raise.

@@ -102,10 +102,6 @@ def test_incremental_alter_configs(kafka_cluster):
             ConfigEntry("retention.ms", "5000", incremental_operation=AlterConfigOpType.SET),
         ],
     )
-    # Kafka 4.1+ enables KIP-966 ELR by default, which writes a cluster-level
-    # min.insync.replicas ConfigRecord at controller activation. DescribeConfigs
-    # then reports it on every topic with source=DYNAMIC_DEFAULT_BROKER_CONFIG
-    # (is_default=false), so it surfaces in the non-default entries.
     expected = {
         res1: [
             'cleanup.policy="delete,compact"',

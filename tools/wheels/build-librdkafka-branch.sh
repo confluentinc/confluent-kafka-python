@@ -44,11 +44,25 @@ git clone --depth 1 --branch "$BRANCH" \
 
 if [[ $OSTYPE == linux* ]]; then
     sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev libsasl2-dev liblz4-dev libzstd-dev
+elif [[ $OSTYPE == darwin* ]]; then
+    # openssl@3 is keg-only in Homebrew (the system ships LibreSSL/Apple
+    # crypto with no -lcrypto headers), so configure's compile-probe for
+    # libcrypto silently fails unless we add brew's path. Same for zstd /
+    # lz4 / pkg-config on a fresh runner.
+    brew install pkg-config openssl@3 zstd lz4
+    OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+    export PKG_CONFIG_PATH="$OPENSSL_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    export CPPFLAGS="-I$OPENSSL_PREFIX/include${CPPFLAGS:+ $CPPFLAGS}"
+    export LDFLAGS="-L$OPENSSL_PREFIX/lib${LDFLAGS:+ $LDFLAGS}"
 fi
 
 pushd "$SRC"
 
-CONFIGURE_OPTS="--prefix=$INSTALL --disable-debug-symbols"
+# --enable-ssl/-lz4/-zstd convert mklove's silent "failed (disable)" into a
+# loud configure error if a future regression breaks dep installation —
+# otherwise we ship a wheel where sasl.oauthbearer.config etc. fail at
+# runtime with _INVALID_ARG -186.
+CONFIGURE_OPTS="--prefix=$INSTALL --disable-debug-symbols --enable-ssl --enable-lz4-ext --enable-zstd"
 if [[ $OSTYPE == linux* ]]; then
     CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-gssapi"
 fi
