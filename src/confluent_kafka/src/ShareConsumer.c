@@ -337,8 +337,9 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
                                          &MessageType, &msg, &ack_type))
                 return NULL;
 
-        /* No need to range-check ack_type here — rd_kafka_share_acknowledge_offset()
-         * does it and returns INVALID_ARG, which we'll surface as KafkaException. */
+        /* No need to range-check ack_type here —
+         * rd_kafka_share_acknowledge_offset() does it and returns INVALID_ARG,
+         * which we'll surface as KafkaException. */
 
         if (!msg->topic || msg->topic == Py_None) {
                 PyErr_SetString(PyExc_ValueError, "Message topic is None");
