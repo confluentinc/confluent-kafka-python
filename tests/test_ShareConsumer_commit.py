@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Integration tests for ShareConsumer.commit().
+Integration tests for ShareConsumer.commit_sync() / commit_async().
 
 Needs a Kafka broker with KIP-932 enabled at localhost:9092. Tests skip
 themselves when the broker isn't reachable.
@@ -143,8 +143,8 @@ def _set_group_configs(group_id, configs):
 @pytest.mark.integration
 @broker_required
 def test_implicit_commit_sync_returns_partition_results():
-    """Implicit + sync commit returns a list of TopicPartition with no
-    per-partition errors."""
+    """Implicit + sync commit returns a dict of TopicPartition -> None with
+    no per-partition errors."""
     topic = f'commit_implicit_sync_{_unique_id()}'
     group = f'g_{_unique_id()}'
     _create_topic(topic)
@@ -158,11 +158,11 @@ def test_implicit_commit_sync_returns_partition_results():
         msgs = _collect(sc, 3, POLL_TIMEOUT)
         assert len(msgs) == 3
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        assert isinstance(result, list)
+        result = sc.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
         assert len(result) >= 1
-        for tp in result:
-            assert tp.error is None, f'unexpected error: {tp.error}'
+        for tp, err in result.items():
+            assert err is None, f'unexpected error: {err}'
     finally:
         sc.close()
 
@@ -184,7 +184,7 @@ def test_implicit_commit_async_returns_immediately():
         assert len(_collect(sc, 3, POLL_TIMEOUT)) == 3
 
         start = time.monotonic()
-        result = sc.commit(asynchronous=True)
+        result = sc.commit_async()
         elapsed = time.monotonic() - start
 
         assert result is None
@@ -210,19 +210,19 @@ def test_explicit_commit_sync_succeeds():
         msgs = _collect(sc, 3, POLL_TIMEOUT, ack_type=AcknowledgeType.ACCEPT)
         assert len(msgs) == 3
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        assert isinstance(result, list)
-        for tp in result:
-            assert tp.error is None
+        result = sc.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
+        for tp, err in result.items():
+            assert err is None
     finally:
         sc.close()
 
 
 @pytest.mark.integration
 @broker_required
-def test_commit_with_nothing_pending_returns_none():
-    """Commit before any poll returns None — librdkafka returns NULL c_parts
-    when there are no acks to send."""
+def test_commit_with_nothing_pending_returns_empty():
+    """Commit before any poll returns an empty dict (sync) / None (async) —
+    librdkafka returns NULL c_parts when there are no acks to send."""
     topic = f'commit_empty_{_unique_id()}'
     group = f'g_{_unique_id()}'
     _create_topic(topic)
@@ -232,15 +232,15 @@ def test_commit_with_nothing_pending_returns_none():
         sc.subscribe([topic])
         _warmup(sc)
 
-        assert sc.commit(asynchronous=False, timeout=2.0) is None
-        assert sc.commit(asynchronous=True) is None
+        assert sc.commit_sync(timeout=2.0) == {}
+        assert sc.commit_async() is None
     finally:
         sc.close()
 
 
 @pytest.mark.integration
 @broker_required
-def test_repeated_commit_returns_none_on_second_call():
+def test_repeated_commit_returns_empty_on_second_call():
     """Two commits in a row: the second has nothing to send."""
     topic = f'commit_repeated_{_unique_id()}'
     group = f'g_{_unique_id()}'
@@ -255,11 +255,11 @@ def test_repeated_commit_returns_none_on_second_call():
         msgs = _collect(sc, 2, POLL_TIMEOUT, ack_type=AcknowledgeType.ACCEPT)
         assert len(msgs) == 2
 
-        first = sc.commit(asynchronous=False, timeout=10.0)
-        assert isinstance(first, list)
+        first = sc.commit_sync(timeout=10.0)
+        assert isinstance(first, dict)
 
-        second = sc.commit(asynchronous=False, timeout=2.0)
-        assert second is None
+        second = sc.commit_sync(timeout=2.0)
+        assert second == {}
     finally:
         sc.close()
 
@@ -284,10 +284,9 @@ def test_reject_persists_through_commit():
         msgs = _collect(sc1, 1, POLL_TIMEOUT, ack_type=AcknowledgeType.REJECT)
         assert len(msgs) == 1
 
-        result = sc1.commit(asynchronous=False, timeout=10.0)
-        if result is not None:
-            for tp in result:
-                assert tp.error is None
+        result = sc1.commit_sync(timeout=10.0)
+        for tp, err in result.items():
+            assert err is None
     finally:
         sc1.close()
 
@@ -321,10 +320,9 @@ def test_release_through_commit_returns_record_to_available():
         coords = (first.topic(), first.partition(), first.offset())
 
         sc.acknowledge(first, AcknowledgeType.RELEASE)
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        if result is not None:
-            for tp in result:
-                assert tp.error is None
+        result = sc.commit_sync(timeout=10.0)
+        for tp, err in result.items():
+            assert err is None
 
         deadline = time.monotonic() + 15.0
         seen_again = False
@@ -371,11 +369,10 @@ def test_commit_with_mixed_ack_types():
                         break
         assert gathered >= 3, f'only got {gathered} records'
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
+        result = sc.commit_sync(timeout=10.0)
         # acks may have piggybacked on intermediate polls
-        if result is not None:
-            for tp in result:
-                assert tp.error is None
+        for tp, err in result.items():
+            assert err is None
     finally:
         sc.close()
 
@@ -404,7 +401,7 @@ def test_committed_releases_archive_at_delivery_limit():
                     if coords is None:
                         coords = (m.topic(), m.partition(), m.offset())
                     sc.acknowledge(m, AcknowledgeType.RELEASE)
-                    sc.commit(asynchronous=False, timeout=5.0)
+                    sc.commit_sync(timeout=5.0)
                     releases += 1
                     if releases >= 5:
                         break
@@ -444,8 +441,8 @@ def test_implicit_acknowledge_raises_commit_still_works():
             sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
         assert ex.value.args[0].code() == ERR_STATE
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        assert result is None or isinstance(result, list)
+        result = sc.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
     finally:
         sc.close()
 
@@ -478,7 +475,7 @@ def test_partial_ack_commit_then_unacked_blocks_poll():
             pytest.skip(f'broker returned only {len(gathered)} record; ' 'need ≥2 to exercise partial ack')
 
         sc.acknowledge(gathered[0], AcknowledgeType.ACCEPT)
-        sc.commit(asynchronous=False, timeout=10.0)
+        sc.commit_sync(timeout=10.0)
 
         with pytest.raises(KafkaException) as ex:
             sc.poll(timeout=2.0)
@@ -486,7 +483,7 @@ def test_partial_ack_commit_then_unacked_blocks_poll():
 
         for m in gathered[1:]:
             sc.acknowledge(m, AcknowledgeType.ACCEPT)
-        sc.commit(asynchronous=False, timeout=5.0)
+        sc.commit_sync(timeout=5.0)
     finally:
         sc.close()
 
@@ -509,7 +506,7 @@ def test_explicit_commit_after_implicit_autocommit_is_noop():
         assert len(_collect(sc, 3, POLL_TIMEOUT)) == 3
         sc.poll(timeout=2.0)  # auto-commits the previous batch
 
-        assert sc.commit(asynchronous=False, timeout=2.0) is None
+        assert sc.commit_sync(timeout=2.0) == {}
     finally:
         sc.close()
 
@@ -549,8 +546,8 @@ def test_commit_after_lock_expiry():
             assert e.args[0].code() in (ERR_STATE, ERR_INVALID_RECORD)
             return
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        assert result is None or isinstance(result, list)
+        result = sc.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
     finally:
         sc.close()
 
@@ -597,7 +594,7 @@ def test_lock_steal_with_committed_ack():
             except KafkaException:
                 pass
         if b_got:
-            sc_b.commit(asynchronous=False, timeout=5.0)
+            sc_b.commit_sync(timeout=5.0)
 
         try:
             sc_a.acknowledge(a_msg, AcknowledgeType.ACCEPT)
@@ -605,8 +602,8 @@ def test_lock_steal_with_committed_ack():
             assert e.args[0].code() in (ERR_STATE, ERR_INVALID_RECORD)
             return
 
-        result = sc_a.commit(asynchronous=False, timeout=10.0)
-        assert result is None or isinstance(result, list)
+        result = sc_a.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
     finally:
         sc_a.close()
         sc_b.close()
@@ -630,7 +627,7 @@ def test_commit_after_acknowledge_unknown_offset():
             sc.acknowledge_offset(topic, 0, 99999, AcknowledgeType.ACCEPT)
         assert ex.value.args[0].code() == ERR_STATE
 
-        assert sc.commit(asynchronous=False, timeout=2.0) is None
+        assert sc.commit_sync(timeout=2.0) == {}
     finally:
         sc.close()
 
@@ -641,8 +638,8 @@ def test_commit_after_acknowledge_unknown_offset():
 @pytest.mark.integration
 @broker_required
 def test_per_partition_commit_results_all_succeed():
-    """3 partitions, no induced errors: every entry in the result list
-    has .error == None and matches a partition we polled from."""
+    """3 partitions, no induced errors: every entry in the result dict
+    maps to None and the key matches a partition we polled from."""
     topic = f'commit_3p_clean_{_unique_id()}'
     group = f'g_{_unique_id()}'
     _create_topic(topic, num_partitions=3)
@@ -660,13 +657,12 @@ def test_per_partition_commit_results_all_succeed():
 
         partitions_seen = {m.partition() for m in msgs}
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
+        result = sc.commit_sync(timeout=10.0)
         # acks may have piggybacked on intermediate polls inside _collect,
         # leaving nothing pending at commit time
-        if result is not None:
-            for tp in result:
-                assert tp.error is None, f'{tp.topic}[{tp.partition}] -> {tp.error}'
-                assert tp.partition in partitions_seen
+        for tp, err in result.items():
+            assert err is None, f'{tp.topic}[{tp.partition}] -> {err}'
+            assert tp.partition in partitions_seen
     finally:
         sc.close()
 
@@ -710,12 +706,11 @@ def test_per_partition_commit_results_with_lock_expiry():
             except KafkaException:
                 pass
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        assert result is None or isinstance(result, list)
-        if isinstance(result, list):
-            for tp in result:
-                if tp.error is not None:
-                    assert tp.error.code() in (ERR_STATE, ERR_INVALID_RECORD)
+        result = sc.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
+        for tp, err in result.items():
+            if err is not None:
+                assert err.code() in (ERR_STATE, ERR_INVALID_RECORD)
     finally:
         sc.close()
 
@@ -735,7 +730,11 @@ def test_commit_on_closed_consumer_raises():
     sc.close()
 
     with pytest.raises(RuntimeError) as ex:
-        sc.commit(asynchronous=False, timeout=1.0)
+        sc.commit_sync(timeout=1.0)
+    assert 'closed' in str(ex.value).lower()
+
+    with pytest.raises(RuntimeError) as ex:
+        sc.commit_async()
     assert 'closed' in str(ex.value).lower()
 
 
@@ -758,7 +757,7 @@ def test_async_commit_does_not_block():
         _collect(sc, 5, POLL_TIMEOUT)
 
         start = time.monotonic()
-        result = sc.commit(asynchronous=True)
+        result = sc.commit_async()
         elapsed = time.monotonic() - start
 
         assert result is None
@@ -781,11 +780,11 @@ def test_commit_with_zero_timeout_returns_fast():
         _warmup(sc)
 
         start = time.monotonic()
-        result = sc.commit(asynchronous=False, timeout=0)
+        result = sc.commit_sync(timeout=0)
         elapsed = time.monotonic() - start
 
-        assert result is None or isinstance(result, list)
-        assert elapsed < 1.0, f'commit(timeout=0) took {elapsed:.3f}s'
+        assert isinstance(result, dict)
+        assert elapsed < 1.0, f'commit_sync(timeout=0) took {elapsed:.3f}s'
     finally:
         sc.close()
 
@@ -808,10 +807,10 @@ def test_commit_does_not_hang_on_unreachable_broker():
         # Don't subscribe — librdkafka has crashed in the past when commit
         # is called on a subscribed-but-never-connected consumer.
         start = time.monotonic()
-        result = sc.commit(asynchronous=False, timeout=2.0)
+        result = sc.commit_sync(timeout=2.0)
         elapsed = time.monotonic() - start
 
-        assert result is None
+        assert result == {}
         assert elapsed < 5.0, f'commit hung for {elapsed:.2f}s'
     finally:
         sc.close()
@@ -844,7 +843,7 @@ def test_sync_commit_releases_gil():
         _collect(sc, 5, POLL_TIMEOUT)
 
         before = counter['n']
-        sc.commit(asynchronous=False, timeout=2.0)
+        sc.commit_sync(timeout=2.0)
         after = counter['n']
 
         assert after - before > 100, (
@@ -877,8 +876,8 @@ def test_commit_before_close_persists_acks():
         msgs = _collect(sc1, 3, POLL_TIMEOUT, ack_type=AcknowledgeType.ACCEPT)
         assert len(msgs) == 3
 
-        result = sc1.commit(asynchronous=False, timeout=10.0)
-        assert result is None or isinstance(result, list)
+        result = sc1.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
     finally:
         sc1.close()
 
@@ -908,8 +907,8 @@ def test_commit_before_first_poll_is_noop():
     sc = _consumer(group, mode='implicit')
     try:
         sc.subscribe([topic])
-        assert sc.commit(asynchronous=False, timeout=2.0) is None
-        assert sc.commit(asynchronous=True) is None
+        assert sc.commit_sync(timeout=2.0) == {}
+        assert sc.commit_async() is None
     finally:
         sc.close()
 
@@ -931,8 +930,8 @@ def test_commit_after_unsubscribe_does_not_crash():
         _collect(sc, 2, POLL_TIMEOUT)
 
         sc.unsubscribe()
-        result = sc.commit(asynchronous=False, timeout=5.0)
-        assert result is None or isinstance(result, list)
+        result = sc.commit_sync(timeout=5.0)
+        assert isinstance(result, dict)
     finally:
         sc.close()
 
@@ -957,9 +956,8 @@ def test_commit_with_explicit_mode():
         msgs = _collect(sc, 2, POLL_TIMEOUT, ack_type=AcknowledgeType.ACCEPT)
         assert len(msgs) >= 1
 
-        result = sc.commit(asynchronous=False, timeout=10.0)
-        if result is not None:
-            for tp in result:
-                assert tp.error is None
+        result = sc.commit_sync(timeout=10.0)
+        for tp, err in result.items():
+            assert err is None
     finally:
         sc.close()

@@ -495,27 +495,26 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
 
 
 /**
- * @brief Commit pending acknowledgements.
+ * @brief Synchronously commit pending acknowledgements.
  *
- * Implicit mode auto-converts ACQUIRED → ACCEPT inside librdkafka before
- * sending. Sync mode returns a per-partition result list; async mode returns
- * None. By default, commit is asynchronous. In async mode, the application
- * receives no immediate feedback. In sync mode, the application blocks until
- * the broker responds or the timeout expires, and receives a list of
- * TopicPartition where each entry's .error field carries the per-partition
- * acknowledgement result.
+ * Implicit mode auto-converts the records returned by the latest poll() to
+ * ACCEPT inside librdkafka before sending. Blocks until all broker replies
+ * arrive or the timeout expires.
+ *
+ * @returns dict mapping TopicPartition -> None on success or KafkaError on
+ *          per-partition failure (matching Java's
+ *          Map<TopicIdPartition, Optional<KafkaException>>). Empty dict when
+ *          no acknowledgements are pending.
  */
-static PyObject *ShareConsumer_commit(ShareConsumerHandle *self,
-                                      PyObject *args,
-                                      PyObject *kwargs) {
-        int async                                = 1;
+static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
+                                           PyObject *args,
+                                           PyObject *kwargs) {
         double tmout                             = -1.0;
-        PyObject *async_o                        = NULL;
         rd_kafka_error_t *error                  = NULL;
         rd_kafka_topic_partition_list_t *c_parts = NULL;
         PyThreadState *thread_state              = NULL;
-        PyObject *plist;
-        static char *kws[] = {"asynchronous", "timeout", NULL};
+        PyObject *result;
+        static char *kws[] = {"timeout", NULL};
 
         if (!self->rkshare) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -523,21 +522,8 @@ static PyObject *ShareConsumer_commit(ShareConsumerHandle *self,
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Od", kws, &async_o,
-                                         &tmout))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
-
-        if (async_o)
-                async = PyObject_IsTrue(async_o);
-
-        if (async) {
-                error = rd_kafka_share_commit_async(self->rkshare);
-                if (error) {
-                        cfl_PyErr_from_error_destroy(error);
-                        return NULL;
-                }
-                Py_RETURN_NONE;
-        }
 
         thread_state = PyEval_SaveThread();
         error = rd_kafka_share_commit_sync(self->rkshare, cfl_timeout_ms(tmout),
@@ -551,13 +537,38 @@ static PyObject *ShareConsumer_commit(ShareConsumerHandle *self,
                 return NULL;
         }
 
-        /* No pending acks: librdkafka returns NULL c_parts. */
         if (!c_parts)
-                Py_RETURN_NONE;
+                return PyDict_New();
 
-        plist = c_parts_to_py(c_parts);
+        result = c_parts_to_commit_result_dict(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
-        return plist;
+        return result;
+}
+
+
+/**
+ * @brief Asynchronously commit pending acknowledgements.
+ *
+ * Returns immediately; broker results are delivered via the
+ * share_acknowledgement_commit_cb (when configured).
+ */
+static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
+                                            PyObject *ignore) {
+        rd_kafka_error_t *error;
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        error = rd_kafka_share_commit_async(self->rkshare);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
 }
 
 
@@ -741,10 +752,12 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
-    {"commit", (PyCFunction)ShareConsumer_commit, METH_VARARGS | METH_KEYWORDS,
-     ".. py:function:: commit([asynchronous=True], [timeout=-1])\n"
+    {"commit_sync", (PyCFunction)ShareConsumer_commit_sync,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: commit_sync([timeout=-1])\n"
      "\n"
-     "  Commit pending acknowledgements.\n"
+     "  Synchronously commit pending acknowledgements and block until the\n"
+     "  broker responds or the timeout expires.\n"
      "\n"
      "  In implicit acknowledgement mode "
      "(``share.acknowledgement.mode=implicit``,\n"
@@ -755,27 +768,27 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  records previously passed to :py:func:`acknowledge` /\n"
      "  :py:func:`acknowledge_offset` are sent.\n"
      "\n"
-     "  :param bool asynchronous: If True (default), return immediately "
-     "without\n"
-     "                            waiting for broker confirmation (returns "
-     "None).\n"
-     "                            If False, block until the broker replies "
-     "or\n"
-     "                            the timeout expires, and return a list of\n"
-     "                            TopicPartition where each entry's "
-     "``.error``\n"
-     "                            field carries the per-partition "
-     "acknowledgement\n"
-     "                            result.\n"
-     "  :param float timeout: Maximum time to block in synchronous mode "
-     "(seconds).\n"
-     "                        Default: -1 (infinite). Ignored in async "
-     "mode.\n"
-     "  :returns: None when ``asynchronous=True`` or when there are no "
-     "pending\n"
-     "            acknowledgements; otherwise a list of TopicPartition "
-     "results.\n"
-     "  :rtype: None | list(TopicPartition)\n"
+     "  :param float timeout: Maximum time to block (seconds). Default: -1\n"
+     "                        (infinite).\n"
+     "  :returns: Dict mapping TopicPartition to None on success or "
+     "KafkaError\n"
+     "           on per-partition failure (matching Java's\n"
+     "           ``Map<TopicIdPartition, Optional<KafkaException>>``). "
+     "Empty\n"
+     "           dict when no acknowledgements are pending.\n"
+     "  :rtype: dict(TopicPartition, KafkaError | None)\n"
+     "  :raises KafkaException: on error\n"
+     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "\n"},
+
+    {"commit_async", (PyCFunction)ShareConsumer_commit_async, METH_NOARGS,
+     ".. py:function:: commit_async()\n"
+     "\n"
+     "  Asynchronously commit pending acknowledgements. Returns immediately;\n"
+     "  broker results are delivered via the configured\n"
+     "  ``share_acknowledgement_commit_cb`` callback.\n"
+     "\n"
+     "  :returns: None\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "\n"},
