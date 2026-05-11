@@ -337,14 +337,8 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
                                          &MessageType, &msg, &ack_type))
                 return NULL;
 
-        if (ack_type < (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT ||
-            ack_type > (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT) {
-                PyErr_Format(PyExc_ValueError,
-                             "Invalid ack_type %d (expected 1=ACCEPT, "
-                             "2=RELEASE, or 3=REJECT)",
-                             ack_type);
-                return NULL;
-        }
+        /* No need to range-check ack_type here — rd_kafka_share_acknowledge_offset()
+         * does it and returns INVALID_ARG, which we'll surface as KafkaException. */
 
         if (!msg->topic || msg->topic == Py_None) {
                 PyErr_SetString(PyExc_ValueError, "Message topic is None");
@@ -396,14 +390,8 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
                                          &partition, &offset, &ack_type))
                 return NULL;
 
-        if (ack_type < (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT ||
-            ack_type > (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT) {
-                PyErr_Format(PyExc_ValueError,
-                             "Invalid ack_type %d (expected 1=ACCEPT, "
-                             "2=RELEASE, or 3=REJECT)",
-                             ack_type);
-                return NULL;
-        }
+        /* ack_type, partition and offset are all validated by
+         * rd_kafka_share_acknowledge_offset()*/
 
         err = rd_kafka_share_acknowledge_offset(
             self->rkshare, topic, (int32_t)partition, (int64_t)offset,
@@ -548,10 +536,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KafkaException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the message is no "
      "longer\n"
-     "                          in-flight, or the offset is a GAP record.\n"
-     "  :raises ValueError: if ack_type is not 1, 2, or 3, or if "
-     "message.topic()\n"
-     "                      is None.\n"
+     "                          in-flight, or ack_type is invalid.\n"
+     "  :raises ValueError: if message.topic() is None.\n"
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
@@ -567,8 +553,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param int offset: Offset to acknowledge.\n"
      "  :param AcknowledgeType ack_type: ACCEPT (default), RELEASE, or "
      "REJECT.\n"
-     "  :raises KafkaException: same conditions as :py:func:`acknowledge`.\n"
-     "  :raises ValueError: if ack_type is not 1, 2, or 3.\n"
+     "  :raises KafkaException: if the consumer is not in explicit\n"
+     "                          acknowledgement mode, the offset is not\n"
+     "                          in-flight, the offset is a GAP record,\n"
+     "                          or ack_type is invalid.\n"
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
