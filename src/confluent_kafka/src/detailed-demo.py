@@ -1,6 +1,13 @@
 One unified demo: orders task-queue with 3 terminals
 
-  Covers scenarios 2 (explicit + ACCEPT), 3 (RELEASE → redelivery), 4 (REJECT → archive), 5 (multi-consumer split), and 6 (commit_async + commit_sync result dict) in one flow. ~30 sec wall-clock, ~3-4 min with narration.
+  Covers scenarios 
+  2 (explicit + ACCEPT), 
+  3 (RELEASE → redelivery), 
+  4 (REJECT → archive), 
+  5 (multi-consumer split), and 6 (commit_async + commit_sync result dict) 
+  in one flow.
+  
+   ~30 sec wall-clock, ~3-4 min with narration.
 
   ---
   Setup (one-time, before demo)

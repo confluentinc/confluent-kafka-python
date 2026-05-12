@@ -34,9 +34,10 @@ from confluent_kafka.admin import (
 TOPIC = 'orders'
 GROUP = 'orders-share-consumers'
 BOOTSTRAP = 'localhost:9092'
-LOCK_DURATION_MS = '30000'  # default broker value is 1000ms; too short for multi-consumer demos
+LOCK_DURATION_MS = '30000'
 NUM_PARTITIONS = 3
 PRODUCE_INTERVAL_S = 0.4
+
 
 
 def setup_topic_and_group():
@@ -75,31 +76,32 @@ def _wait_until(predicate, timeout_s):
     raise TimeoutError(f'condition not met within {timeout_s}s')
 
 
-def task_name(i):
+# 10 sequential messages, you get 8 accepts, 1 release, 1 reject
+def message_name(i):
     if i % 10 == 7:
-        return f'poison-{i}'
+        return f'msg-reject-{i}'
     if i % 10 == 2:
-        return f'flaky-{i}'
-    return f'task-{i}'
+        return f'msg-release-{i}'
+    return f'msg-accept-{i}'
 
 
-def stream_tasks():
+def produce():
+    # Initialize producer with delivery callback to track when messages are confirmed.
     p = Producer({'bootstrap.servers': BOOTSTRAP})
     confirmed = 0
-
     def on_delivery(err, msg):
         nonlocal confirmed
         if err is not None:
             print(f'[producer] !! delivery failed: {err} value={msg.value()!r}', flush=True)
             return
         confirmed += 1
-        print(f'[producer] -> {msg.value().decode():<12s} '
+        print(f'[producer] -> {msg.value().decode():<16s} '
               f'partition={msg.partition()} offset={msg.offset():<5d}', flush=True)
 
     enqueued = 0
     try:
         while True:
-            p.produce(TOPIC, value=task_name(enqueued).encode(), callback=on_delivery)
+            p.produce(TOPIC, value=message_name(enqueued).encode(), callback=on_delivery)
             p.poll(0)
             enqueued += 1
             time.sleep(PRODUCE_INTERVAL_S)
@@ -122,7 +124,7 @@ def main():
         input()
     except (EOFError, KeyboardInterrupt):
         sys.exit(0)
-    stream_tasks()
+    produce()
 
 
 if __name__ == '__main__':
