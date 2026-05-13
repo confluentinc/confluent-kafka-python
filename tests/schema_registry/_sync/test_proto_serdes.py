@@ -477,6 +477,164 @@ def test_proto_cel_field_condition_fail():
     assert isinstance(e.value.__cause__, RuleConditionError)
 
 
+def test_proto_cel_decimal_passes():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.gt(decimal("12.34"), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(example_pb2.Author.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = example_pb2.Author(name='Kafka', id=123, picture=b'foobar')
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {'use.deprecated.format': False}
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_proto_cel_decimal_fails():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.lt(decimal("12.34"), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(example_pb2.Author.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = example_pb2.Author(name='Kafka', id=123, picture=b'foobar')
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+def test_proto_cel_decimal_arithmetic():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.eq(decimals.add(decimal("12.34"), decimal("1.66")), decimal("14.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(example_pb2.Author.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = example_pb2.Author(name='Kafka', id=123, picture=b'foobar')
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {'use.deprecated.format': False}
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_proto_cel_timestamp_passes():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp.of(message.updated_at) < now',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(nested_pb2.NestedMessage.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = nested_pb2.NestedMessage()
+    obj.user_id.kafka_user_id = 'u1'
+    obj.updated_at.seconds = 1577836800  # 2020-01-01 UTC
+    ser = ProtobufSerializer(nested_pb2.NestedMessage, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {'use.deprecated.format': False}
+    deser = ProtobufDeserializer(nested_pb2.NestedMessage, deser_conf, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_proto_cel_timestamp_fails():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp.of(message.updated_at) > now',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(nested_pb2.NestedMessage.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = nested_pb2.NestedMessage()
+    obj.user_id.kafka_user_id = 'u1'
+    obj.updated_at.seconds = 1577836800  # 2020-01-01 UTC, before now
+    ser = ProtobufSerializer(nested_pb2.NestedMessage, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
 def test_proto_encryption():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
