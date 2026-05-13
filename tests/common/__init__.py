@@ -168,6 +168,11 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=
     (ShareConsumer.acknowledge()), update this helper to ack each message as
     it's drained, otherwise the broker will return INFLIGHT-records errors
     on the second poll. Same caveat exists in the librdkafka tests.
+
+    TODO KIP-932: after the final poll() in the loop below, the last batch of
+    records is never implicitly acknowledged (no subsequent poll to piggyback
+    on). Some tests assume the tail batch is ack'd. Fix once explicit-ack is
+    exposed: emit an explicit ack for the last drained batch before returning.
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s

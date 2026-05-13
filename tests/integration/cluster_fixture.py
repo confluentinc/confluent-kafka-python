@@ -159,6 +159,10 @@ class KafkaClusterFixture(object):
 
         # KIP-932: share.auto.offset.reset is a per-group broker-side config with default as "latest".
         # Set to "earliest" so tests don't have to set it in every call.
+        # TODO KIP-932: this shouldn't live in the share_consumer fixture —
+        # share.auto.offset.reset is a property of the group, not the consumer.
+        # Re-issuing the alter on every consumer construction for the same
+        # group.id is unnecessary. Lift this to a per-group setup step.
         reset = share_conf.pop('auto.offset.reset', 'earliest')
         res = ConfigResource(
             ResourceType.GROUP,

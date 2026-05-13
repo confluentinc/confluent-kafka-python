@@ -164,6 +164,10 @@ def test_records_before_join_not_delivered(kafka_cluster):
     # Override the suite-wide 'earliest' default: this test asserts that
     # pre-join records are NOT delivered, which is only the contract under
     # 'latest'.
+    # TODO KIP-932: passing 'auto.offset.reset' as a consumer-config override
+    # here gives the incorrect impression that it's a consumer property; it's
+    # actually a per-group broker-side setting. Once the fixture exposes a
+    # group-level setter, switch this test to use that instead.
     sc = kafka_cluster.share_consumer({'auto.offset.reset': 'latest'})
     try:
         sc.subscribe([topic])
@@ -437,6 +441,8 @@ def test_resubscribe_to_different_topic(kafka_cluster):
     topic_b = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-resub-b')
 
     sc = kafka_cluster.share_consumer()
+    # TODO KIP-932: move producer creation inside the try block (consistent
+    # with the other tests) so sc doesn't leak if cimpl_producer() raises.
     producer = kafka_cluster.cimpl_producer()
     try:
         # Phase 1: prove the topic_a subscription actually works before we
