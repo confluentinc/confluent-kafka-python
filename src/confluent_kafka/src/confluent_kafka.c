@@ -3548,6 +3548,8 @@ static PyObject *_init_cimpl(void) {
                 return NULL;
         if (PyType_Ready(&ConsumerType) < 0)
                 return NULL;
+        if (PyType_Ready(&ShareConsumerType) < 0)
+                return NULL;
         if (PyType_Ready(&AdminType) < 0)
                 return NULL;
         if (AdminTypes_Ready() < 0)
@@ -3583,6 +3585,9 @@ static PyObject *_init_cimpl(void) {
 
         Py_INCREF(&ConsumerType);
         PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
+
+        Py_INCREF(&ShareConsumerType);
+        PyModule_AddObject(m, "ShareConsumer", (PyObject *)&ShareConsumerType);
 
         Py_INCREF(&AdminType);
         PyModule_AddObject(m, "_AdminClientImpl", (PyObject *)&AdminType);

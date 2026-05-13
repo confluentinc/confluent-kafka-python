@@ -22,10 +22,17 @@ from uuid import uuid1
 from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import Producer, SerializingProducer
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import (
+    AdminClient,
+    AlterConfigOpType,
+    ConfigEntry,
+    ConfigResource,
+    NewTopic,
+    ResourceType,
+)
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from tests.common import TestConsumer
+from tests.common import TestConsumer, TestShareConsumer
 from tests.common._async.consumer import TestAsyncDeserializingConsumer
 from tests.common._async.producer import TestAsyncSerializingProducer
 from tests.common.schema_registry import TestDeserializingConsumer
@@ -133,6 +140,45 @@ class KafkaClusterFixture(object):
             consumer_conf.update(conf)
 
         return TestConsumer(consumer_conf)
+
+    def share_consumer(self, conf=None):
+        """
+        Returns a share consumer bound to this cluster.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+        Returns:
+            ShareConsumer: A new TestShareConsumer instance
+
+        """
+        share_conf = self.client_conf({'group.id': str(uuid1())})
+
+        if conf is not None:
+            share_conf.update(conf)
+
+        # KIP-932: share.auto.offset.reset is a per-group broker-side config with default as "latest".
+        # Set to "earliest" so tests don't have to set it in every call.
+        # TODO KIP-932: this shouldn't live in the share_consumer fixture —
+        # share.auto.offset.reset is a property of the group, not the consumer.
+        # Re-issuing the alter on every consumer construction for the same
+        # group.id is unnecessary. Lift this to a per-group setup step.
+        reset = share_conf.pop('auto.offset.reset', 'earliest')
+        res = ConfigResource(
+            ResourceType.GROUP,
+            share_conf['group.id'],
+            incremental_configs=[
+                ConfigEntry(
+                    'share.auto.offset.reset',
+                    reset,
+                    incremental_operation=AlterConfigOpType.SET,
+                ),
+            ],
+        )
+        for f in self.admin().incremental_alter_configs([res]).values():
+            f.result()
+
+        return TestShareConsumer(share_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
