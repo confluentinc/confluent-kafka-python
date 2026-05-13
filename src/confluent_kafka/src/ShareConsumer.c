@@ -144,6 +144,10 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                         rd_kafka_topic_partition_list_destroy(c_topics);
                         return NULL;
                 }
+                /* TODO KIP-932: cfl_PyUnistr_AsUTF8 can return NULL; passing
+                 * NULL to rd_kafka_topic_partition_list_add would crash.
+                 * Consumer.c has the same gap (pre-existing); fix at least
+                 * here for ShareConsumer. */
                 rd_kafka_topic_partition_list_add(c_topics,
                                                   cfl_PyUnistr_AsUTF8(uo, &uo8),
                                                   RD_KAFKA_PARTITION_UA);
@@ -452,6 +456,12 @@ static PyObject *ShareConsumer_exit(ShareConsumerHandle *self, PyObject *args) {
 
 /**
  * @brief ShareConsumer methods.
+ *
+ * TODO KIP-932: ShareConsumer is not thread-safe. Document this in the
+ * user-facing API, and consider raising an error if used from multiple
+ * threads. librdkafka enforces this on its side, but verify that the
+ * Python wrapper code here does not introduce additional thread-safety
+ * issues.
  */
 static PyMethodDef ShareConsumer_methods[] = {
     {"subscribe", (PyCFunction)ShareConsumer_subscribe,
