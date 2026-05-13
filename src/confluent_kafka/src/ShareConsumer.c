@@ -221,8 +221,13 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
                 return NULL;
         }
         for (i = 0; i < c_topics->cnt; i++) {
-                PyList_SET_ITEM(topics, i,
-                                PyUnicode_FromString(c_topics->elems[i].topic));
+                PyObject *s = PyUnicode_FromString(c_topics->elems[i].topic);
+                if (!s) {
+                        Py_DECREF(topics);
+                        rd_kafka_topic_partition_list_destroy(c_topics);
+                        return NULL;
+                }
+                PyList_SET_ITEM(topics, i, s);
         }
 
         rd_kafka_topic_partition_list_destroy(c_topics);
