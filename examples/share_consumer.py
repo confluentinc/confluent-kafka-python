@@ -24,7 +24,7 @@ import sys
 # in the same share group can read the same partition, and each record is
 # acknowledged implicitly.
 #
-from confluent_kafka import KafkaException, ShareConsumer
+from confluent_kafka import ShareConsumer
 
 
 def print_usage_and_exit(program_name):
@@ -45,7 +45,6 @@ if __name__ == '__main__':
     conf = {
         'bootstrap.servers': broker,
         'group.id': group,
-        'auto.offset.reset': 'earliest',
     }
 
     sc = ShareConsumer(conf)
@@ -55,12 +54,12 @@ if __name__ == '__main__':
         while True:
             messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
             for msg in messages:
-                # This example is fail-fast on per-message
-                # errors — the first error terminates the consumer. For a long-running queue worker, prefer
-                # logging msg.error() and `continue` so transient delivery
-                # errors don't kill the process.
                 if msg.error():
-                    raise KafkaException(msg.error())
+                    # Per-message errors are informational; log and keep
+                    # polling. Truly fatal errors are raised out of poll()
+                    # itself via the error_cb path.
+                    sys.stderr.write('%% Error: %s\n' % msg.error())
+                    continue
                 sys.stderr.write(
                     '%% %s [%d] at offset %d with key %s:\n'
                     % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))

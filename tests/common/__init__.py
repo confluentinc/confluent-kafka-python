@@ -182,19 +182,13 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=
 
 
 class TestShareConsumer(ShareConsumer):
-    """Test wrapper around ShareConsumer.
-
-    Defaults auto.offset.reset to 'earliest' so tests are not sensitive to
-    consumer-group-join timing: records produced before subscribe() are still
-    delivered. Tests that need 'latest' semantics must override explicitly.
-    """
+    """Test wrapper around ShareConsumer."""
 
     __test__ = False  # not a pytest collection target despite the Test* prefix
 
     def __init__(self, conf=None, **kwargs):
         effective_conf = {
             'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS,
-            'auto.offset.reset': 'earliest',
         }
         if conf:
             effective_conf.update(conf)

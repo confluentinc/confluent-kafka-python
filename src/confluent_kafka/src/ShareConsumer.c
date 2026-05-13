@@ -86,6 +86,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 CallState_end(&self->base, &cs);
         }
 
+        /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
+         * pair above and just call ShareConsumer_clear(self) here. */
         Handle_clear(&self->base);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
@@ -94,7 +96,10 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
         /* See ShareConsumer_clear: pair the DECREF with a Py_VISIT so cyclic
-         * GC can find on_commit if a user accidentally passed one. */
+         * GC can find on_commit if a user accidentally passed one.
+         *
+         * TODO KIP-932: drop this special-case once on_commit is rejected
+         * at config time (see ShareConsumer_clear0). */
         if (self->base.u.Consumer.on_commit)
                 Py_VISIT(self->base.u.Consumer.on_commit);
         return Handle_traverse(&self->base, visit, arg);
@@ -267,6 +272,17 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         CallState_begin(&self->base, &cs);
 
+        /* TODO KIP-932: Consumer.c caches a queue handle (rkqu) from
+         * rd_kafka_queue_get_consumer() and feeds it to
+         * rd_kafka_consume_batch_queue() / rd_kafka_commit_queue() to pin
+         * batch fetch and async commits onto the user's polling thread.
+         * Share has no equivalent: rd_kafka_share_consume_batch() takes the
+         * rd_kafka_share_t* directly and librdkafka exposes neither
+         * rd_kafka_share_get_queue() nor the inner rd_kafka_t*. Until that
+         * lands, error_cb/stats_cb/throttle_cb dispatch relies on
+         * rd_kafka_share_consume_batch draining rk_rep internally; see
+         * the callback-dispatch TODO in ShareConsumer_init. */
+
         /* Chunked polling pattern for signal interruptibility. */
         while (1) {
                 chunk_timeout_ms = calculate_chunk_timeout(
@@ -313,10 +329,17 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         /* Handle error from rd_kafka_share_consume_batch() */
         if (error) {
+                for (i = 0; i < rkmessages_size; i++)
+                        rd_kafka_message_destroy(rkmessages[i]);
                 cfl_PyErr_from_error_destroy(error);
                 free(rkmessages);
                 return NULL;
         }
+
+        /* TODO KIP-932: the destroy-loop + free(rkmessages) + return NULL
+         * pattern is repeated across the CallState_end, if (error), and
+         * if (!msglist) branches. Collapse into a single `goto cleanup:`
+         * exit. */
 
         /* Build Python list from all returned messages. */
         msglist = PyList_New(rkmessages_size);
