@@ -124,10 +124,6 @@ def _decimals_eq(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
     return celtypes.BoolType(_d(a).compare(_d(b)) == 0)
 
 
-def _decimals_ne(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
-    return celtypes.BoolType(_d(a).compare(_d(b)) != 0)
-
-
 def _decimals_lt(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
     return celtypes.BoolType(_d(a).compare(_d(b)) < 0)
 
@@ -184,16 +180,6 @@ def _decimals_sign(a: typing.Any) -> celtypes.IntType:
     return celtypes.IntType(1 if d > 0 else -1)
 
 
-def _decimals_scale(a: typing.Any) -> celtypes.IntType:
-    d = _d(a)
-    # Mirror Java BigDecimal.scale() — the negative of the exponent.
-    return celtypes.IntType(-d.as_tuple().exponent)
-
-
-def _decimals_prec(a: typing.Any) -> celtypes.IntType:
-    return celtypes.IntType(len(_d(a).as_tuple().digits))
-
-
 # ---- rounding family ----
 
 def _decimals_round(*args: typing.Any) -> Decimal:
@@ -209,12 +195,26 @@ def _decimals_round(*args: typing.Any) -> Decimal:
 
 
 def _decimals_trunc(*args: typing.Any) -> Decimal:
-    """Truncate to the given scale (toward zero). One-arg form truncates to integer."""
+    """Truncate to the given scale (toward zero). One-arg form truncates to integer.
+
+    Matches Flink's TRUNCATE early-return: if the target scale is at-or-finer
+    than the input's current scale, return the input unchanged. Without this
+    guard, ``quantize`` would zero-pad and the string representation would
+    diverge from Flink (numerically identical, but ``string(trunc(d, n>=cur))``
+    output would differ).
+    """
     if len(args) == 1:
-        return _d(args[0]).quantize(Decimal(1), rounding=decimal.ROUND_DOWN)
+        d = _d(args[0])
+        # current scale = -exponent. Early-return if 0 >= current_scale.
+        if d.as_tuple().exponent >= 0:
+            return d
+        return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN)
     if len(args) == 2:
+        d = _d(args[0])
         scale = int(args[1])
-        return _d(args[0]).quantize(
+        if scale >= -d.as_tuple().exponent:
+            return d
+        return d.quantize(
             Decimal(10) ** -scale, rounding=decimal.ROUND_DOWN)
     raise celpy.CELEvalError(
         f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
@@ -259,7 +259,6 @@ def _string(v: typing.Any) -> celtypes.StringType:
 DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimal": _decimal,
     "decimals.eq": _decimals_eq,
-    "decimals.ne": _decimals_ne,
     "decimals.lt": _decimals_lt,
     "decimals.le": _decimals_le,
     "decimals.gt": _decimals_gt,
@@ -271,8 +270,6 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimals.neg": _decimals_neg,
     "decimals.abs": _decimals_abs,
     "decimals.sign": _decimals_sign,
-    "decimals.scale": _decimals_scale,
-    "decimals.prec": _decimals_prec,
     "decimals.round": _decimals_round,
     "decimals.trunc": _decimals_trunc,
     "decimals.floor": _decimals_floor,
