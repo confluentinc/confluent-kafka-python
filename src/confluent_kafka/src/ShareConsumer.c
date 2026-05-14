@@ -403,10 +403,10 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
                                            PyObject *args,
                                            PyObject *kwargs) {
-        Message *msg  = NULL;
-        int ack_type  = (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT;
-        PyObject *uo8 = NULL;
-        const char *topic;
+        Message *msg      = NULL;
+        int ack_type      = (int)RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT;
+        PyObject *uo8     = NULL;
+        const char *topic = NULL;
         rd_kafka_resp_err_t err;
         static char *kws[] = {"message", "ack_type", NULL};
 
@@ -420,19 +420,16 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
                                          &MessageType, &msg, &ack_type))
                 return NULL;
 
-        /* No need to range-check ack_type here —
-         * rd_kafka_share_acknowledge_offset() does it and returns INVALID_ARG,
-         * which we'll surface as KafkaException. */
+        /* Validation (ack_type range, topic, partition, offset) is left to
+         * librdkafka so every failure surfaces as KafkaException. Pass NULL
+         * topic through for the None case rather than raising ValueError. */
 
-        if (!msg->topic || msg->topic == Py_None) {
-                PyErr_SetString(PyExc_ValueError, "Message topic is None");
-                return NULL;
-        }
-
-        topic = cfl_PyUnistr_AsUTF8(msg->topic, &uo8);
-        if (!topic) {
-                Py_XDECREF(uo8);
-                return NULL;
+        if (msg->topic && msg->topic != Py_None) {
+                topic = cfl_PyUnistr_AsUTF8(msg->topic, &uo8);
+                if (!topic) {
+                        Py_XDECREF(uo8);
+                        return NULL;
+                }
         }
 
         err = rd_kafka_share_acknowledge_offset(
@@ -626,8 +623,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KafkaException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the message is no "
      "longer\n"
-     "                          in-flight, or ack_type is invalid.\n"
-     "  :raises ValueError: if message.topic() is None.\n"
+     "                          in-flight, ack_type is invalid, or "
+     "message.topic() is None.\n"
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 

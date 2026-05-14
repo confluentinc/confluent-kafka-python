@@ -205,8 +205,8 @@ class AcknowledgeType(IntEnum):
     """
 
     #: Record was processed successfully — broker will not redeliver it.
-    ACCEPT = 1
+    ACCEPT = cimpl.SHARE_ACKNOWLEDGE_TYPE_ACCEPT
     #: Could not process — Release it for another delivery attempt
-    RELEASE = 2
+    RELEASE = cimpl.SHARE_ACKNOWLEDGE_TYPE_RELEASE
     #: Could not process - Do not release for another delivery attempt
-    REJECT = 3
+    REJECT = cimpl.SHARE_ACKNOWLEDGE_TYPE_REJECT
