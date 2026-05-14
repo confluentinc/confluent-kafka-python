@@ -190,7 +190,7 @@ def _decimals_scale(a: typing.Any) -> celtypes.IntType:
     return celtypes.IntType(-d.as_tuple().exponent)
 
 
-def _decimals_precision(a: typing.Any) -> celtypes.IntType:
+def _decimals_prec(a: typing.Any) -> celtypes.IntType:
     return celtypes.IntType(len(_d(a).as_tuple().digits))
 
 
@@ -272,7 +272,7 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimals.abs": _decimals_abs,
     "decimals.sign": _decimals_sign,
     "decimals.scale": _decimals_scale,
-    "decimals.precision": _decimals_precision,
+    "decimals.prec": _decimals_prec,
     "decimals.round": _decimals_round,
     "decimals.trunc": _decimals_trunc,
     "decimals.floor": _decimals_floor,
