@@ -399,6 +399,12 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
  * Internally delegates to rd_kafka_share_acknowledge_offset() because the
  * Python Message object does not retain the underlying rd_kafka_message_t
  * pointer (Message_new0 copies fields out and destroys the rkm)
+ *
+ * TODO KIP-932: Java splits ack APIs by message kind — successful records
+ * go through acknowledge(message), error/GAP records through
+ * acknowledge_offset(topic, partition, offset), and crossing the wires
+ * throws. NJC clients (this one included) accept either. Revisit once the
+ * Java-vs-NJC alignment is settled.
  */
 static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
                                            PyObject *args,
