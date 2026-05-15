@@ -115,9 +115,6 @@ def main():
     setup_topic_and_group()
     print('=' * 60)
     print(f'[producer] topic={TOPIC}  group={GROUP}  ready')
-    print('[producer] start consumers in other terminals, e.g.:')
-    print('    python examples/demo_share_consumer.py A')
-    print('    python examples/demo_share_consumer.py B')
     print('[producer] press Enter here to start streaming.')
     print('=' * 60)
     try:
