@@ -27,6 +27,8 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
+        - name: CIBW_ENVIRONMENT_MACOS
+          value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
         - name: Build
           commands:
