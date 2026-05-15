@@ -43,7 +43,11 @@ git clone --depth 1 --branch "$BRANCH" \
     https://github.com/confluentinc/librdkafka.git "$SRC"
 
 if [[ $OSTYPE == linux* ]]; then
-    sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev libsasl2-dev liblz4-dev libzstd-dev
+    if command -v yum &>/dev/null; then
+        yum install -y openssl-devel cyrus-sasl-devel lz4-devel libzstd-devel gcc-c++ git
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev libsasl2-dev liblz4-dev libzstd-dev
+    fi
 elif [[ $OSTYPE == darwin* ]]; then
     # openssl@3 is keg-only in Homebrew (the system ships LibreSSL/Apple
     # crypto with no -lcrypto headers), so configure's compile-probe for
