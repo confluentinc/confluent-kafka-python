@@ -17,8 +17,6 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX arm64 (branch) - Python 3.8-3.12"
-    run:
-      when: "branch = 'demo-current-15-may-branch-wheel'"
     dependencies: []
     task:
       agent:
@@ -39,8 +37,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 (branch) - Python 3.13-3.14"
-    run:
-      when: "branch = 'demo-current-15-may-branch-wheel'"
     dependencies: []
     task:
       agent:
@@ -65,8 +61,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux x64 (branch)"
-    run:
-      when: "branch = 'demo-current-15-may-branch-wheel'"
     dependencies: []
     task:
       agent:
@@ -85,8 +79,6 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheel Verification: OSX arm64 (branch)"
-    run:
-      when: "branch = 'demo-current-15-may-branch-wheel'"
     dependencies:
       - "Wheels: OSX arm64 (branch) - Python 3.8-3.12"
       - "Wheels: OSX arm64 (branch) - Python 3.13-3.14"
@@ -117,8 +109,6 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
   - name: "Wheel Verification: Linux x64 (branch)"
-    run:
-      when: "branch = 'demo-current-15-may-branch-wheel'"
     dependencies:
       - "Wheels: Linux x64 (branch)"
     task:
