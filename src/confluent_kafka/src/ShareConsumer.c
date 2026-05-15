@@ -509,7 +509,8 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                                            PyObject *args,
                                            PyObject *kwargs) {
-        double tmout                             = -1.0;
+        /* Default matches Java's default.api.timeout.ms (60s). */
+        double tmout                             = 60.0;
         rd_kafka_error_t *error                  = NULL;
         rd_kafka_topic_partition_list_t *c_parts = NULL;
         PyThreadState *thread_state              = NULL;
@@ -733,7 +734,7 @@ static PyMethodDef ShareConsumer_methods[] = {
 
     {"commit_sync", (PyCFunction)ShareConsumer_commit_sync,
      METH_VARARGS | METH_KEYWORDS,
-     ".. py:function:: commit_sync([timeout=-1])\n"
+     ".. py:function:: commit_sync([timeout=60])\n"
      "\n"
      "  Synchronously commit pending acknowledgements and block until the\n"
      "  broker responds or the timeout expires.\n"
@@ -747,8 +748,9 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  records previously passed to :py:func:`acknowledge` /\n"
      "  :py:func:`acknowledge_offset` are sent.\n"
      "\n"
-     "  :param float timeout: Maximum time to block (seconds). Default: -1\n"
-     "                        (infinite).\n"
+     "  :param float timeout: Maximum time to block (seconds). Default: 60\n"
+     "                        (matches Java's ``default.api.timeout.ms``).\n"
+     "                        Pass -1 for infinite.\n"
      "  :returns: Dict mapping TopicPartition to None on success or "
      "KafkaError\n"
      "           on per-partition failure (matching Java's\n"
