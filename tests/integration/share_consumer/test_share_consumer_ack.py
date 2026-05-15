@@ -241,7 +241,8 @@ def test_explicit_two_consumers_share_workload(kafka_cluster):
     """Two consumers in one group split the records without overlap."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-explicit-distribute')
     group_id = unique_id('test-share-consumer-ack-explicit-distribute')
-    n = 30
+    # Large n so neither consumer can swallow the whole batch in one fetch.
+    n = 10000
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
@@ -266,6 +267,8 @@ def test_explicit_two_consumers_share_workload(kafka_cluster):
         union = offsets1 | offsets2
         assert overlap == set(), f'duplicate delivery: {overlap}'
         assert len(union) == n, f'missing records: expected {n} unique, got {len(union)}'
+        assert received_1 and received_2, \
+            f'workload not shared: sc1={len(received_1)}, sc2={len(received_2)}'
     finally:
         sc1.close()
         sc2.close()
@@ -511,8 +514,7 @@ def test_mixed_ack_types_in_single_batch(kafka_cluster):
 
 
 def test_double_ack_same_record_is_lenient(kafka_cluster):
-    """Double-ack is silent today (Java raises; NJC may tighten later).
-    Next poll must not raise _STATE."""
+    """Double-acking the same record is a silent no-op; next poll must not raise _STATE."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-double')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
