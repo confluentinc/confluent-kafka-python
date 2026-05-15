@@ -5,6 +5,7 @@ Unit tests for ShareConsumer class.
 """
 
 import threading
+import time
 
 import pytest
 
@@ -141,6 +142,32 @@ def test_poll_no_broker(share_consumer):
 
     messages = share_consumer.poll(timeout=0.1)
     assert messages == []
+
+
+def test_commit_does_not_hang_on_unreachable_broker():
+    """Commit on a fresh, unsubscribed consumer pointed at an unreachable
+    broker returns immediately (no acks pending). The interesting case
+    — pending acks against an unreachable broker — needs wire-frame
+    mocking to exercise."""
+    sc = ShareConsumer(
+        {
+            'bootstrap.servers': '127.0.0.1:1',
+            'group.id': unique_id('test-share-commit-unreachable'),
+            'share.acknowledgement.mode': 'implicit',
+            'socket.timeout.ms': 1000,
+        }
+    )
+    try:
+        # Don't subscribe — librdkafka has crashed in the past when commit
+        # is called on a subscribed-but-never-connected consumer.
+        start = time.monotonic()
+        result = sc.commit_sync(timeout=2.0)
+        elapsed = time.monotonic() - start
+
+        assert result == {}
+        assert elapsed < 5.0, f'commit hung for {elapsed:.2f}s'
+    finally:
+        sc.close()
 
 
 def test_context_manager():
