@@ -49,7 +49,15 @@ case $OSTYPE in
         ;;
 esac
 
-$this_dir/install-librdkafka.sh $librdkafka_version dest
+if [[ -n $LIBRDKAFKA_BRANCH ]]; then
+    if [[ $os == "linux" ]]; then
+        export CIBW_BEFORE_BUILD="tools/wheels/build-librdkafka-branch.sh $LIBRDKAFKA_BRANCH dest"
+    else
+        $this_dir/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+    fi
+else
+    $this_dir/install-librdkafka.sh $librdkafka_version dest
+fi
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
 
