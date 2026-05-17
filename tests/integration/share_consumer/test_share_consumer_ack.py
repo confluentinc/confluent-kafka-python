@@ -39,6 +39,12 @@ def _set_group_config(kafka_cluster, group_id, name, value):
         f.result()
 
 
+# TODO KIP-932: these tests verify ack success indirectly — by opening a
+# second consumer in the same share group and asserting no redelivery.
+# Once the per-record acknowledgement callback is exposed through the
+# Python binding add direct success/failure assertions on the callback instead of relying
+# on the no-redelivery side-channel.
+
 # --- implicit mode ---------------------------------------------------------
 
 
@@ -276,10 +282,8 @@ def test_explicit_two_consumers_share_workload(kafka_cluster):
 
 # --- delivery limit, atomicity, transactions ------------------------------
 
-# TODO KIP-932: late-ack semantics differ between Java (raises
-# InvalidRecordStateException) and NJC (silent success). Add a test when the
-# Java-vs-NJC contract is settled. Basic lock-expiry redelivery is already
-# covered by test_share_consumer.py::test_records_redelivered_after_lock_timeout.
+# TODO KIP-932: Add a test once the per-record ack callback is exposed
+# through the Python binding.
 
 
 def test_delivery_attempt_limit_archives_record(kafka_cluster):
@@ -410,7 +414,13 @@ def test_acknowledge_offset_happy_path(kafka_cluster):
 
 def test_acknowledge_offset_invalid_coords_raise(kafka_cluster):
     """Bogus coords raise KafkaException; the consumer stays usable.
-    librdkafka collapses bogus-topic/partition/offset to _STATE rather than _INVALID_ARG.
+
+    There are two failure paths:
+      - Structurally invalid args (NULL topic, negative partition/offset)
+        are rejected by the front-door check in librdkafka with _INVALID_ARG.
+      - Well-formed coords that the consumer never fetched (unsubscribed
+        topic, out-of-range partition, out-of-range offset) fall through
+        to the inflight-map lookup in librdkafka with _STATE.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-offset-invalid')
 
@@ -459,6 +469,17 @@ def test_acknowledge_offset_invalid_coords_raise(kafka_cluster):
                 AcknowledgeType.ACCEPT,
             )
         assert ex.value.args[0].code() == KafkaError._STATE
+
+        # Structurally invalid: negative partition hits the front-door
+        # check before any inflight-map lookup, so _INVALID_ARG
+        with pytest.raises(KafkaException) as ex:
+            sc.acknowledge_offset(
+                m.topic(),
+                -1,
+                m.offset(),
+                AcknowledgeType.ACCEPT,
+            )
+        assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
         # Real record must still be ackable.
         sc.acknowledge(m, AcknowledgeType.ACCEPT)
