@@ -146,33 +146,19 @@ def unique_id(prefix):
     return f'{prefix}-{uuid.uuid4().hex[:10]}'
 
 
-def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=0.5):
-    """Round-robin poll until total non-error messages reach n_expected.
+def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=0.5, *, ack_type=None):
+    """Round-robin poll consumers until n_expected non-error messages arrive.
 
-    Returns a list of message lists, one per input consumer, in the same order.
-    Stops early once the expected total is reached, or when timeout_s elapses.
+    Returns one message list per consumer, in input order. Stops at n_expected
+    or timeout_s.
 
-    Tests with N>2 consumers under the suite-wide
-    group.share.record.lock.duration.ms=1000
-    should lower poll_timeout_s so a full round-robin round completes within
-    the 1s lock window — otherwise locks expire before the same consumer's
-    next poll can implicit-ack, and records get redelivered to other
-    consumers (i.e. apparent duplicate delivery).
+    With N>2 consumers and the suite-wide 1s lock duration, drop poll_timeout_s
+    so each round finishes within the lock window — otherwise records leak to
+    other consumers and look like duplicate deliveries.
 
-    IMPORTANT: implicit-ack only. This helper assumes share consumers are in
-    implicit-ack mode (the only mode the Python wrapper currently exposes).
-    In implicit mode, the second poll() automatically acknowledges records
-    delivered by the first, so the loop here is safe.
-
-    TODO KIP-932: when explicit-ack mode lands in the Python wrapper
-    (ShareConsumer.acknowledge()), update this helper to ack each message as
-    it's drained, otherwise the broker will return INFLIGHT-records errors
-    on the second poll. Same caveat exists in the librdkafka tests.
-
-    TODO KIP-932: after the final poll() in the loop below, the last batch of
-    records is never implicitly acknowledged (no subsequent poll to piggyback
-    on). Some tests assume the tail batch is ack'd. Fix once explicit-ack is
-    exposed: emit an explicit ack for the last drained batch before returning.
+    ack_type=None drains in implicit-ack mode (next poll() auto-acks the prior
+    batch; the tail batch is left unacked). Pass an AcknowledgeType to ack each
+    message inline — required when share.acknowledgement.mode=explicit.
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s
@@ -181,6 +167,8 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=
             for m in sc.poll(timeout=poll_timeout_s):
                 if m.error() is None:
                     bucket.append(m)
+                    if ack_type is not None:
+                        sc.acknowledge(m, ack_type)
         if sum(len(b) for b in received) >= n_expected:
             break
     return received
