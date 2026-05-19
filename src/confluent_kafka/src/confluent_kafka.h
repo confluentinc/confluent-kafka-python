@@ -458,8 +458,8 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    PyObject *kwargs);
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
-PyObject *c_parts_to_commit_result_dict(
-    const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *
+c_parts_to_commit_result_dict(const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist);
