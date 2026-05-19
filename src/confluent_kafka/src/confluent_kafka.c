@@ -812,16 +812,15 @@ static int Message_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         int32_t leader_epoch = -1;
         short delivery_count = -1;
 
-        static char *kws[] = {"topic",        "partition", "offset",
-                              "key",          "value",     "headers",
-                              "error",        "timestamp", "latency",
+        static char *kws[] = {"topic",        "partition",      "offset",
+                              "key",          "value",          "headers",
+                              "error",        "timestamp",      "latency",
                               "leader_epoch", "delivery_count", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdih", kws,
-                                         &topic, &partition, &offset, &key,
-                                         &value, &headers, &error, &timestamp,
-                                         &latency, &leader_epoch,
-                                         &delivery_count)) {
+        if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "|OiLOOOOOdih", kws, &topic, &partition, &offset,
+                &key, &value, &headers, &error, &timestamp, &latency,
+                &leader_epoch, &delivery_count)) {
                 return -1;
         }
 
@@ -1106,10 +1105,8 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
 
         /* Share consumer: 0 from librdkafka means unavailable; store as -1
          * so the Python accessor returns None for non-share consumers. */
-        {
-                int16_t dc = rd_kafka_message_delivery_count(rkm);
-                self->delivery_count = dc > 0 ? dc : -1;
-        }
+        int16_t dc           = rd_kafka_message_delivery_count(rkm);
+        self->delivery_count = dc > 0 ? dc : -1;
 
         return (PyObject *)self;
 }
@@ -1599,13 +1596,12 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 
 /**
  * @brief Convert a per-partition commit result list into a Python
- * dict(TopicPartition -> KafkaError | None), mirroring Java's
- * Map<TopicIdPartition, Optional<KafkaException>> from ShareConsumer.commitSync().
+ * dict(TopicPartition -> KafkaError | None).
  *
  * @returns The new Python dict, or NULL on allocation failure.
  */
-PyObject *c_parts_to_commit_result_dict(
-    const rd_kafka_topic_partition_list_t *c_parts) {
+PyObject *
+c_parts_to_commit_result_dict(const rd_kafka_topic_partition_list_t *c_parts) {
         PyObject *result;
         size_t i;
 
@@ -1615,7 +1611,7 @@ PyObject *c_parts_to_commit_result_dict(
 
         for (i = 0; i < (size_t)c_parts->cnt; i++) {
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-                PyObject *key = c_part_to_py(rktpar);
+                PyObject *key                            = c_part_to_py(rktpar);
                 PyObject *val = KafkaError_new_or_None(rktpar->err, NULL);
 
                 if (!key || !val || PyDict_SetItem(result, key, val) == -1) {

@@ -153,10 +153,11 @@ def test_repeated_commit_returns_empty_on_second_call(kafka_cluster):
 
 
 def test_commit_with_large_batch(kafka_cluster):
-    """A non-trivial batch (100 records) commits cleanly — exercises the
-    commit path with more than the n=2..3 used elsewhere."""
+    """A large batch (10k records) commits cleanly — exercises the
+    ack-batch build, partition-list conversion, and broker round-trip
+    at scale rather than the n=2..3 used in the happy-path tests."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-large-batch')
-    n = 100
+    n = 10000
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
@@ -165,12 +166,12 @@ def test_commit_with_large_batch(kafka_cluster):
         producer = kafka_cluster.cimpl_producer()
         for i in range(n):
             producer.produce(topic, value=f'msg-{i}'.encode())
-        producer.flush(timeout=30.0)
+        producer.flush(timeout=60.0)
 
-        msgs = drain_share_consumers([sc], n, timeout_s=30.0)[0]
+        msgs = drain_share_consumers([sc], n, timeout_s=60.0)[0]
         assert len(msgs) >= n // 2, f'only drained {len(msgs)}/{n}'
 
-        result = sc.commit_sync(timeout=15.0)
+        result = sc.commit_sync(timeout=30.0)
         assert isinstance(result, dict)
         for tp, err in result.items():
             assert err is None, f'{tp.topic}[{tp.partition}] -> {err}'
@@ -436,9 +437,10 @@ def test_explicit_commit_with_no_acks_is_noop(kafka_cluster):
 
 
 def test_commit_after_lock_expiry(kafka_cluster):
-    """Acking + committing past the lock duration: librdkafka may raise
-    _STATE on the ack, or the commit may surface INVALID_RECORD_STATE
-    per partition. Either is acceptable.
+    """After the broker's lock duration expires, the local acknowledge()
+    call still succeeds — librdkafka has no client-side lock check; lock
+    state is broker-side. The broker rejects at commit time, surfacing
+    INVALID_RECORD_STATE in the per-partition commit results.
 
     Relies on the suite-wide 1s lock duration from broker_conf().
     """
@@ -455,17 +457,19 @@ def test_commit_after_lock_expiry(kafka_cluster):
         msgs = drain_share_consumers([sc], 1)[0]
         assert msgs
 
-        # Wait past the broker's 1s lock duration.
+        # Wait past the broker's 1s lock duration. The batch transitions
+        # ACQUIRED -> AVAILABLE on the broker; librdkafka's local in-flight
+        # table is unaffected.
         time.sleep(1.5)
 
-        try:
-            sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
-        except KafkaException as e:
-            assert e.args[0].code() in (KafkaError._STATE, KafkaError.INVALID_RECORD_STATE)
-            return
+        # Local ack succeeds — librdkafka has no lock-expiry check.
+        sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
 
+        # Broker rejects the stale ack with INVALID_RECORD_STATE.
         result = sc.commit_sync(timeout=10.0)
-        assert isinstance(result, dict)
+        assert any(
+            err is not None and err.code() == KafkaError.INVALID_RECORD_STATE for err in result.values()
+        ), f'expected INVALID_RECORD_STATE in {result}'
     finally:
         sc.close()
 
