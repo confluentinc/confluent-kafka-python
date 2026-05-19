@@ -273,8 +273,7 @@ def test_explicit_two_consumers_share_workload(kafka_cluster):
         union = offsets1 | offsets2
         assert overlap == set(), f'duplicate delivery: {overlap}'
         assert len(union) == n, f'missing records: expected {n} unique, got {len(union)}'
-        assert received_1 and received_2, \
-            f'workload not shared: sc1={len(received_1)}, sc2={len(received_2)}'
+        assert received_1 and received_2, f'workload not shared: sc1={len(received_1)}, sc2={len(received_2)}'
     finally:
         sc1.close()
         sc2.close()
