@@ -201,20 +201,14 @@ def test_stats_cb():
     sc.close()
 
 
-# TODO KIP-932: ShareConsumer_init does not call rd_kafka_set_log_queue() —
-# librdkafka exposes no rd_kafka_share_set_log_queue() wrapper today
-# (rd_kafka_t* is opaque inside rd_kafka_share_t). common_conf_setup still
-# sets log.queue=true + log_cb when `logger` is configured, but the log
-# queue is never forwarded to the polled queue, so records never reach the
-# Python logger. Flip @pytest.mark.skip off once the wrapper lands and
-# ShareConsumer_init forwards the queue.
-@pytest.mark.skip(reason="TODO KIP-932: rd_kafka_share_set_log_queue() not yet exposed by librdkafka")
 def test_log_cb():
     """Test that log_cb routes librdkafka log records to the Python logger.
 
     Mirrors test_log.py::test_consumer_logger_logging_in_given_format —
-    debug=msg is enough to produce a synchronous INIT record on construction
-    once the log queue is wired into the polled queue.
+    debug=msg is enough to produce a synchronous INIT record on construction.
+    ShareConsumer_init forwards the share consumer's log queue onto rk_rep
+    via rd_kafka_share_set_log_queue(), so log records flow through the same
+    drain that share_consume_batch performs on the poll thread.
     """
     log_records = []
 
@@ -241,6 +235,51 @@ def test_log_cb():
 
     assert any('INIT' in r.getMessage() for r in log_records), \
         "log_cb should have routed an INIT record to the logger"
+
+
+def test_log_cb_requires_polling():
+    """Share consumer has no background log drainer — records sit in
+    rk_logq (forwarded to rk_rep) until poll() / commit_sync /
+    commit_async runs.
+
+    Distinguishes ShareConsumer from regular Consumer in user-visible
+    behavior: a busy app thread that pauses polling silently accumulates
+    log records rather than streaming them to the logger. Pin this
+    contract in code so docs (Task #14) can cite a test, not speculation.
+    """
+    log_records = []
+
+    class _CollectingHandler(logging.Handler):
+        def emit(self, record):
+            log_records.append(record)
+
+    logger = logging.getLogger(unique_id('test-share-log-needs-poll'))
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(_CollectingHandler())
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-needs-poll'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+        }
+    )
+
+    # Without poll(), the share consumer never drains its log queue.
+    # librdkafka emits INIT records during rd_kafka_share_consumer_new
+    # but they sit in rk_logq → rk_rep until something pumps the queue.
+    time.sleep(0.3)
+    assert not log_records, (
+        f"no log records should surface before poll(); got "
+        f"{[r.getMessage() for r in log_records]}"
+    )
+
+    # One poll() drains the queue and INIT records reach the logger.
+    sc.poll(timeout=0.2)
+    assert log_records, "poll() should drain the share consumer log queue"
+    sc.close()
 
 
 # TODO KIP-932: ShareConsumer_init does not call
