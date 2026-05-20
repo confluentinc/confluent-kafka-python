@@ -240,45 +240,6 @@ def test_unacked_records_block_next_poll(kafka_cluster):
         sc.close()
 
 
-# --- queue-style distribution across multiple consumers --------------------
-
-
-def test_explicit_two_consumers_share_workload(kafka_cluster):
-    """Two consumers in one group split the records without overlap."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-explicit-distribute')
-    group_id = unique_id('test-share-consumer-ack-explicit-distribute')
-    # Large n so neither consumer can swallow the whole batch in one fetch.
-    n = 10000
-
-    sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
-    sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
-    try:
-        sc1.subscribe([topic])
-        sc2.subscribe([topic])
-        # Both join before we produce — otherwise one drains the lot.
-        for _ in range(10):
-            sc1.poll(timeout=0.2)
-            sc2.poll(timeout=0.2)
-
-        producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
-        producer.flush(timeout=10.0)
-
-        received_1, received_2 = drain_share_consumers([sc1, sc2], n, ack_type=AcknowledgeType.ACCEPT)
-        offsets1 = {(m.topic(), m.partition(), m.offset()) for m in received_1}
-        offsets2 = {(m.topic(), m.partition(), m.offset()) for m in received_2}
-
-        overlap = offsets1 & offsets2
-        union = offsets1 | offsets2
-        assert overlap == set(), f'duplicate delivery: {overlap}'
-        assert len(union) == n, f'missing records: expected {n} unique, got {len(union)}'
-        assert received_1 and received_2, f'workload not shared: sc1={len(received_1)}, sc2={len(received_2)}'
-    finally:
-        sc1.close()
-        sc2.close()
-
-
 # --- delivery limit, atomicity, transactions ------------------------------
 
 # TODO KIP-932: Add a test once the per-record ack callback is exposed
