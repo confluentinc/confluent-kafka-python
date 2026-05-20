@@ -2088,7 +2088,7 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 CallState_fetch_exception(cs);
         crash:
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2154,7 +2154,8 @@ static void throttle_cb(rd_kafka_t *rk,
          */
 err:
         CallState_crash(cs);
-        rd_kafka_yield(h->rk);
+        /* Use callback's rk — h->rk is NULL on share consumer. */
+        rd_kafka_yield(rk);
 done:
         CallState_resume(cs);
 }
@@ -2179,7 +2180,8 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                /* Use callback's rk — h->rk is NULL on share consumer. */
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2214,7 +2216,7 @@ log_cb(const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield((rd_kafka_t *)rk);
         }
 
         CallState_resume(cs);
@@ -2379,7 +2381,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
-            h->rk, token, (int64_t)(expiry * 1000), principal,
+            rk, token, (int64_t)(expiry * 1000), principal,
             (const char **)rd_extensions, rd_extensions_size, err_msg,
             sizeof(err_msg));
         Py_DECREF(result);
@@ -2399,8 +2401,9 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         goto done;
 
 fail:
+        /* Use callback's rk — see comment on set_token above. */
         err_code = rd_kafka_oauthbearer_set_token_failure(
-            h->rk, "OAuth callback raised exception");
+            rk, "OAuth callback raised exception");
         if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Failed to set token failure");
@@ -2410,7 +2413,7 @@ fail:
         goto done;
 err:
         PyGILState_Release(gstate);
-        rd_kafka_yield(h->rk);
+        rd_kafka_yield(rk);
 done:
         PyGILState_Release(gstate);
 }
