@@ -380,9 +380,9 @@ class SoakClient(object):
                 next_status = now + self.disprate
 
             try:
-                messages = self.share_consumer.consume_batch(timeout=1.0)
+                messages = self.share_consumer.poll(timeout=1.0)
             except Exception as ex:
-                self.logger.error("share: consume_batch exception: {}".format(ex))
+                self.logger.error("share: poll exception: {}".format(ex))
                 self.share_err_cnt += 1
                 self.incr_counter("consumer.error", 1)
                 continue
