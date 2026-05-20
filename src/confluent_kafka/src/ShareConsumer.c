@@ -914,9 +914,23 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
-        /* TODO KIP-932: call rd_kafka_set_log_queue() once librdkafka adds a
-         * rd_kafka_share_set_log_queue() wrapper — needs rd_kafka_t *, which
-         * is opaque inside rd_kafka_share_t in the public API. */
+        /* Forward the share consumer's internal log queue onto rk_rep so
+         * log_cb fires during share_consume_batch / commit_sync /
+         * commit_async drains. common_conf_setup sets log.queue=true
+         * whenever `logger` is configured; without this forwarding the
+         * records sit in rk_logq forever. Mirrors Consumer.c:1819-1820. */
+        if (self->base.logger) {
+                rd_kafka_resp_err_t err =
+                    rd_kafka_share_set_log_queue(self->rkshare, NULL);
+                if (err) {
+                        cfl_PyErr_Format(err,
+                                         "Failed to set share log queue: %s",
+                                         rd_kafka_err2str(err));
+                        rd_kafka_share_destroy(self->rkshare);
+                        self->rkshare = NULL;
+                        return -1;
+                }
+        }
 
         /* TODO KIP-932: call rd_kafka_sasl_background_callbacks_enable() for
          * OAuth once librdkafka adds a share-level wrapper for the same reason.
