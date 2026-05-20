@@ -867,16 +867,43 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
          * return double pointer */
         self->batch_size = 10005;
 
-        /* TODO KIP-932: callback dispatch needs verification. error_cb /
-         * stats_cb / throttle_cb trampolines call CallState_get(), which
-         * asserts (process abort) on a missing CallState. Regular Consumer
-         * pins callbacks to the user thread via rd_kafka_poll_set_consumer;
-         * share has no equivalent. It works today only because
-         * rd_kafka_share_consume_batch drains rk_rep at entry/exit'
-         * The KIP-932 design doc guarantees this for
-         * share_acknowledgement_commit_cb but not the legacy callbacks —
-         * Alternatively add a share poll_set_consumer
-         * analogue. */
+        /* Callback dispatch (error_cb / stats_cb / throttle_cb / log_cb)
+         * relies on librdkafka draining rk_rep synchronously on the user's
+         * poll thread inside share_consume_batch and the commit entry
+         * points. The trampolines call CallState_get() which asserts
+         * (process abort) on a missing CallState, so dispatch must happen
+         * on a thread where the binding has called CallState_begin first.
+         *
+         * Verified against librdkafka (~/projects/librdkafka, v2.14.0):
+         *   - rd_kafka_share_consume_batch drains rk_rep on entry and
+         *     exit via rd_kafka_q_serve(rk->rk_rep, ...) at
+         *     src/rdkafka.c:3730 and :3763.
+         *   - rd_kafka_share_commit_sync drains on entry at
+         *     src/rdkafka.c:4316.
+         *   - rd_kafka_share_commit_async drains on entry at
+         *     src/rdkafka.c:4246.
+         *   - rd_kafka_share_consumer_close forwards rk_rep to the close
+         *     queue at src/rdkafka.c:5062, which is then drained by the
+         *     rd_kafka_poll_cb loop at :5143-5159.
+         * The binding wraps all four entry points (poll, commit_sync,
+         * commit_async, close) with CallState_begin/end so the assertion
+         * holds wherever librdkafka may dispatch a callback.
+         *
+         * NOT YET AN API CONTRACT. This is current librdkafka behavior,
+         * not a documented guarantee. The KIP-932 design doc only
+         * promises synchronous-on-poll-thread dispatch for
+         * share_acknowledgement_commit_cb — the legacy callbacks
+         * (error_cb / stats_cb / throttle_cb / log_cb) inherit the
+         * behavior incidentally.
+         *
+         * librdkafka should formalize this in its public contract: either
+         * (a) document that share_consume_batch / share_commit_* /
+         * share_consumer_close drain rk_rep synchronously and dispatch
+         * the legacy callbacks on the calling thread, or (b) expose a
+         * rd_kafka_share_poll_set_consumer() (or equivalent) so the
+         * binding can pin dispatch to a known queue rather than relying
+         * on the internal drain pattern. Track this as a librdkafka
+         * upstream ask. */
 
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
