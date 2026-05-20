@@ -23,6 +23,7 @@ import time
 import pytest
 
 from confluent_kafka import AcknowledgeType, KafkaError, KafkaException
+from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from tests.common import drain_share_consumers, unique_id
 
 # --- happy path -----------------------------------------------------------
@@ -1382,3 +1383,141 @@ def test_commit_async_rejects_arguments(kafka_cluster):
             sc.commit_async(1.0)
     finally:
         sc.close()
+
+
+# --- multi-consumer scenarios ---------------------------------------------
+
+
+def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
+    """10k records to a partition topic, two consumers in one share group,
+    every record delivered exactly once across the group
+    """
+    group_id = unique_id('test-share-consumer-commit-high-volume')
+
+    res = ConfigResource(
+        ResourceType.GROUP,
+        group_id,
+        incremental_configs=[
+            ConfigEntry(
+                'share.record.lock.duration.ms',
+                '30000',
+                incremental_operation=AlterConfigOpType.SET,
+            ),
+        ],
+    )
+    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
+        f.result()
+
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        'test-share-consumer-commit-high-volume',
+        conf={'num_partitions': 6},
+    )
+    n = 10_000
+
+    producer = kafka_cluster.cimpl_producer()
+    for i in range(n):
+        producer.produce(topic, value=f'msg-{i}'.encode())
+    producer.flush(timeout=30.0)
+
+    sc1 = kafka_cluster.share_consumer({'group.id': group_id})
+    sc2 = kafka_cluster.share_consumer({'group.id': group_id})
+    try:
+        sc1.subscribe([topic])
+        sc2.subscribe([topic])
+
+        buckets = drain_share_consumers([sc1, sc2], n, timeout_s=60.0, poll_timeout_s=3.0)
+
+        for sc in (sc1, sc2):
+            result = sc.commit_sync(timeout=10.0)
+            assert isinstance(result, dict)
+            for tp, err in result.items():
+                assert err is None, f'{tp.topic}[{tp.partition}] -> {err}'
+
+        keys1 = {(m.partition(), m.offset()) for m in buckets[0]}
+        keys2 = {(m.partition(), m.offset()) for m in buckets[1]}
+
+        assert len(keys1) == len(buckets[0]), 'sc1 saw duplicate (partition, offset)'
+        assert len(keys2) == len(buckets[1]), 'sc2 saw duplicate (partition, offset)'
+        assert keys1.isdisjoint(keys2), f'overlap of {len(keys1 & keys2)} records across consumers'
+        assert len(keys1 | keys2) == n, (
+            f'expected {n} unique records, got {len(keys1 | keys2)} ' f'(sc1={len(keys1)}, sc2={len(keys2)})'
+        )
+    finally:
+        sc1.close()
+        sc2.close()
+
+
+def test_redelivery_increments_delivery_count_and_commits(kafka_cluster):
+    """A record re-acquired after lock expiry has its delivery_count
+    incremented by exactly 1, and commit_sync handles the redelivered
+    record cleanly.
+    """
+    group_id = unique_id('test-share-consumer-commit-delivery-count')
+
+    res = ConfigResource(
+        ResourceType.GROUP,
+        group_id,
+        incremental_configs=[
+            ConfigEntry(
+                'share.record.lock.duration.ms',
+                '5000',
+                incremental_operation=AlterConfigOpType.SET,
+            ),
+        ],
+    )
+    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
+        f.result()
+
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-delivery-count')
+
+    sc_a = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    sc_b = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        # Subscribe only A first so the single record lands unambiguously
+        # on sc_a — no race with sc_b for the first delivery.
+        sc_a.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        producer.produce(topic, value=b'redelivery-probe')
+        producer.flush(timeout=10.0)
+
+        a_batch = drain_share_consumers([sc_a], 1, timeout_s=5.0)[0]
+        assert a_batch, 'sc_a never received the produced record'
+        a_first = a_batch[0]
+
+        # First delivery: count==1. Do NOT acknowledge — leave A's 5s
+        # acquisition lock to expire.
+        assert a_first.delivery_count() == 1, (
+            f'first delivery should have delivery_count=1, ' f'got {a_first.delivery_count()}'
+        )
+        target = (a_first.partition(), a_first.offset())
+
+        # Before lock expiry, sc_b must NOT see the record — confirms the
+        # broker is honouring A's still-valid acquisition lock.
+        sc_b.subscribe([topic])
+        for m in sc_b.poll(timeout=0.5):
+            if m.error() is None:
+                assert (m.partition(), m.offset()) != target, 'sc_b saw the record before sc_a lost its lock'
+
+        # Wait past this group's 5s lock duration so sc_b can steal.
+        time.sleep(5.5)
+
+        b_batch = drain_share_consumers([sc_b], 1, timeout_s=10.0)[0]
+        b_seen = next(
+            (m for m in b_batch if (m.partition(), m.offset()) == target),
+            None,
+        )
+        assert b_seen is not None, f'sc_b never received redelivery of {target} after lock expiry'
+        # Redelivery is exactly the second delivery — incremented by 1.
+        assert b_seen.delivery_count() == 2, (
+            f'redelivery should have delivery_count=2, ' f'got {b_seen.delivery_count()}'
+        )
+
+        sc_b.acknowledge(b_seen, AcknowledgeType.ACCEPT)
+        result = sc_b.commit_sync(timeout=10.0)
+        assert isinstance(result, dict)
+        for tp, err in result.items():
+            assert err is None, f'{tp.topic}[{tp.partition}] -> {err}'
+    finally:
+        sc_a.close()
+        sc_b.close()
