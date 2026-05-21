@@ -237,6 +237,13 @@ typedef struct {
 
         rd_kafka_type_t type; /* Producer or consumer */
 
+        /* Distinguishes ShareConsumer from regular Consumer when both
+         * share type == RD_KAFKA_CONSUMER. Set by ShareConsumer_init
+         * before common_conf_setup. Read in the inline config-key chain
+         * (stats_cb, statistics.interval.ms) and in consumer_conf_set_special
+         * (on_commit) to reject share-incompatible knobs at config time. */
+        int is_share_consumer;
+
         PyObject *logger;
         PyObject *oauth_cb;
         int oauth_token_set;
