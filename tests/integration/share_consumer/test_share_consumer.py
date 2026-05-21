@@ -19,8 +19,12 @@
 
 import time
 
+import pytest
+
+from confluent_kafka import AcknowledgeType, KafkaException, Producer
 from tests.common import (
     drain_share_consumers,
+    set_group_config,
     unique_id,
 )
 
@@ -512,3 +516,48 @@ def test_messages_in_offset_order_single_consumer(kafka_cluster):
             assert offsets == sorted(offsets), f"Partition {p} offsets out of order: {offsets}"
     finally:
         sc.close()
+
+
+def test_open_transaction_stalls_share_group(kafka_cluster):
+    """read_committed: open txn blocks delivery until commit."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-txn-stall')
+    group_id = unique_id('test-share-consumer-txn-stall')
+
+    txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
+    try:
+        txn_producer.init_transactions(10)
+    except KafkaException as e:
+        pytest.skip(f'broker does not support transactions: {e}')
+
+    try:
+        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
+    except KafkaException as e:
+        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+
+    sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc.subscribe([topic])
+
+        # Produce inside an uncommitted txn.
+        txn_producer.begin_transaction()
+        for i in range(3):
+            txn_producer.produce(topic, value=f'txn-{i}'.encode())
+        txn_producer.flush(5)
+
+        # Open txn must stall delivery.
+        stalled = drain_share_consumers([sc], 1, timeout_s=5.0)[0]
+        assert stalled == [], f'open txn did not stall delivery: {[m.value() for m in stalled]}'
+
+        txn_producer.commit_transaction(10)
+
+        msgs = drain_share_consumers([sc], 3, ack_type=AcknowledgeType.ACCEPT)[0]
+        assert len(msgs) == 3, f'expected 3 msgs after commit, got {len(msgs)}'
+    finally:
+        sc.close()
+
+
+def test_double_close_is_idempotent(kafka_cluster):
+    """close() twice must be a no-op (__exit__ relies on this)."""
+    sc = kafka_cluster.share_consumer()
+    sc.close()
+    sc.close()

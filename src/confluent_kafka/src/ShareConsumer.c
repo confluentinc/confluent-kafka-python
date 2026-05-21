@@ -615,6 +615,23 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
+    /* TODO KIP-932: librdkafka error code → Python exception mapping is
+     * provisional. Today the share consumer translates every librdkafka
+     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
+     * want each code to map to the Python exception a user porting from
+     * Java would expect, e.g.
+     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
+     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
+     * Open question: per-partition broker errors in commit_sync's result
+     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
+     * KafkaError, or translate as well?
+     *
+     * Revisit holistically once:
+     *   - librdkafka's share-consumer error surface is stable (some codes
+     *     may be redefined as work progresses), and
+     *   - the equivalent translation lands on commit_sync / commit_async /
+     *     ack-callback paths (currently TODO'd separately).
+     */
     {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: acknowledge(message, "
@@ -626,6 +643,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param Message message: A message returned by poll().\n"
      "  :param AcknowledgeType ack_type: ACCEPT (default), RELEASE, or "
      "REJECT.\n"
+     "  :raises TypeError: if message is not a Message instance or ack_type "
+     "is not an integer.\n"
      "  :raises KafkaException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the message is no "
      "longer\n"
@@ -646,6 +665,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param int offset: Offset to acknowledge.\n"
      "  :param AcknowledgeType ack_type: ACCEPT (default), RELEASE, or "
      "REJECT.\n"
+     "  :raises TypeError: if topic is not a str, partition/offset are not "
+     "integers, or ack_type is not an integer.\n"
      "  :raises KafkaException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the offset is not\n"
      "                          in-flight, the offset is a GAP record,\n"

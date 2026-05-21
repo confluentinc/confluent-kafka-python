@@ -22,6 +22,7 @@ import time
 import uuid
 
 from confluent_kafka import Consumer, ShareConsumer
+from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 
@@ -146,11 +147,47 @@ def unique_id(prefix):
     return f'{prefix}-{uuid.uuid4().hex[:10]}'
 
 
-def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=0.5, *, ack_type=None):
-    """Round-robin poll consumers until n_expected non-error messages arrive.
+def set_group_config(kafka_cluster, group_id, name, value):
+    """Set one dynamic group config via incremental_alter_configs."""
+    res = ConfigResource(
+        ConfigResource.Type.GROUP,
+        group_id,
+        incremental_configs=[
+            ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET),
+        ],
+    )
+    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
+        f.result()
 
-    Returns one message list per consumer, in input order. Stops at n_expected
-    or timeout_s.
+
+def poll_first_batch(consumer, timeout_s=20.0, poll_timeout_s=0.5):
+    """Return the first non-empty batch of non-error messages from a share consumer.
+
+    Polls repeatedly until at least one non-error message arrives, or until
+    timeout_s elapses. Returns the contents of a single poll() call — does not
+    accumulate across polls and does not acknowledge anything.
+
+    Use this when a test needs to inspect the first records the broker delivers
+    *before* any implicit- or explicit-ack happens. Unlike drain_share_consumers,
+    which loops poll() calls and therefore implicit-acks each prior batch on
+    every iteration, poll_first_batch returns whatever the first non-empty
+    poll() returned and stops, leaving acknowledgement to the caller.
+
+    Returns an empty list if timeout_s elapses without any non-error message.
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        batch = [msg for msg in consumer.poll(timeout=poll_timeout_s) if msg.error() is None]
+        if batch:
+            return batch
+    return []
+
+
+def drain_share_consumers(consumers, total_messages, timeout_s=20.0, poll_timeout_s=0.5, *, ack_type=None):
+    """Round-robin poll consumers until total_messages non-error messages arrive (across all consumers combined).
+
+    Returns one message list per consumer, in input order. Stops at
+    total_messages or timeout_s.
 
     With N>2 consumers and the suite-wide 1s lock duration, drop poll_timeout_s
     so each round finishes within the lock window — otherwise records leak to
@@ -159,17 +196,22 @@ def drain_share_consumers(consumers, n_expected, timeout_s=20.0, poll_timeout_s=
     ack_type=None drains in implicit-ack mode (next poll() auto-acks the prior
     batch; the tail batch is left unacked). Pass an AcknowledgeType to ack each
     message inline — required when share.acknowledgement.mode=explicit.
+
+    TODO KIP-932: once commit_sync() / commit_async() are exposed on the
+    ShareConsumer binding, the implicit-ack drain (ack_type=None) should
+    still emit a commit on the tail batch so callers don't have to chase
+    leaked records. Add a commit step here once those APIs land.
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         for sc, bucket in zip(consumers, received):
-            for m in sc.poll(timeout=poll_timeout_s):
-                if m.error() is None:
-                    bucket.append(m)
+            for msg in sc.poll(timeout=poll_timeout_s):
+                if msg.error() is None:
+                    bucket.append(msg)
                     if ack_type is not None:
-                        sc.acknowledge(m, ack_type)
-        if sum(len(b) for b in received) >= n_expected:
+                        sc.acknowledge(msg, ack_type)
+        if sum(len(bucket) for bucket in received) >= total_messages:
             break
     return received
 

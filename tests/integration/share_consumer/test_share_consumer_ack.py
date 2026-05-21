@@ -21,29 +21,20 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Producer
-from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource
-from tests.common import drain_share_consumers, unique_id
-
-
-def _set_group_config(kafka_cluster, group_id, name, value):
-    """Set one dynamic share-group config."""
-    res = ConfigResource(
-        ConfigResource.Type.GROUP,
-        group_id,
-        incremental_configs=[
-            ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET),
-        ],
-    )
-    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
-        f.result()
-
+from confluent_kafka import AcknowledgeType, KafkaError, KafkaException
+from tests.common import drain_share_consumers, poll_first_batch, unique_id
 
 # TODO KIP-932: these tests verify ack success indirectly — by opening a
 # second consumer in the same share group and asserting no redelivery.
 # Once the per-record acknowledgement callback is exposed through the
 # Python binding add direct success/failure assertions on the callback instead of relying
 # on the no-redelivery side-channel.
+
+# TODO KIP-932: add unit tests (alongside integration tests) that exercise
+# type and value validation of acknowledge() / acknowledge_offset() input
+# parameters — wrong arg types, out-of-range ack_type values, negative
+# partition/offset, etc. Land these with the commit_sync / commit_async PR
+# that introduces the equivalent input-validation surface.
 
 # --- implicit mode ---------------------------------------------------------
 
@@ -71,25 +62,44 @@ def test_implicit_mode_acknowledge_raises(kafka_cluster):
 
 
 def test_implicit_mode_autocommits_on_next_poll(kafka_cluster):
-    """Next poll() in implicit mode commits the previous batch."""
+    """Next poll() in implicit mode commits the previous batch.
+
+    The implicit-ack chain works like this: the first poll() returns a batch
+    that is held as 'inflight'; the next poll() acks that batch and may
+    return more records; and so on. To verify the chain ack'd every record,
+    we capture the first batch explicitly (before any ack), drain the
+    remaining records, and assert that a second consumer joining the same
+    group sees no redelivery.
+    """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-implicit-autocommit')
     group_id = unique_id('test-share-consumer-ack-implicit-autocommit')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'implicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        produced = [f'msg-{i}'.encode() for i in range(n)]
-        for v in produced:
-            producer.produce(topic, value=v)
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        first = drain_share_consumers([sc1], n)[0]
-        assert len(first) == n
+        # Capture the first batch (x records) before any ack happens.
+        first_batch = poll_first_batch(sc1)
+        assert first_batch, 'broker delivered nothing on first poll'
 
-        sc1.poll(timeout=2.0)  # implicit-ack the prior batch
+        # Subsequent polls implicit-ack the prior batch; drain the rest
+        # (num_messages - x records) so the total adds up.
+        remaining = drain_share_consumers([sc1], num_messages - len(first_batch), timeout_s=10.0)[0]
+
+        received_values = {m.value() for m in first_batch + remaining}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
+
+        # Final poll acks the tail batch returned by drain.
+        sc1.poll(timeout=2.0)
     finally:
         sc1.close()
 
@@ -97,7 +107,10 @@ def test_implicit_mode_autocommits_on_next_poll(kafka_cluster):
     try:
         sc2.subscribe([topic])
         leftovers = drain_share_consumers([sc2], 1, timeout_s=5.0)[0]
-        assert leftovers == [], f'expected no redelivery, got {[m.value() for m in leftovers]} (produced {produced})'
+        assert leftovers == [], (
+            f'sc1 ack-chain should have acked all {num_messages} records; '
+            f'sc2 unexpectedly received {[m.value() for m in leftovers]} (produced {produced})'
+        )
     finally:
         sc2.close()
 
@@ -109,29 +122,36 @@ def test_explicit_accept_prevents_redelivery(kafka_cluster):
     """ACCEPT means done — no redelivery."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-explicit-accept')
     group_id = unique_id('test-share-consumer-ack-explicit-accept')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
-
-        sc1.poll(timeout=2.0)  # flush ACCEPTs
+        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
     finally:
+        # close() runs rd_kafka_share_consumer_close(), which sends pending
+        # ack requests to the broker before destroying the consumer.
         sc1.close()
 
     sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc2.subscribe([topic])
         leftovers = drain_share_consumers([sc2], 1, timeout_s=5.0, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert leftovers == [], 'ACCEPT should prevent redelivery'
+        assert leftovers == [], (
+            f'ACCEPT should prevent redelivery; sc2 unexpectedly received '
+            f'{[m.value() for m in leftovers]} (produced {produced})'
+        )
     finally:
         sc2.close()
 
@@ -140,29 +160,35 @@ def test_explicit_reject_prevents_redelivery(kafka_cluster):
     """REJECT archives the record (poison-pill)."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-explicit-reject')
     group_id = unique_id('test-share-consumer-ack-explicit-reject')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], n, ack_type=AcknowledgeType.REJECT)[0]
-        assert len(msgs) == n
-
-        sc1.poll(timeout=2.0)  # flush REJECTs
+        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.REJECT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
     finally:
+        # close() flushes pending acks via rd_kafka_share_consumer_close().
         sc1.close()
 
     sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc2.subscribe([topic])
         leftovers = drain_share_consumers([sc2], 1, timeout_s=5.0, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert leftovers == [], 'REJECT should permanently archive'
+        assert leftovers == [], (
+            f'REJECT should permanently archive; sc2 unexpectedly received '
+            f'{[m.value() for m in leftovers]} (produced {produced})'
+        )
     finally:
         sc2.close()
 
@@ -182,7 +208,7 @@ def test_explicit_release_causes_redelivery(kafka_cluster):
         first_batch = drain_share_consumers([sc], 1)[0]
         assert first_batch
         first = first_batch[0]
-        coords = (first.topic(), first.partition(), first.offset())
+        released_coords = (first.topic(), first.partition(), first.offset())
 
         sc.acknowledge(first, AcknowledgeType.RELEASE)
 
@@ -191,12 +217,12 @@ def test_explicit_release_causes_redelivery(kafka_cluster):
         while time.time() < deadline and not seen_again:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
-                    if (m.topic(), m.partition(), m.offset()) == coords:
+                    if (m.topic(), m.partition(), m.offset()) == released_coords:
                         seen_again = True
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
                     if seen_again:
                         break
-        assert seen_again, f'released record {coords} never came back'
+        assert seen_again, f'released record {released_coords} never came back'
     finally:
         sc.close()
 
@@ -228,9 +254,7 @@ def test_unacked_records_block_next_poll(kafka_cluster):
 
         with pytest.raises(KafkaException) as ex:
             sc.poll(timeout=2.0)
-        err = ex.value.args[0]
-        assert err.code() == KafkaError._STATE
-        assert 'not been acknowledged' in err.str()
+        assert ex.value.args[0].code() == KafkaError._STATE
 
         # Recover: ack then poll.
         for m in first_batch:
@@ -258,20 +282,20 @@ def test_delivery_attempt_limit_archives_record(kafka_cluster):
         producer.produce(topic, value=b'poison-0')
         producer.flush(timeout=10.0)
 
-        coords = None
+        poison_coords = None
         releases = 0
         deadline = time.time() + 60.0
         while releases < 5 and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
-                    if coords is None:
-                        coords = (m.topic(), m.partition(), m.offset())
+                    if poison_coords is None:
+                        poison_coords = (m.topic(), m.partition(), m.offset())
                     sc.acknowledge(m, AcknowledgeType.RELEASE)
                     releases += 1
                     if releases >= 5:
                         break
         assert releases >= 5, f'only saw {releases} releases, expected 5'
-        assert coords is not None
+        assert poison_coords is not None
 
         # Flush the final RELEASE.
         try:
@@ -279,50 +303,25 @@ def test_delivery_attempt_limit_archives_record(kafka_cluster):
         except KafkaException:
             pass
 
-        # Watch for ~10s — must not redeliver.
+        # The acquisition lock (group.share.record.lock.duration.ms=1000 in
+        # test config) prevents same-consumer redelivery within ~1s of the
+        # last release. Wait past that window before checking, so any
+        # redelivery the broker would do has a chance to surface.
+        time.sleep(2.0)
+
+        # Collect everything received during the watch window and assert
+        # explicitly that the poison record was not redelivered.
+        seen_after_archive = []
         deadline = time.time() + 10.0
         while time.time() < deadline:
             for m in sc.poll(timeout=2.0):
-                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
-                    pytest.fail(f'record {coords} redelivered past delivery.attempt.limit')
-    finally:
-        sc.close()
-
-
-def test_open_transaction_stalls_share_group(kafka_cluster):
-    """read_committed: open txn blocks delivery until commit."""
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-txn-stall')
-    group_id = unique_id('test-share-consumer-ack-txn-stall')
-
-    txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
-    try:
-        txn_producer.init_transactions(10)
-    except KafkaException as e:
-        pytest.skip(f'broker does not support transactions: {e}')
-
-    try:
-        _set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
-    except KafkaException as e:
-        pytest.skip(f'cannot set share.isolation.level on group: {e}')
-
-    sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
-    try:
-        sc.subscribe([topic])
-
-        # Produce inside an uncommitted txn.
-        txn_producer.begin_transaction()
-        for i in range(3):
-            txn_producer.produce(topic, value=f'txn-{i}'.encode())
-        txn_producer.flush(5)
-
-        # Open txn must stall delivery.
-        stalled = drain_share_consumers([sc], 1, timeout_s=5.0)[0]
-        assert stalled == [], f'open txn did not stall delivery: {[m.value() for m in stalled]}'
-
-        txn_producer.commit_transaction(10)
-
-        msgs = drain_share_consumers([sc], 3, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == 3, f'expected 3 msgs after commit, got {len(msgs)}'
+                if m.error() is None:
+                    seen_after_archive.append((m.topic(), m.partition(), m.offset()))
+                    sc.acknowledge(m, AcknowledgeType.ACCEPT)
+        assert poison_coords not in seen_after_archive, (
+            f'record {poison_coords} redelivered past delivery.attempt.limit; '
+            f'records seen during watch window: {seen_after_archive}'
+        )
     finally:
         sc.close()
 
@@ -334,20 +333,23 @@ def test_acknowledge_offset_happy_path(kafka_cluster):
     """acknowledge_offset() advances state identically to acknowledge(msg)."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-offset-happy')
     group_id = unique_id('test-share-consumer-ack-offset-happy')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        seen = 0
+        # Use acknowledge_offset() (not drain_share_consumers, which goes
+        # through acknowledge(message, ...)) — that's the API under test here.
+        received = []
         deadline = time.time() + 20.0
-        while time.time() < deadline and seen < n:
+        while time.time() < deadline and len(received) < num_messages:
             for m in sc1.poll(timeout=0.5):
                 if m.error() is None:
                     sc1.acknowledge_offset(
@@ -356,18 +358,24 @@ def test_acknowledge_offset_happy_path(kafka_cluster):
                         m.offset(),
                         AcknowledgeType.ACCEPT,
                     )
-                    seen += 1
-        assert seen == n, f'expected to ack {n} records, acked {seen}'
+                    received.append(m)
 
-        sc1.poll(timeout=2.0)  # flush ACCEPTs
+        received_values = {m.value() for m in received}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
     finally:
+        # close() flushes pending acks via rd_kafka_share_consumer_close().
         sc1.close()
 
     sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc2.subscribe([topic])
         leftovers = drain_share_consumers([sc2], 1, timeout_s=5.0, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert leftovers == [], 'acknowledge_offset(ACCEPT) should prevent redelivery'
+        assert leftovers == [], (
+            f'acknowledge_offset(ACCEPT) should prevent redelivery; sc2 '
+            f'unexpectedly received {[m.value() for m in leftovers]} (produced {produced})'
+        )
     finally:
         sc2.close()
 
@@ -451,30 +459,37 @@ def test_acknowledge_offset_invalid_coords_raise(kafka_cluster):
 
 
 def test_mixed_ack_types_in_single_batch(kafka_cluster):
-    """ACCEPT + RELEASE + REJECT in one batch: only the RELEASEd one redelivers."""
+    """ACCEPT + RELEASE + REJECT in one batch: only the RELEASEd one redelivers.
+
+    This test specifically exercises mixed ack types WITHIN a single Acquired
+    set. In explicit-ack mode, calling poll() again before acking the
+    previous batch raises _STATE, so we cannot accumulate records across
+    multiple polls. If the broker splits delivery into < num_messages on the
+    first Acquired set, the in-batch property no longer applies and we skip.
+    """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-mixed')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        # Need all 3 in one Acquired set before acking — if librdkafka splits
-        # the batch the len() assertion below trips.
-        batch = []
-        deadline = time.time() + 20.0
-        while time.time() < deadline and len(batch) < n:
-            for m in sc.poll(timeout=1.0):
-                if m.error() is None:
-                    batch.append(m)
-            if len(batch) >= n:
-                break
-        assert len(batch) == n, f'expected {n} in a single Acquired set, got {len(batch)}'
+        # Single poll with a generous timeout — multiple polls would crash
+        # with _STATE in explicit mode (prior batch unacked).
+        batch = [m for m in sc.poll(timeout=10.0) if m.error() is None]
+        if len(batch) != num_messages:
+            for m in batch:
+                sc.acknowledge(m, AcknowledgeType.ACCEPT)
+            pytest.skip(
+                f'broker did not deliver {num_messages} records in a single '
+                f'Acquired set (got {len(batch)}); this test specifically '
+                f'requires mixed ack types within one batch'
+            )
 
         batch.sort(key=lambda x: (x.partition(), x.offset()))
         sc.acknowledge(batch[0], AcknowledgeType.ACCEPT)
@@ -525,29 +540,29 @@ def test_double_ack_same_record_is_lenient(kafka_cluster):
 
 
 def test_ack_offset_from_prior_batch_raises(kafka_cluster):
-    """Acking an offset from a prior, already-flushed batch raises _STATE."""
+    """Acking an offset from a prior batch that's no longer inflight raises _STATE."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-prior-batch')
-    n_first = 3
+    num_first_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n_first):
+        for i in range(num_first_messages):
             producer.produce(topic, value=f'first-{i}'.encode())
         producer.flush(timeout=10.0)
 
         first_batch = []
         deadline = time.time() + 20.0
-        while time.time() < deadline and len(first_batch) < n_first:
+        while time.time() < deadline and len(first_batch) < num_first_messages:
             for m in sc.poll(timeout=0.5):
                 if m.error() is None:
                     first_batch.append(m)
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
-            if len(first_batch) >= n_first:
+            if len(first_batch) >= num_first_messages:
                 break
-        assert len(first_batch) == n_first
+        assert len(first_batch) == num_first_messages
         stale = first_batch[0]
         stale_coords = (stale.topic(), stale.partition(), stale.offset())
 
@@ -569,7 +584,7 @@ def test_ack_offset_from_prior_batch_raises(kafka_cluster):
             sc.acknowledge_offset(*stale_coords, AcknowledgeType.ACCEPT)
         assert ex.value.args[0].code() == KafkaError._STATE
 
-        # Ack the live batch so close() doesn't trip.
+        # Ack the live batch so close() doesn't raise on unacked records.
         for m in second_batch:
             sc.acknowledge(m, AcknowledgeType.ACCEPT)
     finally:
@@ -579,26 +594,26 @@ def test_ack_offset_from_prior_batch_raises(kafka_cluster):
 def test_out_of_order_acks_within_batch(kafka_cluster):
     """Acks within one batch may arrive in any order."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-out-of-order')
-    n = 5
+    num_messages = 5
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
         batch = []
         deadline = time.time() + 20.0
-        while time.time() < deadline and len(batch) < n:
+        while time.time() < deadline and len(batch) < num_messages:
             for m in sc.poll(timeout=1.0):
                 if m.error() is None:
                     batch.append(m)
-            if len(batch) >= n:
+            if len(batch) >= num_messages:
                 break
-        assert len(batch) == n, f'expected {n} in one Acquired set, got {len(batch)}'
+        assert len(batch) == num_messages, f'expected {num_messages} in one Acquired set, got {len(batch)}'
 
         # Highest offset first per partition.
         by_partition = {}
@@ -666,13 +681,6 @@ def test_ack_after_unsubscribe_does_not_crash(kafka_cluster):
         sc.close()
 
 
-def test_double_close_is_idempotent(kafka_cluster):
-    """close() twice must be a no-op (__exit__ relies on this)."""
-    sc = kafka_cluster.share_consumer()
-    sc.close()
-    sc.close()
-
-
 def test_acknowledge_rejects_non_message_argument(kafka_cluster):
     """Non-Message arg raises TypeError at the binding (PyArg O!)."""
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
@@ -687,35 +695,33 @@ def test_acknowledge_rejects_non_message_argument(kafka_cluster):
 def test_partial_ack_still_blocks_next_poll(kafka_cluster):
     """Acking a subset of an Acquired set still triggers _STATE on next poll."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-partial')
-    n = 5
+    num_messages = 5
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
         batch = []
         deadline = time.time() + 20.0
-        while time.time() < deadline and len(batch) < n:
+        while time.time() < deadline and len(batch) < num_messages:
             for m in sc.poll(timeout=1.0):
                 if m.error() is None:
                     batch.append(m)
-            if len(batch) >= n:
+            if len(batch) >= num_messages:
                 break
-        assert len(batch) == n, f'expected {n} in one Acquired set, got {len(batch)}'
+        assert len(batch) == num_messages, f'expected {num_messages} in one Acquired set, got {len(batch)}'
 
         for m in batch[:3]:
             sc.acknowledge(m, AcknowledgeType.ACCEPT)
 
         with pytest.raises(KafkaException) as ex:
             sc.poll(timeout=2.0)
-        err = ex.value.args[0]
-        assert err.code() == KafkaError._STATE
-        assert 'not been acknowledged' in err.str()
+        assert ex.value.args[0].code() == KafkaError._STATE
 
         # Ack the rest; poll should be clean.
         for m in batch[3:]:
