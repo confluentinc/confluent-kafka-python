@@ -197,10 +197,8 @@ def drain_share_consumers(consumers, total_messages, timeout_s=20.0, poll_timeou
     batch; the tail batch is left unacked). Pass an AcknowledgeType to ack each
     message inline — required when share.acknowledgement.mode=explicit.
 
-    TODO KIP-932: once commit_sync() / commit_async() are exposed on the
-    ShareConsumer binding, the implicit-ack drain (ack_type=None) should
-    still emit a commit on the tail batch so callers don't have to chase
-    leaked records. Add a commit step here once those APIs land.
+    drain doesn't auto-commit. Tests that need commit_sync to return non-empty
+    results call it themselves; everything else flushes via close().
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s
