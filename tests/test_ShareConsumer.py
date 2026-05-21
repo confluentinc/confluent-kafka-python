@@ -8,7 +8,7 @@ import threading
 
 import pytest
 
-from confluent_kafka import KafkaError, KafkaException, ShareConsumer
+from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, ShareConsumer
 from tests.common import (
     TestShareConsumer,
     TestUtils,
@@ -253,6 +253,48 @@ def test_poll_with_non_numeric_timeout_raises(share_consumer):
 # helper. Strict isinstance(item, str) checking would catch buggy callers but
 # is a backward-incompatible change. Add a negative test for these once the
 # behavior is tightened.
+
+
+def test_acknowledge_rejects_non_message_argument(share_consumer):
+    """acknowledge() must reject non-Message arguments."""
+    for bad in (None, 'not-a-message', 42, object(), []):
+        with pytest.raises(TypeError):
+            share_consumer.acknowledge(bad, AcknowledgeType.ACCEPT)
+
+
+def test_acknowledge_offset_rejects_non_str_topic(share_consumer):
+    """acknowledge_offset() must reject non-str topic."""
+    for bad in (None, 42, object(), []):
+        with pytest.raises(TypeError):
+            share_consumer.acknowledge_offset(bad, 0, 0, AcknowledgeType.ACCEPT)
+
+
+def test_acknowledge_offset_rejects_non_int_partition(share_consumer):
+    """acknowledge_offset() must reject non-int partition."""
+    for bad in ('str', None, object(), [], 1.5):
+        with pytest.raises(TypeError):
+            share_consumer.acknowledge_offset('topic', bad, 0, AcknowledgeType.ACCEPT)
+
+
+def test_acknowledge_offset_rejects_non_int_offset(share_consumer):
+    """acknowledge_offset() must reject non-int offset."""
+    for bad in ('str', None, object(), [], 1.5):
+        with pytest.raises(TypeError):
+            share_consumer.acknowledge_offset('topic', 0, bad, AcknowledgeType.ACCEPT)
+
+
+def test_acknowledge_offset_rejects_negative_partition(share_consumer):
+    """librdkafka rejects negative partition with _INVALID_ARG."""
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.acknowledge_offset('topic', -1, 0, AcknowledgeType.ACCEPT)
+    assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+
+
+def test_acknowledge_offset_rejects_negative_offset(share_consumer):
+    """librdkafka rejects negative offset with _INVALID_ARG."""
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.acknowledge_offset('topic', 0, -1, AcknowledgeType.ACCEPT)
+    assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
 
 def test_poll_interruptible_by_signal():
