@@ -33,19 +33,23 @@ def test_implicit_commit_sync_returns_partition_results(kafka_cluster):
     """Implicit + sync commit returns a dict of TopicPartition -> None with
     no per-partition errors."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-implicit-sync')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc], n)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc], num_messages)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc missed records: produced={set(produced)} received={received_values}'
 
         result = sc.commit_sync(timeout=10.0)
         assert isinstance(result, dict)
@@ -59,18 +63,23 @@ def test_implicit_commit_sync_returns_partition_results(kafka_cluster):
 def test_implicit_commit_async_returns_immediately(kafka_cluster):
     """Async commit returns None and doesn't block."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-implicit-async')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        assert len(drain_share_consumers([sc], n)[0]) == n
+        msgs = drain_share_consumers([sc], num_messages)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc missed records: produced={set(produced)} received={received_values}'
 
         start = time.monotonic()
         result = sc.commit_async()
@@ -85,19 +94,23 @@ def test_implicit_commit_async_returns_immediately(kafka_cluster):
 def test_explicit_commit_sync_succeeds(kafka_cluster):
     """ACCEPT every record then commit; per-partition results are clean."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-explicit-accept')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc missed records: produced={set(produced)} received={received_values}'
 
         result = sc.commit_sync(timeout=10.0)
         assert isinstance(result, dict)
@@ -130,19 +143,23 @@ def test_commit_with_nothing_pending_returns_empty(kafka_cluster):
 def test_repeated_commit_returns_empty_on_second_call(kafka_cluster):
     """Two commits in a row: the second has nothing to send."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-repeated')
-    n = 2
+    num_messages = 2
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc missed records: produced={set(produced)} received={received_values}'
 
         first = sc.commit_sync(timeout=10.0)
         assert isinstance(first, dict)
@@ -158,19 +175,19 @@ def test_commit_with_large_batch(kafka_cluster):
     ack-batch build, partition-list conversion, and broker round-trip
     at scale rather than the n=2..3 used in the happy-path tests."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-large-batch')
-    n = 10000
+    num_messages = 10000
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=60.0)
 
-        msgs = drain_share_consumers([sc], n, timeout_s=60.0)[0]
-        assert len(msgs) >= n // 2, f'only drained {len(msgs)}/{n}'
+        msgs = drain_share_consumers([sc], num_messages, timeout_s=60.0)[0]
+        assert len(msgs) >= num_messages // 2, f'only drained {len(msgs)}/{num_messages}'
 
         result = sc.commit_sync(timeout=30.0)
         assert isinstance(result, dict)
@@ -229,7 +246,7 @@ def test_release_through_commit_returns_record_to_available(kafka_cluster):
         first_batch = drain_share_consumers([sc], 1)[0]
         assert first_batch
         first = first_batch[0]
-        coords = (first.topic(), first.partition(), first.offset())
+        released_coords = (first.topic(), first.partition(), first.offset())
 
         sc.acknowledge(first, AcknowledgeType.RELEASE)
         result = sc.commit_sync(timeout=10.0)
@@ -241,12 +258,12 @@ def test_release_through_commit_returns_record_to_available(kafka_cluster):
         while not seen_again and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
-                    if (m.topic(), m.partition(), m.offset()) == coords:
+                    if (m.topic(), m.partition(), m.offset()) == released_coords:
                         seen_again = True
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
                     if seen_again:
                         break
-        assert seen_again, f'released record {coords} never came back'
+        assert seen_again, f'released record {released_coords} never came back'
     finally:
         sc.close()
 
@@ -254,14 +271,14 @@ def test_release_through_commit_returns_record_to_available(kafka_cluster):
 def test_commit_with_mixed_ack_types(kafka_cluster):
     """ACCEPT/RELEASE/REJECT mixed in one batch all land via commit."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-mixed')
-    n = 6
+    num_messages = 6
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
@@ -272,12 +289,12 @@ def test_commit_with_mixed_ack_types(kafka_cluster):
         ]
         gathered = 0
         deadline = time.time() + 10.0
-        while gathered < n and time.time() < deadline:
+        while gathered < num_messages and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
                     sc.acknowledge(m, types[gathered % 3])
                     gathered += 1
-                    if gathered >= n:
+                    if gathered >= num_messages:
                         break
         assert gathered >= 3, f'only got {gathered} records'
 
@@ -303,14 +320,14 @@ def test_committed_releases_archive_at_delivery_limit(kafka_cluster):
         producer.produce(topic, value=b'poison-0')
         producer.flush(timeout=10.0)
 
-        coords = None
+        poison_coords = None
         releases = 0
         deadline = time.time() + 60.0
         while releases < 5 and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
-                    if coords is None:
-                        coords = (m.topic(), m.partition(), m.offset())
+                    if poison_coords is None:
+                        poison_coords = (m.topic(), m.partition(), m.offset())
                     sc.acknowledge(m, AcknowledgeType.RELEASE)
                     sc.commit_sync(timeout=5.0)
                     releases += 1
@@ -321,8 +338,8 @@ def test_committed_releases_archive_at_delivery_limit(kafka_cluster):
         deadline = time.time() + 10.0
         while time.time() < deadline:
             for m in sc.poll(timeout=2.0):
-                if m.error() is None and (m.topic(), m.partition(), m.offset()) == coords:
-                    pytest.fail(f'record {coords} redelivered after 5 releases')
+                if m.error() is None and (m.topic(), m.partition(), m.offset()) == poison_coords:
+                    pytest.fail(f'record {poison_coords} redelivered after 5 releases')
     finally:
         sc.close()
 
@@ -400,18 +417,23 @@ def test_explicit_commit_after_implicit_autocommit_is_noop(kafka_cluster):
     """Implicit mode auto-commits on the second poll; an explicit commit
     after that has nothing to send."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-after-autocommit')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        assert len(drain_share_consumers([sc], n)[0]) == n
+        msgs = drain_share_consumers([sc], num_messages)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc missed records: produced={set(produced)} received={received_values}'
         sc.poll(timeout=2.0)  # auto-commits the previous batch
 
         assert sc.commit_sync(timeout=2.0) == {}
@@ -759,17 +781,17 @@ def test_commit_with_short_timeout_does_not_crash(kafka_cluster):
     either is acceptable. The contract here is no crash and bounded
     wall-clock."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-short-timeout')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
 
         start = time.monotonic()
         try:
@@ -841,26 +863,30 @@ def test_commit_before_close_persists_acks(kafka_cluster):
     the same group sees no redelivery. (close() alone does NOT flush.)"""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-before-close')
     group_id = unique_id('test-share-consumer-commit-before-close')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
 
         result = sc1.commit_sync(timeout=10.0)
         assert isinstance(result, dict)
     finally:
         sc1.close()
 
-    # Implicit verifier so any redelivery doesn't trip _STATE.
+    # Implicit verifier so any redelivery doesn't raise _STATE.
     sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'implicit'})
     try:
         sc2.subscribe([topic])
@@ -905,17 +931,17 @@ def test_async_then_sync_commit_both_complete(kafka_cluster):
     """commit_async() immediately followed by commit_sync(): both
     resolve cleanly without one blocking or duplicating the other."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-then-sync')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
 
         assert sc.commit_async() is None
         result = sc.commit_sync(timeout=10.0)
@@ -930,17 +956,17 @@ def test_commit_after_unsubscribe_does_not_crash(kafka_cluster):
     """commit() after unsubscribe(): KIP doesn't define this; we just
     pin down whatever librdkafka does today and make sure it's stable."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-unsub')
-    n = 2
+    num_messages = 2
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
 
         sc.unsubscribe()
         result = sc.commit_sync(timeout=5.0)
@@ -955,18 +981,18 @@ def test_commit_after_unsubscribe_does_not_crash(kafka_cluster):
 def test_commit_with_explicit_mode(kafka_cluster):
     """share.acknowledgement.mode=explicit parses and works end-to-end."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-explicit-cfg')
-    n = 2
+    num_messages = 2
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc], n, ack_type=AcknowledgeType.ACCEPT)[0]
+        msgs = drain_share_consumers([sc], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
         assert len(msgs) >= 1
 
         result = sc.commit_sync(timeout=10.0)
@@ -990,18 +1016,23 @@ def test_implicit_commit_async_persists(kafka_cluster):
     durably land. Fresh consumer in same group sees no redelivery."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-implicit-durable')
     group_id = unique_id('test-share-consumer-commit-async-implicit-durable')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'implicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        assert len(drain_share_consumers([sc1], n)[0]) == n
+        msgs = drain_share_consumers([sc1], num_messages)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
         assert sc1.commit_async() is None
         for _ in range(5):
             sc1.poll(timeout=0.5)
@@ -1027,19 +1058,23 @@ def test_explicit_commit_async_accept_persists(kafka_cluster):
     same group sees no redelivery."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-accept')
     group_id = unique_id('test-share-consumer-commit-async-accept')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
 
         assert sc1.commit_async() is None
         for _ in range(5):
@@ -1077,7 +1112,7 @@ def test_explicit_commit_async_release_redelivers(kafka_cluster):
         first_batch = drain_share_consumers([sc], 1)[0]
         assert first_batch
         first = first_batch[0]
-        coords = (first.topic(), first.partition(), first.offset())
+        released_coords = (first.topic(), first.partition(), first.offset())
 
         sc.acknowledge(first, AcknowledgeType.RELEASE)
         assert sc.commit_async() is None
@@ -1087,12 +1122,12 @@ def test_explicit_commit_async_release_redelivers(kafka_cluster):
         while not seen_again and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
-                    if (m.topic(), m.partition(), m.offset()) == coords:
+                    if (m.topic(), m.partition(), m.offset()) == released_coords:
                         seen_again = True
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
                     if seen_again:
                         break
-        assert seen_again, f'released record {coords} never came back via async commit'
+        assert seen_again, f'released record {released_coords} never came back via async commit'
     finally:
         sc.close()
 
@@ -1133,14 +1168,14 @@ def test_commit_async_with_mixed_ack_types(kafka_cluster):
     """ACCEPT/RELEASE/REJECT mixed in one batch + commit_async — no
     error, mirrors the sync mixed-ack test."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-mixed')
-    n = 6
+    num_messages = 6
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
@@ -1151,12 +1186,12 @@ def test_commit_async_with_mixed_ack_types(kafka_cluster):
         ]
         gathered = 0
         deadline = time.time() + 10.0
-        while gathered < n and time.time() < deadline:
+        while gathered < num_messages and time.time() < deadline:
             for m in sc.poll(timeout=2.0):
                 if m.error() is None:
                     sc.acknowledge(m, types[gathered % 3])
                     gathered += 1
-                    if gathered >= n:
+                    if gathered >= num_messages:
                         break
         assert gathered >= 3, f'only got {gathered} records'
 
@@ -1204,7 +1239,7 @@ def test_commit_async_return_value_is_always_none(kafka_cluster):
     """commit_async never returns a dict — pure side-effect, type-stable
     across empty and non-empty states."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-return-type')
-    n = 3
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
@@ -1212,10 +1247,10 @@ def test_commit_async_return_value_is_always_none(kafka_cluster):
         assert sc.commit_async() is None  # nothing pending
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
 
         assert sc.commit_async() is None  # with pending acks
     finally:
@@ -1237,16 +1272,16 @@ def test_commit_async_inside_with_block(kafka_cluster):
     __exit__ persists, mirroring the explicit-close path."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-with-block')
     group_id = unique_id('test-share-consumer-commit-async-with-block')
-    n = 2
+    num_messages = 2
 
     with kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'implicit'}) as sc:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
         assert sc.commit_async() is None
         for _ in range(5):
             sc.poll(timeout=0.5)
@@ -1266,17 +1301,17 @@ def test_multiple_commit_async_then_sync_drains_all(kafka_cluster):
     """Three commit_async calls followed by commit_sync — sync resolves
     cleanly with no per-partition errors."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-multi-async-then-sync')
-    n = 5
+    num_messages = 5
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
+        for i in range(num_messages):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
-        drain_share_consumers([sc], n)
+        drain_share_consumers([sc], num_messages)
 
         assert sc.commit_async() is None
         assert sc.commit_async() is None
@@ -1295,19 +1330,23 @@ def test_commit_async_then_immediate_close_persists(kafka_cluster):
     librdkafka does today. Most likely close drains the in-flight."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-async-then-close')
     group_id = unique_id('test-share-consumer-commit-async-then-close')
-    n = 3
+    num_messages = 3
 
     sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
         sc1.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        for i in range(n):
-            producer.produce(topic, value=f'msg-{i}'.encode())
+        produced = [f'msg-{i}'.encode() for i in range(num_messages)]
+        for value in produced:
+            producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], n, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == n
+        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        received_values = {m.value() for m in msgs}
+        assert received_values == set(
+            produced
+        ), f'sc1 missed records: produced={set(produced)} received={received_values}'
 
         assert sc1.commit_async() is None
         # No intervening poll — close immediately after async submit.
@@ -1412,10 +1451,10 @@ def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
         'test-share-consumer-commit-high-volume',
         conf={'num_partitions': 6},
     )
-    n = 10_000
+    num_messages = 10_000
 
     producer = kafka_cluster.cimpl_producer()
-    for i in range(n):
+    for i in range(num_messages):
         producer.produce(topic, value=f'msg-{i}'.encode())
     producer.flush(timeout=30.0)
 
@@ -1425,7 +1464,7 @@ def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
         sc1.subscribe([topic])
         sc2.subscribe([topic])
 
-        buckets = drain_share_consumers([sc1, sc2], n, timeout_s=60.0, poll_timeout_s=3.0)
+        buckets = drain_share_consumers([sc1, sc2], num_messages, timeout_s=60.0, poll_timeout_s=3.0)
 
         for sc in (sc1, sc2):
             result = sc.commit_sync(timeout=10.0)
@@ -1439,8 +1478,8 @@ def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
         assert len(keys1) == len(buckets[0]), 'sc1 saw duplicate (partition, offset)'
         assert len(keys2) == len(buckets[1]), 'sc2 saw duplicate (partition, offset)'
         assert keys1.isdisjoint(keys2), f'overlap of {len(keys1 & keys2)} records across consumers'
-        assert len(keys1 | keys2) == n, (
-            f'expected {n} unique records, got {len(keys1 | keys2)} ' f'(sc1={len(keys1)}, sc2={len(keys2)})'
+        assert len(keys1 | keys2) == num_messages, (
+            f'expected {num_messages} unique records, got {len(keys1 | keys2)} ' f'(sc1={len(keys1)}, sc2={len(keys2)})'
         )
     finally:
         sc1.close()

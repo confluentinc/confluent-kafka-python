@@ -238,6 +238,14 @@ def test_any_method_after_close_throws_exception():
         sc.poll(timeout=0.1)
     assert ex.match('Share consumer closed')
 
+    with pytest.raises(RuntimeError) as ex:
+        sc.commit_sync(timeout=0.1)
+    assert ex.match('Share consumer closed')
+
+    with pytest.raises(RuntimeError) as ex:
+        sc.commit_async()
+    assert ex.match('Share consumer closed')
+
 
 def test_required_group_id():
     """Test that group.id is required."""
@@ -322,6 +330,27 @@ def test_acknowledge_offset_rejects_negative_offset(share_consumer):
     with pytest.raises(KafkaException) as ex:
         share_consumer.acknowledge_offset('topic', 0, -1, AcknowledgeType.ACCEPT)
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+
+
+def test_commit_sync_rejects_non_numeric_timeout(share_consumer):
+    """commit_sync(timeout=...) must reject non-numeric values."""
+    for bad in ('str', None, object(), []):
+        with pytest.raises(TypeError):
+            share_consumer.commit_sync(timeout=bad)
+
+
+def test_commit_sync_rejects_unknown_kwargs(share_consumer):
+    """commit_sync() must reject unknown keyword arguments."""
+    with pytest.raises(TypeError):
+        share_consumer.commit_sync(unknown_kwarg=1.0)
+
+
+def test_commit_async_rejects_any_argument(share_consumer):
+    """commit_async() takes no arguments."""
+    with pytest.raises(TypeError):
+        share_consumer.commit_async(1.0)
+    with pytest.raises(TypeError):
+        share_consumer.commit_async(timeout=1.0)
 
 
 def test_poll_interruptible_by_signal():
