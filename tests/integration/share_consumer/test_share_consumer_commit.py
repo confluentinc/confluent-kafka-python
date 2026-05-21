@@ -1481,7 +1481,7 @@ def test_redelivery_increments_delivery_count_and_commits(kafka_cluster):
         producer.produce(topic, value=b'redelivery-probe')
         producer.flush(timeout=10.0)
 
-        a_batch = drain_share_consumers([sc_a], 1, timeout_s=5.0)[0]
+        a_batch = drain_share_consumers([sc_a], 1)[0]
         assert a_batch, 'sc_a never received the produced record'
         a_first = a_batch[0]
 
@@ -1502,7 +1502,7 @@ def test_redelivery_increments_delivery_count_and_commits(kafka_cluster):
         # Wait past this group's 5s lock duration so sc_b can steal.
         time.sleep(5.5)
 
-        b_batch = drain_share_consumers([sc_b], 1, timeout_s=10.0)[0]
+        b_batch = drain_share_consumers([sc_b], 1)[0]
         b_seen = next(
             (m for m in b_batch if (m.partition(), m.offset()) == target),
             None,
