@@ -84,6 +84,7 @@ class KafkaError:
     ILLEGAL_GENERATION: int
     ILLEGAL_SASL_STATE: int
     INCONSISTENT_GROUP_PROTOCOL: int
+    INCONSISTENT_TOPIC_ID: int
     INCONSISTENT_VOTER_SET: int
     INVALID_COMMIT_OFFSET_SIZE: int
     INVALID_CONFIG: int
@@ -283,6 +284,7 @@ class Message:
         timestamp: Optional[Tuple[int, int]] = ...,
         latency: Optional[float] = ...,
         leader_epoch: Optional[int] = ...,
+        delivery_count: Optional[int] = ...,
     ) -> None: ...
     def topic(self) -> Optional[str]: ...
     def partition(self) -> Optional[int]: ...
@@ -294,6 +296,7 @@ class Message:
     def timestamp(self) -> Tuple[int, int]: ...  # (timestamp_type, timestamp)
     def latency(self) -> Optional[float]: ...
     def leader_epoch(self) -> Optional[int]: ...
+    def delivery_count(self) -> Optional[int]: ...
     def set_headers(self, headers: HeadersType) -> None: ...
     def set_key(self, key: Any) -> None: ...
     def set_value(self, value: Any) -> None: ...
@@ -342,13 +345,9 @@ class Producer:
             Producer({'bootstrap.servers': 'localhost:9092'})
         """
         ...
+
     @overload
-    def __init__(
-        self,
-        config: Dict[str, Any],
-        /,
-        **kwargs: Any
-    ) -> None:
+    def __init__(self, config: Dict[str, Any], /, **kwargs: Any) -> None:
         """
         Create Producer with configuration dict and additional keyword arguments.
         Keyword arguments override values in the config dict.
@@ -362,6 +361,7 @@ class Producer:
             Producer({'bootstrap.servers': 'localhost'}, enable_idempotence=True)
         """
         ...
+
     @overload
     def __init__(self, **config: Any) -> None:
         """
@@ -375,6 +375,7 @@ class Producer:
             Producer(bootstrap_servers='localhost:9092')
         """
         ...
+
     def produce(
         self,
         topic: str,
@@ -425,13 +426,9 @@ class Consumer:
             Consumer({'bootstrap.servers': 'localhost', 'group.id': 'mygroup'})
         """
         ...
+
     @overload
-    def __init__(
-        self,
-        config: dict[str, Any],
-        /,
-        **kwargs: Any
-    ) -> None:
+    def __init__(self, config: dict[str, Any], /, **kwargs: Any) -> None:
         """
         Create Consumer with configuration dict and additional keyword arguments.
         Keyword arguments override values in the config dict.
@@ -445,6 +442,7 @@ class Consumer:
             Consumer({'bootstrap.servers': 'localhost'}, group_id='mygroup')
         """
         ...
+
     @overload
     def __init__(self, **config: Any) -> None:
         """
@@ -458,6 +456,7 @@ class Consumer:
             Consumer(bootstrap_servers='localhost', group_id='mygroup')
         """
         ...
+
     def subscribe(
         self,
         topics: List[str],
@@ -481,6 +480,7 @@ class Consumer:
         Message and offsets omitted, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -491,6 +491,7 @@ class Consumer:
         Message and offsets omitted, synchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -502,6 +503,7 @@ class Consumer:
         Message specified, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -513,17 +515,19 @@ class Consumer:
         Message specified, synchronous.
         """
         ...
+
     @overload
     def commit(
-            self,
-            *,
-            offsets: List[TopicPartition],
-            asynchronous: Literal[True] = ...,
+        self,
+        *,
+        offsets: List[TopicPartition],
+        asynchronous: Literal[True] = ...,
     ) -> None:
         """
         Offsets specified, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -535,6 +539,7 @@ class Consumer:
         Offsets specified, synchronous
         """
         ...
+
     def get_watermark_offsets(
         self, partition: TopicPartition, timeout: float = -1, cached: bool = False
     ) -> Tuple[int, int]: ...
@@ -559,6 +564,7 @@ class Consumer:
 
 class ShareConsumer:
     """Share Consumer for queue-like message consumption (KIP-932)."""
+
     @overload
     def __init__(self, config: Dict[str, Any]) -> None: ...
     @overload
@@ -573,6 +579,8 @@ class ShareConsumer:
     def acknowledge_offset(
         self, topic: str, partition: int, offset: int, ack_type: Union[AcknowledgeType, int] = ...
     ) -> None: ...
+    def commit_sync(self, timeout: float = 60) -> Dict[TopicPartition, Optional[KafkaError]]: ...
+    def commit_async(self) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> "ShareConsumer": ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
