@@ -80,16 +80,16 @@ def test_constructor_kwargs_only():
     sc.close()
 
 
-# TODO KIP-932: re-enable once ShareConsumer rejects on_commit at config time.
-# Today consumer_conf_set_special accepts on_commit for any consumer type and
-# ShareConsumer_clear0 has to compensate with a DECREF dance. The test pins the
-# desired contract; flip @pytest.mark.skip off when the rejection is wired in.
-@pytest.mark.skip(reason="TODO KIP-932: on_commit rejection not implemented yet")
 def test_constructor_rejects_on_commit():
     """Share consumers have no offset-commit concept. Setting on_commit
     in the positional config dict OR as a kwarg must be rejected at
     construction time so the misconfiguration is visible to callers
-    instead of being silently held by librdkafka."""
+    instead of being silently held by librdkafka.
+
+    Wired via consumer_conf_set_special's is_share_consumer guard
+    (confluent_kafka.c). Same mechanism as stats_cb / statistics.interval.ms
+    rejection in test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
+    """
     config = {
         'group.id': unique_id('test-share-no-commit'),
         'bootstrap.servers': 'localhost:9092',

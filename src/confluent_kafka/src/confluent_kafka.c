@@ -2309,16 +2309,16 @@ int wait_for_oauth_token_set(Handle *h) {
         }
 
         if (!h->oauth_token_set) {
-                /* Token not set within timeout */
+                /* Token not set within timeout.
+                 *
+                 * Caller owns teardown: each _init function knows whether
+                 * it allocated an rd_kafka_t* (Consumer/Producer/Admin)
+                 * or an rd_kafka_share_t* (ShareConsumer) and destroys
+                 * with the right API in its own error path. */
                 cfl_PyErr_Format(
                     RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
                     "OAuth token not set within %d seconds timeout",
                     max_wait_sec);
-                CallState cs;
-                CallState_begin(h, &cs);
-                rd_kafka_destroy(h->rk);
-                h->rk = NULL;
-                CallState_end(h, &cs);
                 return -1;
         }
         return 0;
@@ -2533,6 +2533,18 @@ static int consumer_conf_set_special(Handle *self,
                                      PyObject *valobj) {
 
         if (!strcmp(name, "on_commit")) {
+                if (self->is_share_consumer) {
+                        /* Share consumers ack records via the
+                         * acknowledge / commit_sync / commit_async APIs;
+                         * there is no offset-commit notion and no
+                         * on_commit trampoline to dispatch. Reject at
+                         * config time so the misconfiguration is visible
+                         * to callers. */
+                        PyErr_SetString(PyExc_ValueError,
+                                        "on_commit is not supported on "
+                                        "ShareConsumer");
+                        return -1;
+                }
                 if (!PyCallable_Check(valobj)) {
                         cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
                                          "%s requires a callable "
@@ -2825,6 +2837,19 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                         Py_DECREF(ks);
                         continue;
                 } else if (!strcmp(k, "stats_cb")) {
+                        if (h->is_share_consumer) {
+                                /* Share consumer JSON stats don't yet
+                                 * cover share-group state meaningfully;
+                                 * reject loudly so users don't silently
+                                 * miss data they think they're getting. */
+                                PyErr_SetString(
+                                    PyExc_ValueError,
+                                    "stats_cb is not supported on "
+                                    "ShareConsumer");
+                                Py_XDECREF(ks8);
+                                Py_DECREF(ks);
+                                goto inner_err;
+                        }
                         if (!PyCallable_Check(vo)) {
                                 PyErr_SetString(PyExc_TypeError,
                                                 "expected stats_cb property "
@@ -2875,6 +2900,17 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
                         continue;
+                } else if (h->is_share_consumer &&
+                           !strcmp(k, "statistics.interval.ms")) {
+                        /* Pair with the stats_cb rejection above: with no
+                         * callback there's no point starting the timer or
+                         * letting librdkafka build JSON. */
+                        PyErr_SetString(PyExc_ValueError,
+                                        "statistics.interval.ms is not "
+                                        "supported on ShareConsumer");
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        goto inner_err;
                 }
 
                 /* Special handling for certain config keys. */

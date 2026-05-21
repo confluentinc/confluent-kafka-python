@@ -11,14 +11,35 @@ the callback contract can be evolved without churning the constructor /
 subscribe / lifecycle test file.
 """
 
-import json
 import logging
 import time
 
 import pytest
 
-from confluent_kafka import KafkaError, ShareConsumer
+from confluent_kafka import KafkaError, KafkaException, Producer, ShareConsumer
 from tests.common import unique_id
+
+
+def _librdkafka_has_openssl():
+    """Detect whether the linked librdkafka was built with OpenSSL.
+
+    Without OpenSSL, OAUTHBEARER config keys (sasl.oauthbearer.config,
+    security.protocol=sasl_ssl/sasl_plaintext + OAUTHBEARER mechanism) are
+    rejected at conf-set time, before the binding's oauth wiring ever runs.
+    Probes the simplest gate: try to set security.protocol=sasl_ssl on a
+    Producer; if librdkafka rejects with `OpenSSL not available at build
+    time`, we're in a no-SSL environment.
+    """
+    try:
+        Producer({'security.protocol': 'sasl_ssl'})
+    except KafkaException as exc:
+        if 'OpenSSL not available' in str(exc):
+            return False
+        raise
+    return True
+
+
+_OPENSSL_AVAILABLE = _librdkafka_has_openssl()
 
 
 def test_error_cb():
@@ -167,38 +188,37 @@ def test_throttle_cb():
     sc.close()
 
 
-def test_stats_cb():
-    """Test that stats_cb fires with valid JSON for ShareConsumer.
+def test_stats_cb_rejected():
+    """stats_cb is rejected on ShareConsumer at construction time.
 
-    librdkafka emits a stats event every statistics.interval.ms regardless of
-    broker reachability, so we don't need a live broker to verify dispatch.
+    The KIP-932 share-consumer JSON statistics surface isn't designed yet:
+    librdkafka's stats blob references cgrp / per-partition state that
+    doesn't translate to share groups, so what users would get back is
+    incomplete and misleading. Rather than silently accept the callback
+    and feed it half-baked data, the binding rejects stats_cb at config
+    time (confluent_kafka.c — inline strcmp branch, gated on
+    h->is_share_consumer set by ShareConsumer_init).
+
+    Pinned in both forms: dict-config and kwargs-form, plus the matching
+    statistics.interval.ms rejection (no callback → no point starting the
+    timer).
     """
-    seen_stats_cb = False
+    config = {
+        'group.id': unique_id('test-share-stats-cb-rejected'),
+        'bootstrap.servers': 'localhost:9092',
+    }
 
     def my_stats_cb(stats_json_str):
-        nonlocal seen_stats_cb
-        seen_stats_cb = True
-        stats_json = json.loads(stats_json_str)
-        assert len(stats_json['name']) > 0
+        pass
 
-    sc = ShareConsumer(
-        {
-            'group.id': unique_id('test-share-stats-cb'),
-            'bootstrap.servers': 'localhost:19999',
-            'socket.timeout.ms': 100,
-            'statistics.interval.ms': 200,
-            'stats_cb': my_stats_cb,
-        }
-    )
+    with pytest.raises(ValueError, match='stats_cb is not supported'):
+        ShareConsumer({**config, 'stats_cb': my_stats_cb})
 
-    sc.subscribe(['test-topic'])
+    with pytest.raises(ValueError, match='stats_cb is not supported'):
+        ShareConsumer(config, stats_cb=my_stats_cb)
 
-    deadline = time.monotonic() + 5.0
-    while not seen_stats_cb and time.monotonic() < deadline:
-        sc.poll(timeout=0.1)
-
-    assert seen_stats_cb, "stats_cb should have been called"
-    sc.close()
+    with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
+        ShareConsumer({**config, 'statistics.interval.ms': 200})
 
 
 def test_log_cb():
@@ -282,19 +302,21 @@ def test_log_cb_requires_polling():
     sc.close()
 
 
-# TODO KIP-932: ShareConsumer_init does not call
-# rd_kafka_sasl_background_callbacks_enable() nor wait_for_oauth_token_set()
-# — librdkafka exposes no share-consumer wrapper for either. The oauth_cb is
-# still registered via common_conf_setup but it isn't dispatched on the user
-# thread, so the callback never fires for ShareConsumer today. Flip
-# @pytest.mark.skip off once both calls land.
-@pytest.mark.skip(reason="TODO KIP-932: SASL background callback wiring not yet exposed for share consumer")
+@pytest.mark.skipif(
+    not _OPENSSL_AVAILABLE,
+    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+)
 def test_oauthbearer_token_refresh_cb():
     """Test that oauth_cb is invoked when ShareConsumer needs a SASL token.
 
-    Mirrors test_oauth_cb.py::test_oauth_cb — the callback should fire during
-    client init once wait_for_oauth_token_set() is wired into
-    ShareConsumer_init.
+    Mirrors test_oauth_cb.py::test_oauth_cb. ShareConsumer_init calls
+    rd_kafka_share_sasl_background_callbacks_enable + wait_for_oauth_token_set,
+    so the callback fires on librdkafka's background thread during init and
+    the constructor blocks until the initial token is set.
+
+    Requires librdkafka built with OpenSSL; on builds without it the
+    sasl.oauthbearer.config key is rejected at conf-set time before our
+    wiring runs.
     """
     oauth_cb_called = []
 

@@ -48,33 +48,13 @@ typedef struct {
 } ShareConsumerHandle;
 
 
-static void ShareConsumer_clear0(ShareConsumerHandle *self) {
-        /* consumer_conf_set_special INCREFs on_commit into
-         * base.u.Consumer.on_commit for any consumer type, even though
-         * ShareConsumer never registers the offset commit trampoline so the
-         * callback can't fire. Match the INCREF with a DECREF here to avoid
-         * leaking the user's callback. Mirrors Consumer_clear0.
-         *
-         * TODO KIP-932: remove this DECREF dance once on_commit is rejected
-         * at config time (see ShareConsumer_init / common_conf_setup) and
-         * callbacks are properly modeled for share consumers. The reference
-         * shouldn't be acquired in the first place. */
-        if (self->base.u.Consumer.on_commit) {
-                Py_DECREF(self->base.u.Consumer.on_commit);
-                self->base.u.Consumer.on_commit = NULL;
-        }
-}
-
 static int ShareConsumer_clear(ShareConsumerHandle *self) {
-        ShareConsumer_clear0(self);
         Handle_clear(&self->base);
         return 0;
 }
 
 static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         PyObject_GC_UnTrack(self);
-
-        ShareConsumer_clear0(self);
 
         if (self->rkshare) {
                 CallState cs;
@@ -86,8 +66,6 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 CallState_end(&self->base, &cs);
         }
 
-        /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
-         * pair above and just call ShareConsumer_clear(self) here. */
         Handle_clear(&self->base);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
@@ -95,13 +73,6 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
-        /* See ShareConsumer_clear: pair the DECREF with a Py_VISIT so cyclic
-         * GC can find on_commit if a user accidentally passed one.
-         *
-         * TODO KIP-932: drop this special-case once on_commit is rejected
-         * at config time (see ShareConsumer_clear0). */
-        if (self->base.u.Consumer.on_commit)
-                Py_VISIT(self->base.u.Consumer.on_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -849,10 +820,15 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
-        self->base.type = RD_KAFKA_CONSUMER;
+        self->base.type              = RD_KAFKA_CONSUMER;
+        self->base.is_share_consumer = 1;
         /* TODO KIP-932: RD_KAFKA_CONSUMER is intentional, not a copy-paste
          * from Consumer.c: it makes common_conf_setup enforce "group.id must
-         * be set", which share consumers also need.
+         * be set", which share consumers also need. The is_share_consumer
+         * flag above is read in the inline config-key chain (stats_cb,
+         * statistics.interval.ms) and in consumer_conf_set_special
+         * (on_commit) to reject share-incompatible knobs at config time —
+         * see those sites in confluent_kafka.c.
          *
          * Revisit this once share-consumer config handling has its own setup
          * path. Today we route through the regular consumer config setup,
@@ -932,10 +908,29 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        /* TODO KIP-932: call rd_kafka_sasl_background_callbacks_enable() for
-         * OAuth once librdkafka adds a share-level wrapper for the same reason.
-         */
+        /* OAuth wiring: enable SASL background callbacks so the
+         * oauthbearer_token_refresh_cb fires on librdkafka's own thread
+         * during init (otherwise we'd have the chicken-and-egg problem
+         * — can't poll until connected, can't connect without a token).
+         * Then block until the initial token is set. Mirrors
+         * Consumer.c:1812-1833. */
+        if (self->base.oauth_cb) {
+                rd_kafka_error_t *oauth_err =
+                    rd_kafka_share_sasl_background_callbacks_enable(
+                        self->rkshare);
+                if (oauth_err) {
+                        cfl_PyErr_from_error_destroy(oauth_err);
+                        rd_kafka_share_destroy(self->rkshare);
+                        self->rkshare = NULL;
+                        return -1;
+                }
 
+                if (wait_for_oauth_token_set(&self->base) == -1) {
+                        rd_kafka_share_destroy(self->rkshare);
+                        self->rkshare = NULL;
+                        return -1;
+                }
+        }
 
         return 0;
 }
