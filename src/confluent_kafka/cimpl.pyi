@@ -45,6 +45,7 @@ except ImportError:
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
+from ._model import AcknowledgeType
 from ._types import HeadersType
 
 # Callback types with proper class references (defined locally to avoid circular imports)
@@ -83,6 +84,7 @@ class KafkaError:
     ILLEGAL_GENERATION: int
     ILLEGAL_SASL_STATE: int
     INCONSISTENT_GROUP_PROTOCOL: int
+    INCONSISTENT_TOPIC_ID: int
     INCONSISTENT_VOTER_SET: int
     INVALID_COMMIT_OFFSET_SIZE: int
     INVALID_CONFIG: int
@@ -567,7 +569,16 @@ class ShareConsumer:
     def subscribe(self, topics: List[str]) -> None: ...
     def unsubscribe(self) -> None: ...
     def subscription(self) -> List[str]: ...
+    # TODO KIP-932: poll() returns List[Message] today. Java returns a
+    # dedicated container object (ConsumerRecords) instead of a list so it
+    # can carry extra metadata alongside the records. Replace List[Message]
+    # with a Messages container class once we have a clear use for that
+    # metadata in Python.
     def poll(self, timeout: float = -1) -> List[Message]: ...
+    def acknowledge(self, message: Message, ack_type: AcknowledgeType = ...) -> None: ...
+    def acknowledge_offset(
+        self, topic: str, partition: int, offset: int, ack_type: AcknowledgeType = ...
+    ) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> "ShareConsumer": ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
@@ -786,6 +797,9 @@ OFFSET_SPEC_EARLIEST: int
 OFFSET_SPEC_LATEST: int
 OFFSET_SPEC_MAX_TIMESTAMP: int
 OFFSET_STORED: int
+SHARE_ACKNOWLEDGE_TYPE_ACCEPT: int
+SHARE_ACKNOWLEDGE_TYPE_RELEASE: int
+SHARE_ACKNOWLEDGE_TYPE_REJECT: int
 RESOURCE_ANY: int
 RESOURCE_BROKER: int
 RESOURCE_GROUP: int
