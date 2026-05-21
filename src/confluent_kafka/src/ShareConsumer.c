@@ -512,8 +512,8 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         double tmout                             = 60.0;
         rd_kafka_error_t *error                  = NULL;
         rd_kafka_topic_partition_list_t *c_parts = NULL;
-        PyThreadState *thread_state              = NULL;
         PyObject *result;
+        CallState cs;
         static char *kws[] = {"timeout", NULL};
 
         if (!self->rkshare) {
@@ -525,10 +525,16 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        thread_state = PyEval_SaveThread();
+        CallState_begin(&self->base, &cs);
         error = rd_kafka_share_commit_sync(self->rkshare, cfl_timeout_ms(tmout),
                                            &c_parts);
-        PyEval_RestoreThread(thread_state);
+        if (!CallState_end(&self->base, &cs)) {
+                if (c_parts)
+                        rd_kafka_topic_partition_list_destroy(c_parts);
+                if (error)
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
 
         if (error) {
                 if (c_parts)
@@ -555,6 +561,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
                                             PyObject *ignore) {
         rd_kafka_error_t *error;
+        CallState cs;
 
         if (!self->rkshare) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -562,7 +569,14 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
                 return NULL;
         }
 
+        CallState_begin(&self->base, &cs);
         error = rd_kafka_share_commit_async(self->rkshare);
+        if (!CallState_end(&self->base, &cs)) {
+                if (error)
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
+
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
                 return NULL;
