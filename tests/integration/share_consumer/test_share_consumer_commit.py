@@ -1453,13 +1453,19 @@ def test_commit_async_then_immediate_close_persists(kafka_cluster):
             producer.produce(topic, value=value)
         producer.flush(timeout=10.0)
 
-        msgs = drain_share_consumers([sc1], num_messages, ack_type=AcknowledgeType.ACCEPT)[0]
+        msgs, commit_results = poll_ack_commit_loop(
+            sc1,
+            num_messages,
+            ack_type=AcknowledgeType.ACCEPT,
+            async_commit=True,
+        )
         received_values = {msg.value() for msg in msgs}
         assert received_values == set(
             produced
         ), f'sc1 missed records: produced={set(produced)} received={received_values}'
-
-        assert sc1.commit_async() is None
+        assert commit_results and all(
+            r is None for r in commit_results
+        ), f'expected commit_async to return None per batch; got {commit_results}'
         # No intervening poll — close immediately after async submit.
     finally:
         sc1.close()
