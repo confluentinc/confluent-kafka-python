@@ -512,7 +512,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         double tmout                             = 60.0;
         rd_kafka_error_t *error                  = NULL;
         rd_kafka_topic_partition_list_t *c_parts = NULL;
-        PyObject *result;
+        PyObject *result                         = NULL;
         CallState cs;
         static char *kws[] = {"timeout", NULL};
 
@@ -528,27 +528,28 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         CallState_begin(&self->base, &cs);
         error = rd_kafka_share_commit_sync(self->rkshare, cfl_timeout_ms(tmout),
                                            &c_parts);
-        if (!CallState_end(&self->base, &cs)) {
-                if (c_parts)
-                        rd_kafka_topic_partition_list_destroy(c_parts);
-                if (error)
-                        rd_kafka_error_destroy(error);
-                return NULL;
-        }
+        if (!CallState_end(&self->base, &cs))
+                goto err;
 
         if (error) {
-                if (c_parts)
-                        rd_kafka_topic_partition_list_destroy(c_parts);
                 cfl_PyErr_from_error_destroy(error);
-                return NULL;
+                error = NULL;
+                goto err;
         }
 
         if (!c_parts)
                 return PyDict_New();
 
-        result = c_parts_to_commit_result_dict(c_parts);
+        result = c_parts_to_dict_topic_partition_to_error(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
         return result;
+
+err:
+        if (c_parts)
+                rd_kafka_topic_partition_list_destroy(c_parts);
+        if (error)
+                rd_kafka_error_destroy(error);
+        return NULL;
 }
 
 
@@ -791,6 +792,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :rtype: dict(TopicPartition, KafkaError | None)\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises TypeError: if timeout is not a float\n"
      "\n"},
 
     {"commit_async", (PyCFunction)ShareConsumer_commit_async, METH_NOARGS,
@@ -803,6 +805,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :returns: None\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises TypeError: if any arguments are passed\n"
      "\n"},
 
     {"close", (PyCFunction)ShareConsumer_close, METH_NOARGS,

@@ -1105,8 +1105,8 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
 
         /* Share consumer: 0 from librdkafka means unavailable; store as -1
          * so the Python accessor returns None for non-share consumers. */
-        int16_t dc           = rd_kafka_message_delivery_count(rkm);
-        self->delivery_count = dc > 0 ? dc : -1;
+        int16_t delivery_count = rd_kafka_message_delivery_count(rkm);
+        self->delivery_count   = delivery_count > 0 ? delivery_count : -1;
 
         return (PyObject *)self;
 }
@@ -1600,9 +1600,11 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
  *
  * @returns The new Python dict, or NULL on allocation failure.
  */
-PyObject *
-c_parts_to_commit_result_dict(const rd_kafka_topic_partition_list_t *c_parts) {
-        PyObject *result;
+PyObject *c_parts_to_dict_topic_partition_to_error(
+    const rd_kafka_topic_partition_list_t *c_parts) {
+        PyObject *result = NULL;
+        PyObject *key    = NULL;
+        PyObject *val    = NULL;
         size_t i;
 
         result = PyDict_New();
@@ -1611,20 +1613,25 @@ c_parts_to_commit_result_dict(const rd_kafka_topic_partition_list_t *c_parts) {
 
         for (i = 0; i < (size_t)c_parts->cnt; i++) {
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-                PyObject *key                            = c_part_to_py(rktpar);
-                PyObject *val = KafkaError_new_or_None(rktpar->err, NULL);
+                key = c_part_to_py(rktpar);
+                val = KafkaError_new_or_None(rktpar->err, NULL);
 
-                if (!key || !val || PyDict_SetItem(result, key, val) == -1) {
-                        Py_XDECREF(key);
-                        Py_XDECREF(val);
-                        Py_DECREF(result);
-                        return NULL;
-                }
+                if (!key || !val || PyDict_SetItem(result, key, val) == -1)
+                        goto err;
+
                 Py_DECREF(key);
                 Py_DECREF(val);
+                key = NULL;
+                val = NULL;
         }
 
         return result;
+
+err:
+        Py_XDECREF(key);
+        Py_XDECREF(val);
+        Py_DECREF(result);
+        return NULL;
 }
 
 /**
