@@ -458,6 +458,8 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    PyObject *kwargs);
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *c_parts_to_dict_topic_partition_to_error(
+    const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist);
@@ -512,6 +514,9 @@ typedef struct {
         int64_t timestamp;
         rd_kafka_timestamp_type_t tstype;
         int64_t latency; /**< Producer: time it took to produce message */
+        int16_t delivery_count; /**< Share consumer: number of times this
+                                 *   record has been delivered. 1 on first
+                                 *   delivery. -1 if unavailable. */
 } Message;
 
 extern PyTypeObject MessageType;
