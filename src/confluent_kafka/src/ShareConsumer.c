@@ -508,7 +508,8 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                                            PyObject *args,
                                            PyObject *kwargs) {
-        /* default timeout */
+        /* TODO: check if kwargs is needed */
+        /* TODO: pick the right default timeout */
         double tmout                             = 60.0;
         rd_kafka_error_t *error                  = NULL;
         rd_kafka_topic_partition_list_t *c_parts = NULL;
@@ -519,11 +520,11 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         if (!self->rkshare) {
                 PyErr_SetString(PyExc_RuntimeError,
                                 ERR_MSG_SHARE_CONSUMER_CLOSED);
-                return NULL;
+                goto err;
         }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
-                return NULL;
+                goto err;
 
         CallState_begin(&self->base, &cs);
         error = rd_kafka_share_commit_sync(self->rkshare, cfl_timeout_ms(tmout),
@@ -537,6 +538,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                 goto err;
         }
 
+        /* TODO: c_parts shouldn't be NULL here, drop once librdkafka guarantees it */
         if (!c_parts)
                 return PyDict_New();
 

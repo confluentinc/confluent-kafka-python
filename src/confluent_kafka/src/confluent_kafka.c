@@ -1609,7 +1609,7 @@ PyObject *c_parts_to_dict_topic_partition_to_error(
 
         result = PyDict_New();
         if (!result)
-                return NULL;
+                goto err;
 
         for (i = 0; i < (size_t)c_parts->cnt; i++) {
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
@@ -1630,7 +1630,7 @@ PyObject *c_parts_to_dict_topic_partition_to_error(
 err:
         Py_XDECREF(key);
         Py_XDECREF(val);
-        Py_DECREF(result);
+        Py_XDECREF(result);
         return NULL;
 }
 
