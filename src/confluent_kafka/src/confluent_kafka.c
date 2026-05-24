@@ -2060,9 +2060,52 @@ static void
 error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         Handle *h = opaque;
         PyObject *eo, *result;
-        CallState *cs;
+        CallState *cs = NULL;
+        PyGILState_STATE gstate;
+        int have_cs;
 
-        cs = CallState_get(h);
+        /* The trampoline may be invoked from a thread that didn't
+         * CallState_begin: e.g. librdkafka dispatching pending OP_ERR ops
+         * during rd_kafka_destroy() / rd_kafka_share_destroy() in a
+         * constructor's failure path, or background-thread dispatch.
+         * Pre-existing crash mode: CallState_get() returns NULL on such
+         * threads and dereferences cs->thread_state, hitting SIGSEGV
+         * (the assert in CallState_get is compiled out by -DNDEBUG).
+         *
+         * Tolerant entry: look up the CallState directly. If present, use
+         * the standard PyEval_RestoreThread / CallState_resume path. If
+         * absent, acquire the GIL via PyGILState_Ensure and use a
+         * truncated dispatch that can't propagate Python exceptions to
+         * a caller (because there is no caller). Exceptions raised by
+         * the user's error_cb on this path are cleared and logged via
+         * Python's default unraisable hook in PyErr_Clear's wake; we
+         * cannot push them anywhere else from here. */
+#ifdef WITH_PY_TSS
+        cs = PyThread_tss_get(&h->tlskey);
+#else
+        cs = PyThread_get_key_value(h->tlskey);
+#endif
+        have_cs = (cs != NULL && cs->thread_state != NULL);
+        if (have_cs) {
+                PyEval_RestoreThread(cs->thread_state);
+                cs->thread_state = NULL;
+        } else {
+                gstate = PyGILState_Ensure();
+        }
+
+        /* No-CallState path: the caller may already have a Python
+         * exception set (e.g. a constructor's wait_for_oauth_token_set
+         * timeout that called cfl_PyErr_Format() just before calling
+         * rd_kafka_share_destroy(), whose internal drain dispatched
+         * this trampoline). Calling into Python with an active
+         * exception causes PyObject_CallFunctionObjArgs to either fail
+         * or implicitly clear the original — silently swallowing the
+         * constructor's error and producing a "returned NULL without
+         * setting an error" SystemError downstream. Save and restore
+         * the exception across the user callback to preserve it. */
+        PyObject *saved_type = NULL, *saved_value = NULL, *saved_tb = NULL;
+        if (!have_cs)
+                PyErr_Fetch(&saved_type, &saved_value, &saved_tb);
 
         /* If the client raised a fatal error we'll raise an exception
          * rather than calling the error callback. */
@@ -2070,7 +2113,15 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 char errstr[512];
                 err = rd_kafka_fatal_error(rk, errstr, sizeof(errstr));
                 cfl_PyErr_Fatal(err, errstr);
-                goto crash;
+                if (have_cs) {
+                        goto crash;
+                } else {
+                        /* No CallState to crash; clear the pending
+                         * Python exception (we can't propagate it).
+                         * Then restore the caller's exception below. */
+                        PyErr_Clear();
+                        goto done;
+                }
         }
 
         if (!h->error_cb) {
@@ -2082,17 +2133,30 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
         Py_DECREF(eo);
 
-        if (result)
+        if (result) {
                 Py_DECREF(result);
-        else {
+        } else if (have_cs) {
                 CallState_fetch_exception(cs);
         crash:
                 CallState_crash(cs);
                 rd_kafka_yield(rk);
+        } else {
+                /* No CallState to fetch/crash into; clear the user
+                 * callback's exception so we can restore the caller's. */
+                PyErr_Clear();
         }
 
 done:
-        CallState_resume(cs);
+        if (have_cs) {
+                CallState_resume(cs);
+        } else {
+                /* Restore the caller's exception (if any) before
+                 * releasing the GIL. */
+                if (saved_type) {
+                        PyErr_Restore(saved_type, saved_value, saved_tb);
+                }
+                PyGILState_Release(gstate);
+        }
 }
 
 /**
