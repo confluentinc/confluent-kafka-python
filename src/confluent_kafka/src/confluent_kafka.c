@@ -1103,8 +1103,8 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
         else
                 self->latency = -1;
 
-        /* Share consumer: 0 from librdkafka means unavailable; store as -1
-         * so the Python accessor returns None for non-share consumers. */
+        /* librdkafka returns 0 when delivery count is unavailable (e.g.
+         * non-share consumers); map to -1 so Python sees None. */
         int16_t delivery_count = rd_kafka_message_delivery_count(rkm);
         self->delivery_count   = delivery_count > 0 ? delivery_count : -1;
 
@@ -1595,10 +1595,8 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 }
 
 /**
- * @brief Convert a per-partition commit result list into a Python
- * dict(TopicPartition -> KafkaError | None).
- *
- * @returns The new Python dict, or NULL on allocation failure.
+ * @brief Convert per-partition commit results to a Python
+ *        dict(TopicPartition -> KafkaError | None).
  */
 PyObject *c_parts_to_dict_topic_partition_to_error(
     const rd_kafka_topic_partition_list_t *c_parts) {
@@ -2064,22 +2062,12 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         PyGILState_STATE gstate;
         int have_cs;
 
-        /* The trampoline may be invoked from a thread that didn't
-         * CallState_begin: e.g. librdkafka dispatching pending OP_ERR ops
-         * during rd_kafka_destroy() / rd_kafka_share_destroy() in a
-         * constructor's failure path, or background-thread dispatch.
-         * Pre-existing crash mode: CallState_get() returns NULL on such
-         * threads and dereferences cs->thread_state, hitting SIGSEGV
-         * (the assert in CallState_get is compiled out by -DNDEBUG).
-         *
-         * Tolerant entry: look up the CallState directly. If present, use
-         * the standard PyEval_RestoreThread / CallState_resume path. If
-         * absent, acquire the GIL via PyGILState_Ensure and use a
-         * truncated dispatch that can't propagate Python exceptions to
-         * a caller (because there is no caller). Exceptions raised by
-         * the user's error_cb on this path are cleared and logged via
-         * Python's default unraisable hook in PyErr_Clear's wake; we
-         * cannot push them anywhere else from here. */
+        /* This callback can fire on threads that didn't run CallState_begin:
+         * librdkafka's background dispatch, and the drain inside
+         * rd_kafka_share_destroy() when a constructor is unwinding.
+         * CallState_get() returns NULL in those cases — the original code
+         * then deref'd it and segfaulted in release builds. Look it up
+         * directly and fall back to PyGILState_Ensure() if absent. */
 #ifdef WITH_PY_TSS
         cs = PyThread_tss_get(&h->tlskey);
 #else
@@ -2093,16 +2081,11 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 gstate = PyGILState_Ensure();
         }
 
-        /* No-CallState path: the caller may already have a Python
-         * exception set (e.g. a constructor's wait_for_oauth_token_set
-         * timeout that called cfl_PyErr_Format() just before calling
-         * rd_kafka_share_destroy(), whose internal drain dispatched
-         * this trampoline). Calling into Python with an active
-         * exception causes PyObject_CallFunctionObjArgs to either fail
-         * or implicitly clear the original — silently swallowing the
-         * constructor's error and producing a "returned NULL without
-         * setting an error" SystemError downstream. Save and restore
-         * the exception across the user callback to preserve it. */
+        /* The constructor may have set a Python exception just before
+         * calling rd_kafka_share_destroy(), whose drain landed us here.
+         * Calling the user's callback would silently clear that pending
+         * exception, hiding the real failure behind a "returned NULL
+         * without setting an error" SystemError. Save and restore it. */
         PyObject *saved_type = NULL, *saved_value = NULL, *saved_tb = NULL;
         if (!have_cs)
                 PyErr_Fetch(&saved_type, &saved_value, &saved_tb);
@@ -2116,9 +2099,8 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 if (have_cs) {
                         goto crash;
                 } else {
-                        /* No CallState to crash; clear the pending
-                         * Python exception (we can't propagate it).
-                         * Then restore the caller's exception below. */
+                        /* Nothing to crash into; clear so the caller's
+                         * saved exception can take over at done. */
                         PyErr_Clear();
                         goto done;
                 }
@@ -2141,8 +2123,8 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 CallState_crash(cs);
                 rd_kafka_yield(rk);
         } else {
-                /* No CallState to fetch/crash into; clear the user
-                 * callback's exception so we can restore the caller's. */
+                /* Drop the user callback's exception so the
+                 * caller's saved one can be restored. */
                 PyErr_Clear();
         }
 
@@ -2373,12 +2355,9 @@ int wait_for_oauth_token_set(Handle *h) {
         }
 
         if (!h->oauth_token_set) {
-                /* Token not set within timeout.
-                 *
-                 * Caller owns teardown: each _init function knows whether
-                 * it allocated an rd_kafka_t* (Consumer/Producer/Admin)
-                 * or an rd_kafka_share_t* (ShareConsumer) and destroys
-                 * with the right API in its own error path. */
+                /* Token timeout. Don't tear down here — each _init knows
+                 * whether to call rd_kafka_destroy() or
+                 * rd_kafka_share_destroy() for what it allocated. */
                 cfl_PyErr_Format(
                     RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
                     "OAuth token not set within %d seconds timeout",
@@ -2465,7 +2444,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         goto done;
 
 fail:
-        /* Use callback's rk — see comment on set_token above. */
+        /* h->rk is NULL on share consumer; use the callback's rk. */
         err_code = rd_kafka_oauthbearer_set_token_failure(
             rk, "OAuth callback raised exception");
         if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {

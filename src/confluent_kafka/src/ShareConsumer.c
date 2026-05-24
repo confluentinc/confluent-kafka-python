@@ -806,8 +806,8 @@ static PyMethodDef ShareConsumer_methods[] = {
  * @returns 0 if no rejected keys are present, -1 on rejection (a Python
  *          ValueError is set).
  */
-static int
-ShareConsumer_reject_incompatible_config(PyObject *args, PyObject *kwargs) {
+static int ShareConsumer_reject_incompatible_config(PyObject *args,
+                                                    PyObject *kwargs) {
         static const char *const share_rejected_keys[] = {
             "stats_cb", "statistics.interval.ms", "on_commit", NULL};
         PyObject *positional_dict = NULL;
@@ -886,7 +886,10 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                         cfl_PyErr_Format(err,
                                          "Failed to set share log queue: %s",
                                          rd_kafka_err2str(err));
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
                         rd_kafka_share_destroy(self->rkshare);
+                        CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
                         return -1;
                 }
@@ -904,13 +907,19 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                         self->rkshare);
                 if (oauth_err) {
                         cfl_PyErr_from_error_destroy(oauth_err);
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
                         rd_kafka_share_destroy(self->rkshare);
+                        CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
                         return -1;
                 }
 
                 if (wait_for_oauth_token_set(&self->base) == -1) {
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
                         rd_kafka_share_destroy(self->rkshare);
+                        CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
                         return -1;
                 }
