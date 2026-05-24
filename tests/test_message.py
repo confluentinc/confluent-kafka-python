@@ -260,11 +260,11 @@ def test_message_pickle():
 @pytest.mark.parametrize(
     "delivery_count_in,expected_returned",
     [
-        (1, 1),         # first delivery to a share group
-        (7, 7),         # re-delivered after release or lock-expiry
-        (32767, 32767), # largest value that fits in the 16-bit slot
+        (1, 1),  # first delivery to a share group
+        (7, 7),  # re-delivered after release or lock-expiry
+        (32767, 32767),  # largest value that fits in the 16-bit slot
         (-1, None),
-        (0, None),      # 0 and negatives both come back as None
+        (0, None),  # 0 and negatives both come back as None
         (-50, None),
     ],
 )

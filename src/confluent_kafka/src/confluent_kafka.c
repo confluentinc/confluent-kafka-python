@@ -1613,7 +1613,7 @@ PyObject *c_parts_to_dict_topic_partition_to_error(
 
         for (i = 0; i < (size_t)c_parts->cnt; i++) {
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-                key = c_part_to_py(rktpar);
+                key                                      = c_part_to_py(rktpar);
                 val = KafkaError_new_or_None(rktpar->err, NULL);
 
                 if (!key || !val || PyDict_SetItem(result, key, val) == -1)
