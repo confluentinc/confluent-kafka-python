@@ -795,6 +795,45 @@ static PyMethodDef ShareConsumer_methods[] = {
 
 
 /**
+ * @brief Reject share-incompatible config keys before common_conf_setup
+ *        sees them. Scans both the positional config dict (args[0]) and
+ *        kwargs; common_conf_setup merges them later with kwargs winning,
+ *        so checking presence in either source matches the eventual
+ *        resolved view. Keeps confluent_kafka.c ignorant of share
+ *        consumers — no flag on Handle, no share-specific branches in
+ *        the shared config setup path.
+ *
+ * @returns 0 if no rejected keys are present, -1 on rejection (a Python
+ *          ValueError is set).
+ */
+static int
+ShareConsumer_reject_incompatible_config(PyObject *args, PyObject *kwargs) {
+        static const char *const share_rejected_keys[] = {
+            "stats_cb", "statistics.interval.ms", "on_commit", NULL};
+        PyObject *positional_dict = NULL;
+        int i;
+
+        if (args && PyTuple_Check(args) && PyTuple_Size(args) >= 1) {
+                PyObject *cand = PyTuple_GetItem(args, 0);
+                if (cand && PyDict_Check(cand))
+                        positional_dict = cand;
+        }
+        for (i = 0; share_rejected_keys[i]; i++) {
+                const char *key = share_rejected_keys[i];
+                if ((positional_dict &&
+                     PyDict_GetItemString(positional_dict, key)) ||
+                    (kwargs && PyDict_GetItemString(kwargs, key))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "%s is not supported on ShareConsumer",
+                                     key);
+                        return -1;
+                }
+        }
+        return 0;
+}
+
+
+/**
  * @brief Initialize ShareConsumer.
  */
 static int
@@ -809,37 +848,8 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
-        /* Reject share-incompatible config keys before common_conf_setup
-         * sees them. Scans both the positional config dict (args[0]) and
-         * kwargs; common_conf_setup merges them later with kwargs winning,
-         * so checking presence in either source matches the eventual
-         * resolved view. Keeps confluent_kafka.c ignorant of share
-         * consumers — no flag on Handle, no share-specific branches in
-         * the shared config setup path. */
-        {
-                static const char *const share_rejected_keys[] = {
-                    "stats_cb", "statistics.interval.ms", "on_commit", NULL};
-                PyObject *positional_dict = NULL;
-                int i;
-
-                if (args && PyTuple_Check(args) && PyTuple_Size(args) >= 1) {
-                        PyObject *cand = PyTuple_GetItem(args, 0);
-                        if (cand && PyDict_Check(cand))
-                                positional_dict = cand;
-                }
-                for (i = 0; share_rejected_keys[i]; i++) {
-                        const char *key = share_rejected_keys[i];
-                        if ((positional_dict &&
-                             PyDict_GetItemString(positional_dict, key)) ||
-                            (kwargs && PyDict_GetItemString(kwargs, key))) {
-                                PyErr_Format(
-                                    PyExc_ValueError,
-                                    "%s is not supported on ShareConsumer",
-                                    key);
-                                return -1;
-                        }
-                }
-        }
+        if (ShareConsumer_reject_incompatible_config(args, kwargs) == -1)
+                return -1;
 
         self->base.type = RD_KAFKA_CONSUMER;
         /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from
@@ -854,41 +864,6 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         /* TODO KIP-932: Remove after interface of librdkafka is updated to
          * return double pointer */
         self->batch_size = 10005;
-
-        /* Callback dispatch (error_cb / stats_cb / throttle_cb / log_cb)
-         * relies on librdkafka draining rk_rep synchronously on the user's
-         * poll thread inside share_consume_batch and the commit entry
-         * points. The trampolines call CallState_get() which asserts
-         * (process abort) on a missing CallState, so dispatch must happen
-         * on a thread where the binding has called CallState_begin first.
-         *
-         * Verified against librdkafka (~/projects/librdkafka, v2.14.0):
-         *   - rd_kafka_share_consume_batch drains rk_rep on entry and
-         *     exit via rd_kafka_q_serve(rk->rk_rep, ...) at
-         *     src/rdkafka.c:3730 and :3763.
-         *   - rd_kafka_share_commit_sync drains on entry at
-         *     src/rdkafka.c:4316.
-         *   - rd_kafka_share_commit_async drains on entry at
-         *     src/rdkafka.c:4246.
-         *   - rd_kafka_share_consumer_close forwards rk_rep to the close
-         *     queue at src/rdkafka.c:5062, which is then drained by the
-         *     rd_kafka_poll_cb loop at :5143-5159.
-         * The binding wraps all four entry points (poll, commit_sync,
-         * commit_async, close) with CallState_begin/end so the assertion
-         * holds wherever librdkafka may dispatch a callback.
-         *
-         * NOT YET AN API CONTRACT. This is current librdkafka behavior,
-         * not a documented guarantee. The KIP-932 design doc only
-         * promises synchronous-on-poll-thread dispatch for
-         * share_acknowledgement_commit_cb — the legacy callbacks
-         * (error_cb / stats_cb / throttle_cb / log_cb) inherit the
-         * behavior incidentally.
-         *
-         * librdkafka should formalize this in its public contract by
-         * documenting that share_consume_batch / share_commit_* /
-         * share_consumer_close drain rk_rep synchronously and dispatch
-         * the legacy callbacks on the calling thread. Track this as a
-         * librdkafka upstream ask. */
 
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
