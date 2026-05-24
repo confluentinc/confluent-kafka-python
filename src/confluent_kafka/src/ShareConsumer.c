@@ -41,6 +41,14 @@ typedef struct {
 
         rd_kafka_share_t *rkshare;
 
+        /* Reference to the share consumer's underlying consumer-group queue,
+         * obtained via rd_kafka_share_queue_get_consumer() and forwarded
+         * from rk_rep by rd_kafka_share_poll_set_consumer() at init time.
+         * Held for the consumer's lifetime; destroyed before
+         * rd_kafka_share_destroy(). Mirrors Consumer.c's
+         * self->u.Consumer.rkqu. */
+        rd_kafka_queue_t *rkqu;
+
         /* TODO KIP-932: Remove after interface of librdkafka is updated to
          * return double pointer */
         size_t batch_size;
@@ -55,6 +63,15 @@ static int ShareConsumer_clear(ShareConsumerHandle *self) {
 
 static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         PyObject_GC_UnTrack(self);
+
+        /* Release queue ref before destroying the share consumer.
+         * rd_kafka_share_queue_get_consumer() bumped the queue's refcount;
+         * librdkafka requires that ref to drop before rd_kafka_share_destroy
+         * tears down the underlying handle. */
+        if (self->rkqu) {
+                rd_kafka_queue_destroy(self->rkqu);
+                self->rkqu = NULL;
+        }
 
         if (self->rkshare) {
                 CallState cs;
@@ -252,16 +269,16 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         CallState_begin(&self->base, &cs);
 
-        /* TODO KIP-932: Consumer.c caches a queue handle (rkqu) from
-         * rd_kafka_queue_get_consumer() and feeds it to
-         * rd_kafka_consume_batch_queue() / rd_kafka_commit_queue() to pin
-         * batch fetch and async commits onto the user's polling thread.
-         * Share has no equivalent: rd_kafka_share_consume_batch() takes the
-         * rd_kafka_share_t* directly and librdkafka exposes neither
-         * rd_kafka_share_get_queue() nor the inner rd_kafka_t*. Until that
-         * lands, error_cb/stats_cb/throttle_cb dispatch relies on
-         * rd_kafka_share_consume_batch draining rk_rep internally; see
-         * the callback-dispatch TODO in ShareConsumer_init. */
+        /* The cached self->rkqu from rd_kafka_share_queue_get_consumer()
+         * is the consumer-group queue that rk_rep was forwarded onto at
+         * init time via rd_kafka_share_poll_set_consumer(). It is held
+         * purely for lifecycle (destroyed before rd_kafka_share_destroy);
+         * rd_kafka_share_consume_batch() drives the dispatch path itself
+         * by serving rk_rep on entry/exit. A future binding revision may
+         * drain self->rkqu independently (e.g. from a background thread)
+         * to close the idle-consumer error-visibility gap; today we keep
+         * the dispatch on the user's poll thread for parity with the
+         * regular Consumer model. */
 
         /* Chunked polling pattern for signal interruptibility. */
         while (1) {
@@ -574,6 +591,10 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
 
         CallState_begin(&self->base, &cs);
         error = rd_kafka_share_consumer_close(self->rkshare);
+        if (self->rkqu) {
+                rd_kafka_queue_destroy(self->rkqu);
+                self->rkqu = NULL;
+        }
         rd_kafka_share_destroy(self->rkshare);
         self->rkshare = NULL;
         if (!CallState_end(&self->base, &cs)) {
@@ -907,6 +928,32 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                         return -1;
                 }
         }
+
+        /* librdkafka exposes the following share-equivalents of Consumer's
+         * poll-queue wiring (mirroring Consumer.c:1822-1825):
+         *
+         *   rd_kafka_share_poll_set_consumer(self->rkshare);
+         *   self->rkqu = rd_kafka_share_queue_get_consumer(self->rkshare);
+         *
+         * They are intentionally NOT called here. Calling them without also
+         * draining rkcg_q on the user's poll thread is unsafe:
+         * rd_kafka_share_consume_batch polls its own record queue, not
+         * rkcg_q, and rd_kafka_q_serve_share_rkmessages silently destroys
+         * non-record ops it dequeues from rkcg_q (rdkafka_queue.c:930-949).
+         * With the forwarding enabled, error_cb / throttle_cb / log_cb
+         * dispatches would be silently dropped; the integration test
+         * test_share_consumer_oauth_expired_token_surfaces_error_cb
+         * additionally segfaulted via cgrp background-thread dispatch.
+         *
+         * The existing contract — rd_kafka_share_consume_batch /
+         * commit_sync / commit_async / close draining rk_rep synchronously
+         * on the calling thread — already satisfies callback dispatch
+         * without needing these APIs. Re-enable only when librdkafka adds
+         * a share-aware serve function that dispatches non-record
+         * callbacks from rkcg_q. Until then self->rkqu stays NULL. */
+
+        /* rd_kafka_share_poll_set_consumer(self->rkshare); */
+        /* self->rkqu = rd_kafka_share_queue_get_consumer(self->rkshare); */
 
         /* OAuth wiring: enable SASL background callbacks so the
          * oauthbearer_token_refresh_cb fires on librdkafka's own thread

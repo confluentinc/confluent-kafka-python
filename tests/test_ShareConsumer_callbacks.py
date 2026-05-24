@@ -27,15 +27,15 @@ def _librdkafka_has_openssl():
     security.protocol=sasl_ssl/sasl_plaintext + OAUTHBEARER mechanism) are
     rejected at conf-set time, before the binding's oauth wiring ever runs.
     Probes the simplest gate: try to set security.protocol=sasl_ssl on a
-    Producer; if librdkafka rejects with `OpenSSL not available at build
-    time`, we're in a no-SSL environment.
+    Producer. The only failure that maps to "no OpenSSL" is the explicit
+    `OpenSSL not available at build time` rejection — any other error
+    (e.g. missing Kerberos keytab when GSSAPI is the default mechanism)
+    means we got past the OpenSSL gate, so OpenSSL is available.
     """
     try:
         Producer({'security.protocol': 'sasl_ssl'})
     except KafkaException as exc:
-        if 'OpenSSL not available' in str(exc):
-            return False
-        raise
+        return 'OpenSSL not available' not in str(exc)
     return True
 
 
