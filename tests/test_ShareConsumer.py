@@ -86,9 +86,11 @@ def test_constructor_rejects_on_commit():
     construction time so the misconfiguration is visible to callers
     instead of being silently held by librdkafka.
 
-    Wired via consumer_conf_set_special's is_share_consumer guard
-    (confluent_kafka.c). Same mechanism as stats_cb / statistics.interval.ms
-    rejection in test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
+    Wired via ShareConsumer_init's pre-filter pass over args[0] + kwargs
+    (ShareConsumer.c), which scans for share-incompatible keys before
+    handing off to common_conf_setup. Same mechanism as stats_cb /
+    statistics.interval.ms rejection in
+    test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
     """
     config = {
         'group.id': unique_id('test-share-no-commit'),

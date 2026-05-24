@@ -1,103 +1,92 @@
 """Fixtures for ShareConsumer OAUTHBEARER integration tests.
 
-Uses the local Apache Kafka broker fixture under tests/oauth/ — a single-node
-KRaft cluster with SASL_PLAINTEXT/OAUTHBEARER and the unsecured validator
-(KIP-255). Tests in this directory talk to this broker only; they do NOT use
-the trivup-based ``kafka_cluster`` fixture from tests/integration/conftest.py
-and intentionally live outside tests/integration/share_consumer/ so the
-share-consumer autouse cleanup (which depends on ``kafka_cluster``) doesn't
-fire.
+Spins up a single-broker trivup KRaft cluster with the unsecured
+OAUTHBEARER listener so tests can drive a real SASL handshake. The
+suite intentionally lives outside ``tests/integration/share_consumer/``
+to avoid that directory's autouse ``_delete_share_test_topics`` cleanup
+fixture, which depends on the ordinary ``kafka_cluster`` fixture.
+
+Trivup's unsecured listener fixes the JAAS validator to
+``unsecuredLoginStringClaim_sub="admin"`` and
+``unsecuredValidatorRequiredScope="requiredScope"`` — tokens minted by
+``unsecured_token.make_unsecured_jwt`` default to matching values.
+
+Trivup also normally tells clients to use librdkafka's built-in
+unsecured-JWT producer (``enable.sasl.oauthbearer.unsecure.jwt=true``
++ ``sasl.oauthbearer.config``). These tests need the binding's
+``oauth_cb`` path instead, so ``oauth_share_consumer_conf`` strips
+those keys before returning the base config dict.
+
+Locally the fixture uses ``$KAFKA_HOME`` (or ``~/projects/kafka``);
+in CI ``source-package-verification.sh`` pre-stages a tarball under
+``tmp-KafkaCluster/.../kafka/<version>/`` and the default trivup
+version-based search picks it up. The local-source branch sets
+``version='trunk'`` so trivup's deploy.sh symlinks instead of
+downloading.
 """
 
 import os
-import socket
-import subprocess
-import sys
-import time
 
 import pytest
 
-
-OAUTH_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "oauth")
-)
-START_SCRIPT = os.path.join(OAUTH_DIR, "start_broker.sh")
-STOP_SCRIPT = os.path.join(OAUTH_DIR, "stop_broker.sh")
-BOOTSTRAP = "localhost:9094"
-DEFAULT_KAFKA_HOME = os.path.expanduser("~/projects/kafka")
-STARTUP_TIMEOUT_SEC = 20
+from tests.common import TestUtils
+from tests.integration.conftest import create_trivup_cluster
 
 
-def _wait_for_port(host, port, deadline):
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except OSError:
-            time.sleep(0.5)
-    return False
+# Trivup's broker_conf list is appended to server.properties.
+# connections.max.reauth.ms=5000 forces SASL reauth every 5s — required
+# for the refresh_through_reauth test.
+_BROKER_CONF = TestUtils.broker_conf() + [
+    'connections.max.reauth.ms=5000',
+]
+
+
+def _resolve_kafka_path():
+    """Return (kafka_path, version) for trivup.
+
+    If a local Kafka source tree is reachable, use it via ``trunk``
+    + symlink. Otherwise return ``(None, TestUtils.broker_version())``
+    and let trivup download/use the standard version-based path
+    (which CI pre-stages under tmp-KafkaCluster/).
+    """
+    candidate = os.environ.get('KAFKA_HOME',
+                               os.path.expanduser('~/projects/kafka'))
+    if os.path.exists(os.path.join(candidate, 'bin',
+                                   'kafka-server-start.sh')):
+        return candidate, 'trunk'
+    return None, TestUtils.broker_version()
 
 
 @pytest.fixture(scope="session")
-def oauth_broker():
-    """Start the local OAUTHBEARER broker for the session; yield bootstrap.
+def oauth_trivup_cluster():
+    """Session-scoped trivup cluster, OAUTHBEARER unsecured."""
+    kafka_path, version = _resolve_kafka_path()
+    conf = {
+        'sasl_mechanism': 'OAUTHBEARER',
+        'broker_cnt': 1,
+        'with_sr': False,
+        'broker_conf': _BROKER_CONF,
+        'version': version,
+    }
+    if kafka_path is not None:
+        conf['kafka_path'] = kafka_path
+    cluster = create_trivup_cluster(conf)
+    yield cluster
+    cluster.stop()
 
-    Skips if no usable Apache Kafka tree is found. Tears down (and wipes the
-    log dir) at session end.
+
+@pytest.fixture
+def oauth_share_consumer_conf(oauth_trivup_cluster):
+    """Return a baseline ShareConsumer config dict for OAUTHBEARER.
+
+    Caller fills in ``group.id``, ``oauth_cb``, and optionally
+    ``error_cb`` / other knobs. Trivup's built-in unsecured-JWT
+    client defaults are stripped so the binding's ``oauth_cb`` is what
+    mints the token.
     """
-    kafka_home = os.environ.get("KAFKA_HOME", DEFAULT_KAFKA_HOME)
-    if not os.path.exists(os.path.join(kafka_home, "bin", "kafka-server-start.sh")):
-        pytest.skip(
-            f"Apache Kafka not found at KAFKA_HOME={kafka_home}; "
-            "set KAFKA_HOME to a built Kafka tree to run OAUTHBEARER tests"
-        )
-
-    # Bail out early if something else already owns 9094 — avoids a confusing
-    # "broker started but tests fail" mode where the broker silently failed
-    # to bind and the connection actually goes to an unrelated process.
-    try:
-        with socket.create_connection(("localhost", 9094), timeout=0.5):
-            pytest.fail("localhost:9094 is already in use; stop the other process first")
-    except OSError:
-        pass  # port free — good
-
-    env = {**os.environ, "KAFKA_HOME": kafka_home}
-    subprocess.run(
-        [START_SCRIPT, "-daemon"],
-        check=True,
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    deadline = time.time() + STARTUP_TIMEOUT_SEC
-    if not _wait_for_port("localhost", 9094, deadline):
-        subprocess.run(
-            [STOP_SCRIPT, "--clean"],
-            check=False,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        pytest.fail(
-            f"OAuth broker failed to open localhost:9094 within "
-            f"{STARTUP_TIMEOUT_SEC}s"
-        )
-
-    # Broker is listening, but the SASL/KRaft layer takes another moment
-    # before it'll accept connections cleanly. Small grace period avoids
-    # flaky first-test failures.
-    time.sleep(2.0)
-
-    print(f"\n[oauth_broker] up on {BOOTSTRAP}", file=sys.stderr)
-    try:
-        yield BOOTSTRAP
-    finally:
-        subprocess.run(
-            [STOP_SCRIPT, "--clean"],
-            check=False,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        print("[oauth_broker] stopped and cleaned", file=sys.stderr)
+    conf = oauth_trivup_cluster.client_conf()
+    for k in ('enable.sasl.oauthbearer.unsecure.jwt',
+              'sasl.oauthbearer.config'):
+        conf.pop(k, None)
+    conf['socket.timeout.ms'] = 5000
+    return conf
