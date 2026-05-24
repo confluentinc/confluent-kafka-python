@@ -2,9 +2,15 @@
 Token helper for OAUTHBEARER integration tests.
 
 Produces unsigned JWTs acceptable to Apache Kafka's
-OAuthBearerUnsecuredValidatorCallbackHandler (KIP-255). The broker fixture
-in this directory uses that validator, so tokens generated here are valid
-credentials for it.
+OAuthBearerUnsecuredValidatorCallbackHandler (KIP-255). Used by the
+share_consumer_oauth/ tests against the trivup OAUTHBEARER fixture.
+
+Defaults pin ``sub="admin"`` and ``scope="requiredScope"`` because
+trivup's unsecured listener JAAS fixes those values:
+    unsecuredLoginStringClaim_sub="admin"
+    unsecuredValidatorRequiredScope="requiredScope"
+Override either if a test deliberately wants a token the broker will
+reject.
 
 NEVER use this helper or the broker fixture in production. The unsecured
 validator does not verify any signature.
@@ -24,21 +30,28 @@ def _b64url(data: bytes) -> str:
 
 
 def make_unsecured_jwt(
-    subject: str = "alice",
+    subject: str = "admin",
     lifetime_sec: float = 300.0,
+    scope: str = "requiredScope",
 ) -> Tuple[str, float]:
     """Build an unsecured JWT and return (token, exp_epoch_seconds).
 
     The token has the JWT compact form ``header.payload.`` (empty
     signature). The validator checks the ``sub`` claim exists and is a
     string, that ``exp`` is in the future (modulo clock skew), and that
-    ``iat`` (if present) precedes ``exp``.
+    ``iat`` (if present) precedes ``exp``. If
+    ``unsecuredValidatorRequiredScope`` is configured on the listener,
+    the validator also checks that the JWT's ``scope`` claim contains
+    the required value.
 
     :param subject: Value for the ``sub`` claim. Becomes the SASL
-        principal name on the broker.
+        principal name on the broker. Default matches trivup's pinned
+        ``unsecuredLoginStringClaim_sub="admin"``.
     :param lifetime_sec: Seconds from now until the token expires. The
         returned ``exp_epoch_seconds`` is what oauth_cb should hand back
         to librdkafka so it can schedule the next refresh.
+    :param scope: Value for the ``scope`` claim. Default matches
+        trivup's pinned ``unsecuredValidatorRequiredScope="requiredScope"``.
     """
     now = time.time()
     exp = now + lifetime_sec
@@ -46,6 +59,7 @@ def make_unsecured_jwt(
     header = {"alg": "none", "typ": "JWT"}
     payload = {
         "sub": subject,
+        "scope": scope,
         "iat": int(now),
         "exp": int(exp),
     }

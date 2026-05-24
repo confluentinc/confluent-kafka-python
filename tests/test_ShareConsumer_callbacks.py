@@ -196,12 +196,12 @@ def test_stats_cb_rejected():
     doesn't translate to share groups, so what users would get back is
     incomplete and misleading. Rather than silently accept the callback
     and feed it half-baked data, the binding rejects stats_cb at config
-    time (confluent_kafka.c — inline strcmp branch, gated on
-    h->is_share_consumer set by ShareConsumer_init).
+    time (ShareConsumer.c — pre-filter over args[0] + kwargs before
+    common_conf_setup is called).
 
-    Pinned in both forms: dict-config and kwargs-form, plus the matching
-    statistics.interval.ms rejection (no callback → no point starting the
-    timer).
+    Pinned in both forms: dict-config and kwargs-form, for both stats_cb
+    and the matching statistics.interval.ms rejection (no callback → no
+    point starting the timer).
     """
     config = {
         'group.id': unique_id('test-share-stats-cb-rejected'),
@@ -219,6 +219,9 @@ def test_stats_cb_rejected():
 
     with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
         ShareConsumer({**config, 'statistics.interval.ms': 200})
+
+    with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
+        ShareConsumer(config, **{'statistics.interval.ms': 200})
 
 
 def test_log_cb():
