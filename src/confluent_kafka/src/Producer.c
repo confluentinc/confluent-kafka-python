@@ -1472,7 +1472,10 @@ static int Producer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
          * destroy on failure — wait_for_oauth_token_set no longer touches
          * self->rk (see refactor note in confluent_kafka.c). */
         if (self->oauth_cb && wait_for_oauth_token_set(self) == -1) {
+                CallState cs;
+                CallState_begin(self, &cs);
                 rd_kafka_destroy(self->rk);
+                CallState_end(self, &cs);
                 self->rk = NULL;
                 return -1;
         }
