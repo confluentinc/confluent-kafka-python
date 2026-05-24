@@ -80,16 +80,18 @@ def test_constructor_kwargs_only():
     sc.close()
 
 
-# TODO KIP-932: re-enable once ShareConsumer rejects on_commit at config time.
-# Today consumer_conf_set_special accepts on_commit for any consumer type and
-# ShareConsumer_clear0 has to compensate with a DECREF dance. The test pins the
-# desired contract; flip @pytest.mark.skip off when the rejection is wired in.
-@pytest.mark.skip(reason="TODO KIP-932: on_commit rejection not implemented yet")
 def test_constructor_rejects_on_commit():
     """Share consumers have no offset-commit concept. Setting on_commit
     in the positional config dict OR as a kwarg must be rejected at
     construction time so the misconfiguration is visible to callers
-    instead of being silently held by librdkafka."""
+    instead of being silently held by librdkafka.
+
+    Wired via ShareConsumer_init's pre-filter pass over args[0] + kwargs
+    (ShareConsumer.c), which scans for share-incompatible keys before
+    handing off to common_conf_setup. Same mechanism as stats_cb /
+    statistics.interval.ms rejection in
+    test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
+    """
     config = {
         'group.id': unique_id('test-share-no-commit'),
         'bootstrap.servers': 'localhost:9092',
@@ -403,147 +405,3 @@ def test_poll_interruptible_by_signal():
         sc2.close()
 
     assert interrupted, "poll() (infinite) should have been interrupted by SIGINT"
-
-
-def test_error_cb():
-    """Test that error_cb fires for ShareConsumer when broker is unreachable."""
-    error_called = []
-
-    def my_error_cb(error):
-        error_called.append(error)
-
-    sc = ShareConsumer(
-        {
-            'group.id': unique_id('test-share-error-cb'),
-            'bootstrap.servers': 'localhost:19999',
-            'socket.timeout.ms': 100,
-            'error_cb': my_error_cb,
-        }
-    )
-
-    sc.subscribe(['test-topic'])
-    sc.poll(timeout=0.5)
-
-    assert len(error_called) > 0, "error_cb should have been called"
-    assert isinstance(error_called[0], KafkaError)
-    assert error_called[0].code() in (KafkaError._TRANSPORT, KafkaError._ALL_BROKERS_DOWN)
-    sc.close()
-
-
-def test_error_cb_exception_propagates():
-    """Test that an exception raised in error_cb propagates to poll.
-
-    Scope: only the poll-time propagation path. The teardown disables the
-    callback's raise behaviour before close() so this test isn't coupled to
-    close-time semantics — those are pinned down separately in
-    test_error_cb_exception_during_close.
-    """
-    error_called = []
-    raising = [True]
-
-    def error_cb_that_raises(error):
-        error_called.append(error)
-        if raising[0]:
-            raise RuntimeError("Test exception from error_cb")
-
-    sc = ShareConsumer(
-        {
-            'group.id': unique_id('test-share-error-cb-exc'),
-            'bootstrap.servers': 'localhost:19999',
-            'socket.timeout.ms': 100,
-            'error_cb': error_cb_that_raises,
-        }
-    )
-
-    sc.subscribe(['test-topic'])
-
-    with pytest.raises(RuntimeError) as exc_info:
-        sc.poll(timeout=0.5)
-
-    assert "Test exception from error_cb" in str(exc_info.value)
-    assert len(error_called) > 0
-
-    # Disarm before close so this test only asserts poll-time behavior.
-    raising[0] = False
-    sc.close()
-
-
-# TODO KIP-932: this test pins a coin flip — whether close() surfaces a
-# user-callback exception depends on whether librdkafka happens to dispatch
-# an error event during the close drain, which depends on internal queue
-# timing and rate-limiter state. Locally it tends not to raise; on CI it
-# does. Replace with a test of the disarm-before-close recipe (set the
-# callback's raise flag to False, then close — guaranteed clean) once the
-# share-consumer error-handling docs settle.
-# Validate & Handle this in upcoming callback PRs
-@pytest.mark.skip(reason="TODO KIP-932: timing-dependent; replace with disarm-recipe test")
-def test_error_cb_exception_during_close():
-    """Pin down close() behavior when error_cb is still rigged to raise.
-
-    During close, librdkafka may dispatch one final round of error events
-    (e.g. _ALL_BROKERS_DOWN). If a user callback raises in that path, the
-    exception surfaces from close() — close does not silently swallow it.
-
-    Callers should treat close() as fallible and put their own raise paths
-    behind a guard if they need close() to be infallible.
-    """
-
-    def error_cb_that_raises(error):
-        raise RuntimeError("error_cb raises during close")
-
-    sc = ShareConsumer(
-        {
-            'group.id': unique_id('test-share-close-cb-raise'),
-            'bootstrap.servers': 'localhost:19999',
-            'socket.timeout.ms': 100,
-            'error_cb': error_cb_that_raises,
-        }
-    )
-    sc.subscribe(['test-topic'])
-
-    # Drain the initial poll() exception so the consumer reaches a steady
-    # broker-unreachable state before close.
-    with pytest.raises(RuntimeError):
-        sc.poll(timeout=0.5)
-
-    # Whatever close() does, it MUST be deterministic. Capture and assert.
-    close_raised = None
-    try:
-        sc.close()
-    except RuntimeError as exc:
-        close_raised = exc
-
-    # Document the current contract: close() does NOT pump user-facing
-    # callbacks that would re-raise. If this assertion ever flips, the
-    # contract has changed and the docstring above needs updating.
-    assert close_raised is None, (
-        f"close() raised: {close_raised!r}; if intentional, update the "
-        f"test docstring and treat close() as fallible in user code."
-    )
-
-
-def test_throttle_cb():
-    """Test that throttle_cb can be registered without crashing.
-
-    throttle_cb requires broker-side throttling to fire, which can't be
-    triggered in a unit test. We verify it can be set and doesn't crash.
-    """
-    throttle_called = []
-
-    def my_throttle_cb(event):
-        throttle_called.append(event)
-
-    sc = ShareConsumer(
-        {
-            'group.id': unique_id('test-share-throttle-cb'),
-            'bootstrap.servers': 'localhost:19999',
-            'socket.timeout.ms': 100,
-            'throttle_cb': my_throttle_cb,
-        }
-    )
-
-    sc.subscribe(['test-topic'])
-
-    # throttle_cb won't fire without broker throttling — just verify no crash
-    sc.poll(timeout=0.2)
-    sc.close()
