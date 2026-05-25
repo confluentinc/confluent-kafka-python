@@ -197,10 +197,8 @@ def drain_share_consumers(consumers, total_messages, timeout_s=20.0, poll_timeou
     batch; the tail batch is left unacked). Pass an AcknowledgeType to ack each
     message inline — required when share.acknowledgement.mode=explicit.
 
-    TODO KIP-932: once commit_sync() / commit_async() are exposed on the
-    ShareConsumer binding, the implicit-ack drain (ack_type=None) should
-    still emit a commit on the tail batch so callers don't have to chase
-    leaked records. Add a commit step here once those APIs land.
+    drain doesn't auto-commit. Tests that need commit_sync to return non-empty
+    results call it themselves; everything else flushes via close().
     """
     received = [[] for _ in consumers]
     deadline = time.time() + timeout_s
@@ -214,6 +212,72 @@ def drain_share_consumers(consumers, total_messages, timeout_s=20.0, poll_timeou
         if sum(len(bucket) for bucket in received) >= total_messages:
             break
     return received
+
+
+def poll_ack_commit_loop(
+    consumers,
+    total_messages,
+    *,
+    ack_type=None,
+    async_commit=False,
+    poll_timeout_s=0.5,
+    commit_timeout_s=10.0,
+    deadline_s=30.0,
+):
+    """Poll a batch, ack it (if ack_type given), commit, repeat.
+
+    This mirrors the librdkafka 0176 share-consumer test: we have to
+    commit before the next poll, otherwise the acks just piggyback on
+    that poll and commit never actually sends a ShareAcknowledge RPC.
+
+    Takes a single consumer or a list of them (same shape as
+    :func:`drain_share_consumers`). For a list we round-robin one poll
+    per consumer per round and each consumer commits its own batch.
+
+    async_commit=False (default) calls commit_sync per batch and records
+    its per-partition result dict. async_commit=True calls commit_async
+    per batch (always returns None); the results list holds one None
+    per batch.
+
+    Returns ``(msgs_per_consumer, commits_per_consumer)``:
+      msgs_per_consumer:    one message list per consumer.
+      commits_per_consumer: one list of commit return values per
+                            consumer; one entry per batch that consumer
+                            committed.
+
+    Pass ``ack_type=None`` for implicit mode (commit auto-ACCEPTs the
+    last batch). Pass an AcknowledgeType for explicit mode.
+    """
+    if not isinstance(consumers, (list, tuple)):
+        consumers = [consumers]
+        unwrap = True
+    else:
+        unwrap = False
+
+    msgs_per_consumer = [[] for _ in consumers]
+    commits_per_consumer = [[] for _ in consumers]
+    deadline = time.time() + deadline_s
+    while sum(len(b) for b in msgs_per_consumer) < total_messages and time.time() < deadline:
+        any_progress = False
+        for sc, msgs, commits in zip(consumers, msgs_per_consumer, commits_per_consumer):
+            batch = [msg for msg in sc.poll(timeout=poll_timeout_s) if msg.error() is None]
+            if not batch:
+                continue
+            any_progress = True
+            if ack_type is not None:
+                for msg in batch:
+                    sc.acknowledge(msg, ack_type)
+            if async_commit:
+                commits.append(sc.commit_async())
+            else:
+                commits.append(sc.commit_sync(timeout=commit_timeout_s))
+            msgs.extend(batch)
+        if not any_progress:
+            continue  # the next poll's timeout does the waiting for us
+
+    if unwrap:
+        return msgs_per_consumer[0], commits_per_consumer[0]
+    return msgs_per_consumer, commits_per_consumer
 
 
 class TestShareConsumer(ShareConsumer):
