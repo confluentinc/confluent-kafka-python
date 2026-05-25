@@ -533,6 +533,12 @@ static PyObject *Message_latency(Message *self, PyObject *ignore) {
         return PyFloat_FromDouble((double)self->latency / 1000000.0);
 }
 
+static PyObject *Message_delivery_count(Message *self, PyObject *ignore) {
+        if (self->delivery_count <= 0)
+                Py_RETURN_NONE;
+        return cfl_PyInt_FromInt(self->delivery_count);
+}
+
 static PyObject *Message_headers(Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
         if (self->headers) {
@@ -622,11 +628,11 @@ static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
                 latency_obj = PyFloat_FromDouble(-1.0);
         }
         result = Py_BuildValue(
-            "O(NiLNNNNOOi)", Message_type, Message_topic(self, NULL),
+            "O(NiLNNNNOOih)", Message_type, Message_topic(self, NULL),
             self->partition, self->offset, Message_key(self, NULL),
             Message_value(self, NULL), Message_headers(self, NULL),
             Message_error(self, NULL), Message_timestamp(self, NULL),
-            latency_obj, self->leader_epoch);
+            latency_obj, self->leader_epoch, self->delivery_count);
         Py_DECREF(latency_obj);
 
 
@@ -699,6 +705,16 @@ static PyMethodDef Message_methods[] = {
      "  :returns: latency as float seconds, or None if latency "
      "information is not available (such as for errored messages).\n"
      "  :rtype: float or None\n"
+     "\n"},
+    {"delivery_count", (PyCFunction)Message_delivery_count, METH_NOARGS,
+     "Retrieve the share-consumer delivery count for this message.\n"
+     "The first time a record is acquired by a share group, delivery_count "
+     "is 1; it increments each time the record is re-acquired after a "
+     "RELEASE or acquisition-lock timeout.\n"
+     "\n"
+     "  :returns: delivery count (>= 1) for share-consumer messages, "
+     "or None if not available (e.g. standard consumer or producer).\n"
+     "  :rtype: int or None\n"
      "\n"},
     {"headers", (PyCFunction)Message_headers, METH_NOARGS,
      "  Retrieve the headers set on a message. Each header is a key value"
@@ -794,15 +810,17 @@ static int Message_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         PyObject *timestamp  = NULL;
         double latency       = -1;
         int32_t leader_epoch = -1;
+        short delivery_count = -1;
 
-        static char *kws[] = {"topic",   "partition",    "offset", "key",
-                              "value",   "headers",      "error",  "timestamp",
-                              "latency", "leader_epoch", NULL};
+        static char *kws[] = {"topic",        "partition",      "offset",
+                              "key",          "value",          "headers",
+                              "error",        "timestamp",      "latency",
+                              "leader_epoch", "delivery_count", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdi", kws,
-                                         &topic, &partition, &offset, &key,
-                                         &value, &headers, &error, &timestamp,
-                                         &latency, &leader_epoch)) {
+        if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "|OiLOOOOOdih", kws, &topic, &partition, &offset,
+                &key, &value, &headers, &error, &timestamp, &latency,
+                &leader_epoch, &delivery_count)) {
                 return -1;
         }
 
@@ -867,6 +885,7 @@ static int Message_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         self->offset       = offset < 0 ? RD_KAFKA_OFFSET_INVALID : offset;
         self->leader_epoch = leader_epoch < 0 ? -1 : leader_epoch;
         self->latency      = (int64_t)(latency < 0 ? -1 : latency * 1000000.0);
+        self->delivery_count = delivery_count <= 0 ? -1 : delivery_count;
 
         return 0;
 }
@@ -1083,6 +1102,11 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
                 self->latency = rd_kafka_message_latency(rkm);
         else
                 self->latency = -1;
+
+        /* Share consumer: 0 from librdkafka means unavailable; store as -1
+         * so the Python accessor returns None for non-share consumers. */
+        int16_t delivery_count = rd_kafka_message_delivery_count(rkm);
+        self->delivery_count   = delivery_count > 0 ? delivery_count : -1;
 
         return (PyObject *)self;
 }
@@ -1568,6 +1592,46 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
         }
 
         return parts;
+}
+
+/**
+ * @brief Convert a per-partition commit result list into a Python
+ * dict(TopicPartition -> KafkaError | None).
+ *
+ * @returns The new Python dict, or NULL on allocation failure.
+ */
+PyObject *c_parts_to_dict_topic_partition_to_error(
+    const rd_kafka_topic_partition_list_t *c_parts) {
+        PyObject *result = NULL;
+        PyObject *key    = NULL;
+        PyObject *val    = NULL;
+        size_t i;
+
+        result = PyDict_New();
+        if (!result)
+                goto err;
+
+        for (i = 0; i < (size_t)c_parts->cnt; i++) {
+                const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
+                key                                      = c_part_to_py(rktpar);
+                val = KafkaError_new_or_None(rktpar->err, NULL);
+
+                if (!key || !val || PyDict_SetItem(result, key, val) == -1)
+                        goto err;
+
+                Py_DECREF(key);
+                Py_DECREF(val);
+                key = NULL;
+                val = NULL;
+        }
+
+        return result;
+
+err:
+        Py_XDECREF(key);
+        Py_XDECREF(val);
+        Py_XDECREF(result);
+        return NULL;
 }
 
 /**
