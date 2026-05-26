@@ -724,13 +724,9 @@ def test_partial_ack_still_blocks_next_poll(kafka_cluster):
 
 # --- acknowledgement-commit callback --------------------------------------
 #
-# librdkafka fires the callback once per partition (rdkafka_share_acknowledgement.h:
-# "enqueues one callback operation per partition"), so each invocation's
-# offsets dict contains exactly one TopicPartition key. The cb is dispatched
-# by the rk_rep drain inside rd_kafka_share_consume_batch (rdkafka.c:3844/3876),
-# i.e. on the thread that calls poll(). Tests that expect a cb invocation
-# must therefore poll() at least once after commit_async / commit_sync to
-# give the drain a chance to fire it.
+# The cb fires once per partition, dispatched on the thread that calls poll().
+# Tests that expect a cb invocation must poll() at least once after
+# commit_async / commit_sync so the dispatch has a chance to run.
 
 
 def _wait_for_callback(sc, invocations, expected_count, timeout_s=10.0):
@@ -755,14 +751,12 @@ def test_set_callback_rejects_non_callable(kafka_cluster):
 
 def test_set_callback_accepts_none(kafka_cluster):
     """None clears the callback; setting/clearing repeatedly is safe.
-    Both positional and ``callback=`` keyword forms accepted (Java parity:
-    the Java parameter is named ``callback``)."""
+    Both positional and ``callback=`` keyword forms work."""
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         sc.set_acknowledgement_commit_callback(None)
         sc.set_acknowledgement_commit_callback(lambda offsets, exc: None)
         sc.set_acknowledgement_commit_callback(None)
-        # Keyword form (matches Java's setAcknowledgementCommitCallback param).
         sc.set_acknowledgement_commit_callback(callback=lambda offsets, exc: None)
         sc.set_acknowledgement_commit_callback(callback=None)
     finally:
@@ -962,8 +956,7 @@ def test_callback_clear_with_none_disables(kafka_cluster):
 
 
 def test_callback_fires_on_commit_sync(kafka_cluster):
-    """commit_sync drains rk_rep before returning (rdkafka.c:4353), so the
-    cb fires inside commit_sync itself — no extra poll needed."""
+    """cb fires inside commit_sync itself — no extra poll needed."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
         'test-share-consumer-cb-commit-sync')
 
@@ -998,9 +991,8 @@ def test_callback_fires_on_commit_sync(kafka_cluster):
 
 
 def test_callback_fires_during_close(kafka_cluster):
-    """close() drains pending share-ack ops via rd_kafka_consumer_close0
-    (rdkafka.c:5137-5153 → rd_kafka_poll_cb → SHARE_ACK_COMMIT_CB_EXECUTE),
-    so unacked-at-close work still surfaces through the cb."""
+    """close() drains pending share-ack ops, so unacked-at-close work still
+    surfaces through the cb."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
         'test-share-consumer-cb-close')
 
@@ -1032,10 +1024,8 @@ def test_callback_fires_during_close(kafka_cluster):
 
 
 def test_callback_cardinality_multipartition(kafka_cluster):
-    """librdkafka fires the cb once per partition
-    (rdkafka_share_acknowledgement.h:307-318). With N partitions and records
-    spread across them, the cb should fire N times, each with exactly one
-    TopicPartition key."""
+    """With N partitions and records spread across them, the cb should fire
+    N times, each with exactly one TopicPartition key."""
     num_partitions = 3
     num_messages_per_partition = 2
     topic = kafka_cluster.create_topic_and_wait_propogation(
@@ -1081,8 +1071,7 @@ def test_callback_cardinality_multipartition(kafka_cluster):
         for offsets, exc in invocations:
             assert exc is None
             assert len(offsets) == 1, (
-                f'cb invocation carried {len(offsets)} partitions; expected 1 '
-                f'(librdkafka fires once per partition)')
+                f'cb invocation carried {len(offsets)} partitions; expected 1')
 
         # Aggregate: every partition we acked must show up across the
         # invocations.
@@ -1098,9 +1087,8 @@ def test_callback_cardinality_multipartition(kafka_cluster):
 
 
 def test_callback_not_invoked_on_empty_commit(kafka_cluster):
-    """commit_async/commit_sync with no pending acks short-circuit in
-    librdkafka (rdkafka.c:4232-4236, 4309-4313) and never enqueue a broker
-    request — the cb must not fire."""
+    """commit_async/commit_sync with no pending acks short-circuits without
+    a broker request — the cb must not fire."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
         'test-share-consumer-cb-empty-commit')
 
@@ -1129,16 +1117,15 @@ def test_callback_not_invoked_on_empty_commit(kafka_cluster):
 
 
 def test_callback_reentrancy_guard(kafka_cluster):
-    """Calling share-consumer APIs from inside the cb fails with _STATE
-    (rdkafka.c:3084-3092: every entry acquires the share handle; acquire
-    rejects when in_callback is true)."""
+    """Calling share-consumer APIs from inside the cb fails with _STATE —
+    librdkafka guards every entry point against reentrancy."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
         'test-share-consumer-cb-reentrancy')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
-        # Two separate guard checks — one documented (set_…cb itself, per
-        # rdkafka.h:2272), one broader (commit_async, via share_acquire).
+        # Two separate guard checks: set_…cb itself, and a generic share-API
+        # call (commit_async) that goes through the same reentrancy guard.
         captured_setter_err = []
         captured_commit_err = []
 
