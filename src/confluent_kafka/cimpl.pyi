@@ -51,8 +51,7 @@ from ._types import HeadersType
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
-# Argument order mirrors Java AcknowledgementCommitCallback.onComplete:
-# (offsets, exception), not (err, parts) like on_commit.
+# (offsets, exception) — note the order is offsets-first, opposite of on_commit.
 AcknowledgementCommitCallback = Callable[
     [Dict['TopicPartition', FrozenSet[int]], Optional['KafkaException']], None
 ]

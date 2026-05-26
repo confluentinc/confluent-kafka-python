@@ -1638,11 +1638,6 @@ err:
  * @brief Convert a share-consumer per-partition acknowledged-offsets list into
  *        a Python dict(TopicPartition -> frozenset(int)).
  *
- * Mirrors Java AcknowledgementCommitCallback.onComplete's
- * Map<TopicIdPartition, Set<Long>>. TopicPartition is used in place of
- * TopicIdPartition until the latter is added Python-wide
- * (see TODO in cimpl.pyi).
- *
  * @returns The new Python dict, or NULL on allocation failure with an
  *          exception set.
  */
