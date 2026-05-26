@@ -274,12 +274,7 @@ typedef struct {
 
                 } Consumer;
 
-                /**
-                 * ShareConsumer (KIP-932)
-                 */
                 struct {
-                        /* Set via
-                         * ShareConsumer.set_acknowledgement_commit_callback() */
                         PyObject *on_share_acknowledgement_commit;
                 } ShareConsumer;
         } u;

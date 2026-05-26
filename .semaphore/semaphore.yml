@@ -11,7 +11,7 @@ global_job_config:
       value: v2.14.2
     # TODO KIP-932: Remove LIBRDKAFKA_BRANCH once LIBRDKAFKA_VERSION includes share consumer support
     - name: LIBRDKAFKA_BRANCH
-      value: dev_kip-932_queues-for-kafka
+      value: dev_kip-932_ack_callback_imp_changes
   prologue:
     commands:
       - checkout

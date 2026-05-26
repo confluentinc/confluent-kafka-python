@@ -17,7 +17,9 @@
 
 """Integration tests for ShareConsumer acknowledgement (KIP-932)."""
 
+import gc
 import time
+import weakref
 
 import pytest
 
@@ -774,15 +776,13 @@ def test_set_callback_after_close_raises(kafka_cluster):
 def test_callback_fires_on_explicit_commit_async(kafka_cluster):
     """ack → commit_async → poll fires the cb with exception=None and
     a dict containing the acknowledged offsets."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-explicit')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-explicit')
     num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
 
         sc.subscribe([topic])
 
@@ -818,24 +818,21 @@ def test_callback_fires_on_explicit_commit_async(kafka_cluster):
             assert tp.topic == topic
             assert isinstance(offsets[tp], frozenset)
             cb_offsets |= offsets[tp]
-        assert cb_offsets == acked_offsets, (
-            f'cb saw {cb_offsets}, acked {acked_offsets}'
-        )
+        assert cb_offsets == acked_offsets, f'cb saw {cb_offsets}, acked {acked_offsets}'
     finally:
         sc.close()
 
 
 def test_callback_fires_on_implicit_mode(kafka_cluster):
-    """Implicit mode: next poll auto-acks prior batch and fires the cb."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-implicit')
+    """Implicit mode: next poll auto-acks prior batch and fires the cb with
+    the offsets that were just auto-acked."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-implicit')
     num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
 
         sc.subscribe([topic])
 
@@ -845,25 +842,40 @@ def test_callback_fires_on_implicit_mode(kafka_cluster):
         producer.flush(timeout=10.0)
 
         # Drain all records — each subsequent poll() implicit-acks the prior
-        # batch, which fires the cb.
-        drain_share_consumers([sc], num_messages, timeout_s=20.0)
+        # batch, which fires the cb. Capture the offsets actually consumed so
+        # we can verify the cb reported the same set.
+        batches = drain_share_consumers([sc], num_messages, timeout_s=20.0)
+        consumed_offsets = {m.offset() for m in batches[0]}
+        assert (
+            len(consumed_offsets) == num_messages
+        ), f'consumed {len(consumed_offsets)} unique offsets, expected {num_messages}'
 
-        # Final commit_async to flush the tail batch, plus polls to drain.
+        # Final commit_async to flush the tail batch's implicit-ack.
         sc.commit_async()
-        _wait_for_callback(sc, invocations, 1, timeout_s=10.0)
+
+        # The cb fires once per (batch x partition); poll until every consumed
+        # offset has been reported by the cb, or timeout.
+        deadline = time.time() + 10.0
+        cb_offsets = set()
+        while time.time() < deadline and cb_offsets != consumed_offsets:
+            sc.poll(timeout=0.5)
+            cb_offsets = set()
+            for offsets, _ in invocations:
+                for tp_offsets in offsets.values():
+                    cb_offsets |= tp_offsets
 
         assert invocations, 'callback never fired'
         for offsets, exc in invocations:
             assert exc is None, f'unexpected exception in cb: {exc!r}'
             assert len(offsets) == 1
+        assert cb_offsets == consumed_offsets, f'cb reported {cb_offsets}, consumed {consumed_offsets}'
     finally:
         sc.close()
 
 
 def test_callback_replacement_only_new_fires(kafka_cluster):
     """Re-registering replaces the prior callback — old one stops firing."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-replace')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-replace')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
@@ -871,8 +883,7 @@ def test_callback_replacement_only_new_fires(kafka_cluster):
         cb2_calls = []
 
         # First cycle: cb1 active.
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: cb1_calls.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: cb1_calls.append((offsets, exc)))
         sc.subscribe([topic])
         producer = kafka_cluster.cimpl_producer()
         producer.produce(topic, value=b'msg-cb1')
@@ -888,8 +899,7 @@ def test_callback_replacement_only_new_fires(kafka_cluster):
         cb1_count_after_first_cycle = len(cb1_calls)
 
         # Swap to cb2.
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: cb2_calls.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: cb2_calls.append((offsets, exc)))
 
         producer.produce(topic, value=b'msg-cb2')
         producer.flush(timeout=10.0)
@@ -901,23 +911,21 @@ def test_callback_replacement_only_new_fires(kafka_cluster):
         _wait_for_callback(sc, cb2_calls, 1, timeout_s=10.0)
 
         assert cb2_calls, 'cb2 never fired after replacement'
-        assert len(cb1_calls) == cb1_count_after_first_cycle, (
-            f'cb1 fired again after replacement: {cb1_calls[cb1_count_after_first_cycle:]}'
-        )
+        assert (
+            len(cb1_calls) == cb1_count_after_first_cycle
+        ), f'cb1 fired again after replacement: {cb1_calls[cb1_count_after_first_cycle:]}'
     finally:
         sc.close()
 
 
 def test_callback_clear_with_none_disables(kafka_cluster):
     """After clearing with None the cb must not fire on subsequent commits."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-clear')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-clear')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
@@ -948,33 +956,40 @@ def test_callback_clear_with_none_disables(kafka_cluster):
         while time.time() < deadline:
             sc.poll(timeout=0.5)
 
-        assert len(invocations) == count_before_clear, (
-            f'cb fired {len(invocations) - count_before_clear} times after clear'
-        )
+        assert (
+            len(invocations) == count_before_clear
+        ), f'cb fired {len(invocations) - count_before_clear} times after clear'
     finally:
         sc.close()
 
 
 def test_callback_fires_on_commit_sync(kafka_cluster):
-    """cb fires inside commit_sync itself — no extra poll needed."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-commit-sync')
+    """cb fires inside commit_sync itself — no extra poll needed — and the
+    cb payload contains the offsets that were acked."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-commit-sync')
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        producer.produce(topic, value=b'msg-0')
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        msgs = poll_first_batch(sc)
-        assert msgs
-        for m in msgs:
-            sc.acknowledge(m, AcknowledgeType.ACCEPT)
+        acked_offsets = set()
+        batch = []
+        deadline = time.time() + 20.0
+        while time.time() < deadline and len(batch) < num_messages:
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    batch.append(m)
+                    sc.acknowledge(m, AcknowledgeType.ACCEPT)
+                    acked_offsets.add(m.offset())
+        assert len(batch) == num_messages, f'received {len(batch)} of {num_messages}'
 
         # commit_sync blocks until broker responds, and per-partition results
         # are also delivered to the cb via the post-commit rk_rep drain.
@@ -983,34 +998,45 @@ def test_callback_fires_on_commit_sync(kafka_cluster):
 
         # The cb should have fired before commit_sync returned; no poll().
         assert invocations, 'cb did not fire during commit_sync'
+        cb_offsets = set()
         for offsets, exc in invocations:
             assert exc is None, f'unexpected exception in cb: {exc!r}'
-            assert len(offsets) == 1
+            assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
+            tp = next(iter(offsets))
+            assert tp.topic == topic
+            cb_offsets |= offsets[tp]
+        assert cb_offsets == acked_offsets, f'cb saw {cb_offsets}, acked {acked_offsets}'
     finally:
         sc.close()
 
 
 def test_callback_fires_during_close(kafka_cluster):
     """close() drains pending share-ack ops, so unacked-at-close work still
-    surfaces through the cb."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-close')
+    surfaces through the cb with the offsets that were acked."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-close')
+    num_messages = 3
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     invocations = []
+    acked_offsets = set()
     try:
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
-        producer.produce(topic, value=b'msg-0')
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        msgs = poll_first_batch(sc)
-        assert msgs
-        for m in msgs:
-            sc.acknowledge(m, AcknowledgeType.ACCEPT)
+        batch = []
+        deadline = time.time() + 20.0
+        while time.time() < deadline and len(batch) < num_messages:
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    batch.append(m)
+                    sc.acknowledge(m, AcknowledgeType.ACCEPT)
+                    acked_offsets.add(m.offset())
+        assert len(batch) == num_messages, f'received {len(batch)} of {num_messages}'
 
         # Trigger the send but DO NOT poll — let close() drain the response.
         sc.commit_async()
@@ -1018,49 +1044,52 @@ def test_callback_fires_during_close(kafka_cluster):
         sc.close()
 
     assert invocations, 'cb did not fire during close()'
+    cb_offsets = set()
     for offsets, exc in invocations:
         assert exc is None, f'unexpected exception in cb: {exc!r}'
-        assert len(offsets) == 1
+        assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
+        tp = next(iter(offsets))
+        assert tp.topic == topic
+        cb_offsets |= offsets[tp]
+    assert cb_offsets == acked_offsets, f'cb saw {cb_offsets}, acked {acked_offsets}'
 
 
 def test_callback_cardinality_multipartition(kafka_cluster):
     """With N partitions and records spread across them, the cb should fire
-    N times, each with exactly one TopicPartition key."""
+    N times, each with exactly one TopicPartition key carrying the offsets
+    acked for that partition."""
     num_partitions = 3
     num_messages_per_partition = 2
     topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-multipart',
-        {'num_partitions': num_partitions})
+        'test-share-consumer-cb-multipart', {'num_partitions': num_partitions}
+    )
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
         sc.subscribe([topic])
 
         producer = kafka_cluster.cimpl_producer()
         # Produce to specific partitions so all N see records.
         for partition in range(num_partitions):
             for i in range(num_messages_per_partition):
-                producer.produce(
-                    topic, value=f'p{partition}-msg-{i}'.encode(),
-                    partition=partition)
+                producer.produce(topic, value=f'p{partition}-msg-{i}'.encode(), partition=partition)
         producer.flush(timeout=10.0)
 
         total_messages = num_partitions * num_messages_per_partition
-        partitions_seen_in_acks = set()
+        acked_by_partition = {}  # partition -> set of offsets acked
         deadline = time.time() + 30.0
         received = 0
         while time.time() < deadline and received < total_messages:
             for m in sc.poll(timeout=0.5):
                 if m.error() is None:
                     sc.acknowledge(m, AcknowledgeType.ACCEPT)
-                    partitions_seen_in_acks.add(m.partition())
+                    acked_by_partition.setdefault(m.partition(), set()).add(m.offset())
                     received += 1
-        assert partitions_seen_in_acks == set(range(num_partitions)), (
-            f'expected acks on partitions {set(range(num_partitions))}, '
-            f'got {partitions_seen_in_acks}')
+        assert set(acked_by_partition.keys()) == set(range(num_partitions)), (
+            f'expected acks on partitions {set(range(num_partitions))}, ' f'got {set(acked_by_partition.keys())}'
+        )
 
         sc.commit_async()
         deadline = time.time() + 10.0
@@ -1070,18 +1099,15 @@ def test_callback_cardinality_multipartition(kafka_cluster):
         # Every invocation: exactly one partition key.
         for offsets, exc in invocations:
             assert exc is None
-            assert len(offsets) == 1, (
-                f'cb invocation carried {len(offsets)} partitions; expected 1')
+            assert len(offsets) == 1, f'cb invocation carried {len(offsets)} partitions; expected 1'
 
-        # Aggregate: every partition we acked must show up across the
-        # invocations.
-        partitions_seen_in_cb = set()
+        # Aggregate per-partition offsets the cb reported, then compare to
+        # what we acked.
+        cb_by_partition = {}
         for offsets, _ in invocations:
             tp = next(iter(offsets))
-            partitions_seen_in_cb.add(tp.partition)
-        assert partitions_seen_in_cb == partitions_seen_in_acks, (
-            f'cb saw partitions {partitions_seen_in_cb}, '
-            f'expected {partitions_seen_in_acks}')
+            cb_by_partition.setdefault(tp.partition, set()).update(offsets[tp])
+        assert cb_by_partition == acked_by_partition, f'cb reported {cb_by_partition}, acked {acked_by_partition}'
     finally:
         sc.close()
 
@@ -1089,14 +1115,12 @@ def test_callback_cardinality_multipartition(kafka_cluster):
 def test_callback_not_invoked_on_empty_commit(kafka_cluster):
     """commit_async/commit_sync with no pending acks short-circuits without
     a broker request — the cb must not fire."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-empty-commit')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-empty-commit')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
         invocations = []
-        sc.set_acknowledgement_commit_callback(
-            lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
         sc.subscribe([topic])
 
         # Empty commits — no records consumed, nothing to ack.
@@ -1109,9 +1133,7 @@ def test_callback_not_invoked_on_empty_commit(kafka_cluster):
         while time.time() < deadline:
             sc.poll(timeout=0.5)
 
-        assert invocations == [], (
-            f'cb fired on empty commit: {invocations!r}'
-        )
+        assert invocations == [], f'cb fired on empty commit: {invocations!r}'
     finally:
         sc.close()
 
@@ -1119,8 +1141,7 @@ def test_callback_not_invoked_on_empty_commit(kafka_cluster):
 def test_callback_reentrancy_guard(kafka_cluster):
     """Calling share-consumer APIs from inside the cb fails with _STATE —
     librdkafka guards every entry point against reentrancy."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-reentrancy')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-reentrancy')
 
     sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
     try:
@@ -1131,8 +1152,7 @@ def test_callback_reentrancy_guard(kafka_cluster):
 
         def reentrant_cb(offsets, exc):
             try:
-                sc.set_acknowledgement_commit_callback(
-                    lambda o, e: None)
+                sc.set_acknowledgement_commit_callback(lambda o, e: None)
             except KafkaException as ex:
                 captured_setter_err.append(ex)
             try:
@@ -1173,8 +1193,7 @@ def test_callback_reentrancy_guard(kafka_cluster):
 
 def test_callback_exception_propagates_from_poll(kafka_cluster):
     """An exception raised inside the cb surfaces from the next poll() call."""
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-cb-exception')
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-exception')
 
     sentinel = ValueError('sentinel from cb')
 
@@ -1213,4 +1232,49 @@ def test_callback_exception_propagates_from_poll(kafka_cluster):
             sc.set_acknowledgement_commit_callback(None)
         except Exception:
             pass
+        sc.close()
+
+
+class _CounterCallback:
+    """Picklable, weakref-able callable used by the rebind refcount test.
+    Plain functions/lambdas don't support weakref so we can't use them
+    directly."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, offsets, exc):
+        self.calls += 1
+
+
+def test_rebind_releases_previous_callback(kafka_cluster):
+    """Registering a new cb must release the previously stashed PyObject so
+    the prior callable can be garbage-collected once external refs go away.
+    Regression test for a refcount leak in
+    set_acknowledgement_commit_callback's swap path."""
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        first = _CounterCallback()
+        first_ref = weakref.ref(first)
+        sc.set_acknowledgement_commit_callback(first)
+
+        # Drop the only external reference; the share consumer's internal
+        # stash should still be holding `first` alive.
+        del first
+        gc.collect()
+        assert first_ref() is not None, 'first cb collected while still registered'
+
+        # Rebind to a different callable: the stash must release `first`.
+        second = _CounterCallback()
+        sc.set_acknowledgement_commit_callback(second)
+        gc.collect()
+        assert first_ref() is None, 'first cb still alive after rebind — stash leaked'
+
+        # Clearing with None must release `second` too.
+        second_ref = weakref.ref(second)
+        del second
+        sc.set_acknowledgement_commit_callback(None)
+        gc.collect()
+        assert second_ref() is None, 'second cb still alive after clear — stash leaked'
+    finally:
         sc.close()
