@@ -1635,6 +1635,80 @@ err:
 }
 
 /**
+ * @brief Convert a share-consumer per-partition acknowledged-offsets list into
+ *        a Python dict(TopicPartition -> frozenset(int)).
+ *
+ * Mirrors Java AcknowledgementCommitCallback.onComplete's
+ * Map<TopicIdPartition, Set<Long>>. TopicPartition is used in place of
+ * TopicIdPartition until the latter is added Python-wide
+ * (see TODO in cimpl.pyi).
+ *
+ * @returns The new Python dict, or NULL on allocation failure with an
+ *          exception set.
+ */
+PyObject *c_share_partition_offsets_list_to_py(
+    const rd_kafka_share_partition_offsets_list_t *list) {
+        PyObject *result    = NULL;
+        PyObject *key       = NULL;
+        PyObject *offsetset = NULL;
+        size_t count;
+        size_t i;
+
+        result = PyDict_New();
+        if (!result)
+                goto err;
+
+        count = rd_kafka_share_partition_offsets_list_count(list);
+        for (i = 0; i < count; i++) {
+                const rd_kafka_share_partition_offsets_t *entry =
+                    rd_kafka_share_partition_offsets_list_get(list, i);
+                const rd_kafka_topic_partition_t *rktpar =
+                    rd_kafka_share_partition_offsets_partition(entry);
+                const int64_t *offsets =
+                    rd_kafka_share_partition_offsets_offsets(entry);
+                size_t offsets_cnt =
+                    rd_kafka_share_partition_offsets_offsets_cnt(entry);
+                size_t j;
+
+                key = c_part_to_py(rktpar);
+                if (!key)
+                        goto err;
+
+                offsetset = PyFrozenSet_New(NULL);
+                if (!offsetset)
+                        goto err;
+
+                for (j = 0; j < offsets_cnt; j++) {
+                        PyObject *off = PyLong_FromLongLong(
+                            (long long)offsets[j]);
+                        if (!off)
+                                goto err;
+                        if (PySet_Add(offsetset, off) == -1) {
+                                Py_DECREF(off);
+                                goto err;
+                        }
+                        Py_DECREF(off);
+                }
+
+                if (PyDict_SetItem(result, key, offsetset) == -1)
+                        goto err;
+
+                Py_DECREF(key);
+                Py_DECREF(offsetset);
+                key       = NULL;
+                offsetset = NULL;
+        }
+
+        return result;
+
+err:
+        Py_XDECREF(key);
+        Py_XDECREF(offsetset);
+        Py_XDECREF(result);
+        return NULL;
+}
+
+/**
  * @brief Convert Python list(TopicPartition) to C
  * rd_kafka_topic_partition_list_t.
  *

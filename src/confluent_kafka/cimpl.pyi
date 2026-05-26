@@ -35,7 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, FrozenSet, List, Literal, Optional, Tuple, Union, overload
 
 try:
     from typing import Self
@@ -51,6 +51,11 @@ from ._types import HeadersType
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
+# Argument order mirrors Java AcknowledgementCommitCallback.onComplete:
+# (offsets, exception), not (err, parts) like on_commit.
+AcknowledgementCommitCallback = Callable[
+    [Dict['TopicPartition', FrozenSet[int]], Optional['KafkaException']], None
+]
 
 # ===== CLASSES (Manual - stubgen missed these) =====
 
@@ -590,6 +595,9 @@ class ShareConsumer:
     # class once the interface is finalized.
     def commit_sync(self, timeout: float = 60) -> Dict[TopicPartition, Optional[KafkaError]]: ...
     def commit_async(self) -> None: ...
+    def set_acknowledgement_commit_callback(
+        self, callback: Optional[AcknowledgementCommitCallback]
+    ) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> "ShareConsumer": ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
