@@ -1643,62 +1643,65 @@ err:
  */
 PyObject *c_share_partition_offsets_list_to_py(
     const rd_kafka_share_partition_offsets_list_t *list) {
-        PyObject *result    = NULL;
-        PyObject *key       = NULL;
-        PyObject *offsetset = NULL;
-        size_t count;
-        size_t i;
+        PyObject *result        = NULL;
+        PyObject *partition_key = NULL;
+        PyObject *offset_set    = NULL;
+        size_t partition_count;
+        size_t partition_index;
 
         result = PyDict_New();
         if (!result)
                 goto err;
 
-        count = rd_kafka_share_partition_offsets_list_count(list);
-        for (i = 0; i < count; i++) {
+        partition_count = rd_kafka_share_partition_offsets_list_count(list);
+        for (partition_index = 0; partition_index < partition_count;
+             partition_index++) {
                 const rd_kafka_share_partition_offsets_t *entry =
-                    rd_kafka_share_partition_offsets_list_get(list, i);
+                    rd_kafka_share_partition_offsets_list_get(list,
+                                                              partition_index);
                 const rd_kafka_topic_partition_t *rktpar =
                     rd_kafka_share_partition_offsets_partition(entry);
                 const int64_t *offsets =
                     rd_kafka_share_partition_offsets_offsets(entry);
-                size_t offsets_cnt =
+                size_t offsets_count =
                     rd_kafka_share_partition_offsets_offsets_cnt(entry);
-                size_t j;
+                size_t offset_index;
 
-                key = c_part_to_py(rktpar);
-                if (!key)
+                partition_key = c_part_to_py(rktpar);
+                if (!partition_key)
                         goto err;
 
-                offsetset = PyFrozenSet_New(NULL);
-                if (!offsetset)
+                offset_set = PyFrozenSet_New(NULL);
+                if (!offset_set)
                         goto err;
 
-                for (j = 0; j < offsets_cnt; j++) {
-                        PyObject *off = PyLong_FromLongLong(
-                            (long long)offsets[j]);
-                        if (!off)
+                for (offset_index = 0; offset_index < offsets_count;
+                     offset_index++) {
+                        PyObject *offset = PyLong_FromLongLong(
+                            (long long)offsets[offset_index]);
+                        if (!offset)
                                 goto err;
-                        if (PySet_Add(offsetset, off) == -1) {
-                                Py_DECREF(off);
+                        if (PySet_Add(offset_set, offset) == -1) {
+                                Py_DECREF(offset);
                                 goto err;
                         }
-                        Py_DECREF(off);
+                        Py_DECREF(offset);
                 }
 
-                if (PyDict_SetItem(result, key, offsetset) == -1)
+                if (PyDict_SetItem(result, partition_key, offset_set) == -1)
                         goto err;
 
-                Py_DECREF(key);
-                Py_DECREF(offsetset);
-                key       = NULL;
-                offsetset = NULL;
+                Py_DECREF(partition_key);
+                Py_DECREF(offset_set);
+                partition_key = NULL;
+                offset_set    = NULL;
         }
 
         return result;
 
 err:
-        Py_XDECREF(key);
-        Py_XDECREF(offsetset);
+        Py_XDECREF(partition_key);
+        Py_XDECREF(offset_set);
         Py_XDECREF(result);
         return NULL;
 }

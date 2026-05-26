@@ -87,6 +87,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 CallState_end(&self->base, &cs);
         }
 
+        /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
+         * pair above and just call ShareConsumer_clear(self) here. */
         Handle_clear(&self->base);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
@@ -576,25 +578,17 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 
 /**
  * @brief Trampoline for the share-consumer acknowledgement-commit callback.
- *
- * Called once per acknowledgement-commit response, from inside
- * rd_kafka_share_consume_batch's rk_rep drain. The \p partitions list is
- * owned by librdkafka — do not free it.
- *
- * Python signature:
- *     callback(offsets: Dict[TopicPartition, frozenset[int]],
- *              exception: KafkaException | None) -> None
  */
 static void ShareConsumer_acknowledgement_commit_cb(
     rd_kafka_share_t *rkshare,
     rd_kafka_share_partition_offsets_list_t *partitions,
     rd_kafka_resp_err_t err,
     void *opaque) {
-        Handle *self      = opaque;
-        PyObject *offsets = NULL;
-        PyObject *exc     = NULL;
-        PyObject *args    = NULL;
-        PyObject *result  = NULL;
+        Handle *self        = opaque;
+        PyObject *offsets   = NULL;
+        PyObject *exception = NULL;
+        PyObject *args      = NULL;
+        PyObject *result    = NULL;
         CallState *cs;
 
         if (!self->u.ShareConsumer.on_share_acknowledgement_commit)
@@ -602,24 +596,24 @@ static void ShareConsumer_acknowledgement_commit_cb(
 
         cs = CallState_get(self);
 
-        offsets = partitions
-                      ? c_share_partition_offsets_list_to_py(partitions)
-                      : PyDict_New();
+        offsets = partitions ? c_share_partition_offsets_list_to_py(partitions)
+                             : PyDict_New();
         if (!offsets)
                 goto crash;
 
         if (err) {
-                PyObject *kerr = KafkaError_new_or_None(err, NULL);
-                exc = PyObject_CallFunctionObjArgs(KafkaException, kerr, NULL);
-                Py_DECREF(kerr);
-                if (!exc)
+                PyObject *kafka_error = KafkaError_new_or_None(err, NULL);
+                exception = PyObject_CallFunctionObjArgs(KafkaException,
+                                                         kafka_error, NULL);
+                Py_DECREF(kafka_error);
+                if (!exception)
                         goto crash;
         } else {
                 Py_INCREF(Py_None);
-                exc = Py_None;
+                exception = Py_None;
         }
 
-        args = Py_BuildValue("(OO)", offsets, exc);
+        args = Py_BuildValue("(OO)", offsets, exception);
         if (!args) {
                 cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
                                  "Unable to build callback args");
@@ -640,7 +634,7 @@ crash:
 
 done:
         Py_XDECREF(offsets);
-        Py_XDECREF(exc);
+        Py_XDECREF(exception);
         Py_XDECREF(args);
         Py_XDECREF(result);
         CallState_resume(cs);
@@ -652,10 +646,10 @@ done:
  *
  * Pass None to clear.
  */
-static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
-    ShareConsumerHandle *self,
-    PyObject *args,
-    PyObject *kwargs) {
+static PyObject *
+ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
+                                                  PyObject *args,
+                                                  PyObject *kwargs) {
         PyObject *callback = NULL;
         rd_kafka_resp_err_t err;
         static char *kws[] = {"callback", NULL};
@@ -682,8 +676,7 @@ static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
             &self->base);
         if (err) {
                 cfl_PyErr_Format(
-                    err,
-                    "Failed to set acknowledgement commit callback: %s",
+                    err, "Failed to set acknowledgement commit callback: %s",
                     rd_kafka_err2str(err));
                 return NULL;
         }
@@ -693,7 +686,8 @@ static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
          * intact. */
         Py_XDECREF(self->base.u.ShareConsumer.on_share_acknowledgement_commit);
         if (callback == Py_None) {
-                self->base.u.ShareConsumer.on_share_acknowledgement_commit = NULL;
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    NULL;
         } else {
                 Py_INCREF(callback);
                 self->base.u.ShareConsumer.on_share_acknowledgement_commit =
@@ -836,13 +830,15 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"},
 
     /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today every librdkafka error code surfaces as
-     * KafkaException via cfl_PyErr_Format(). Longer term we want a finer
-     * mapping, e.g.
-     *   _INVALID_ARG → ValueError
-     *   _STATE       → RuntimeError
+     * provisional. Today the share consumer translates every librdkafka
+     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
+     * want each code to map to the Python exception a user porting from
+     * Java would expect, e.g.
+     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
+     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
      * Open question: per-partition broker errors in commit_sync's result
-     * dict — keep as KafkaError, or translate as well?
+     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
+     * KafkaError, or translate as well?
      *
      * Revisit holistically once:
      *   - librdkafka's share-consumer error surface is stable (some codes
