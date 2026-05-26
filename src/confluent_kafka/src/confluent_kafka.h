@@ -215,7 +215,7 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 /****************************************************************************
  *
  *
- * Common instance handle for both Producer and Consumer
+ * Common instance handle for Producer, Consumer, and ShareConsumer
  *
  *
  *
@@ -270,17 +270,18 @@ typedef struct {
                         PyObject *on_revoke; /* Rebalance: on_revoke callback */
                         PyObject *on_lost;   /* Rebalance: on_lost callback */
                         PyObject *on_commit; /* Commit callback */
-                        /* Share-consumer per-ack-commit callback (KIP-932),
-                         * registered at runtime via
-                         * ShareConsumer.set_acknowledgement_commit_callback().
-                         * Sits inside the Consumer union member because
-                         * ShareConsumer_init currently routes through
-                         * RD_KAFKA_CONSUMER (see ShareConsumer_init TODO);
-                         * move once share gets a dedicated union member. */
-                        PyObject *on_share_acknowledgement_commit;
                         rd_kafka_queue_t *rkqu; /* Consumer queue */
 
                 } Consumer;
+
+                /**
+                 * ShareConsumer (KIP-932)
+                 */
+                struct {
+                        /* Set via
+                         * ShareConsumer.set_acknowledgement_commit_callback() */
+                        PyObject *on_share_acknowledgement_commit;
+                } ShareConsumer;
         } u;
 } Handle;
 

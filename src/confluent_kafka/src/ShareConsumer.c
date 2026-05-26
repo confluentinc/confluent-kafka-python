@@ -55,9 +55,11 @@ static void ShareConsumer_clear0(ShareConsumerHandle *self) {
          * time for share consumers (see
          * ShareConsumer_reject_incompatible_config), so nothing else needs
          * releasing here. */
-        if (self->base.u.Consumer.on_share_acknowledgement_commit) {
-                Py_DECREF(self->base.u.Consumer.on_share_acknowledgement_commit);
-                self->base.u.Consumer.on_share_acknowledgement_commit = NULL;
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit) {
+                Py_DECREF(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    NULL;
         }
 }
 
@@ -92,8 +94,9 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
-        if (self->base.u.Consumer.on_share_acknowledgement_commit)
-                Py_VISIT(self->base.u.Consumer.on_share_acknowledgement_commit);
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit)
+                Py_VISIT(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -574,18 +577,13 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 /**
  * @brief Trampoline for the share-consumer acknowledgement-commit callback.
  *
- * Invoked by librdkafka from inside rd_kafka_share_consume_batch (i.e., from
- * within ShareConsumer_poll), once per acknowledgement-commit response. The
- * \p partitions list is owned by librdkafka and destroyed when this function
- * returns; do not free it.
+ * Called once per acknowledgement-commit response, from inside
+ * rd_kafka_share_consume_batch's rk_rep drain. The \p partitions list is
+ * owned by librdkafka — do not free it.
  *
- * Python signature (matches Java AcknowledgementCommitCallback.onComplete):
+ * Python signature:
  *     callback(offsets: Dict[TopicPartition, frozenset[int]],
  *              exception: KafkaException | None) -> None
- *
- * Note the (offsets, exception) order intentionally diverges from
- * Consumer on_commit's (err, parts) — Java parity wins here, per the
- * AcknowledgementCommitCallback.onComplete contract.
  */
 static void ShareConsumer_acknowledgement_commit_cb(
     rd_kafka_share_t *rkshare,
@@ -599,7 +597,7 @@ static void ShareConsumer_acknowledgement_commit_cb(
         PyObject *result  = NULL;
         CallState *cs;
 
-        if (!self->u.Consumer.on_share_acknowledgement_commit)
+        if (!self->u.ShareConsumer.on_share_acknowledgement_commit)
                 return;
 
         cs = CallState_get(self);
@@ -629,25 +627,13 @@ static void ShareConsumer_acknowledgement_commit_cb(
         }
 
         result = PyObject_CallObject(
-            self->u.Consumer.on_share_acknowledgement_commit, args);
+            self->u.ShareConsumer.on_share_acknowledgement_commit, args);
         if (!result)
                 goto crash;
 
         goto done;
 
 crash:
-        /* Stage the failure for the outer poll/commit_sync to surface, and
-         * short-circuit the current rk_rep drain.
-         *
-         * The fetched exception is restored by CallState_end.
-         * rd_kafka_yield's rk arg is unused — the impl only flips a TLS flag
-         * (rdkafka_queue.c:37-39) that rd_kafka_q_serve consults. The
-         * share-ack cb is dispatched by a q_serve drain inside
-         * rd_kafka_share_consume_batch (rdkafka.c:3844/3876), so the flag
-         * does short-circuit the current drain pass and stop subsequent cbs
-         * in this poll() from firing on a broken Python state. Passing NULL
-         * because rd_kafka_share_t exposes no public accessor to the
-         * underlying rd_kafka_t. */
         CallState_fetch_exception(cs);
         CallState_crash(cs);
         rd_kafka_yield(NULL);
@@ -664,9 +650,7 @@ done:
 /**
  * @brief Set or clear the acknowledgement-commit callback at runtime.
  *
- * Mirrors Java's ShareConsumer.setAcknowledgementCommitCallback(callback).
- * Pass None to clear. May be called any time except from within the callback
- * itself (librdkafka returns _STATE in that case).
+ * Pass None to clear.
  */
 static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
     ShareConsumerHandle *self,
@@ -707,12 +691,12 @@ static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
         /* Swap the stashed PyObject only after librdkafka accepts the
          * registration so a failed registration leaves the prior callback
          * intact. */
-        Py_XDECREF(self->base.u.Consumer.on_share_acknowledgement_commit);
+        Py_XDECREF(self->base.u.ShareConsumer.on_share_acknowledgement_commit);
         if (callback == Py_None) {
-                self->base.u.Consumer.on_share_acknowledgement_commit = NULL;
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit = NULL;
         } else {
                 Py_INCREF(callback);
-                self->base.u.Consumer.on_share_acknowledgement_commit =
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
                     callback;
         }
 
@@ -852,15 +836,13 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"},
 
     /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today the share consumer translates every librdkafka
-     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
-     * want each code to map to the Python exception a user porting from
-     * Java would expect, e.g.
-     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
-     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
+     * provisional. Today every librdkafka error code surfaces as
+     * KafkaException via cfl_PyErr_Format(). Longer term we want a finer
+     * mapping, e.g.
+     *   _INVALID_ARG → ValueError
+     *   _STATE       → RuntimeError
      * Open question: per-partition broker errors in commit_sync's result
-     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
-     * KafkaError, or translate as well?
+     * dict — keep as KafkaError, or translate as well?
      *
      * Revisit holistically once:
      *   - librdkafka's share-consumer error surface is stable (some codes
@@ -957,10 +939,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      ".. py:function:: set_acknowledgement_commit_callback(callback)\n"
      "\n"
      "  Register a callback invoked once per acknowledgement-commit response\n"
-     "  from the broker. Mirrors Java\n"
-     "  ``ShareConsumer.setAcknowledgementCommitCallback``.\n"
-     "\n"
-     "  The callback is invoked on a thread calling :py:func:`poll`.\n"
+     "  from the broker. Fires on the thread that calls :py:func:`poll`.\n"
      "\n"
      "  :param callback: A callable\n"
      "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
