@@ -49,19 +49,21 @@ typedef struct {
 
 
 static void ShareConsumer_clear0(ShareConsumerHandle *self) {
-        /* consumer_conf_set_special INCREFs on_commit into
-         * base.u.Consumer.on_commit for any consumer type, even though
-         * ShareConsumer never registers the offset commit trampoline so the
-         * callback can't fire. Match the INCREF with a DECREF here to avoid
-         * leaking the user's callback. Mirrors Consumer_clear0.
-         *
-         * TODO KIP-932: remove this DECREF dance once on_commit is rejected
-         * at config time (see ShareConsumer_init / common_conf_setup) and
-         * callbacks are properly modeled for share consumers. The reference
-         * shouldn't be acquired in the first place. */
+        /* on_commit can sneak in via config because consumer_conf_set_special
+         * accepts it for any consumer type. ShareConsumer never wires the
+         * offset-commit trampoline so the callback would never fire — but
+         * we still need to DECREF whatever was stashed to avoid a leak.
+         * TODO KIP-932: reject on_commit at config time and drop this. */
         if (self->base.u.Consumer.on_commit) {
                 Py_DECREF(self->base.u.Consumer.on_commit);
                 self->base.u.Consumer.on_commit = NULL;
+        }
+
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit) {
+                Py_DECREF(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    NULL;
         }
 }
 
@@ -86,8 +88,6 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 CallState_end(&self->base, &cs);
         }
 
-        /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
-         * pair above and just call ShareConsumer_clear(self) here. */
         Handle_clear(&self->base);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
@@ -95,13 +95,13 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
-        /* See ShareConsumer_clear: pair the DECREF with a Py_VISIT so cyclic
-         * GC can find on_commit if a user accidentally passed one.
-         *
-         * TODO KIP-932: drop this special-case once on_commit is rejected
-         * at config time (see ShareConsumer_clear0). */
+        /* Pair the on_commit DECREF in clear0 with a Py_VISIT here so cyclic
+         * GC can find the callback if a user passed one via config. */
         if (self->base.u.Consumer.on_commit)
                 Py_VISIT(self->base.u.Consumer.on_commit);
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit)
+                Py_VISIT(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -591,6 +591,136 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 
 
 /**
+ * @brief Trampoline for the share-consumer acknowledgement-commit callback.
+ *
+ * Called once per acknowledgement-commit response, from inside
+ * rd_kafka_share_consume_batch's rk_rep drain. The \p partitions list is
+ * owned by librdkafka — do not free it.
+ *
+ * Python signature:
+ *     callback(offsets: Dict[TopicPartition, frozenset[int]],
+ *              exception: KafkaException | None) -> None
+ */
+static void ShareConsumer_acknowledgement_commit_cb(
+    rd_kafka_share_t *rkshare,
+    rd_kafka_share_partition_offsets_list_t *partitions,
+    rd_kafka_resp_err_t err,
+    void *opaque) {
+        Handle *self      = opaque;
+        PyObject *offsets = NULL;
+        PyObject *exc     = NULL;
+        PyObject *args    = NULL;
+        PyObject *result  = NULL;
+        CallState *cs;
+
+        if (!self->u.ShareConsumer.on_share_acknowledgement_commit)
+                return;
+
+        cs = CallState_get(self);
+
+        offsets = partitions
+                      ? c_share_partition_offsets_list_to_py(partitions)
+                      : PyDict_New();
+        if (!offsets)
+                goto crash;
+
+        if (err) {
+                PyObject *kerr = KafkaError_new_or_None(err, NULL);
+                exc = PyObject_CallFunctionObjArgs(KafkaException, kerr, NULL);
+                Py_DECREF(kerr);
+                if (!exc)
+                        goto crash;
+        } else {
+                Py_INCREF(Py_None);
+                exc = Py_None;
+        }
+
+        args = Py_BuildValue("(OO)", offsets, exc);
+        if (!args) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                 "Unable to build callback args");
+                goto crash;
+        }
+
+        result = PyObject_CallObject(
+            self->u.ShareConsumer.on_share_acknowledgement_commit, args);
+        if (!result)
+                goto crash;
+
+        goto done;
+
+crash:
+        CallState_fetch_exception(cs);
+        CallState_crash(cs);
+        rd_kafka_yield(NULL);
+
+done:
+        Py_XDECREF(offsets);
+        Py_XDECREF(exc);
+        Py_XDECREF(args);
+        Py_XDECREF(result);
+        CallState_resume(cs);
+}
+
+
+/**
+ * @brief Set or clear the acknowledgement-commit callback at runtime.
+ *
+ * Pass None to clear.
+ */
+static PyObject *ShareConsumer_set_acknowledgement_commit_callback(
+    ShareConsumerHandle *self,
+    PyObject *args,
+    PyObject *kwargs) {
+        PyObject *callback = NULL;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = {"callback", NULL};
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &callback))
+                return NULL;
+
+        if (callback != Py_None && !PyCallable_Check(callback)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "callback must be callable or None");
+                return NULL;
+        }
+
+        err = rd_kafka_share_set_acknowledgement_cb(
+            self->rkshare,
+            callback == Py_None ? NULL
+                                : ShareConsumer_acknowledgement_commit_cb,
+            &self->base);
+        if (err) {
+                cfl_PyErr_Format(
+                    err,
+                    "Failed to set acknowledgement commit callback: %s",
+                    rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        /* Swap the stashed PyObject only after librdkafka accepts the
+         * registration so a failed registration leaves the prior callback
+         * intact. */
+        Py_XDECREF(self->base.u.ShareConsumer.on_share_acknowledgement_commit);
+        if (callback == Py_None) {
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit = NULL;
+        } else {
+                Py_INCREF(callback);
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    callback;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/**
  * @brief Close the share consumer.
  */
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
@@ -712,15 +842,13 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"},
 
     /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today the share consumer translates every librdkafka
-     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
-     * want each code to map to the Python exception a user porting from
-     * Java would expect, e.g.
-     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
-     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
+     * provisional. Today every librdkafka error code surfaces as
+     * KafkaException via cfl_PyErr_Format(). Longer term we want a finer
+     * mapping, e.g.
+     *   _INVALID_ARG → ValueError
+     *   _STATE       → RuntimeError
      * Open question: per-partition broker errors in commit_sync's result
-     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
-     * KafkaError, or translate as well?
+     * dict — keep as KafkaError, or translate as well?
      *
      * Revisit holistically once:
      *   - librdkafka's share-consumer error surface is stable (some codes
@@ -802,13 +930,32 @@ static PyMethodDef ShareConsumer_methods[] = {
      ".. py:function:: commit_async()\n"
      "\n"
      "  Asynchronously commit pending acknowledgements. Returns immediately;\n"
-     "  broker results are delivered via the configured\n"
-     "  ``share_acknowledgement_commit_cb`` callback.\n"
+     "  broker results are delivered to the callback registered via\n"
+     "  :py:func:`set_acknowledgement_commit_callback`, if any.\n"
      "\n"
      "  :returns: None\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises TypeError: if any arguments are passed\n"
+     "\n"},
+
+    {"set_acknowledgement_commit_callback",
+     (PyCFunction)ShareConsumer_set_acknowledgement_commit_callback,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: set_acknowledgement_commit_callback(callback)\n"
+     "\n"
+     "  Register a callback invoked once per acknowledgement-commit response\n"
+     "  from the broker. Fires on the thread that calls :py:func:`poll`.\n"
+     "\n"
+     "  :param callback: A callable\n"
+     "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
+     "      ``Dict[TopicPartition, frozenset[int]]`` of acknowledged offsets\n"
+     "      per partition and ``exception`` is a :py:class:`KafkaException`\n"
+     "      on failure or ``None`` on success. Pass ``None`` to clear the\n"
+     "      currently registered callback.\n"
+     "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
+     "  :raises KafkaException: if called from inside the callback itself.\n"
+     "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
     {"close", (PyCFunction)ShareConsumer_close, METH_NOARGS,
