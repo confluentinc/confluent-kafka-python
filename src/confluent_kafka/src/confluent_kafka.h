@@ -270,6 +270,14 @@ typedef struct {
                         PyObject *on_revoke; /* Rebalance: on_revoke callback */
                         PyObject *on_lost;   /* Rebalance: on_lost callback */
                         PyObject *on_commit; /* Commit callback */
+                        /* Share-consumer per-ack-commit callback (KIP-932),
+                         * registered at runtime via
+                         * ShareConsumer.set_acknowledgement_commit_callback().
+                         * Sits inside the Consumer union member because
+                         * ShareConsumer_init currently routes through
+                         * RD_KAFKA_CONSUMER (see ShareConsumer_init TODO);
+                         * move once share gets a dedicated union member. */
+                        PyObject *on_share_acknowledgement_commit;
                         rd_kafka_queue_t *rkqu; /* Consumer queue */
 
                 } Consumer;
@@ -460,6 +468,8 @@ PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_parts_to_dict_topic_partition_to_error(
     const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *c_share_partition_offsets_list_to_py(
+    const rd_kafka_share_partition_offsets_list_t *list);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist);
