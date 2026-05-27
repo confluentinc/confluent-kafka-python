@@ -40,3 +40,35 @@ def test_marker_value_is_locked_value():
     Same constraint as :func:`test_marker_key_is_locked_value`.
     """
     assert AWS_IAM_MARKER_VALUE == "aws_iam"
+
+
+# ---- End-to-end drift guard (active from Phase 5 onward) ----
+
+
+def test_c_dispatcher_recognises_python_authoritative_marker():
+    """Drift-guard end-to-end check.
+
+    If the C-side literal strings in confluent_kafka.c drift away from the
+    Python constants in _aws_iam_marker.py, the dispatcher would no longer
+    recognize a Producer built with these constants, the precondition check
+    would not fire, and the ValueError below would NOT raise. The test
+    therefore fails loudly on drift.
+
+    We deliberately omit `sasl.oauthbearer.method=oidc` so the precondition
+    check fires — that's the cheapest reliable signal that the dispatcher
+    saw our marker.
+    """
+    import pytest
+    from confluent_kafka import Producer
+
+    with pytest.raises(ValueError, match="method=oidc"):
+        Producer({
+            "bootstrap.servers": "broker.invalid:9092",
+            "sasl.mechanisms": "OAUTHBEARER",
+            AWS_IAM_MARKER_KEY: AWS_IAM_MARKER_VALUE,
+            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            # Deliberately omitting sasl.oauthbearer.method to trigger the
+            # dispatcher's precondition check. If the dispatcher's C-side
+            # marker literals differ from AWS_IAM_MARKER_KEY/VALUE, the
+            # dispatcher won't fire and this ValueError won't raise.
+        })
