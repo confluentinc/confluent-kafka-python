@@ -17,7 +17,6 @@
 #
 import json
 import time
-from copy import deepcopy
 from datetime import datetime, timedelta
 
 import pytest

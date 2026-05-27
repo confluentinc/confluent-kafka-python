@@ -436,8 +436,9 @@ class AvroSerializer(BaseSerializer):
         if latest_schema is not None and ctx is not None and subject is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
 
+            expanded_parsed_schema = expand_schema(parsed_schema)
             def field_transformer(rule_ctx, field_transform, msg):
-                return transform(rule_ctx, expand_schema(parsed_schema), msg, field_transform)  # noqa: E731
+                return transform(rule_ctx, expanded_parsed_schema, msg, field_transform)  # noqa: E731
 
             value = self._execute_rules(
                 ctx,
@@ -761,8 +762,9 @@ class AvroDeserializer(BaseDeserializer):
             else:
                 obj_dict = schemaless_reader(payload, writer_schema, reader_schema, self._return_record_name)
 
+        expanded_reader_schema = expand_schema(reader_schema)
         def field_transformer(rule_ctx, field_transform, message):
-            return transform(rule_ctx, expand_schema(reader_schema), message, field_transform)  # noqa: E731
+            return transform(rule_ctx, expanded_reader_schema, message, field_transform)  # noqa: E731
 
         if ctx is not None and subject is not None:
             inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
