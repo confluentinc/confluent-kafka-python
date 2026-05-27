@@ -14,11 +14,166 @@
 
 """Internal: AWS STS ``GetWebIdentityToken``-based OAUTHBEARER token provider.
 
-Placeholder for Phase 1; implementation lands in Phase 3.
+Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsStsTokenProvider``.
 
-Mirrors .NET's ``AwsStsTokenProvider.cs``. The top-level ``import boto3`` that
-will land in Phase 3 is the gate that makes this whole subpackage opt-in via
-the ``oauthbearer-aws`` PEP 621 extra: opt-out users have no ``boto3``
-installed, so any attempt to import this module raises ``ModuleNotFoundError``
-which core's C dispatcher rewrites into a friendly install hint.
+This is the file whose top-level ``import boto3`` is the actual gate that
+makes the entire ``oauthbearer-aws`` extra opt-in: opt-out users have no
+``boto3`` installed, so transitively importing this module from
+:mod:`...aws_autowire` raises ``ModuleNotFoundError`` and the C dispatcher
+rewrites it as a friendly install hint at client construction time.
+
+The class :class:`AwsStsTokenProvider` is constructed once per autowired
+client by :func:`...aws_autowire.create_handler` and its bound ``token``
+method is installed as the ``oauth_cb`` Python callable. librdkafka invokes
+this method from its background thread on every token refresh; the return
+4-tuple matches the C extension's ``oauth_cb`` contract (see
+``confluent_kafka.c`` around ``L2291``: ``PyArg_ParseTuple(result, "sd|sO!",
+...)``).
+
+Credential resolution is **lazy**: ``__init__`` constructs the boto3
+``Session`` and STS client objects without making any HTTP calls. The first
+``token()`` invocation triggers boto3's default credential chain (env →
+shared config → IMDS → ECS → IRSA → SSO).
 """
+
+import logging
+from typing import Any, Dict, Optional, Tuple
+
+import boto3
+
+from . import _aws_jwt_subject_extractor
+from ._aws_oauthbearer_config import (
+    AWS_DEBUG_CONSOLE,
+    AWS_DEBUG_NONE,
+    AwsOAuthBearerConfig,
+)
+
+__all__ = ["AwsStsTokenProvider"]
+
+
+# Logger name targeted by ``aws_debug=console``. Routes botocore's HTTP /
+# credential-chain / signing diagnostic logs to stderr at DEBUG level.
+_BOTOCORE_LOGGER_NAME = "botocore"
+
+
+class AwsStsTokenProvider:
+    """Mints OAUTHBEARER tokens via AWS STS ``GetWebIdentityToken``.
+
+    The instance method :meth:`token` is shaped to slot directly into the
+    ``oauth_cb`` C contract (4-tuple of ``(token, expiry_seconds, principal,
+    extensions_dict)``).
+
+    Construction is lightweight and side-effect-light: the boto3 STS client
+    is built eagerly but no network call is made until :meth:`token` runs.
+    The ``aws_debug=console`` side-effect (process-wide
+    :func:`boto3.set_stream_logger` configuration) does fire at construction
+    when configured.
+    """
+
+    def __init__(
+        self,
+        config: AwsOAuthBearerConfig,
+        sts_client: Optional[Any] = None,
+    ) -> None:
+        """Construct a provider bound to ``config``.
+
+        :param config: Validated :class:`AwsOAuthBearerConfig` instance.
+        :param sts_client: Test seam — when supplied, the provider uses this
+            client directly instead of constructing a real boto3 STS client.
+            Production callers pass ``None``.
+        :raises TypeError: ``config`` is ``None``.
+        """
+        if config is None:
+            raise TypeError("config must not be None")
+        self._cfg = config
+
+        self._apply_aws_debug(config.aws_debug)
+
+        if sts_client is not None:
+            self._sts = sts_client
+        else:
+            # boto3.Session() with explicit region_name short-circuits the
+            # AWS_DEFAULT_REGION env lookup; client() still re-asserts the
+            # region for STS endpoint resolution.
+            session = boto3.Session(region_name=config.region)
+            client_kwargs: Dict[str, Any] = {"region_name": config.region}
+            if config.sts_endpoint:
+                client_kwargs["endpoint_url"] = config.sts_endpoint
+            self._sts = session.client("sts", **client_kwargs)
+
+    @staticmethod
+    def _apply_aws_debug(aws_debug: str) -> None:
+        """Apply the ``aws_debug`` side-effect to botocore's logger.
+
+        Process-wide effect, intentionally — mirrors .NET's
+        ``AWSConfigs.LoggingConfig.LogTo`` behaviour. When the user opts in
+        with ``aws_debug=console``, every boto3 client in the process gets
+        DEBUG-level stderr logs. ``aws_debug=none`` is a no-op so any
+        logging the user has configured elsewhere is preserved.
+        """
+        if aws_debug == AWS_DEBUG_CONSOLE:
+            boto3.set_stream_logger(_BOTOCORE_LOGGER_NAME, logging.DEBUG)
+        # AWS_DEBUG_NONE → no-op. Other values are rejected by config validation.
+
+    def token(
+        self,
+        oauthbearer_config: str = "",
+    ) -> Tuple[str, float, str, Dict[str, str]]:
+        """Mint a fresh JWT and return the ``oauth_cb`` 4-tuple.
+
+        :param oauthbearer_config: The verbatim ``sasl.oauthbearer.config``
+            string librdkafka passes back on every refresh. Accepted for
+            interface completeness but unused — the AWS path's fields are
+            sourced from the bound :class:`AwsOAuthBearerConfig` at
+            construction time, not re-parsed per refresh.
+
+        :returns: 4-tuple ``(token, expiry_epoch_seconds, principal,
+            extensions)`` matching the C ``oauth_cb`` contract.
+
+        :raises botocore.exceptions.ClientError: STS-side error
+            (``AccessDenied``, ``OutboundWebIdentityFederationDisabled``,
+            ...). The C ``oauth_cb`` wrapper converts raised exceptions
+            into ``rd_kafka_oauthbearer_set_token_failure``.
+        :raises ValueError: STS returned a malformed JWT or missing
+            ``Expiration``.
+        """
+        request_kwargs: Dict[str, Any] = {
+            "Audience": [self._cfg.audience],
+            "SigningAlgorithm": self._cfg.signing_algorithm,
+            "DurationSeconds": self._cfg.duration_seconds,
+        }
+        if self._cfg.tags:
+            request_kwargs["Tags"] = [
+                {"Key": k, "Value": v} for k, v in self._cfg.tags.items()
+            ]
+
+        response = self._sts.get_web_identity_token(**request_kwargs)
+
+        jwt = response.get("WebIdentityToken")
+        if not isinstance(jwt, str) or not jwt:
+            raise ValueError(
+                "STS response missing WebIdentityToken; cannot mint OAUTHBEARER token."
+            )
+
+        expiration = response.get("Expiration")
+        if expiration is None:
+            raise ValueError(
+                "STS response missing Expiration; cannot compute token lifetime."
+            )
+        # boto3 normalises the timestamp to a tz-aware UTC datetime;
+        # .timestamp() returns epoch seconds as a float.
+        expiry_epoch_seconds = expiration.timestamp()
+
+        principal = (
+            self._cfg.principal_name
+            if self._cfg.principal_name is not None
+            else _aws_jwt_subject_extractor.extract_sub(jwt)
+        )
+
+        # Always return a dict for the extensions slot — the C oauth_cb
+        # wrapper's PyArg_ParseTuple uses "O!" with PyDict_Type for that slot,
+        # which would reject None. Empty dict is the Pythonic equivalent of
+        # .NET's null-Extensions case.
+        extensions = dict(self._cfg.sasl_extensions) if self._cfg.sasl_extensions else {}
+
+        return jwt, expiry_epoch_seconds, principal, extensions
