@@ -18,6 +18,7 @@ import io
 import json
 from typing import Any, Callable, Coroutine, Dict, Optional, Union, cast
 
+from fastavro.schema import expand_schema
 from fastavro import schemaless_reader, schemaless_writer
 
 from confluent_kafka.schema_registry import (
@@ -440,7 +441,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             parsed_schema = await self._get_parsed_schema(latest_schema.schema)
 
             def field_transformer(rule_ctx, field_transform, msg):
-                return transform(rule_ctx, parsed_schema, msg, field_transform)  # noqa: E731
+                return transform(rule_ctx, expand_schema(parsed_schema), msg, field_transform)  # noqa: E731
 
             value = self._execute_rules(
                 ctx,
@@ -770,7 +771,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
                 obj_dict = schemaless_reader(payload, writer_schema, reader_schema, self._return_record_name)
 
         def field_transformer(rule_ctx, field_transform, message):
-            return transform(rule_ctx, reader_schema, message, field_transform)  # noqa: E731
+            return transform(rule_ctx, expand_schema(reader_schema), message, field_transform)  # noqa: E731
 
         if ctx is not None and subject is not None:
             inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
