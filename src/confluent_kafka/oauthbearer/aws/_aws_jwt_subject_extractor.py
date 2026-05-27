@@ -14,7 +14,104 @@
 
 """Internal: extracts the ``sub`` claim from an unverified AWS-minted JWT.
 
-Placeholder for Phase 1; implementation lands in Phase 2.
+Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsJwtSubjectExtractor``.
 
-Mirrors .NET's ``AwsJwtSubjectExtractor.cs``.
+No signature verification — AWS STS already signed the JWT and the broker
+performs the cryptographic validation. We only decode the unprotected
+payload segment to read the ``sub`` claim (the role ARN), which becomes the
+``principal`` field handed to ``rd_kafka_oauthbearer_set_token``.
+
+Strict base64 decoding (``validate=True``) is used so stray non-alphabet
+characters raise instead of being silently dropped — ``urlsafe_b64decode``
+is lenient and would let malformed payloads slip past JSON parsing.
 """
+
+import base64
+import binascii
+import json
+
+__all__ = ["extract_sub"]
+
+
+_MAX_TOKEN_LENGTH_CHARS: int = 8192
+
+
+def extract_sub(jwt: str) -> str:
+    """Return the ``sub`` claim from the JWT payload.
+
+    :raises ValueError: ``jwt`` is null, empty, oversized, has the wrong
+        segment count, fails base64url decoding, isn't valid JSON, isn't a
+        JSON object, or has no ``sub`` string claim (or its value is empty).
+    """
+    if jwt is None:
+        raise ValueError("JWT is null.")
+    if jwt == "":
+        raise ValueError("JWT is empty.")
+    if len(jwt) > _MAX_TOKEN_LENGTH_CHARS:
+        raise ValueError(
+            f"JWT length {len(jwt)} exceeds maximum allowed "
+            f"({_MAX_TOKEN_LENGTH_CHARS})."
+        )
+
+    parts = jwt.split(".")
+    if len(parts) != 3:
+        raise ValueError(
+            f"JWT must have exactly 3 '.'-separated segments; got {len(parts)}."
+        )
+
+    payload_bytes = _decode_base64url_segment(parts[1])
+    try:
+        payload_string = payload_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(
+            f"JWT payload is not valid UTF-8: {exc}"
+        ) from exc
+
+    try:
+        token = json.loads(payload_string)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"JWT payload is not valid JSON: {exc}"
+        ) from exc
+
+    if not isinstance(token, dict):
+        raise ValueError("JWT payload is not a JSON object.")
+
+    if "sub" not in token:
+        raise ValueError("JWT payload is missing a 'sub' string claim.")
+    sub = token["sub"]
+    if not isinstance(sub, str):
+        raise ValueError("JWT payload is missing a 'sub' string claim.")
+    if sub == "":
+        raise ValueError("JWT 'sub' claim value is empty.")
+    return sub
+
+
+def _decode_base64url_segment(segment: str) -> bytes:
+    """Base64url-decode a JWT segment to bytes.
+
+    Restores '=' padding to the next 4-byte boundary, swaps '-' → '+' and
+    '_' → '/', then defers to :func:`base64.b64decode` with strict
+    ``validate=True``.
+    """
+    if len(segment) == 0:
+        raise ValueError("JWT payload segment is empty.")
+
+    s = segment.replace("-", "+").replace("_", "/")
+    remainder = len(s) % 4
+    if remainder == 0:
+        pass
+    elif remainder == 2:
+        s += "=="
+    elif remainder == 3:
+        s += "="
+    else:
+        # remainder == 1 → not a valid base64url length
+        raise ValueError("JWT payload segment has invalid base64url length.")
+
+    try:
+        return base64.b64decode(s.encode("ascii"), validate=True)
+    except (binascii.Error, UnicodeEncodeError, ValueError) as exc:
+        raise ValueError(
+            f"JWT payload segment is not valid base64url: {exc}"
+        ) from exc

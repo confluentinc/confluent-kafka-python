@@ -14,10 +14,23 @@
 
 """Marker constants identifying the AWS IAM OAUTHBEARER autowire path.
 
-Placeholder for Phase 1; constants land in Phase 2.
-
+Mirrors .NET's ``Confluent.Kafka.Internal.OAuthBearer.Aws.AwsIamMarker``.
 The C dispatcher in ``src/confluent_kafka/src/confluent_kafka.c`` keeps its
-own literal copies of these values for compile-time use; a drift-guard test
-in ``tests/oauthbearer/aws/test_aws_iam_marker.py`` asserts the two stay in
-sync.
+own literal copies of these values for compile-time use; the drift-guard
+test in ``tests/oauthbearer/aws/test_aws_iam_marker.py`` asserts the C-side
+literals and these Python constants stay in lock-step.
+
+These strings are part of the cross-language wire contract — bumping either
+is a major version change on ``confluent-kafka``.
 """
+
+__all__ = ["AWS_IAM_MARKER_KEY", "AWS_IAM_MARKER_VALUE"]
+
+
+#: librdkafka config key that activates the AWS IAM autowire path when set
+#: to :data:`AWS_IAM_MARKER_VALUE`. See the README for the full user contract.
+AWS_IAM_MARKER_KEY: str = "sasl.oauthbearer.metadata.authentication.type"
+
+#: On-wire value of :data:`AWS_IAM_MARKER_KEY` that selects AWS IAM
+#: authentication.
+AWS_IAM_MARKER_VALUE: str = "aws_iam"

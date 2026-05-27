@@ -14,7 +14,42 @@
 
 """Internal: parser for the ``sasl.oauthbearer.extensions`` config property.
 
-Placeholder for Phase 1; implementation lands in Phase 2.
+Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsSaslExtensionsParser``.
 
-Mirrors .NET's ``AwsSaslExtensionsParser.cs``.
+The ``sasl.oauthbearer.extensions`` config carries RFC 7628 §3.1 SASL
+extensions as a comma-separated ``key=value`` list. Forwarded verbatim to
+the broker alongside the JWT — not part of the JWT itself.
 """
+
+from typing import Dict, Optional
+
+from confluent_kafka._util.kv_string_parser import parse_kv
+
+__all__ = ["CONFIG_KEY", "parse"]
+
+
+#: Top-level librdkafka config key carrying the SASL extensions list.
+CONFIG_KEY: str = "sasl.oauthbearer.extensions"
+
+
+def parse(raw: Optional[str]) -> Optional[Dict[str, str]]:
+    """Parse the verbatim ``sasl.oauthbearer.extensions`` value into a dict.
+
+    Grammar: comma-separated ``key=value`` tokens. Whitespace around each
+    token is trimmed (mirrors .NET / librdkafka). Empty tokens (e.g.
+    ``"a=1,,b=2,"``) are tolerated and skipped.
+
+    Returns ``None`` for ``None`` / empty input so the autowire layer can
+    short-circuit without constructing an empty dict.
+
+    :raises ValueError: A token is missing ``=`` or has an empty key.
+    """
+    if raw is None or raw == "":
+        return None
+
+    result: Dict[str, str] = {}
+    for key, value in parse_kv(raw, separators=[","], context_label=CONFIG_KEY):
+        # Last-wins on duplicate keys, mirroring librdkafka.
+        result[key] = value
+
+    return result if result else None
