@@ -1243,17 +1243,16 @@ async def test_avro_encryption_complex_schema():
         'name': 'test',
         'fields': [
             {
-                'name': 'complexField1', 'type': {
+                'name': 'complexField1',
+                'type': {
                     'fields': [
                         {'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']},
                     ],
                     'name': 'ComplexFieldType',
-                    'type': 'record'
-                }
+                    'type': 'record',
+                },
             },
-            {
-                'name': 'complexField2', 'type': 'ComplexFieldType'
-            }
+            {'name': 'complexField2', 'type': 'ComplexFieldType'},
         ],
     }
 

@@ -1230,6 +1230,7 @@ def test_avro_encryption():
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
+
 def test_avro_encryption_complex_schema():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
@@ -1242,17 +1243,16 @@ def test_avro_encryption_complex_schema():
         'name': 'test',
         'fields': [
             {
-                'name': 'complexField1', 'type': {
+                'name': 'complexField1',
+                'type': {
                     'fields': [
                         {'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']},
                     ],
                     'name': 'ComplexFieldType',
-                    'type': 'record'
-                }
+                    'type': 'record',
+                },
             },
-            {
-                'name': 'complexField2', 'type': 'ComplexFieldType'
-            }
+            {'name': 'complexField2', 'type': 'ComplexFieldType'},
         ],
     }
 
@@ -1289,6 +1289,7 @@ def test_avro_encryption_complex_schema():
     actual = deser(obj_bytes, ser_ctx)
     assert actual['complexField1']['stringValue'] == 'test1'
     assert actual['complexField2']['stringValue'] == 'test2'
+
 
 def test_avro_payload_encryption():
     executor = EncryptionExecutor.register_with_clock(FakeClock())
