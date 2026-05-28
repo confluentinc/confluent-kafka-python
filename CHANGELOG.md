@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.xx.x
+## v2.14.2rc3
 
 ### Fixes
 
@@ -8,6 +8,12 @@
 - Handle anyOf/allOf in JSON transforms (#2237)
 - Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 - Fix typing_extensions import errors on Python 3.12 (#2232)
+
+
+confluent-kafka-python v2.14.2rc3 is based on librdkafka v2.14.2-RC3, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2-RC3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 
 ## v2.14.0 - 2026-04-01
