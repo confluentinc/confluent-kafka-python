@@ -730,12 +730,12 @@ class AvroDeserializer(BaseDeserializer):
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
-        reader_schema: Optional[AvroSchema]
+        reader_schema: AvroSchema
         if latest_schema is not None and subject is not None:
             migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             reader_schema = self._get_parsed_schema(latest_schema.schema)
-        elif self._schema is not None:
+        elif self._schema is not None and self._reader_schema is not None:
             migrations = None
             reader_schema_raw = self._schema
             reader_schema = self._reader_schema
