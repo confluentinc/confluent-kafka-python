@@ -15,7 +15,9 @@
 # limitations under the License.
 #
 
+import os
 import sys
+import time
 
 #
 # Example KIP-932 ShareConsumer.
@@ -28,48 +30,80 @@ from confluent_kafka import ShareConsumer
 
 
 def print_usage_and_exit(program_name):
-    sys.stderr.write('Usage: %s <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
+    sys.stderr.write(
+        'Usage: %s <bootstrap-brokers|config-file> <group> <topic1> <topic2> ..\n'
+        % program_name)
     sys.exit(1)
+
+
+def read_properties(path):
+    """Read a key=value properties file (same format used by librdkafka
+    -X file= and Java --command-config)."""
+    cfg = {}
+    with open(path) as fp:
+        for line in fp:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' not in line:
+                continue
+            k, v = line.split('=', 1)
+            cfg[k.strip()] = v.strip()
+    return cfg
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 4:
         print_usage_and_exit(sys.argv[0])
 
-    broker = sys.argv[1]
+    first = sys.argv[1]
     group = sys.argv[2]
     topics = sys.argv[3:]
 
     # ShareConsumer configuration.
+    # Match Java ShareConsumerPerformance defaults so all three perf tools
+    # measure share consumers under the same client settings.
     # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {
-        'bootstrap.servers': broker,
         'group.id': group,
+        'client.id': 'py-share-consumer',
+        'fetch.max.bytes': 1048576,              # 1 MiB
+        'socket.receive.buffer.bytes': 2097152,  # 2 MiB
     }
+    if os.path.isfile(first):
+        conf.update(read_properties(first))
+    else:
+        conf['bootstrap.servers'] = first
 
     sc = ShareConsumer(conf)
     sc.subscribe(topics)
 
+    msg_count = 0
+    byte_count = 0
+    start = time.monotonic()
+    last_report = start
+    last_msg_count = 0
     try:
         while True:
-            messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+            messages = sc.poll(timeout=0.1)  # returns a list (possibly empty)
             for msg in messages:
                 if msg.error():
-                    # Per-message errors are informational; log and keep
-                    # polling. Truly fatal errors are raised out of poll()
-                    # itself via the error_cb path.
-                    sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
-                sys.stderr.write(
-                    '%% %s [%d] at offset %d with key %s:\n'
-                    % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
-                )
-                print(msg.value())
+                msg_count += 1
+                byte_count += len(msg.key() or b'') + len(msg.value() or b'')
                 # Implicit ack: the next poll() acknowledges this message.
-                # If we crash before the next poll, the broker will
-                # redeliver this record to another consumer in the share
-                # group after the acquisition lock expires.
+            now = time.monotonic()
+            if now - last_report >= 5.0:
+                rate = (msg_count - last_msg_count) / (now - last_report)
+                sys.stderr.write('%% %d msgs (%d bytes) | %.0f msg/s (last 5s)\n'
+                                 % (msg_count, byte_count, rate))
+                last_report = now
+                last_msg_count = msg_count
     except KeyboardInterrupt:
+        elapsed = time.monotonic() - start
+        avg = msg_count / elapsed if elapsed else 0
+        sys.stderr.write('%% total: %d msgs (%d bytes) in %.1fs | avg %.0f msg/s\n'
+                         % (msg_count, byte_count, elapsed, avg))
         sys.stderr.write('%% Aborted by user\n')
     finally:
         sc.close()
