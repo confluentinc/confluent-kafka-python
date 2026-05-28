@@ -94,8 +94,9 @@ if __name__ == '__main__':
                 # Implicit ack: the next poll() acknowledges this message.
             now = time.monotonic()
             if now - last_report >= 5.0:
-                rate = (msg_count - last_msg_count) / (now - last_report)
-                sys.stderr.write('%% %d msgs (%d bytes) | %.0f msg/s (last 5s)\n'
+                elapsed = now - start
+                rate = msg_count / elapsed if elapsed else 0
+                sys.stderr.write('%% %d msgs (%d bytes) | %.0f msg/s cumulative\n'
                                  % (msg_count, byte_count, rate))
                 last_report = now
                 last_msg_count = msg_count
