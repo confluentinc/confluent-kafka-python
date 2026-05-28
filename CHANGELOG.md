@@ -8,6 +8,7 @@
 - Handle anyOf/allOf in JSON transforms (#2237)
 - Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 - Fix typing_extensions import errors on Python 3.12 (#2232)
+- Fix Encryption fails when referencing self defined types (#2254)
 
 
 confluent-kafka-python v2.14.2rc3 is based on librdkafka v2.14.2-RC3, see the
