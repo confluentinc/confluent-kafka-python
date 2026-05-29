@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.14.2rc3
+## v2.14.2rc4
 
 ### Fixes
 
@@ -11,7 +11,7 @@
 - Fix Encryption fails when referencing self defined types (#2254)
 
 
-confluent-kafka-python v2.14.2rc3 is based on librdkafka v2.14.2-RC3, see the
+confluent-kafka-python v2.14.2rc4 is based on librdkafka v2.14.2-RC3, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2-RC3)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
