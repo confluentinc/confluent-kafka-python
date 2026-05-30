@@ -1179,10 +1179,15 @@ _AVRO_DECIMAL_SCHEMA = {
     'type': 'record',
     'name': 'test',
     'fields': [
-        {'name': 'decField', 'type': {
-            'type': 'bytes', 'logicalType': 'decimal',
-            'precision': 10, 'scale': 2,
-        }},
+        {
+            'name': 'decField',
+            'type': {
+                'type': 'bytes',
+                'logicalType': 'decimal',
+                'precision': 10,
+                'scale': 2,
+            },
+        },
     ],
 }
 
