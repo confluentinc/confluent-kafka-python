@@ -163,6 +163,20 @@ def _decimals_div(a: typing.Any, b: typing.Any) -> Decimal:
         raise celpy.CELEvalError(f"decimals.div: {ex}") from ex
 
 
+# ---- square root ----
+
+def _decimals_sqrt(a: typing.Any) -> Decimal:
+    """Square root with 38-digit HALF_UP precision (same context as div).
+
+    A negative input raises the canonical ``decimals.sqrt: square root of
+    negative number`` message (no complex result); zero passes through to 0.
+    """
+    d = _d(a)
+    if d < 0:
+        raise celpy.CELEvalError("decimals.sqrt: square root of negative number")
+    return _DIV_CONTEXT.sqrt(d)
+
+
 # ---- unary ----
 
 def _decimals_neg(a: typing.Any) -> Decimal:
@@ -267,6 +281,7 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimals.sub": _decimals_sub,
     "decimals.mul": _decimals_mul,
     "decimals.div": _decimals_div,
+    "decimals.sqrt": _decimals_sqrt,
     "decimals.neg": _decimals_neg,
     "decimals.abs": _decimals_abs,
     "decimals.sign": _decimals_sign,
