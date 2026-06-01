@@ -19,7 +19,7 @@ jsonschema >= 4.18.0
 orjson >= 3.10
 
 googleapis-common-protos
-protobuf
+protobuf<7.0.0
 
 azure-identity
 azure-keyvault-keys
