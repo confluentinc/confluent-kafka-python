@@ -154,10 +154,10 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        # Produce in larger bursts (2000 msgs every 100ms) to reduce
+        # Produce in larger bursts (6000 msgs every 200ms) to reduce
         # per-iteration loop overhead at high throughput.
-        batch_size = 2000
-        sleep_intvl = 0.1
+        batch_size = 6000
+        sleep_intvl = 0.2
 
         self.producer_msgid = 0
         self.dr_cnt = 0
