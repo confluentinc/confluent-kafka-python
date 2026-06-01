@@ -53,12 +53,16 @@ except ImportError:
 class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
-    def __init__(self, msgid, name=None):
+    # Padding sized so the serialized JSON is ~500 bytes.
+    _PADDING = ("SoakRecord" * 43)[:430]
+
+    def __init__(self, msgid, name=None, padding=None):
         self.msgid = msgid
         if name is None:
             self.name = "SoakRecord nr #{}".format(self.msgid)
         else:
             self.name = name
+        self.padding = padding if padding is not None else self._PADDING
 
     def serialize(self):
         return json.dumps(self, default=lambda o: o.__dict__)
@@ -69,7 +73,7 @@ class SoakRecord(object):
     @classmethod
     def deserialize(cls, binstr):
         d = json.loads(binstr)
-        return SoakRecord(d['msgid'], d['name'])
+        return SoakRecord(d['msgid'], d['name'], d.get('padding'))
 
 
 class SoakClient(object):
@@ -607,6 +611,7 @@ class SoakClient(object):
         pconf = filter_config(conf, ["consumer.", "admin.", "share."], "producer.")
         pconf['error_cb'] = self.producer_error_cb
         pconf['client.id'] = self.testid
+        pconf['enable.metrics.push'] = True
         self.producer = Producer(pconf)
 
         self.incr_counter("producer.errorcb", 0)
@@ -632,6 +637,7 @@ class SoakClient(object):
             sconf['stats_cb'] = self.stats_cb
             sconf['statistics.interval.ms'] = 120000
             sconf['client.id'] = self.testid
+            sconf['enable.metrics.push'] = True
 
             # Always set a share-specific group.id.
             sconf['group.id'] = 'soakclient-share-{}-{}-{}'.format(
@@ -657,6 +663,7 @@ class SoakClient(object):
             cconf['on_commit'] = self.consumer_commit_cb
             self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
             cconf['client.id'] = self.testid
+            cconf['enable.metrics.push'] = True
             self.consumer = Consumer(cconf)
 
             # Initialize some counters to zero to make them appear in the metrics

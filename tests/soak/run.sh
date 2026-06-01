@@ -28,7 +28,7 @@ set +x
 while [ "$run" = true ]; do
     # Ignore SIGINT in children (inherited)
     trap "" SIGINT
-    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 $share_flag |& tee /dev/tty | bzip2 > $logfile &
+    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 10000 -f $1 $share_flag |& tee /dev/tty | bzip2 > $logfile &
     PID=$!
     terminate_last() {
         # List children of $PID only
