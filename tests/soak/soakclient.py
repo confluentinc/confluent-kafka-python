@@ -617,9 +617,10 @@ class SoakClient(object):
         pconf['error_cb'] = self.producer_error_cb
         pconf['client.id'] = self.testid
         pconf['enable.metrics.push'] = True
-        # High-throughput producer queue tuning.
-        pconf.setdefault('queue.buffering.max.messages', 1000000)
-        pconf.setdefault('queue.buffering.max.kbytes', 1048576)  # 1 GiB
+        # Throughput tuning, matching examples/rdkafka_performance.c
+        pconf.setdefault('linger.ms', 1000)
+        pconf.setdefault('message.send.max.retries', 3)
+        pconf.setdefault('retry.backoff.ms', 500)
         self.producer = Producer(pconf)
 
         self.incr_counter("producer.errorcb", 0)
