@@ -144,11 +144,10 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        # Batch many produce calls per sleep cycle so per-iteration loop
-        # overhead (poll syscall floor, time.time, etc.) doesn't cap the
-        # achievable rate at high throughput targets.
-        batch_size = max(1, int(self.rate / 100))   # ~10ms worth of work per iteration
-        sleep_intvl = batch_size / self.rate
+        # Produce in larger bursts (2000 msgs every 100ms) to reduce
+        # per-iteration loop overhead at high throughput.
+        batch_size = 2000
+        sleep_intvl = 0.1
 
         self.producer_msgid = 0
         self.dr_cnt = 0
