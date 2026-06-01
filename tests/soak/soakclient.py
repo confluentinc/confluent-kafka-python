@@ -56,6 +56,16 @@ class SoakRecord(object):
     # Padding sized so the serialized JSON is ~500 bytes.
     _PADDING = ("SoakRecord" * 43)[:430]
 
+    # Pre-serialized payload bytes used by every produce() call. The msgid
+    # here is a sentinel — the authoritative per-message msgid is carried
+    # in the message header. Reusing this avoids the ~30-60us cost of
+    # json.dumps(...) per message.
+    _CACHED_VALUE = json.dumps({
+        "msgid": 0,
+        "name": "SoakRecord nr #0",
+        "padding": _PADDING,
+    }).encode('utf-8')
+
     def __init__(self, msgid, name=None, padding=None):
         self.msgid = msgid
         if name is None:
@@ -112,7 +122,7 @@ class SoakClient(object):
     def produce_record(self):
         """Asynchronously produce a single record, but block and
         and retry if buffer is full."""
-        record = SoakRecord(self.producer_msgid)
+        msgid = self.producer_msgid
 
         txcnt = 0
         while True:
@@ -121,8 +131,8 @@ class SoakClient(object):
             try:
                 self.producer.produce(
                     self.topic,
-                    value=record.serialize(),
-                    headers={"msgid": str(record.msgid), "time": str(time.time()), "txcnt": str(txcnt)},
+                    value=SoakRecord._CACHED_VALUE,
+                    headers={"msgid": str(msgid), "time": str(time.time()), "txcnt": str(txcnt)},
                     on_delivery=self.dr_cb,
                 )
                 break
