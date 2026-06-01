@@ -128,7 +128,7 @@ class SoakClient(object):
                 break
 
             except BufferError:
-                self.producer.poll(1)
+                self.producer.poll(0.1)
                 continue
 
         self.producer_msgid += 1
@@ -144,7 +144,11 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        sleep_intvl = 1.0 / self.rate
+        # Batch many produce calls per sleep cycle so per-iteration loop
+        # overhead (poll syscall floor, time.time, etc.) doesn't cap the
+        # achievable rate at high throughput targets.
+        batch_size = max(1, int(self.rate / 100))   # ~10ms worth of work per iteration
+        sleep_intvl = batch_size / self.rate
 
         self.producer_msgid = 0
         self.dr_cnt = 0
@@ -155,8 +159,9 @@ class SoakClient(object):
 
         while self.run:
 
-            # Produce a single record
-            self.produce_record()
+            # Produce a batch of records before sleeping
+            for _ in range(batch_size):
+                self.produce_record()
 
             # Enforce message rate by polling until interval is exceeded.
             now = time.time()
@@ -612,6 +617,9 @@ class SoakClient(object):
         pconf['error_cb'] = self.producer_error_cb
         pconf['client.id'] = self.testid
         pconf['enable.metrics.push'] = True
+        # High-throughput producer queue tuning.
+        pconf.setdefault('queue.buffering.max.messages', 1000000)
+        pconf.setdefault('queue.buffering.max.kbytes', 1048576)  # 1 GiB
         self.producer = Producer(pconf)
 
         self.incr_counter("producer.errorcb", 0)
