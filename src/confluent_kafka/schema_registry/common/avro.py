@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-from typing import Dict, Optional, Set, Tuple, Union, cast
+from typing import Dict, Optional, Set, Tuple, Union, cast, List
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
@@ -25,6 +25,7 @@ __all__ = [
     'get_type',
     '_disjoint',
     '_resolve_union',
+    '_collapse_schema',
     'get_inline_tags',
     '_get_inline_tags_recursively',
     '_implied_namespace',
@@ -229,12 +230,45 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[A
                     if dict_schema["name"] == dict_message['-type']:
                         return (dict_schema, dict_message)
             else:
-                validate(message, subschema)
+                validate(message, _collapse_schema(deepcopy(subschema), []))
                 return (subschema, message)
         except:  # noqa: E722
             continue
     return (None, message)
 
+def _collapse_schema(schema: AvroSchema, encountered_references: List[str]) -> AvroSchema:
+    if isinstance(schema, str):
+        return schema
+    elif isinstance(schema, list):
+        return [_collapse_schema(subschema, encountered_references) for subschema in schema]
+    elif isinstance(schema, dict):
+        schema_type = schema.get("type")
+        if schema_type == 'array':
+            schema["items"] = _collapse_schema(schema['items'], encountered_references)
+            return schema
+        elif schema_type == 'map':
+            schema["values"] = _collapse_schema(schema["values"], encountered_references)
+            return schema
+        elif schema_type == "record":
+            if schema["name"] in encountered_references :
+                return schema["name"]
+            encountered_references.append(schema["name"])
+            if schema.get("aliases") is not None:
+                for alias in schema["aliases"]:
+                    encountered_references.append(alias)
+            schema["fields"] = _collapse_schema(schema["fields"], encountered_references)
+            return schema
+        elif schema_type == "fixed" or schema_type == "enum":
+            if schema["name"] in encountered_references :
+                return schema["name"]
+            encountered_references.append(schema["name"])
+            if schema.get("aliases") is not None:
+                for alias in schema["aliases"]:
+                    encountered_references.append(alias)
+            return schema
+        schema["type"] = _collapse_schema(schema["type"], encountered_references)
+        return schema
+    return schema
 
 def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
     inline_tags: Dict[str, Set[str]] = defaultdict(set)
