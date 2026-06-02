@@ -629,8 +629,12 @@ class SoakClient(object):
 
             sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
             sconf['error_cb'] = self.share_error_cb
-            sconf['stats_cb'] = self.stats_cb
-            sconf['statistics.interval.ms'] = 120000
+            # Share consumer rejects `statistics.interval.ms` (librdkafka
+            # `dev_kip-932_queues-for-kafka` PR #5469). Strip the stats
+            # wiring inherited from the parent conf so ShareConsumer()
+            # doesn't crash with `_INVALID_ARG`.
+            sconf.pop('statistics.interval.ms', None)
+            sconf.pop('stats_cb', None)
             sconf['client.id'] = self.testid
 
             # Always set a share-specific group.id.
