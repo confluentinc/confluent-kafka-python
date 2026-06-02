@@ -230,13 +230,27 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[A
                     if dict_schema["name"] == dict_message['-type']:
                         return (dict_schema, dict_message)
             else:
-                validate(message, _collapse_schema(deepcopy(subschema), []))
+                validate(message, _collapse_schema(deepcopy(subschema)))
                 return (subschema, message)
         except:  # noqa: E722
             continue
     return (None, message)
 
-def _collapse_schema(schema: AvroSchema, encountered_references: List[str]) -> AvroSchema:
+def _collapse_schema(schema: AvroSchema, encountered_references=None) -> AvroSchema:
+    """
+        Collapses a schema to conform to the Avro specification if it has been previously expanded.
+        Recursively replaces any record, fixed, or enum definitions with their name if they have already been encountered in the schema.
+        Mutates the incoming schema
+
+        Args:
+            schema: An (expanded) Avro schema
+            encountered_references: A list of encountered references (used in the recursion)
+
+        Returns:
+            AvroSchema: A collapsed Avro schema.
+        """
+    if encountered_references is None:
+        encountered_references = []
     if isinstance(schema, str):
         return schema
     elif isinstance(schema, list):
@@ -250,16 +264,20 @@ def _collapse_schema(schema: AvroSchema, encountered_references: List[str]) -> A
             schema["values"] = _collapse_schema(schema["values"], encountered_references)
             return schema
         elif schema_type == "record":
-            if schema["name"] in encountered_references :
+            name = schema.get("name")
+            namespace = schema.get("namespace")
+            full_name = name if namespace is None or '.' in name else f"{namespace}.{name}"
+            if full_name in encountered_references:
                 return schema["name"]
-            encountered_references.append(schema["name"])
+            encountered_references.append(full_name)
             if schema.get("aliases") is not None:
                 for alias in schema["aliases"]:
-                    encountered_references.append(alias)
+                    full_alias = alias if namespace is None or '.' in alias else f"{namespace}.{alias}"
+                    encountered_references.append(full_alias)
             schema["fields"] = _collapse_schema(schema["fields"], encountered_references)
             return schema
         elif schema_type == "fixed" or schema_type == "enum":
-            if schema["name"] in encountered_references :
+            if schema["name"] in encountered_references:
                 return schema["name"]
             encountered_references.append(schema["name"])
             if schema.get("aliases") is not None:
