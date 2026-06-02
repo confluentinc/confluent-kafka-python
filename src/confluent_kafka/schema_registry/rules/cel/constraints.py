@@ -207,11 +207,7 @@ def check_field_type(field: descriptor.FieldDescriptor, expected: int, wrapper_n
 
 
 def _is_map(field: descriptor.FieldDescriptor):
-    return (
-        _is_repeated(field)
-        and field.message_type is not None
-        and field.message_type.GetOptions().map_entry
-    )
+    return _is_repeated(field) and field.message_type is not None and field.message_type.GetOptions().map_entry
 
 
 def _is_list(field: descriptor.FieldDescriptor):
