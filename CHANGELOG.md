@@ -9,6 +9,7 @@
 - Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 - Fix typing_extensions import errors on Python 3.12 (#2232)
 - Fix Encryption fails when referencing self defined types (#2254)
+- Fix Encryption fails when expanded union types have two references to the same record (#2262)
 
 
 confluent-kafka-python v2.14.2rc4 is based on librdkafka v2.14.2-RC3, see the
