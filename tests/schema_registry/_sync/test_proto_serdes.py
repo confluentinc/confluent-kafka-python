@@ -602,6 +602,39 @@ def test_proto_cel_decimal_mod():
     assert obj == obj2
 
 
+def test_proto_cel_decimal_min_max():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.eq(decimals.max(decimal("2.5"), decimal("9.99")), decimal("9.99")) '
+        '&& decimals.eq(decimals.min(decimal("2.5"), decimal("9.99")), decimal("2.5"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(example_pb2.Author.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = example_pb2.Author(name='Kafka', id=123, picture=b'foobar')
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {'use.deprecated.format': False}
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_proto_cel_decimal_sqrt():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
