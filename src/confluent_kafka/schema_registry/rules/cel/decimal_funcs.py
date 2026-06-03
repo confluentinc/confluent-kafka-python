@@ -163,6 +163,17 @@ def _decimals_div(a: typing.Any, b: typing.Any) -> Decimal:
         raise celpy.CELEvalError(f"decimals.div: {ex}") from ex
 
 
+def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
+    """Remainder with the sign of the dividend (truncated division), matching
+    Java BigDecimal.remainder and SQL MOD. A zero divisor raises the canonical
+    message.
+    """
+    db = _d(b)
+    if db == 0:
+        raise celpy.CELEvalError("decimals.mod: division by zero")
+    return _DIV_CONTEXT.remainder(_d(a), db)
+
+
 # ---- square root ----
 
 def _decimals_sqrt(a: typing.Any) -> Decimal:
@@ -299,6 +310,7 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimals.sub": _decimals_sub,
     "decimals.mul": _decimals_mul,
     "decimals.div": _decimals_div,
+    "decimals.mod": _decimals_mod,
     "decimals.sqrt": _decimals_sqrt,
     "decimals.neg": _decimals_neg,
     "decimals.abs": _decimals_abs,
