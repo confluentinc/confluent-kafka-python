@@ -1,5 +1,11 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.xx.x
+
+### Fixes
+
+- Fix Encryption fails when expanded union types have two references to the same record (#2262)
+
 ## v2.14.2 - 2026-06-03
 
 v2.14.2 is a maintenance release with the following fixes and enhancements:
@@ -11,7 +17,6 @@ v2.14.2 is a maintenance release with the following fixes and enhancements:
 - Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 - Fix typing_extensions import errors on Python 3.12 (#2232)
 - Fix Encryption fails when referencing self defined types (#2254)
-- Fix Encryption fails when expanded union types have two references to the same record (#2262)
 
 
 confluent-kafka-python v2.14.2 is based on librdkafka v2.14.2, see the
