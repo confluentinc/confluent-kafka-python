@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-from typing import Dict, Optional, Set, Tuple, Union, cast, List
+from typing import Dict, Optional, Set, Tuple, Union, cast
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
@@ -236,19 +236,20 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[A
             continue
     return (None, message)
 
+
 def _collapse_schema(schema: AvroSchema, encountered_references=None) -> AvroSchema:
     """
-        Collapses a schema to conform to the Avro specification if it has been previously expanded.
-        Recursively replaces any record, fixed, or enum definitions with their name if they have already been encountered in the schema.
-        Mutates the incoming schema
+    Collapses a schema to conform to the Avro specification if it has been previously expanded.
+    Recursively replaces record, fixed, or enum definitions with their name when they have been already defined.
+    Mutates the incoming schema.
 
-        Args:
-            schema: An (expanded) Avro schema
-            encountered_references: A list of encountered references (used in the recursion)
+    Args:
+        schema: An (expanded) Avro schema
+        encountered_references: A list of encountered references (used in the recursion)
 
-        Returns:
-            AvroSchema: A collapsed Avro schema.
-        """
+    Returns:
+        AvroSchema: A collapsed Avro schema.
+    """
     if encountered_references is None:
         encountered_references = []
     if isinstance(schema, str):
@@ -287,6 +288,7 @@ def _collapse_schema(schema: AvroSchema, encountered_references=None) -> AvroSch
         schema["type"] = _collapse_schema(schema["type"], encountered_references)
         return schema
     return schema
+
 
 def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
     inline_tags: Dict[str, Set[str]] = defaultdict(set)

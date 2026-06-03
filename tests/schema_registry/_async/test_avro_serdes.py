@@ -1309,17 +1309,12 @@ async def test_avro_encryption_complex_schema_union():
                         {
                             'name': 'complexSubType1',
                             'type': {
-                                'fields': [
-                                    {'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']}
-                                ],
+                                'fields': [{'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']}],
                                 'name': 'ComplexSubType',
-                                'type': 'record'
-                            }
+                                'type': 'record',
+                            },
                         },
-                        {
-                            'name': 'complexSubType2',
-                            'type': 'ComplexSubType'
-                        }
+                        {'name': 'complexSubType2', 'type': 'ComplexSubType'},
                     ],
                     'name': 'ComplexFieldType',
                     'type': 'record',
