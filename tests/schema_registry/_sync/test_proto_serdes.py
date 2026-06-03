@@ -602,7 +602,7 @@ def test_proto_cel_decimal_mod():
     assert obj == obj2
 
 
-def test_proto_cel_decimal_min_max():
+def test_proto_cel_decimal_greatest_least():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
@@ -614,8 +614,8 @@ def test_proto_cel_decimal_min_max():
         "CEL",
         None,
         None,
-        'decimals.eq(decimals.max(decimal("2.5"), decimal("9.99")), decimal("9.99")) '
-        '&& decimals.eq(decimals.min(decimal("2.5"), decimal("9.99")), decimal("2.5"))',
+        'decimals.eq(decimals.greatest(decimal("2.5"), decimal("9.99")), decimal("9.99")) '
+        '&& decimals.eq(decimals.least(decimal("2.5"), decimal("9.99")), decimal("2.5"))',
         None,
         None,
         False,
