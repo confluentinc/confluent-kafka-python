@@ -270,6 +270,24 @@ def _string(v: typing.Any) -> celtypes.StringType:
     return _STDLIB_STRING(v)
 
 
+# ---- double(Decimal) — extend celpy stdlib's double(...) ----
+
+# Capture celpy's stdlib double callable so we can delegate non-Decimal inputs.
+_STDLIB_DOUBLE = celtypes.DoubleType
+
+
+def _double(v: typing.Any) -> celtypes.DoubleType:
+    """Extension of CEL stdlib {@code double(...)} with a Decimal arm.
+
+    Narrowing conversion (``float(Decimal)``) for Decimal inputs — may lose
+    precision, and out-of-range magnitudes become ``inf``; delegates to celpy's
+    stdlib double coercion for everything else.
+    """
+    if isinstance(v, Decimal):
+        return celtypes.DoubleType(float(v))
+    return _STDLIB_DOUBLE(v)
+
+
 DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimal": _decimal,
     "decimals.eq": _decimals_eq,
@@ -292,4 +310,6 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     # string(Decimal) overrides celpy stdlib — the wrapper falls through to
     # stdlib for non-Decimal inputs.
     "string": _string,
+    # double(Decimal) overrides celpy stdlib — same fall-through pattern.
+    "double": _double,
 }

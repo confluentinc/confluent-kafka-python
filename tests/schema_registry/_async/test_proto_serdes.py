@@ -602,6 +602,38 @@ async def test_proto_cel_decimal_sqrt():
     assert obj == obj2
 
 
+async def test_proto_cel_decimal_to_double():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'double(decimal("100.50")) == 100.5',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(_schema_to_str(example_pb2.Author.DESCRIPTOR.file), "PROTOBUF", [], None, RuleSet(None, [rule])),
+    )
+    obj = example_pb2.Author(name='Kafka', id=123, picture=b'foobar')
+    ser = await AsyncProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser_conf = {'use.deprecated.format': False}
+    deser = await AsyncProtobufDeserializer(example_pb2.Author, deser_conf, client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 async def test_proto_cel_timestamp_passes():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
