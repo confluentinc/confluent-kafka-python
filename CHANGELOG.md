@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.14.2 - 2026-06-01
+## v2.14.2 - 2026-06-03
 
 v2.14.2 is a maintenance release with the following fixes and enhancements:
 
@@ -16,6 +16,12 @@ v2.14.2 is a maintenance release with the following fixes and enhancements:
 confluent-kafka-python v2.14.2 is based on librdkafka v2.14.2, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.14.1
+
+There was no 2.14.1 release of the Python Client.
 
 
 
