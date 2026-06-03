@@ -176,12 +176,12 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
 
 # ---- selection ----
 
-def _decimals_min(a: typing.Any, b: typing.Any) -> Decimal:
-    return min(_d(a), _d(b))
-
-
-def _decimals_max(a: typing.Any, b: typing.Any) -> Decimal:
+def _decimals_greatest(a: typing.Any, b: typing.Any) -> Decimal:
     return max(_d(a), _d(b))
+
+
+def _decimals_least(a: typing.Any, b: typing.Any) -> Decimal:
+    return min(_d(a), _d(b))
 
 
 # ---- square root ----
@@ -321,8 +321,8 @@ DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "decimals.mul": _decimals_mul,
     "decimals.div": _decimals_div,
     "decimals.mod": _decimals_mod,
-    "decimals.min": _decimals_min,
-    "decimals.max": _decimals_max,
+    "decimals.greatest": _decimals_greatest,
+    "decimals.least": _decimals_least,
     "decimals.sqrt": _decimals_sqrt,
     "decimals.neg": _decimals_neg,
     "decimals.abs": _decimals_abs,
