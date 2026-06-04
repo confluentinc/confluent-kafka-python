@@ -50,6 +50,7 @@ from .cimpl import (
     version,
 )
 from .deserializing_consumer import DeserializingConsumer
+from .deserializing_share_consumer import DeserializingShareConsumer
 from .error import KafkaError, KafkaException
 from .serializing_producer import SerializingProducer
 
@@ -73,6 +74,7 @@ __all__ = [
     "OFFSET_STORED",
     "Producer",
     "DeserializingConsumer",
+    "DeserializingShareConsumer",
     "SerializingProducer",
     "TIMESTAMP_CREATE_TIME",
     "TIMESTAMP_LOG_APPEND_TIME",

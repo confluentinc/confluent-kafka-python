@@ -32,7 +32,7 @@ from confluent_kafka.admin import (
 )
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from tests.common import TestConsumer, TestShareConsumer
+from tests.common import TestConsumer, TestDeserializingShareConsumer, TestShareConsumer
 from tests.common._async.consumer import TestAsyncDeserializingConsumer
 from tests.common._async.producer import TestAsyncSerializingProducer
 from tests.common.schema_registry import TestDeserializingConsumer
@@ -179,6 +179,53 @@ class KafkaClusterFixture(object):
             f.result()
 
         return TestShareConsumer(share_conf)
+
+    def deserializing_share_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
+        """
+        Returns a DeserializingShareConsumer bound to this cluster.
+
+        Mirrors :func:`share_consumer` (including the per-group
+        share.auto.offset.reset=earliest setup) but returns a
+        DeserializingShareConsumer with the supplied key/value deserializers.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+            key_deserializer (Deserializer): deserializer to apply to message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            DeserializingShareConsumer: A new TestDeserializingShareConsumer instance
+        """
+        share_conf = self.client_conf({'group.id': str(uuid1())})
+
+        if conf is not None:
+            share_conf.update(conf)
+
+        reset = share_conf.pop('auto.offset.reset', 'earliest')
+        res = ConfigResource(
+            ResourceType.GROUP,
+            share_conf['group.id'],
+            incremental_configs=[
+                ConfigEntry(
+                    'share.auto.offset.reset',
+                    reset,
+                    incremental_operation=AlterConfigOpType.SET,
+                ),
+            ],
+        )
+        for f in self.admin().incremental_alter_configs([res]).values():
+            f.result()
+
+        if key_deserializer is not None:
+            share_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            share_conf['value.deserializer'] = value_deserializer
+
+        return TestDeserializingShareConsumer(share_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
