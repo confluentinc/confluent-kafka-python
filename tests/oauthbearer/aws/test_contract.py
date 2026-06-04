@@ -14,13 +14,6 @@
 
 """Frozen cross-module contract guard for the autowire entry-point.
 
-The C dispatcher (Phase 5) in ``src/confluent_kafka/src/confluent_kafka.c``
-resolves ``confluent_kafka.oauthbearer.aws.aws_autowire.create_handler`` via
-``PyImport_ImportModule`` + ``PyObject_GetAttrString`` and calls it with two
-string arguments. Any signature drift on the Python side breaks that
-contract and requires a major version bump on the ``confluent-kafka``
-distribution.
-
 These tests guard against accidental drift: parameter names, type
 annotations, return annotation, arity, and absence of defaults.
 """

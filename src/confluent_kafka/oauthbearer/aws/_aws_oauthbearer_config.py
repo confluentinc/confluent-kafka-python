@@ -14,10 +14,6 @@
 
 """Internal: validated ``sasl.oauthbearer.config`` dataclass + parser.
 
-Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsOAuthBearerConfig``.
-Encapsulates the wire-grammar parser and the validated, immutable typed view
-of the AWS path's ``sasl.oauthbearer.config`` value.
-
 The full grammar (whitespace-separated ``key=value`` pairs, no quoting):
 
     region=<aws-region>            (required)
@@ -57,17 +53,16 @@ __all__ = [
 ]
 
 
-#: Top-level librdkafka config key carrying the AWS-path wire-grammar string.
+#: Config key carrying the AWS-path wire-grammar string.
 CONFIG_KEY: str = "sasl.oauthbearer.config"
 
-#: Default JWT signing algorithm. Matches .NET / cross-language default.
+#: Default JWT signing algorithm.
 DEFAULT_SIGNING_ALGORITHM: str = "ES384"
 
 #: Signing algorithms accepted by AWS STS ``GetWebIdentityToken``.
 ALLOWED_SIGNING_ALGORITHMS = ("ES384", "RS256")
 
 #: Minimum / default / maximum token lifetime AWS STS allows
-#: (60s and 3600s are AWS-enforced bounds; 300s is the .NET-aligned default).
 MIN_DURATION_SECONDS: int = 60
 MAX_DURATION_SECONDS: int = 3600
 DEFAULT_DURATION_SECONDS: int = 300
@@ -83,12 +78,6 @@ AWS_DEBUG_NONE: str = "none"
 AWS_DEBUG_CONSOLE: str = "console"
 
 #: ``aws_debug`` values accepted by the Python client.
-#:
-#: Python takes the **Pythonic subset** decision (locked 2026-05-26): only
-#: ``none`` (no-op) and ``console`` (routes botocore logs to stderr via
-#: :func:`boto3.set_stream_logger`). The .NET-only sinks ``log4net`` and
-#: ``systemdiagnostics`` are rejected with a "not supported on this platform"
-#: error so users moving between language clients get a clear signal.
 ALLOWED_AWS_DEBUG_VALUES = (AWS_DEBUG_NONE, AWS_DEBUG_CONSOLE)
 
 #: ``aws_debug`` values that exist in .NET but are not supported in Python.
@@ -107,10 +96,6 @@ _RECOGNISED_KEYS = frozenset({
     "aws_debug",
 })
 
-# Keys whose value must NOT be the empty string (``region= audience=...``).
-# Empty values are tolerated for ``tag_<NAME>`` (mirrors AWS allowing empty
-# tag values) and for ``duration_seconds`` (which separately fails integer
-# parsing with a clearer error).
 _NON_EMPTY_KEYS = frozenset({
     "region",
     "audience",
@@ -123,13 +108,7 @@ _NON_EMPTY_KEYS = frozenset({
 
 @dataclass(frozen=True)
 class AwsOAuthBearerConfig:
-    """Validated, immutable view of the AWS path's ``sasl.oauthbearer.config``.
-
-    Construct via :meth:`parse` rather than directly — the classmethod is the
-    only path that exercises the wire-grammar parser. The dataclass's
-    :meth:`__post_init__` validates final state regardless of construction
-    path, so direct construction with bad values still raises.
-    """
+    """Immutable view of the AWS path's ``sasl.oauthbearer.config``."""
 
     region: str
     audience: str

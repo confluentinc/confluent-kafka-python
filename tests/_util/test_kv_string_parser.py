@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka._util.kv_string_parser.
-
-Mirrors .NET's KvStringParserTests.
-"""
+"""Tests for confluent_kafka._util.kv_string_parser."""
 
 import pytest
 

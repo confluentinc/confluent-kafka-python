@@ -14,8 +14,6 @@
 
 """Tests for confluent_kafka.oauthbearer.aws._aws_sts_token_provider.
 
-Mirrors .NET's AwsStsTokenProviderTests, modulo:
-
 - Python uses a tuple return (not a typed record) so the "no extensions →
   null" assertion becomes "no extensions → empty dict" (the C oauth_cb
   contract requires a dict, not None, at that slot).
@@ -107,9 +105,8 @@ def test_ctor_null_config_raises():
 def test_ctor_valid_parsed_config_succeeds():
     """No AWS / no HTTP call at construction time (lazy credential chain)."""
     cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
-    # Pass a fake client so we don't try to instantiate a real boto3 client
-    # against a possibly-network-isolated test env.
     provider = AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
+    # Does not throw; does not call AWS (lazy credential chain).
     assert provider is not None
 
 

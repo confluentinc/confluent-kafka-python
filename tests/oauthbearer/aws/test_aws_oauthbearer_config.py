@@ -12,11 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_oauthbearer_config.
-
-Mirrors .NET's AwsOAuthBearerConfigTests, modulo Python conventions and the
-Pythonic aws_debug subset decision (none/console only).
-"""
+"""Tests for confluent_kafka.oauthbearer.aws._aws_oauthbearer_config."""
 
 import pytest
 

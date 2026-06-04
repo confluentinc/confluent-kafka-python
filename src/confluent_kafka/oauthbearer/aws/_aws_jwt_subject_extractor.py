@@ -14,16 +14,7 @@
 
 """Internal: extracts the ``sub`` claim from an unverified AWS-minted JWT.
 
-Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsJwtSubjectExtractor``.
-
-No signature verification — AWS STS already signed the JWT and the broker
-performs the cryptographic validation. We only decode the unprotected
-payload segment to read the ``sub`` claim (the role ARN), which becomes the
-``principal`` field handed to ``rd_kafka_oauthbearer_set_token``.
-
-Strict base64 decoding (``validate=True``) is used so stray non-alphabet
-characters raise instead of being silently dropped — ``urlsafe_b64decode``
-is lenient and would let malformed payloads slip past JSON parsing.
+No signature verification — STS signs, broker validates.
 """
 
 import base64
@@ -88,12 +79,6 @@ def extract_sub(jwt: str) -> str:
 
 
 def _decode_base64url_segment(segment: str) -> bytes:
-    """Base64url-decode a JWT segment to bytes.
-
-    Restores '=' padding to the next 4-byte boundary, swaps '-' → '+' and
-    '_' → '/', then defers to :func:`base64.b64decode` with strict
-    ``validate=True``.
-    """
     if len(segment) == 0:
         raise ValueError("JWT payload segment is empty.")
 
@@ -106,7 +91,6 @@ def _decode_base64url_segment(segment: str) -> bytes:
     elif remainder == 3:
         s += "="
     else:
-        # remainder == 1 → not a valid base64url length
         raise ValueError("JWT payload segment has invalid base64url length.")
 
     try:

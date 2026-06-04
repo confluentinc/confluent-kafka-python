@@ -12,29 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Internal: AWS STS ``GetWebIdentityToken``-based OAUTHBEARER token provider.
-
-Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsStsTokenProvider``.
-
-This is the file whose top-level ``import boto3`` is the actual gate that
-makes the entire ``oauthbearer-aws`` extra opt-in: opt-out users have no
-``boto3`` installed, so transitively importing this module from
-:mod:`...aws_autowire` raises ``ModuleNotFoundError`` and the C dispatcher
-rewrites it as a friendly install hint at client construction time.
-
-The class :class:`AwsStsTokenProvider` is constructed once per autowired
-client by :func:`...aws_autowire.create_handler` and its bound ``token``
-method is installed as the ``oauth_cb`` Python callable. librdkafka invokes
-this method from its background thread on every token refresh; the return
-4-tuple matches the C extension's ``oauth_cb`` contract (see
-``confluent_kafka.c`` around ``L2291``: ``PyArg_ParseTuple(result, "sd|sO!",
-...)``).
-
-Credential resolution is **lazy**: ``__init__`` constructs the boto3
-``Session`` and STS client objects without making any HTTP calls. The first
-``token()`` invocation triggers boto3's default credential chain (env →
-shared config → IMDS → ECS → IRSA → SSO).
-"""
+"""Internal: Fetches OAUTHBEARER tokens via AWS STS <c>GetWebIdentityToken."""
 
 import logging
 from typing import Any, Dict, Optional, Tuple
@@ -57,18 +35,7 @@ _BOTOCORE_LOGGER_NAME = "botocore"
 
 
 class AwsStsTokenProvider:
-    """Mints OAUTHBEARER tokens via AWS STS ``GetWebIdentityToken``.
-
-    The instance method :meth:`token` is shaped to slot directly into the
-    ``oauth_cb`` C contract (4-tuple of ``(token, expiry_seconds, principal,
-    extensions_dict)``).
-
-    Construction is lightweight and side-effect-light: the boto3 STS client
-    is built eagerly but no network call is made until :meth:`token` runs.
-    The ``aws_debug=console`` side-effect (process-wide
-    :func:`boto3.set_stream_logger` configuration) does fire at construction
-    when configured.
-    """
+    """Mints OAUTHBEARER tokens via AWS STS ``GetWebIdentityToken``."""
 
     def __init__(
         self,

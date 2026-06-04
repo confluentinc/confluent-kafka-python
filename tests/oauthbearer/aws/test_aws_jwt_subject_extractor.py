@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_jwt_subject_extractor.
-
-Mirrors .NET's AwsJwtSubjectExtractorTests.
-"""
+"""Tests for confluent_kafka.oauthbearer.aws._aws_jwt_subject_extractor."""
 
 import base64
 
@@ -28,7 +25,9 @@ from confluent_kafka.oauthbearer.aws._aws_jwt_subject_extractor import extract_s
 
 
 def _base64url_encode(data: bytes) -> str:
-    """Mirror of .NET's AwsTestHelpers.Base64UrlEncode."""
+    """Base64url-encodes a byte array: standard base64, trim '=' padding,
+    swap '+' → '-' and '/' → '_'.
+    """
     return base64.b64encode(data).decode("ascii").rstrip("=").replace("+", "-").replace("/", "_")
 
 
@@ -112,7 +111,6 @@ def test_extract_sub_other_claims_ignored():
 
 @pytest.mark.parametrize("jwt", [_REAL_ES384_JWT, _REAL_RS256_JWT])
 def test_extract_sub_real_sts_jwt_returns_expected_arn(jwt):
-    """Cross-language wire-shape parity with .NET / Go / JS / librdkafka."""
     assert extract_sub(jwt) == _EXPECTED_ROLE_ARN
 
 
@@ -130,8 +128,6 @@ def test_extract_sub_padded_base64url_also_works():
     # Encode WITHOUT stripping padding.
     payload = base64.b64encode(b'{"sub":"abc"}').decode("ascii").replace("+", "-").replace("/", "_")
     jwt = f"{header}.{payload}."
-    # Trailing empty segment makes len(parts) != 3 if payload contains '=' — fix segment count.
-    # The .NET test uses a 3-segment shape with empty signature. Mirror that:
     jwt_3seg = f"{header}.{payload}.sig"
     assert extract_sub(jwt_3seg) == "abc"
 

@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Drift-guard tests for the AWS IAM marker constants.
-
-Phase 2 covers the Python-side half of the drift guard: the literal values
-must not move. The end-to-end half (asserting the C dispatcher's literal
-strings match these) lands in Phase 5 once the C dispatcher exists.
-"""
+"""Drift-guard tests for the AWS IAM marker constants."""
 
 from confluent_kafka.oauthbearer.aws._aws_iam_marker import (
     AWS_IAM_MARKER_KEY,
@@ -26,38 +21,14 @@ from confluent_kafka.oauthbearer.aws._aws_iam_marker import (
 
 
 def test_marker_key_is_locked_value():
-    """The marker key is part of the cross-language wire contract.
-
-    Bumping it would silently break .NET / Go / JS / Python parity. Any change
-    here MUST be coordinated as a major version bump across all four clients.
-    """
     assert AWS_IAM_MARKER_KEY == "sasl.oauthbearer.metadata.authentication.type"
 
 
 def test_marker_value_is_locked_value():
-    """The marker value is part of the cross-language wire contract.
-
-    Same constraint as :func:`test_marker_key_is_locked_value`.
-    """
     assert AWS_IAM_MARKER_VALUE == "aws_iam"
 
 
-# ---- End-to-end drift guard (active from Phase 5 onward) ----
-
-
 def test_c_dispatcher_recognises_python_authoritative_marker():
-    """Drift-guard end-to-end check.
-
-    If the C-side literal strings in confluent_kafka.c drift away from the
-    Python constants in _aws_iam_marker.py, the dispatcher would no longer
-    recognize a Producer built with these constants, the precondition check
-    would not fire, and the ValueError below would NOT raise. The test
-    therefore fails loudly on drift.
-
-    We deliberately omit `sasl.oauthbearer.method=oidc` so the precondition
-    check fires — that's the cheapest reliable signal that the dispatcher
-    saw our marker.
-    """
     import pytest
     from confluent_kafka import Producer
 

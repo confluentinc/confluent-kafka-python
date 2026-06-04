@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_sasl_extensions_parser.
-
-Mirrors .NET's AwsSaslExtensionsParserTests.
-"""
+"""Tests for confluent_kafka.oauthbearer.aws._aws_sasl_extensions_parser."""
 
 import pytest
 

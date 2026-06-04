@@ -14,15 +14,24 @@
 
 """Public entry-point for AWS IAM OAUTHBEARER autowire.
 
-Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.AwsAutoWire``. This is the
-**only publicly importable name** in the optional subpackage. The C
-dispatcher in ``src/confluent_kafka/src/confluent_kafka.c`` (Phase 5) reaches
-this module via::
+This is the **only publicly importable name** in the optional subpackage.
+End users do not call :func:`create_handler` directly — the C dispatcher in
+``src/confluent_kafka/src/confluent_kafka.c`` reaches it via::
 
     PyImport_ImportModule("confluent_kafka.oauthbearer.aws.aws_autowire")
 
-and resolves :func:`create_handler` by name. The function signature is a
-**frozen cross-module contract**:
+and resolves :func:`create_handler` by name. The marker-key check is
+performed in core; :func:`create_handler` is invoked only when the C
+dispatcher has decided to autowire the AWS path.
+
+User-facing contract — four config keys::
+
+    "sasl.oauthbearer.method":                        "oidc"
+    "sasl.oauthbearer.metadata.authentication.type":  "aws_iam"
+    "sasl.oauthbearer.config":                        "region=... audience=..."
+    "sasl.oauthbearer.extensions":                    "key=val,..."   # optional
+
+Frozen cross-module contract of :func:`create_handler`:
 
 * arity:   2 positional parameters
 * names:   ``sasl_oauthbearer_config``, ``sasl_oauthbearer_extensions``
@@ -30,13 +39,8 @@ and resolves :func:`create_handler` by name. The function signature is a
 * return:  :data:`OAuthBearerCallback`
 
 Bumping any of these is a breaking change requiring a major version
-increment on the ``confluent-kafka`` distribution. The frozen contract is
-test-guarded by ``tests/oauthbearer/aws/test_contract.py``.
-
-The marker key/value check is performed in core (the C dispatcher);
-:func:`create_handler` is invoked only when the caller has already decided
-to autowire the AWS path. The function therefore unconditionally attempts
-to build a handler and raises on any input it cannot parse.
+increment on the ``confluent-kafka`` distribution. Test-guarded by
+``tests/oauthbearer/aws/test_contract.py``.
 """
 
 from typing import Callable, Dict, Optional, Tuple
@@ -48,40 +52,13 @@ from ._aws_sts_token_provider import AwsStsTokenProvider
 
 __all__ = ["create_handler", "OAuthBearerCallback"]
 
-
-#: Type alias for the callable returned by :func:`create_handler`.
-#:
-#: Tuple shape matches the existing ``oauth_cb`` contract enforced in C at
-#: ``confluent_kafka.c`` around L2291 via
-#: ``PyArg_ParseTuple(result, "sd|sO!", ...)`` — single ``str`` argument
-#: (the ``sasl.oauthbearer.config`` value librdkafka passes back on every
-#: refresh), returning ``(token_str, expiry_epoch_seconds, principal_str,
-#: extensions_dict)``.
 OAuthBearerCallback = Callable[[str], Tuple[str, float, str, Dict[str, str]]]
-
 
 def create_handler(
     sasl_oauthbearer_config: str,
     sasl_oauthbearer_extensions: Optional[str],
 ) -> OAuthBearerCallback:
     """Build an OAUTHBEARER refresh callback from the two OAUTHBEARER config strings.
-
-    Construction-time work:
-
-    1. Validates ``sasl_oauthbearer_config`` is a non-empty string.
-    2. Parses ``sasl_oauthbearer_extensions`` (comma-separated ``key=value``)
-       via :mod:`._aws_sasl_extensions_parser` into an optional dict.
-    3. Parses ``sasl_oauthbearer_config`` (whitespace-separated ``key=value``)
-       into a validated :class:`._aws_oauthbearer_config.AwsOAuthBearerConfig`.
-    4. Constructs an :class:`._aws_sts_token_provider.AwsStsTokenProvider`
-       (no HTTP yet — credential resolution is lazy until the first
-       ``token()`` invocation).
-    5. Returns the provider's bound :meth:`token` method as the callable.
-
-    The returned callable is invoked by the C ``oauth_cb`` wrapper on every
-    OAUTHBEARER refresh; each call performs one STS ``GetWebIdentityToken``
-    round-trip and returns a fresh 4-tuple suitable for
-    ``rd_kafka_oauthbearer_set_token``.
 
     :param sasl_oauthbearer_config: The verbatim ``sasl.oauthbearer.config``
         value (whitespace-separated ``key=value`` pairs). Must be non-empty.

@@ -14,11 +14,8 @@
 
 """Internal: parser for the ``sasl.oauthbearer.extensions`` config property.
 
-Mirrors .NET's ``Confluent.Kafka.OAuthBearer.Aws.Internal.AwsSaslExtensionsParser``.
-
 The ``sasl.oauthbearer.extensions`` config carries RFC 7628 §3.1 SASL
-extensions as a comma-separated ``key=value`` list. Forwarded verbatim to
-the broker alongside the JWT — not part of the JWT itself.
+extensions as a comma-separated ``key=value`` list.
 """
 
 from typing import Dict, Optional
@@ -28,16 +25,14 @@ from confluent_kafka._util.kv_string_parser import parse_kv
 __all__ = ["CONFIG_KEY", "parse"]
 
 
-#: Top-level librdkafka config key carrying the SASL extensions list.
+#: Config key carrying the SASL extensions list.
 CONFIG_KEY: str = "sasl.oauthbearer.extensions"
 
 
 def parse(raw: Optional[str]) -> Optional[Dict[str, str]]:
     """Parse the verbatim ``sasl.oauthbearer.extensions`` value into a dict.
 
-    Grammar: comma-separated ``key=value`` tokens. Whitespace around each
-    token is trimmed (mirrors .NET / librdkafka). Empty tokens (e.g.
-    ``"a=1,,b=2,"``) are tolerated and skipped.
+    The grammar mirrors the cross-language convention for consistency.
 
     Returns ``None`` for ``None`` / empty input so the autowire layer can
     short-circuit without constructing an empty dict.
