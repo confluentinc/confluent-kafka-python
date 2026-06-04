@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from confluent_kafka import KafkaError, KafkaException, Producer, ShareConsumer
+from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, ShareConsumer
 from tests.common import unique_id
 
 
@@ -341,6 +341,129 @@ def test_oauthbearer_token_refresh_cb():
 
     assert oauth_cb_called, "oauth_cb should have been called during init"
     assert oauth_cb_called[0] == 'oauth_cb'
+    sc.close()
+
+
+@pytest.mark.skipif(
+    not _OPENSSL_AVAILABLE,
+    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+)
+@pytest.mark.parametrize('client_kind', ['producer', 'consumer', 'share_consumer'])
+def test_oauth_cb_fires_across_client_types(client_kind):
+    """oauth_cb dispatches through the shared trampoline on every client type.
+
+    error_cb / throttle_cb / oauth_cb in confluent_kafka.c were changed to use
+    the rk that librdkafka passes into the callback rather than h->rk, because
+    h->rk is NULL on a ShareConsumer. h->rk is non-NULL on a Producer/Consumer,
+    so driving the same oauth_cb config through all three client types pins
+    that the substitution is correct everywhere, not just for share consumers.
+
+    Every client type blocks in wait_for_oauth_token_set during init (see
+    Producer.c / Consumer.c / ShareConsumer.c), so the callback is guaranteed
+    to have fired by the time the constructor returns — no poll() needed.
+    """
+    oauth_configs = []
+
+    def my_oauth_cb(oauth_config):
+        oauth_configs.append(oauth_config)
+        return 'token', time.time() + 300.0
+
+    conf = {
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': my_oauth_cb,
+    }
+
+    if client_kind == 'producer':
+        client = Producer(conf)
+    elif client_kind == 'consumer':
+        client = Consumer({**conf, 'group.id': unique_id('test-oauth-consumer')})
+    else:
+        client = ShareConsumer({**conf, 'group.id': unique_id('test-oauth-share')})
+
+    try:
+        assert oauth_configs, f"oauth_cb should fire during {client_kind} init"
+        assert oauth_configs[0] == 'oauth_cb'
+    finally:
+        # Producer exposes no close(); GC-time destroy is enough for it.
+        if hasattr(client, 'close'):
+            client.close()
+
+
+@pytest.mark.skipif(
+    not _OPENSSL_AVAILABLE,
+    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+)
+def test_mixed_callbacks_coexist_on_share_consumer():
+    """oauth_cb, error_cb and log_cb on one ShareConsumer all dispatch.
+
+    oauth_cb and error_cb are the two trampolines whose rk source changed from
+    h->rk to the callback's rk argument (h->rk is NULL on a ShareConsumer).
+    This pins that both still fire when wired together on the same handle, and
+    that adding log_cb alongside them doesn't disturb dispatch:
+
+    - oauth_cb fires on the SASL background thread during init (the constructor
+      blocks in wait_for_oauth_token_set until the first token is set);
+    - error_cb and log_cb fire from the share-consume drain on poll() — the
+      unreachable broker yields a transport error, and debug=msg emits INIT
+      log records that the drain forwards to the logger.
+    """
+    oauth_configs = []
+    errors = []
+    log_records = []
+
+    def my_oauth_cb(oauth_config):
+        oauth_configs.append(oauth_config)
+        return 'token', time.time() + 300.0
+
+    def my_error_cb(err):
+        errors.append(err)
+
+    class _CollectingHandler(logging.Handler):
+        def emit(self, record):
+            log_records.append(record)
+
+    logger = logging.getLogger(unique_id('test-share-mixed-cb'))
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(_CollectingHandler())
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-mixed-cb'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': my_oauth_cb,
+            'error_cb': my_error_cb,
+            'debug': 'msg',
+            'logger': logger,
+        }
+    )
+
+    # oauth_cb is guaranteed to have fired: the constructor blocks in
+    # wait_for_oauth_token_set until the background thread sets the token.
+    assert oauth_configs, "oauth_cb should fire during init"
+    assert oauth_configs[0] == 'oauth_cb'
+
+    sc.subscribe(['test-topic'])
+
+    # The share-consume drain dispatches error_cb and flushes the buffered
+    # INIT log records. Poll a bounded number of times in case the first
+    # poll races ahead of the broker-down op being enqueued.
+    deadline = time.monotonic() + 3.0
+    while not errors and time.monotonic() < deadline:
+        sc.poll(timeout=0.5)
+
+    assert errors, "error_cb should fire from the poll drain"
+    assert isinstance(errors[0], KafkaError)
+    assert any('INIT' in record.getMessage() for record in log_records), \
+        "log_cb should forward INIT records once poll drains the log queue"
+
     sc.close()
 
 
