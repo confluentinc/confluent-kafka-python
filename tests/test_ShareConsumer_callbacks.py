@@ -3,12 +3,12 @@
 """
 Unit tests for ShareConsumer callback dispatch.
 
-Covers the legacy librdkafka callbacks routed through common_conf_setup —
-error_cb, throttle_cb, stats_cb, log_cb, and oauthbearer_token_refresh_cb —
-plus the share-consumer-specific paths where they may be dispatched
-(poll, commit_sync, commit_async). Split out of test_ShareConsumer.py so
-the callback contract can be evolved without churning the constructor /
-subscribe / lifecycle test file.
+Covers the librdkafka callbacks routed through common_conf_setup
+(error_cb, throttle_cb, stats_cb, log_cb, and
+oauthbearer_token_refresh_cb), plus the share-consumer paths where they
+may be dispatched (poll, commit_sync, commit_async). Split out of
+test_ShareConsumer.py so the callback tests can change without disturbing
+the constructor, subscribe, and lifecycle tests.
 """
 
 import logging
@@ -24,13 +24,13 @@ def _librdkafka_has_openssl():
     """Detect whether the linked librdkafka was built with OpenSSL.
 
     Without OpenSSL, OAUTHBEARER config keys (sasl.oauthbearer.config,
-    security.protocol=sasl_ssl/sasl_plaintext + OAUTHBEARER mechanism) are
-    rejected at conf-set time, before the binding's oauth wiring ever runs.
-    Probes the simplest gate: try to set security.protocol=sasl_ssl on a
-    Producer. The only failure that maps to "no OpenSSL" is the explicit
-    `OpenSSL not available at build time` rejection — any other error
-    (e.g. missing Kerberos keytab when GSSAPI is the default mechanism)
-    means we got past the OpenSSL gate, so OpenSSL is available.
+    security.protocol=sasl_ssl/sasl_plaintext with the OAUTHBEARER
+    mechanism) are rejected at conf-set time, before the binding's oauth
+    wiring runs. This tries to set security.protocol=sasl_ssl on a
+    Producer. The only failure that means "no OpenSSL" is the explicit
+    "OpenSSL not available at build time" rejection. Any other error
+    (for example, a missing Kerberos keytab when GSSAPI is the default
+    mechanism) means we got past the OpenSSL gate, so OpenSSL is available.
     """
     try:
         Producer({'security.protocol': 'sasl_ssl'})
@@ -70,10 +70,10 @@ def test_error_cb():
 def test_error_cb_exception_propagates():
     """Test that an exception raised in error_cb propagates to poll.
 
-    Scope: only the poll-time propagation path. The teardown disables the
-    callback's raise behaviour before close() so this test isn't coupled to
-    close-time semantics — those are pinned down separately in
-    test_error_cb_exception_during_close.
+    This covers only the poll-time propagation path. The teardown disables
+    the callback's raise behaviour before close() so this test isn't
+    coupled to close-time behaviour, which is covered separately in
+    test_error_cb_disarm_before_close.
     """
     error_called = []
     raising = [True]
@@ -106,21 +106,22 @@ def test_error_cb_exception_propagates():
 
 
 def test_error_cb_disarm_before_close():
-    """Pin down the disarm-before-close recipe for an infallible close().
+    """Show the disarm-before-close pattern for a close() that won't raise.
 
-    Whether close() surfaces a callback-raised exception is timing-dependent:
-    librdkafka may or may not have OP_ERR ops queued in rk_rep at the moment
-    of the close drain, depending on broker state and rate-limiter timing.
-    See librdkafka rdkafka.c:5143-5159 (the close drain loop, which ignores
-    the YIELD flag — "Ignore YIELD, we need to finish").
+    Whether close() surfaces a callback-raised exception is timing
+    dependent: librdkafka may or may not have OP_ERR ops queued in rk_rep
+    at the moment of the close drain, depending on broker state and
+    rate-limiter timing. See librdkafka rdkafka.c:5143-5159 (the close
+    drain loop, which ignores the YIELD flag: "Ignore YIELD, we need to
+    finish").
 
-    Rather than test that flaky path, this test pins the user-facing
-    workaround: gate error_cb's raise behavior behind a flag, flip the flag
-    off before close(). This makes close() deterministic regardless of
-    librdkafka's internal queue state.
+    Rather than test that flaky path, this test covers the user-facing
+    workaround: gate error_cb's raise behavior behind a flag and flip the
+    flag off before close(). This makes close() deterministic regardless
+    of librdkafka's internal queue state.
 
     Replaces the previously skipped test_error_cb_exception_during_close,
-    which was asserting a librdkafka contract that doesn't exist.
+    which asserted a librdkafka contract that doesn't exist.
     """
     raising = [True]
     error_called = []
@@ -140,7 +141,7 @@ def test_error_cb_disarm_before_close():
     )
     sc.subscribe(['test-topic'])
 
-    # Confirm the callback IS armed and surfaces through poll(): without
+    # Confirm the callback is armed and surfaces through poll(). Without
     # this, the "disarm" step below would be a no-op and the test would
     # silently lose its point.
     with pytest.raises(RuntimeError, match="Intentional exception from error_cb"):
@@ -149,7 +150,7 @@ def test_error_cb_disarm_before_close():
     assert error_called, "error_cb should have fired before disarm"
     invocations_before_close = len(error_called)
 
-    # Disarm — subsequent error_cb invocations no-op instead of raising.
+    # Disarm: subsequent error_cb invocations no-op instead of raising.
     raising[0] = False
 
     # close() must return cleanly even if librdkafka dispatches OP_ERR ops
@@ -183,7 +184,7 @@ def test_throttle_cb():
 
     sc.subscribe(['test-topic'])
 
-    # throttle_cb won't fire without broker throttling — just verify no crash
+    # throttle_cb won't fire without broker throttling; just verify no crash
     sc.poll(timeout=0.2)
     sc.close()
 
@@ -191,17 +192,17 @@ def test_throttle_cb():
 def test_stats_cb_rejected():
     """stats_cb is rejected on ShareConsumer at construction time.
 
-    The KIP-932 share-consumer JSON statistics surface isn't designed yet:
-    librdkafka's stats blob references cgrp / per-partition state that
-    doesn't translate to share groups, so what users would get back is
-    incomplete and misleading. Rather than silently accept the callback
-    and feed it half-baked data, the binding rejects stats_cb at config
-    time (ShareConsumer.c — pre-filter over args[0] + kwargs before
+    The KIP-932 share-consumer JSON statistics surface isn't designed
+    yet. librdkafka's stats output references cgrp and per-partition state
+    that doesn't translate to share groups, so what users would get back
+    is incomplete and misleading. Rather than silently accept the callback
+    and feed it incomplete data, the binding rejects stats_cb at config
+    time (ShareConsumer.c, a pre-filter over args[0] and kwargs before
     common_conf_setup is called).
 
-    Pinned in both forms: dict-config and kwargs-form, for both stats_cb
-    and the matching statistics.interval.ms rejection (no callback → no
-    point starting the timer).
+    Checked in both forms, dict-config and kwargs-form, for both stats_cb
+    and the matching statistics.interval.ms rejection (with no callback
+    there is no point starting the timer).
     """
     config = {
         'group.id': unique_id('test-share-stats-cb-rejected'),
@@ -227,11 +228,12 @@ def test_stats_cb_rejected():
 def test_log_cb():
     """Test that log_cb routes librdkafka log records to the Python logger.
 
-    Mirrors test_log.py::test_consumer_logger_logging_in_given_format —
-    debug=msg is enough to produce a synchronous INIT record on construction.
-    ShareConsumer_init forwards the share consumer's log queue onto rk_rep
-    via rd_kafka_share_set_log_queue(), so log records flow through the same
-    drain that share_consume_batch performs on the poll thread.
+    Mirrors test_log.py::test_consumer_logger_logging_in_given_format:
+    debug=msg is enough to produce a synchronous INIT record on
+    construction. ShareConsumer_init forwards the share consumer's log
+    queue onto rk_rep via rd_kafka_share_set_log_queue(), so log records
+    flow through the same drain that share_consume_batch performs on the
+    poll thread.
     """
     log_records = []
 
@@ -260,14 +262,14 @@ def test_log_cb():
 
 
 def test_log_cb_requires_polling():
-    """Share consumer has no background log drainer — records sit in
-    rk_logq (forwarded to rk_rep) until poll() / commit_sync /
+    """Share consumer has no background log drainer, so records sit in
+    rk_logq (forwarded to rk_rep) until poll(), commit_sync, or
     commit_async runs.
 
-    Distinguishes ShareConsumer from regular Consumer in user-visible
-    behavior: a busy app thread that pauses polling silently accumulates
-    log records rather than streaming them to the logger. Pin this
-    contract in code so docs (Task #14) can cite a test, not speculation.
+    This is a user-visible difference from the regular Consumer: a busy
+    app thread that pauses polling silently accumulates log records rather
+    than streaming them to the logger. Captured here so docs (Task #14)
+    can cite a test rather than speculation.
     """
     log_records = []
 
@@ -291,7 +293,8 @@ def test_log_cb_requires_polling():
 
     # Without poll(), the share consumer never drains its log queue.
     # librdkafka emits INIT records during rd_kafka_share_consumer_new
-    # but they sit in rk_logq → rk_rep until something pumps the queue.
+    # but they sit in rk_logq (forwarded to rk_rep) until something
+    # drains the queue.
     time.sleep(0.3)
     assert not log_records, (
         f"no log records should surface before poll(); got " f"{[r.getMessage() for r in log_records]}"
@@ -305,15 +308,16 @@ def test_log_cb_requires_polling():
 
 @pytest.mark.skipif(
     not _OPENSSL_AVAILABLE,
-    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+    reason="librdkafka built without OpenSSL; OAUTHBEARER config rejected at conf-set time",
 )
 def test_oauthbearer_token_refresh_cb():
     """Test that oauth_cb is invoked when ShareConsumer needs a SASL token.
 
     Mirrors test_oauth_cb.py::test_oauth_cb. ShareConsumer_init calls
-    rd_kafka_share_sasl_background_callbacks_enable + wait_for_oauth_token_set,
-    so the callback fires on librdkafka's background thread during init and
-    the constructor blocks until the initial token is set.
+    rd_kafka_share_sasl_background_callbacks_enable and
+    wait_for_oauth_token_set, so the callback fires on librdkafka's
+    background thread during init and the constructor blocks until the
+    initial token is set.
 
     Requires librdkafka built with OpenSSL; on builds without it the
     sasl.oauthbearer.config key is rejected at conf-set time before our
@@ -344,7 +348,7 @@ def test_oauthbearer_token_refresh_cb():
 
 @pytest.mark.skipif(
     not _OPENSSL_AVAILABLE,
-    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+    reason="librdkafka built without OpenSSL; OAUTHBEARER config rejected at conf-set time",
 )
 @pytest.mark.parametrize('client_kind', ['producer', 'consumer', 'share_consumer'])
 def test_oauth_cb_fires_across_client_types(client_kind):
@@ -391,7 +395,7 @@ def test_oauth_cb_fires_across_client_types(client_kind):
 
 @pytest.mark.skipif(
     not _OPENSSL_AVAILABLE,
-    reason="librdkafka built without OpenSSL — OAUTHBEARER config rejected at conf-set time",
+    reason="librdkafka built without OpenSSL; OAUTHBEARER config rejected at conf-set time",
 )
 def test_mixed_callbacks_coexist_on_share_consumer():
     """oauth_cb, error_cb and log_cb wired onto a single ShareConsumer.
@@ -465,7 +469,7 @@ def test_error_cb_dispatches_during_commit_sync():
 
     rd_kafka_share_commit_sync drains rk_rep on entry (librdkafka
     rdkafka.c:4316), so a pending OP_ERR fires error_cb from inside
-    commit_sync. Before the wrap, the trampoline's CallState_get()
+    commit_sync. Before the wrap, the callback's CallState_get()
     assertion would abort the process. With the wrap, dispatch is clean
     and commit_sync returns normally.
     """
