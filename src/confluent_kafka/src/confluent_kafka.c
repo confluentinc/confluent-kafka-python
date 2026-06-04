@@ -2058,37 +2058,15 @@ static void
 error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         Handle *h = opaque;
         PyObject *eo, *result;
-        CallState *cs = NULL;
-        PyGILState_STATE gstate;
-        int have_cs;
+        CallState *cs;
 
-        /* This callback can fire on threads that didn't run CallState_begin:
-         * librdkafka's background dispatch, and the drain inside
-         * rd_kafka_share_destroy() when a constructor is unwinding.
-         * CallState_get() returns NULL in those cases — the original code
-         * then deref'd it and segfaulted in release builds. Look it up
-         * directly and fall back to PyGILState_Ensure() if absent. */
-#ifdef WITH_PY_TSS
-        cs = PyThread_tss_get(&h->tlskey);
-#else
-        cs = PyThread_get_key_value(h->tlskey);
-#endif
-        have_cs = (cs != NULL && cs->thread_state != NULL);
-        if (have_cs) {
-                PyEval_RestoreThread(cs->thread_state);
-                cs->thread_state = NULL;
-        } else {
-                gstate = PyGILState_Ensure();
-        }
-
-        /* The constructor may have set a Python exception just before
-         * calling rd_kafka_share_destroy(), whose drain landed us here.
-         * Calling the user's callback would silently clear that pending
-         * exception, hiding the real failure behind a "returned NULL
-         * without setting an error" SystemError. Save and restore it. */
-        PyObject *saved_type = NULL, *saved_value = NULL, *saved_tb = NULL;
-        if (!have_cs)
-                PyErr_Fetch(&saved_type, &saved_value, &saved_tb);
+        /* error_cb only runs while a thread is draining rk_rep with
+         * callbacks, and every such drain — poll, commit, and the
+         * consumer-close inside dealloc and the constructors' failure
+         * paths — is wrapped in CallState_begin/end (see ShareConsumer.c
+         * and Consumer.c). So a CallState is always present on this thread;
+         * CallState_get() relocks the GIL via the saved thread state. */
+        cs = CallState_get(h);
 
         /* If the client raised a fatal error we'll raise an exception
          * rather than calling the error callback. */
@@ -2096,14 +2074,7 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 char errstr[512];
                 err = rd_kafka_fatal_error(rk, errstr, sizeof(errstr));
                 cfl_PyErr_Fatal(err, errstr);
-                if (have_cs) {
-                        goto crash;
-                } else {
-                        /* Nothing to crash into; clear so the caller's
-                         * saved exception can take over at done. */
-                        PyErr_Clear();
-                        goto done;
-                }
+                goto crash;
         }
 
         if (!h->error_cb) {
@@ -2115,30 +2086,18 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
         Py_DECREF(eo);
 
-        if (result) {
+        if (result)
                 Py_DECREF(result);
-        } else if (have_cs) {
+        else {
                 CallState_fetch_exception(cs);
         crash:
                 CallState_crash(cs);
+                /* Use the callback's rk: h->rk is NULL on a share consumer. */
                 rd_kafka_yield(rk);
-        } else {
-                /* Drop the user callback's exception so the
-                 * caller's saved one can be restored. */
-                PyErr_Clear();
         }
 
 done:
-        if (have_cs) {
-                CallState_resume(cs);
-        } else {
-                /* Restore the caller's exception (if any) before
-                 * releasing the GIL. */
-                if (saved_type) {
-                        PyErr_Restore(saved_type, saved_value, saved_tb);
-                }
-                PyGILState_Release(gstate);
-        }
+        CallState_resume(cs);
 }
 
 /**

@@ -803,6 +803,12 @@ static PyMethodDef ShareConsumer_methods[] = {
  *        consumers — no flag on Handle, no share-specific branches in
  *        the shared config setup path.
  *
+ * TODO KIP-932: This is a stopgap. Rejecting share-incompatible config is
+ *        really librdkafka's responsibility — it should refuse these keys
+ *        for a share consumer at conf-set time. Once librdkafka implements
+ *        that, remove this function and its call in ShareConsumer_init and
+ *        depend on librdkafka's rejection instead.
+ *
  * @returns 0 if no rejected keys are present, -1 on rejection (a Python
  *          ValueError is set).
  */
