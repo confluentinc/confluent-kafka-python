@@ -36,7 +36,6 @@ import pytest
 
 from confluent_kafka import ThrottleEvent
 
-
 # Env var convention (mirrors the verify_throttle_cb test in
 # integration_test.py): the test runner sets this to the client.id for which
 # a strict consumer_byte_rate quota has been preconfigured on the broker.
@@ -80,9 +79,7 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
     """
     client_id = os.environ[_THROTTLE_CLIENT_ID_ENV]
 
-    topic = kafka_cluster.create_topic_and_wait_propogation(
-        'test-share-consumer-throttle'
-    )
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-throttle')
 
     # Produce enough data that even a 1 KB/s consumer quota takes multiple
     # fetch cycles to drain. 5000 × 1 KB = 5 MB.
@@ -102,13 +99,15 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
     def my_throttle_cb(event):
         throttle_events.append(event)
 
-    sc = kafka_cluster.share_consumer({
-        'client.id': client_id,
-        'throttle_cb': my_throttle_cb,
-        # Bump the receive buffer so the broker's throttle delay is the
-        # actual rate-limit, not us being slow to drain.
-        'fetch.max.bytes': msg_size * msg_count,
-    })
+    sc = kafka_cluster.share_consumer(
+        {
+            'client.id': client_id,
+            'throttle_cb': my_throttle_cb,
+            # Bump the receive buffer so the broker's throttle delay is the
+            # actual rate-limit, not us being slow to drain.
+            'fetch.max.bytes': msg_size * msg_count,
+        }
+    )
 
     try:
         sc.subscribe([topic])
