@@ -368,8 +368,16 @@ class SoakClient(object):
 
         # Track highest offset seen per partition for duplicate/gap detection.
         # With implicit ack and a single share consumer, offsets should
-        # progress sequentially per partition.
+        # progress sequentially per partition. Skipped in Explict mode.
         hwmarks = defaultdict(int)
+
+        # In explicit mode, commit every N messages and alternate between
+        # commit_async and commit_sync.
+        COMMIT_EVERY_MSGS = 1000
+        msgs_since_commit = 0
+        commit_use_sync = False
+
+        self.logger.info("share: running in mode={}".format(self.share_mode))
 
         next_status = time.time() + self.disprate
 
@@ -461,6 +469,46 @@ class SoakClient(object):
 
                 hwmarks[hwkey] = msg.offset()
 
+                # Explicit mode: ack each message with ACCEPT and flush acks
+                # every N messages via a standalone ShareAcknowledge RPC,
+                # alternating commit_async and commit_sync.
+                if self.share_mode == 'explicit':
+                    try:
+                        self.share_consumer.acknowledge(msg)
+                        msgs_since_commit += 1
+                    except KafkaException as ex:
+                        self.logger.error(
+                            "share: acknowledge failed: {}".format(ex))
+                        self.share_err_cnt += 1
+                        self.incr_counter("consumer.error", 1)
+
+                    if msgs_since_commit >= COMMIT_EVERY_MSGS:
+                        try:
+                            if commit_use_sync:
+                                result = self.share_consumer.commit_sync(
+                                    timeout=10.0)
+                                partition_errs = sum(
+                                    1 for err in result.values()
+                                    if err is not None
+                                )
+                                if partition_errs > 0:
+                                    self.logger.warning(
+                                        "share: commit_sync had {} partition "
+                                        "error(s)".format(partition_errs)
+                                    )
+                                    self.share_err_cnt += 1
+                                    self.incr_counter("consumer.error", 1)
+                            else:
+                                self.share_consumer.commit_async()
+                        except KafkaException as ex:
+                            self.logger.error(
+                                "share: commit_{} exception: {}".format(
+                                    "sync" if commit_use_sync else "async", ex))
+                            self.share_err_cnt += 1
+                            self.incr_counter("consumer.error", 1)
+                        commit_use_sync = not commit_use_sync
+                        msgs_since_commit = 0
+
         self.share_consumer.close()
         self.share_status()
 
@@ -541,7 +589,8 @@ class SoakClient(object):
             else:
                 raise
 
-    def __init__(self, testid, topic, rate, conf, enable_share=False):
+    def __init__(self, testid, topic, rate, conf, enable_share=False,
+                 share_mode='implicit'):
         """SoakClient constructor. conf is the client configuration"""
         self.topic = topic
         self.rate = rate
@@ -549,6 +598,7 @@ class SoakClient(object):
         self.run = True
         self.stats_cnt = {'producer': 0, 'consumer': 0}
         self.start_time = time.time()
+        self.share_mode = share_mode
 
         # OTEL instruments
         self.counters = {}
@@ -636,6 +686,12 @@ class SoakClient(object):
             sconf.pop('statistics.interval.ms', None)
             sconf.pop('stats_cb', None)
             sconf['client.id'] = self.testid
+
+            # In explicit mode, switch the consumer's ack policy. Default is
+            # implicit (next poll auto-acks); without this flip, calls to
+            # acknowledge() return _STATE because the message is already acked.
+            if self.share_mode == 'explicit':
+                sconf['share.acknowledgement.mode'] = 'explicit'
 
             # Always set a share-specific group.id.
             sconf['group.id'] = 'soakclient-share-{}-{}-{}'.format(
@@ -771,8 +827,17 @@ if __name__ == '__main__':
         '--share', dest='share', action='store_true', default=False,
         help='Enable share consumer thread'
     )
+    parser.add_argument(
+        '--explicit', dest='explicit', action='store_true', default=False,
+        help='Share consumer: per-msg ACCEPT + alternating commit_async/sync (requires --share)'
+    )
 
     args = parser.parse_args()
+
+    share_mode = 'explicit' if args.explicit else 'implicit'
+
+    if share_mode == 'explicit' and not args.share:
+        parser.error('--explicit requires --share')
 
     conf = dict()
     if args.conffile is not None:
@@ -801,7 +866,8 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.testid, args.topic, args.rate, conf, enable_share=args.share)
+    soak = SoakClient(args.testid, args.topic, args.rate, conf,
+                      enable_share=args.share, share_mode=share_mode)
 
     # Get initial resource usage
     soak.get_rusage()
