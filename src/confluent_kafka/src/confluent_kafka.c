@@ -2185,8 +2185,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                /* Use callback's rk — h->rk is NULL on share consumer. */
-                rd_kafka_yield(rk);
+                rd_kafka_yield(h->rk);
         }
 
 done:

@@ -32,7 +32,6 @@ import pytest
 from tests.common import TestUtils
 from tests.integration.conftest import create_trivup_cluster
 
-
 # Trivup's broker_conf list is appended to server.properties.
 # connections.max.reauth.ms=5000 forces SASL reauth every 5s — required
 # for the refresh_through_reauth test.
@@ -49,10 +48,8 @@ def _resolve_kafka_path():
     and let trivup download/use the standard version-based path
     (which CI pre-stages under tmp-KafkaCluster/).
     """
-    candidate = os.environ.get('KAFKA_HOME',
-                               os.path.expanduser('~/projects/kafka'))
-    if os.path.exists(os.path.join(candidate, 'bin',
-                                   'kafka-server-start.sh')):
+    candidate = os.environ.get('KAFKA_HOME', os.path.expanduser('~/projects/kafka'))
+    if os.path.exists(os.path.join(candidate, 'bin', 'kafka-server-start.sh')):
         return candidate, 'trunk'
     return None, TestUtils.broker_version()
 
@@ -85,8 +82,7 @@ def oauth_share_consumer_conf(oauth_trivup_cluster):
     mints the token.
     """
     conf = oauth_trivup_cluster.client_conf()
-    for k in ('enable.sasl.oauthbearer.unsecure.jwt',
-              'sasl.oauthbearer.config'):
+    for k in ('enable.sasl.oauthbearer.unsecure.jwt', 'sasl.oauthbearer.config'):
         conf.pop(k, None)
     conf['socket.timeout.ms'] = 5000
     return conf

@@ -49,11 +49,13 @@ def test_share_consumer_oauth_construct_and_metadata(oauth_share_consumer_conf):
         call_count[0] += 1
         return make_unsecured_jwt(lifetime_sec=300.0)
 
-    conf = dict(oauth_share_consumer_conf,
-                **{
-                    'group.id': unique_id('test-share-oauth-construct'),
-                    'oauth_cb': oauth_cb,
-                })
+    conf = dict(
+        oauth_share_consumer_conf,
+        **{
+            'group.id': unique_id('test-share-oauth-construct'),
+            'oauth_cb': oauth_cb,
+        },
+    )
 
     sc = ShareConsumer(conf)
     try:
@@ -80,11 +82,13 @@ def test_share_consumer_oauth_refresh_through_reauth(oauth_share_consumer_conf):
         call_count[0] += 1
         return make_unsecured_jwt(lifetime_sec=4.0)
 
-    conf = dict(oauth_share_consumer_conf,
-                **{
-                    'group.id': unique_id('test-share-oauth-refresh'),
-                    'oauth_cb': oauth_cb,
-                })
+    conf = dict(
+        oauth_share_consumer_conf,
+        **{
+            'group.id': unique_id('test-share-oauth-refresh'),
+            'oauth_cb': oauth_cb,
+        },
+    )
 
     sc = ShareConsumer(conf)
     try:
@@ -93,15 +97,13 @@ def test_share_consumer_oauth_refresh_through_reauth(oauth_share_consumer_conf):
         while time.time() < deadline:
             sc.poll(timeout=0.5)
         assert call_count[0] >= 2, (
-            f"Expected >= 2 oauth_cb invocations (init + at least one "
-            f"refresh) across 10s; got {call_count[0]}"
+            f"Expected >= 2 oauth_cb invocations (init + at least one " f"refresh) across 10s; got {call_count[0]}"
         )
     finally:
         sc.close()
 
 
-def test_share_consumer_oauth_expired_token_surfaces_error_cb(
-        oauth_share_consumer_conf):
+def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consumer_conf):
     """Expired token → broker rejects → ``error_cb`` fires from the poll drain.
 
     Validates that an ``ERR__AUTHENTICATION`` op enqueued by librdkafka
@@ -119,12 +121,14 @@ def test_share_consumer_oauth_expired_token_surfaces_error_cb(
     def error_cb(err):
         errors.append(err)
 
-    conf = dict(oauth_share_consumer_conf,
-                **{
-                    'group.id': unique_id('test-share-oauth-expired'),
-                    'oauth_cb': oauth_cb,
-                    'error_cb': error_cb,
-                })
+    conf = dict(
+        oauth_share_consumer_conf,
+        **{
+            'group.id': unique_id('test-share-oauth-expired'),
+            'oauth_cb': oauth_cb,
+            'error_cb': error_cb,
+        },
+    )
 
     # NB: construction can either succeed (if librdkafka accepts the
     # past-exp token from oauth_cb and the broker rejects on handshake)
@@ -140,22 +144,16 @@ def test_share_consumer_oauth_expired_token_surfaces_error_cb(
         deadline = time.time() + 8
         while time.time() < deadline and not errors:
             sc.poll(timeout=0.5)
-        assert errors, (
-            "Expected error_cb to surface a broker auth failure within 8s"
-        )
+        assert errors, "Expected error_cb to surface a broker auth failure within 8s"
         msgs = [str(e).lower() for e in errors]
         assert any(
-            "auth" in m or "sasl" in m or "_transport" in m
-            for m in msgs
-        ), (
-            f"Expected an auth-related error from error_cb; got: {msgs}"
-        )
+            "auth" in m or "sasl" in m or "_transport" in m for m in msgs
+        ), f"Expected an auth-related error from error_cb; got: {msgs}"
     finally:
         sc.close()
 
 
-def test_share_consumer_oauth_cb_raises_fails_construction(
-        oauth_share_consumer_conf):
+def test_share_consumer_oauth_cb_raises_fails_construction(oauth_share_consumer_conf):
     """``oauth_cb`` raising on first call → constructor fails after the
     initial-token timeout in ``wait_for_oauth_token_set``.
 
@@ -169,17 +167,19 @@ def test_share_consumer_oauth_cb_raises_fails_construction(
     def oauth_cb(_oauth_config):
         raise RuntimeError("test: oauth_cb deliberately fails")
 
-    conf = dict(oauth_share_consumer_conf,
-                **{
-                    'group.id': unique_id('test-share-oauth-raise'),
-                    'oauth_cb': oauth_cb,
-                })
+    conf = dict(
+        oauth_share_consumer_conf,
+        **{
+            'group.id': unique_id('test-share-oauth-raise'),
+            'oauth_cb': oauth_cb,
+        },
+    )
 
     with pytest.raises(KafkaException) as exc_info:
         ShareConsumer(conf)
 
     msg = str(exc_info.value).lower()
-    assert ("authentication" in msg or "sasl" in msg or "timeout" in msg), (
+    assert "authentication" in msg or "sasl" in msg or "timeout" in msg, (
         f"Expected SASL_AUTHENTICATION_FAILED-shaped error from "
         f"wait_for_oauth_token_set timeout; got {exc_info.value!r}"
     )
