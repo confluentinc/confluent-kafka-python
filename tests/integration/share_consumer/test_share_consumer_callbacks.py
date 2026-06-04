@@ -17,16 +17,14 @@
 
 """Integration tests for ShareConsumer callback dispatch.
 
-Unlike tests/test_ShareConsumer_callbacks.py (unit-style, hermetic, unreachable
-broker), these tests exercise the callback contract against a real broker — the
-only way to validate that throttle_cb actually fires (vs. just registers
-cleanly).
+These run against a real broker, unlike the unit tests in
+tests/test_ShareConsumer_callbacks.py. A real broker is needed to confirm
+that throttle_cb actually fires, not just that it registers without error.
 
-throttle_cb in particular needs broker-side quota config: see the
-SHARE_THROTTLE_QUOTA_CLIENT_ID environment-variable contract documented on the
-test below. The pattern mirrors
-tests/integration/integration_test.py::verify_throttle_cb, which has used the
-same external-setup convention since before this binding was a pytest suite.
+throttle_cb requires a broker-side quota to be configured first. See the
+SHARE_THROTTLE_QUOTA_CLIENT_ID environment variable and the setup steps on
+the test below. This follows the same convention as
+tests/integration/integration_test.py::verify_throttle_cb.
 """
 
 import os
@@ -36,10 +34,9 @@ import pytest
 
 from confluent_kafka import ThrottleEvent
 
-# Env var convention (mirrors the verify_throttle_cb test in
-# integration_test.py): the test runner sets this to the client.id for which
-# a strict consumer_byte_rate quota has been preconfigured on the broker.
-# Setup recipe (run once against the cluster before the test):
+# Set this to the client.id that has a low consumer_byte_rate quota
+# configured on the broker (same approach as verify_throttle_cb in
+# integration_test.py). Configure the quota once before running the test:
 #
 #     ${KAFKA_HOME}/bin/kafka-configs.sh \
 #         --bootstrap-server <broker> \
@@ -63,26 +60,22 @@ _THROTTLE_CLIENT_ID_ENV = 'SHARE_THROTTLE_QUOTA_CLIENT_ID'
 def test_throttle_cb_fires_under_quota(kafka_cluster):
     """throttle_cb is invoked when the broker throttles a share consumer.
 
-    Pumps a large volume of data into a topic, then consumes via a share
-    consumer whose client.id has a strict consumer_byte_rate quota. The
-    broker's fetch responses include a Throttle_Time field that librdkafka
-    surfaces via the throttle_cb trampoline (which fires from
-    rd_kafka_share_consume_batch's rk_rep drain — same path verified for
-    error_cb in tests/test_ShareConsumer_callbacks.py).
+    Produces a large volume of data, then consumes it through a share
+    consumer whose client.id has a low consumer_byte_rate quota. The
+    broker's fetch responses carry a Throttle_Time that librdkafka delivers
+    to throttle_cb from the rd_kafka_share_consume_batch drain.
 
-    Asserts:
-    - throttle_cb fires at least once during a bounded poll loop
-    - each ThrottleEvent has the documented shape (broker_name str,
-      broker_id int, throttle_time float >= 0)
-    - at least one event reports throttle_time > 0 (i.e., actual broker-side
-      throttling, not just a "cleared" event)
+    The test checks that throttle_cb fires at least once, that each
+    ThrottleEvent has the expected fields (broker_name, broker_id,
+    throttle_time), and that at least one event reports a positive
+    throttle_time, since a "cleared" event reports throttle_time=0.
     """
     client_id = os.environ[_THROTTLE_CLIENT_ID_ENV]
 
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-throttle')
 
-    # Produce enough data that even a 1 KB/s consumer quota takes multiple
-    # fetch cycles to drain. 5000 × 1 KB = 5 MB.
+    # Produce enough data that a 1 KB/s quota takes many fetch cycles to
+    # drain (5000 messages of 1 KB each, roughly 5 MB).
     msg_count = 5000
     msg_size = 1024
     payload = b'x' * msg_size
@@ -90,7 +83,7 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
     producer = kafka_cluster.cimpl_producer()
     for _ in range(msg_count):
         producer.produce(topic, value=payload)
-        # Drain producer queue periodically to keep BufferError at bay.
+        # Drain the producer queue periodically to avoid BufferError.
         producer.poll(0)
     producer.flush(timeout=30.0)
 
@@ -103,8 +96,8 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
         {
             'client.id': client_id,
             'throttle_cb': my_throttle_cb,
-            # Bump the receive buffer so the broker's throttle delay is the
-            # actual rate-limit, not us being slow to drain.
+            # Raise the receive buffer so the throttle delay reflects the
+            # broker's rate limit rather than slow draining on our side.
             'fetch.max.bytes': msg_size * msg_count,
         }
     )
@@ -112,9 +105,9 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
     try:
         sc.subscribe([topic])
 
-        # Poll aggressively for up to 30s, breaking early once we've seen
-        # throttling. The quota is set very low (1 KB/s default in the docs)
-        # so the first fetch response should already carry a Throttle_Time.
+        # Poll for up to 30s, stopping early once throttling is seen. The
+        # quota is low enough that the first fetch response should already
+        # carry a Throttle_Time.
         deadline = time.monotonic() + 30.0
         consumed = 0
         while time.monotonic() < deadline:
@@ -126,7 +119,7 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
         assert throttle_events, (
             f"throttle_cb should have fired against the quota for "
             f"client.id={client_id!r} (consumed {consumed} messages "
-            f"without a single throttle event — is the quota actually set?)"
+            f"without a single throttle event; is the quota actually set?)"
         )
 
         for ev in throttle_events:
@@ -136,10 +129,10 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
             assert isinstance(ev.throttle_time, float)
             assert ev.throttle_time >= 0.0
 
-        # At least one event with positive throttle_time — librdkafka also
-        # emits "cleared" events with throttle_time=0 when the per-broker
-        # rate falls back below the quota, so >=1 strictly-positive event
-        # is what proves we actually got throttled.
+        # Require at least one event with a positive throttle_time.
+        # librdkafka also emits "cleared" events with throttle_time=0 when
+        # the per-broker rate drops back below the quota, so a zero-only
+        # result would not prove that throttling happened.
         assert any(ev.throttle_time > 0.0 for ev in throttle_events), (
             f"all {len(throttle_events)} throttle events reported "
             f"throttle_time=0; expected at least one with a positive delay"
