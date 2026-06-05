@@ -267,7 +267,7 @@ def _collapse_schema(schema: AvroSchema, encountered_references=None) -> AvroSch
         elif schema_type == "record":
             name = schema.get("name")
             namespace = schema.get("namespace")
-            full_name = name if namespace is None or '.' in name else f"{namespace}.{name}"
+            full_name = name if namespace is None or (name is not None and '.' in name) else f"{namespace}.{name}"
             if full_name in encountered_references:
                 return schema["name"]
             encountered_references.append(full_name)
