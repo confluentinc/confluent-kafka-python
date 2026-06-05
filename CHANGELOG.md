@@ -1,5 +1,11 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.xx.x
+
+### Fixes
+
+- Fix Encryption fails when expanded union types have two references to the same record (#2262)
+
 ## v2.14.2 - 2026-06-03
 
 v2.14.2 is a maintenance release with the following fixes and enhancements:
