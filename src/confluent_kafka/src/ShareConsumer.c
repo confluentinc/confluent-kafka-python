@@ -651,7 +651,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
                                                   PyObject *args,
                                                   PyObject *kwargs) {
         PyObject *callback = NULL;
-        rd_kafka_resp_err_t err;
+        rd_kafka_error_t *error;
         static char *kws[] = {"callback", NULL};
 
         if (!self->rkshare) {
@@ -669,15 +669,13 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
                 return NULL;
         }
 
-        err = rd_kafka_share_set_acknowledgement_cb(
+        error = rd_kafka_share_set_acknowledgement_commit_cb(
             self->rkshare,
             callback == Py_None ? NULL
                                 : ShareConsumer_acknowledgement_commit_cb,
             &self->base);
-        if (err) {
-                cfl_PyErr_Format(
-                    err, "Failed to set acknowledgement commit callback: %s",
-                    rd_kafka_err2str(err));
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
