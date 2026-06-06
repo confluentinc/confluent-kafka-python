@@ -29,6 +29,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import resource
 import sys
 import threading
@@ -371,12 +372,6 @@ class SoakClient(object):
         # progress sequentially per partition. Skipped in Explict mode.
         hwmarks = defaultdict(int)
 
-        # In explicit mode, commit every N messages and alternate between
-        # commit_async and commit_sync.
-        COMMIT_EVERY_MSGS = 1000
-        msgs_since_commit = 0
-        commit_use_sync = False
-
         self.logger.info("share: running in mode={}".format(self.share_mode))
 
         next_status = time.time() + self.disprate
@@ -469,45 +464,40 @@ class SoakClient(object):
 
                 hwmarks[hwkey] = msg.offset()
 
-                # Explicit mode: ack each message with ACCEPT and flush acks
-                # every N messages via a standalone ShareAcknowledge RPC,
-                # alternating commit_async and commit_sync.
+                # Explicit mode: ack each message with ACCEPT. Commit fires
+                # once per batch after the for-msg loop below.
                 if self.share_mode == 'explicit':
                     try:
                         self.share_consumer.acknowledge(msg)
-                        msgs_since_commit += 1
                     except KafkaException as ex:
                         self.logger.error(
                             "share: acknowledge failed: {}".format(ex))
                         self.share_err_cnt += 1
                         self.incr_counter("consumer.error", 1)
 
-                    if msgs_since_commit >= COMMIT_EVERY_MSGS:
-                        try:
-                            if commit_use_sync:
-                                result = self.share_consumer.commit_sync(
-                                    timeout=10.0)
-                                partition_errs = sum(
-                                    1 for err in result.values()
-                                    if err is not None
-                                )
-                                if partition_errs > 0:
-                                    self.logger.warning(
-                                        "share: commit_sync had {} partition "
-                                        "error(s)".format(partition_errs)
-                                    )
-                                    self.share_err_cnt += 1
-                                    self.incr_counter("consumer.error", 1)
-                            else:
-                                self.share_consumer.commit_async()
-                        except KafkaException as ex:
-                            self.logger.error(
-                                "share: commit_{} exception: {}".format(
-                                    "sync" if commit_use_sync else "async", ex))
+            if self.share_mode == 'explicit':
+                use_sync = random.random() < 0.5
+                try:
+                    if use_sync:
+                        result = self.share_consumer.commit_sync(timeout=10.0)
+                        partition_errs = sum(
+                            1 for err in result.values() if err is not None
+                        )
+                        if partition_errs > 0:
+                            self.logger.warning(
+                                "share: commit_sync had {} partition error(s)"
+                                .format(partition_errs)
+                            )
                             self.share_err_cnt += 1
                             self.incr_counter("consumer.error", 1)
-                        commit_use_sync = not commit_use_sync
-                        msgs_since_commit = 0
+                    else:
+                        self.share_consumer.commit_async()
+                except KafkaException as ex:
+                    self.logger.error(
+                        "share: commit_{} exception: {}".format(
+                            "sync" if use_sync else "async", ex))
+                    self.share_err_cnt += 1
+                    self.incr_counter("consumer.error", 1)
 
         self.share_consumer.close()
         self.share_status()
