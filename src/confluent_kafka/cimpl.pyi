@@ -35,6 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
+from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
 
 try:
@@ -540,7 +541,7 @@ class Consumer:
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
 
 class _AdminClientImpl:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
+    def __init__(self, config: Mapping[str, Union[str, int, float, bool]]) -> None: ...
     def __enter__(self) -> Self: ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
     def create_topics(

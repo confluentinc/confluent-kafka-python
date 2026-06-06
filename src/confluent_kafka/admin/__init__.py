@@ -23,6 +23,7 @@ module (e.g., "from confluent_kafka.admin import CONFIG_SOURCE_DEFAULT_CONFIG").
 
 import concurrent.futures
 import warnings
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from confluent_kafka import ConsumerGroupState as _ConsumerGroupState
@@ -115,7 +116,7 @@ class AdminClient(_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf: Dict[str, Union[str, int, float, bool]], **kwargs: Any) -> None:
+    def __init__(self, conf: Mapping[str, Union[str, int, float, bool]], **kwargs: Any) -> None:
         """
         Create a new AdminClient using the provided configuration dictionary.
 
