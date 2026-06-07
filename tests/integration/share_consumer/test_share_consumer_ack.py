@@ -18,6 +18,7 @@
 """Integration tests for ShareConsumer acknowledgement (KIP-932)."""
 
 import gc
+import threading
 import time
 import weakref
 
@@ -726,9 +727,10 @@ def test_partial_ack_still_blocks_next_poll(kafka_cluster):
 
 # --- acknowledgement-commit callback --------------------------------------
 #
-# The cb fires once per partition, dispatched on the thread that calls poll().
-# Tests that expect a cb invocation must poll() at least once after
-# commit_async / commit_sync so the dispatch has a chance to run.
+# The cb fires once per partition, on the application thread. It runs from
+# whatever consumer call drains the response queue: poll(), commit_sync(), or
+# close(). commit_sync() and close() dispatch inline, so after a commit_async()
+# a test has to make one of those calls before the cb will fire.
 
 
 def _wait_for_callback(sc, invocations, expected_count, timeout_s=10.0):
@@ -1188,6 +1190,55 @@ def test_callback_reentrancy_guard(kafka_cluster):
             sc.set_acknowledgement_commit_callback(None)
         except Exception:
             pass
+        sc.close()
+
+
+def test_share_consumer_methods_rejected_from_other_thread(kafka_cluster):
+    """A ShareConsumer is single-threaded. While one thread is parked in a
+    consumer call (here poll(), which holds the access gate the whole time),
+    a call from another thread is rejected with _CONFLICT."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cross-thread')
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    started = threading.Event()
+    stop = threading.Event()
+    try:
+        sc.subscribe([topic])
+
+        def gate_holder():
+            # Poll an empty topic in a tight loop so this thread holds the gate
+            # almost the whole time. Ignore anything that goes wrong here; all
+            # that matters is the other thread seeing the conflict.
+            started.set()
+            while not stop.is_set():
+                try:
+                    sc.poll(timeout=0.5)
+                except Exception:
+                    pass
+
+        holder = threading.Thread(target=gate_holder, name='gate-holder')
+        holder.start()
+        try:
+            assert started.wait(timeout=5.0), 'gate-holder thread did not start'
+
+            # While the holder is parked in poll(), commit_async() from this
+            # thread should come back as concurrent access. Retry for a bit so
+            # the call lands during a poll() and not in the gap between two.
+            conflict = None
+            deadline = time.time() + 10.0
+            while conflict is None and time.time() < deadline:
+                try:
+                    sc.commit_async()
+                except KafkaException as ex:
+                    if ex.args[0].code() == KafkaError._CONFLICT:
+                        conflict = ex
+                time.sleep(0.02)
+
+            assert conflict is not None, 'expected _CONFLICT from cross-thread commit_async(), got none'
+        finally:
+            stop.set()
+            holder.join(timeout=5.0)
+    finally:
         sc.close()
 
 

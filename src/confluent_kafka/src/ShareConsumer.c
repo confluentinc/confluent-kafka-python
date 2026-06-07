@@ -620,8 +620,9 @@ static void ShareConsumer_acknowledgement_commit_cb(
 
         cs = CallState_get(self);
 
-        offsets = partitions ? c_share_partition_offsets_list_to_py(partitions)
-                             : PyDict_New();
+        offsets = partitions
+                      ? c_share_partition_offsets_list_to_py_dict(partitions)
+                      : PyDict_New();
         if (!offsets)
                 goto crash;
 
@@ -654,6 +655,11 @@ static void ShareConsumer_acknowledgement_commit_cb(
 crash:
         CallState_fetch_exception(cs);
         CallState_crash(cs);
+        /* NULL is fine: rd_kafka_yield() only sets a thread-local flag and
+         * never reads the handle. We couldn't pass the real rk
+         * since rd_kafka_share_t keeps its rd_kafka_t private.
+         * TODO KIP-932: pass the real handle once a
+         * share -> rd_kafka_t accessor exists. */
         rd_kafka_yield(NULL);
 
 done:
@@ -946,8 +952,12 @@ static PyMethodDef ShareConsumer_methods[] = {
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: set_acknowledgement_commit_callback(callback)\n"
      "\n"
-     "  Register a callback invoked once per acknowledgement-commit response\n"
-     "  from the broker. Fires on the thread that calls :py:func:`poll`.\n"
+     "  Register a callback invoked with the acknowledged offsets once the\n"
+     "  broker responds to an acknowledgement commit. It is always dispatched\n"
+     "  on the application thread, from within whichever consumer call is\n"
+     "  serving the response queue (:py:func:`poll`, :py:func:`commit_sync`,\n"
+     "  or :py:func:`close`), never from a background thread. Results of\n"
+     "  :py:func:`commit_async` are delivered on a subsequent such call.\n"
      "\n"
      "  :param callback: A callable\n"
      "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
@@ -956,7 +966,9 @@ static PyMethodDef ShareConsumer_methods[] = {
      "      on failure or ``None`` on success. Pass ``None`` to clear the\n"
      "      currently registered callback.\n"
      "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
-     "  :raises KafkaException: if called from inside the callback itself.\n"
+     "  :raises KafkaException: with ``_STATE`` if called from within the\n"
+     "      acknowledgement-commit callback. This applies to every\n"
+     "      ShareConsumer method.\n"
      "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 

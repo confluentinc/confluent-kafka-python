@@ -215,7 +215,7 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 /****************************************************************************
  *
  *
- * Common instance handle for Producer, Consumer, and ShareConsumer
+ * Common instance handle for Producer, Consumer and ShareConsumer
  *
  *
  *
@@ -464,7 +464,7 @@ PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_parts_to_dict_topic_partition_to_error(
     const rd_kafka_topic_partition_list_t *c_parts);
-PyObject *c_share_partition_offsets_list_to_py(
+PyObject *c_share_partition_offsets_list_to_py_dict(
     const rd_kafka_share_partition_offsets_list_t *list);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
