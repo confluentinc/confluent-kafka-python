@@ -1,49 +1,46 @@
-#Copyright 2025 Confluent Inc.
+# Copyright 2025 Confluent Inc.
 #
-#Licensed under the Apache License, Version 2.0(the "License");
-#you may not use this file except in compliance with the License.
-#You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#http:  // www.apache.org/licenses/LICENSE-2.0
+# http://www.apache.org/licenses/LICENSE-2.0
 #
-#Unless required by applicable law or agreed to in writing, software
-#distributed under the License is distributed on an "AS IS" BASIS,
-#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#See the License for the specific language governing permissions and
-#limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 Type stubs for confluent_kafka.cimpl
 
-This combines automatic stubgen output (constants, functions)
-with manual class definitions based on runtime introspection and
-            domain knowledge.
+This combines automatic stubgen output (constants, functions) with
+manual class definitions based on runtime introspection and domain knowledge.
 
-⚠️ WARNING : MAINTENANCE REQUIRED ⚠️ This stub file must be kept in sync with the
-                 C extension source code in src /
-    : -src / Admin.c(AdminClientImpl methods) -
-    src / Producer.c(Producer class) - src / Consumer.c(Consumer class) -
-    src / AdminTypes.c(NewTopic, NewPartitions classes) -
-    src / confluent_kafka.c(KafkaError, Message, TopicPartition, Uuid classes)
+⚠️ WARNING: MAINTENANCE REQUIRED ⚠️
+This stub file must be kept in sync with the C extension source code in src/:
+- src/Admin.c (AdminClientImpl methods)
+- src/Producer.c (Producer class)
+- src/Consumer.c (Consumer class)
+- src/AdminTypes.c (NewTopic, NewPartitions classes)
+- src/confluent_kafka.c (KafkaError, Message, TopicPartition, Uuid classes)
 
-              When modifying C extension
-          interfaces(method signatures, parameters, defaults),
-    you MUST update the corresponding type definitions in this file
-        .Failure to do so will result in incorrect type hints and mypy errors
-        .
+When modifying C extension interfaces (method signatures, parameters, defaults),
+you MUST update the corresponding type definitions in this file.
+Failure to do so will result in incorrect type hints and mypy errors.
 
-    TODO : Consider migrating to Cython in the future to eliminate
-           this dual maintenance burden and get type hints directly from the
-           implementation
-        .""
-         "
+TODO: Consider migrating to Cython in the future to eliminate this dual
+maintenance burden and get type hints directly from the implementation.
+"""
 
-           import builtins from typing import Any,
-    Callable, Dict, FrozenSet, List, Literal, Optional, Tuple, Union,
-    overload
+import builtins
+from typing import Any, Callable, Dict, FrozenSet, List, Literal, Optional, Tuple, Union, overload
 
-    try : from typing import Self except ImportError:
-#FIXME : drop fallback once we require Python >= 3.11
+try:
+    from typing import Self
+except ImportError:
+    # FIXME: drop fallback once we require Python >= 3.11
     from typing_extensions import Self
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
@@ -51,17 +48,15 @@ from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 from ._model import AcknowledgeType
 from ._types import HeadersType
 
-#Callback types with proper class references(                                  \
-    defined locally to avoid circular imports)
+# Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
-#(offsets, exception) — note the order is offsets - first,                     \
-  opposite of on_commit.
+# (offsets, exception) — note the order is offsets-first, opposite of on_commit.
 AcknowledgementCommitCallback = Callable[
     [Dict['TopicPartition', FrozenSet[int]], Optional['KafkaException']], None
 ]
 
-#== == = CLASSES(Manual - stubgen missed these) == == =
+# ===== CLASSES (Manual - stubgen missed these) =====
 
 class KafkaError:
     BROKER_NOT_AVAILABLE: int
@@ -583,20 +578,18 @@ class ShareConsumer:
     def subscribe(self, topics: List[str]) -> None: ...
     def unsubscribe(self) -> None: ...
     def subscription(self) -> List[str]: ...
-#TODO KIP - 932 : poll() returns List[Message] today.Java returns a
-#dedicated container object(ConsumerRecords) instead of a list so it
-#can carry extra metadata alongside the records.Replace List[Message]
-#with a Messages container class once we have a clear use for that
-#metadata in Python.
+    # TODO KIP-932: poll() returns List[Message] today. Replace it with a
+    # Messages container class once we have a clear use for carrying extra
+    # metadata alongside the records.
     def poll(self, timeout: float = -1) -> List[Message]: ...
     def acknowledge(self, message: Message, ack_type: AcknowledgeType = ...) -> None: ...
     def acknowledge_offset(
         self, topic: str, partition: int, offset: int, ack_type: AcknowledgeType = ...
     ) -> None: ...
-#TODO KIP - 932 : Java's share-consumer commit returns a map keyed by
-#TopicIdPartition(topic name + topic UUID + partition).Python uses
-#the existing TopicPartition(no UUID) for now.Add a TopicIdPartition
-#class once the interface is finalized.
+    # TODO KIP-932: commit_sync() is keyed by the existing TopicPartition
+    # (no UUID) for now. A future TopicIdPartition (topic name + topic UUID
+    # + partition) would carry the UUID; add that class once the interface
+    # is finalized.
     def commit_sync(self, timeout: float = 60) -> Dict[TopicPartition, Optional[KafkaError]]: ...
     def commit_async(self) -> None: ...
     def set_acknowledgement_commit_callback(
@@ -762,7 +755,7 @@ class NewPartitions:
     def __gt__(self, other: 'NewPartitions') -> bool: ...
     def __ge__(self, other: 'NewPartitions') -> bool: ...
 
-#== == = MODULE FUNCTIONS(From stubgen) == == =
+# ===== MODULE FUNCTIONS (From stubgen) =====
 
 def libversion() -> Tuple[str, int]: ...
 def version() -> Tuple[str, int]: ...
@@ -770,7 +763,7 @@ def murmur2(key: bytes, partition_count: int) -> int: ...
 def consistent(key: bytes, partition_count: int) -> int: ...
 def fnv1a(key: bytes, partition_count: int) -> int: ...
 
-#== == = CONSTANTS(From stubgen) == == =
+# ===== CONSTANTS (From stubgen) =====
 
 ACL_OPERATION_ALL: int
 ACL_OPERATION_ALTER: int

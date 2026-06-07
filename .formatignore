@@ -12,3 +12,7 @@ tests/integration/schema_registry/data/proto/TestProto_pb2.py
 tests/integration/schema_registry/data/proto/common_proto_pb2.py
 tests/integration/schema_registry/data/proto/exampleProtoCriteo_pb2.py
 tests/integration/schema_registry/data/proto/metadata_proto_pb2.py
+
+# Hand-maintained type stub. tools/style-format.sh runs clang-format on any
+# file that isn't .py, and that corrupts the stub. Keep it out.
+src/confluent_kafka/cimpl.pyi
