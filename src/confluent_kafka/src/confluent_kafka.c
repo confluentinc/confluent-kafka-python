@@ -2185,7 +2185,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2220,7 +2220,7 @@ log_cb(const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield((rd_kafka_t *)rk);
+                rd_kafka_yield(rk);
         }
 
         CallState_resume(cs);
@@ -2415,6 +2415,7 @@ fail:
 err:
         PyGILState_Release(gstate);
         rd_kafka_yield(rk);
+        return;
 done:
         PyGILState_Release(gstate);
 }
@@ -2455,6 +2456,11 @@ void Handle_clear(Handle *h) {
                 h->logger = NULL;
         }
 
+        if (h->oauth_cb) {
+                Py_DECREF(h->oauth_cb);
+                h->oauth_cb = NULL;
+        }
+
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);
@@ -2476,6 +2482,12 @@ int Handle_traverse(Handle *h, visitproc visit, void *arg) {
 
         if (h->stats_cb)
                 Py_VISIT(h->stats_cb);
+
+        if (h->oauth_cb)
+                Py_VISIT(h->oauth_cb);
+
+        if (h->logger)
+                Py_VISIT(h->logger);
 
         return 0;
 }

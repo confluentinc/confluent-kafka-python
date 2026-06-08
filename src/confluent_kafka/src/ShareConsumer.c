@@ -61,7 +61,10 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 CallState_begin(&self->base, &cs);
                 /* TODO KIP-932: Use rd_kafka_share_destroy_flags() once
                  * available in the librdkafka public API. */
-                rd_kafka_share_destroy(self->rkshare);
+                rd_kafka_error_t *destroy_error =
+                    rd_kafka_share_destroy(self->rkshare);
+                if (destroy_error)
+                        rd_kafka_error_destroy(destroy_error);
                 self->rkshare = NULL;
                 CallState_end(&self->base, &cs);
         }
@@ -563,13 +566,22 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
 
         CallState_begin(&self->base, &cs);
         error = rd_kafka_share_consumer_close(self->rkshare);
-        rd_kafka_share_destroy(self->rkshare);
-        self->rkshare = NULL;
+        rd_kafka_error_t *destroy_error = rd_kafka_share_destroy(self->rkshare);
+        self->rkshare                   = NULL;
         if (!CallState_end(&self->base, &cs)) {
                 if (error)
                         rd_kafka_error_destroy(error);
+                if (destroy_error)
+                        rd_kafka_error_destroy(destroy_error);
                 return NULL;
         }
+
+        /* close was clean — surface the destroy error instead */
+        if (!error)
+                error = destroy_error;
+        /* close already errored — keep it, free destroy's */
+        else if (destroy_error)
+                rd_kafka_error_destroy(destroy_error);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -894,7 +906,10 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                          rd_kafka_err2str(err));
                         CallState cs;
                         CallState_begin(&self->base, &cs);
-                        rd_kafka_share_destroy(self->rkshare);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
                         CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
                         return -1;
@@ -915,20 +930,27 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                         cfl_PyErr_from_error_destroy(oauth_err);
                         CallState cs;
                         CallState_begin(&self->base, &cs);
-                        rd_kafka_share_destroy(self->rkshare);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
                         CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
                         return -1;
                 }
 
-                if (wait_for_oauth_token_set(&self->base) == -1) {
+                int ret_wait_oauth = wait_for_oauth_token_set(&self->base);
+                if (ret_wait_oauth == -1) {
                         CallState cs;
                         CallState_begin(&self->base, &cs);
-                        rd_kafka_share_destroy(self->rkshare);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
                         CallState_end(&self->base, &cs);
                         self->rkshare = NULL;
-                        return -1;
                 }
+                return ret_wait_oauth;
         }
 
         return 0;
