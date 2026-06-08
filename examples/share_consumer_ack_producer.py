@@ -17,10 +17,11 @@
 
 """KIP-932 share-consumer demo -- producer half.
 
-Run this in one terminal and share_consumer_ack_callback.py in another, pointed
-at the same broker and topic. This side creates the topic and produces a steady
-stream, printing the topic[partition]@offset the broker assigned to each record
-so you can line it up against what the consumer's ack-commit callback reports.
+Run this in one terminal and a consumer (share_consumer_implicit.py /
+_explicit_sync.py / _explicit_async.py) in another, pointed at the same broker
+and topic. This side creates the topic and produces a steady stream, printing
+the topic[partition]@offset the broker assigned to each record so you can line
+it up against what the consumer's ack-commit callback reports.
 
     python examples/share_consumer_ack_producer.py localhost:9092 share-demo
 """
@@ -32,16 +33,25 @@ import time
 from confluent_kafka import KafkaError, KafkaException, Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 
+# Tiny ANSI colour helper -- auto-off when stdout isn't a terminal so piped logs
+# don't fill with escape codes. No dependency; the example just runs.
+DIM, CYAN, RED = '2', '36', '31'
+_TTY = sys.stdout.isatty()
+
+
+def paint(code, text):
+    return f"\033[{code}m{text}\033[0m" if _TTY else text
+
 
 def ensure_topic(bootstrap, topic, partitions):
     admin = AdminClient({'bootstrap.servers': bootstrap})
     fut = admin.create_topics([NewTopic(topic, num_partitions=partitions, replication_factor=1)])[topic]
     try:
         fut.result()
-        print(f"[producer] created topic '{topic}' with {partitions} partitions")
+        print(paint(DIM, f"[producer] created topic '{topic}' with {partitions} partitions"))
     except KafkaException as e:
         if e.args[0].code() == KafkaError.TOPIC_ALREADY_EXISTS:
-            print(f"[producer] topic '{topic}' already exists -- reusing it")
+            print(paint(DIM, f"[producer] topic '{topic}' already exists -- reusing it"))
         else:
             raise
     # Metadata needs a beat to settle before the first produce, otherwise the
@@ -51,10 +61,10 @@ def ensure_topic(bootstrap, topic, partitions):
 
 def on_delivery(err, msg):
     if err is not None:
-        sys.stderr.write(f"[producer] delivery FAILED: {err}\n")
+        sys.stderr.write(paint(RED, f"[producer] delivery FAILED: {err}") + "\n")
         return
     val = msg.value().decode() if msg.value() else None
-    print(f"[producer] partition={msg.partition()}, offset={msg.offset()}, msg={val}")
+    print(paint(CYAN, f"[producer] partition={msg.partition()}, offset={msg.offset()}, msg={val}"))
 
 
 def main():
@@ -69,7 +79,7 @@ def main():
     ensure_topic(args.bootstrap, args.topic, args.partitions)
 
     producer = Producer({'bootstrap.servers': args.bootstrap})
-    interval = 1.0 / args.rate if args.rate > 0 else 0.0
+    interval = 0.001 / args.rate if args.rate > 0 else 0.0
 
     i = 0
     try:
@@ -82,7 +92,7 @@ def main():
             if interval:
                 time.sleep(interval)
     except KeyboardInterrupt:
-        print('\n[producer] stopping')
+        print(paint(DIM, '\n[producer] stopping'))
     finally:
         producer.flush(10)
 

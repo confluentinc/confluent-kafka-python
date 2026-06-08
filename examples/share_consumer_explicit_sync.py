@@ -28,6 +28,7 @@ with share_consumer_ack_producer.py.
 """
 
 import argparse
+import sys
 import uuid
 
 from confluent_kafka import AcknowledgeType, ShareConsumer
@@ -38,6 +39,15 @@ from confluent_kafka.admin import (
     ConfigResource,
     ResourceType,
 )
+
+# Tiny ANSI colour helper -- auto-off when stdout isn't a terminal so piped logs
+# don't fill with escape codes. No dependency; the example just runs.
+DIM, CYAN, GREEN, YELLOW, RED = '2', '36', '32', '33', '31'
+_TTY = sys.stdout.isatty()
+
+
+def paint(code, text):
+    return f"\033[{code}m{text}\033[0m" if _TTY else text
 
 
 def set_group_offset_reset(bootstrap, group, reset):
@@ -72,11 +82,11 @@ def fmt_offsets(offsets):
 
 def on_ack_commit(offsets, exc):
     if exc is not None:
-        print(f"[ack-cb] commit FAILED: {exc}")
+        print(paint(RED, f"[ack-cb] commit FAILED: {exc}"))
         return
     for tp in sorted(offsets, key=lambda t: (t.topic, t.partition)):
         offs = offsets[tp]
-        print(f"[ack-cb] partition={tp.partition} offsets={fmt_offsets(offs)} ({len(offs)} msg)")
+        print(paint(GREEN, f"[ack-cb] partition={tp.partition} offsets={fmt_offsets(offs)} ({len(offs)} msg)"))
 
 
 def main():
@@ -89,7 +99,7 @@ def main():
 
     group = args.group or f'share-demo-{uuid.uuid4().hex[:8]}'
     set_group_offset_reset(args.bootstrap, group, args.reset)
-    print(f"[setup] group={group} mode=explicit commit=sync reset={args.reset} topic={args.topic}")
+    print(paint(DIM, f"[setup] group={group} mode=explicit commit=sync reset={args.reset} topic={args.topic}"))
 
     sc = ShareConsumer({
         'bootstrap.servers': args.bootstrap,
@@ -107,10 +117,10 @@ def main():
                 if msg.error():
                     # In explicit mode a real app would REJECT/RELEASE these to
                     # unblock the next poll; here we just log and move on.
-                    print(f"[poll]  error: {msg.error()}")
+                    print(paint(RED, f"[poll]  error: {msg.error()}"))
                     continue
                 val = msg.value().decode() if msg.value() else None
-                print(f"[poll]   partition={msg.partition()} offset={msg.offset()}  msg={val}")
+                print(paint(CYAN, f"[poll]   partition={msg.partition()} offset={msg.offset()}  msg={val}"))
                 # Mandatory in explicit mode -- every in-flight record must be
                 # acked before the next poll(), or poll() raises _STATE.
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
@@ -121,9 +131,9 @@ def main():
             # inline; the ack-cb fires for the same commit too.
             for tp, err in sorted(sc.commit_sync().items(),
                                   key=lambda kv: (kv[0].topic, kv[0].partition)):
-                print(f"[commit-sync] partition={tp.partition} -> {'ok' if err is None else err}")
+                print(paint(YELLOW, f"[commit-sync] partition={tp.partition} -> {'ok' if err is None else err}"))
     except KeyboardInterrupt:
-        print('\n[consumer] stopping')
+        print(paint(DIM, '\n[consumer] stopping'))
     finally:
         sc.close()
 

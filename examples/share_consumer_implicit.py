@@ -27,6 +27,7 @@ with share_consumer_ack_producer.py.
 """
 
 import argparse
+import sys
 import uuid
 
 from confluent_kafka import ShareConsumer
@@ -37,6 +38,15 @@ from confluent_kafka.admin import (
     ConfigResource,
     ResourceType,
 )
+
+# Tiny ANSI colour helper -- auto-off when stdout isn't a terminal so piped logs
+# don't fill with escape codes. No dependency; the example just runs.
+DIM, CYAN, GREEN, RED = '2', '36', '32', '31'
+_TTY = sys.stdout.isatty()
+
+
+def paint(code, text):
+    return f"\033[{code}m{text}\033[0m" if _TTY else text
 
 
 def set_group_offset_reset(bootstrap, group, reset):
@@ -74,11 +84,11 @@ def on_ack_commit(offsets, exc):
     # commit), but they still report through this callback once the broker
     # confirms them.
     if exc is not None:
-        print(f"[ack-cb] commit FAILED: {exc}")
+        print(paint(RED, f"[ack-cb] commit FAILED: {exc}"))
         return
     for tp in sorted(offsets, key=lambda t: (t.topic, t.partition)):
         offs = offsets[tp]
-        print(f"[ack-cb] partition={tp.partition} offsets={fmt_offsets(offs)} ({len(offs)} msg)")
+        print(paint(GREEN, f"[ack-cb] partition={tp.partition} offsets={fmt_offsets(offs)} ({len(offs)} msg)"))
 
 
 def main():
@@ -91,7 +101,7 @@ def main():
 
     group = args.group or f'share-demo-{uuid.uuid4().hex[:8]}'
     set_group_offset_reset(args.bootstrap, group, args.reset)
-    print(f"[setup] group={group} mode=implicit reset={args.reset} topic={args.topic}")
+    print(paint(DIM, f"[setup] group={group} mode=implicit reset={args.reset} topic={args.topic}"))
 
     sc = ShareConsumer({
         'bootstrap.servers': args.bootstrap,
@@ -107,12 +117,12 @@ def main():
             # whatever this one returned. Just keep polling.
             for msg in sc.poll(timeout=1.0):
                 if msg.error():
-                    print(f"[poll]  error: {msg.error()}")
+                    print(paint(RED, f"[poll]  error: {msg.error()}"))
                     continue
                 val = msg.value().decode() if msg.value() else None
-                print(f"[poll]   partition={msg.partition()} offset={msg.offset()}  msg={val}")
+                print(paint(CYAN, f"[poll]   partition={msg.partition()} offset={msg.offset()}  msg={val}"))
     except KeyboardInterrupt:
-        print('\n[consumer] stopping')
+        print(paint(DIM, '\n[consumer] stopping'))
     finally:
         sc.close()
 
