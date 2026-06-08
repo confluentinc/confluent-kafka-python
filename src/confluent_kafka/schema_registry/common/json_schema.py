@@ -1,7 +1,10 @@
 import decimal
+import ipaddress
 import logging
+import socket
 from io import BytesIO
 from typing import List, Optional, Set, Union
+from urllib.parse import urlsplit
 
 import httpx
 import referencing
@@ -58,8 +61,39 @@ class _ContextStringIO(BytesIO):
         return False
 
 
+def _is_blocked_ip(ip) -> bool:
+    mapped = getattr(ip, 'ipv4_mapped', None)
+    if mapped is not None:
+        ip = mapped
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def _guard_external_uri(uri: str):
+    parts = urlsplit(uri)
+    if parts.scheme not in ('http', 'https'):
+        raise ValueError("Refusing to retrieve schema from non-HTTP(S) URI: {}".format(uri))
+    host = parts.hostname
+    if not host:
+        raise ValueError("Refusing to retrieve schema from URI without a host: {}".format(uri))
+    try:
+        infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == 'https' else 80))
+    except socket.gaierror as ex:
+        raise ValueError("Could not resolve schema URI host {}: {}".format(host, ex))
+    for info in infos:
+        if _is_blocked_ip(ipaddress.ip_address(info[4][0])):
+            raise ValueError("Refusing to retrieve schema from non-public address: {}".format(uri))
+
+
 def _retrieve_via_httpx(uri: str):
-    response = httpx.get(uri)
+    _guard_external_uri(uri)
+    response = httpx.get(uri, follow_redirects=False)
     return Resource.from_contents(response.json(), default_specification=DEFAULT_SPEC)
 
 
