@@ -1,0 +1,52 @@
+# Single-node Kafka 4.3 (KRaft) wired up for KIP-932 share groups, for the
+# share-consumer ack-callback demo (examples/share_consumer_ack_*.py).
+#
+#   docker compose up -d        # start
+#   docker compose down -v      # stop + wipe (it's ephemeral, no volume)
+#
+# Note: host port 9092 — stop any other broker on 9092 first (e.g. the
+# sr-demo-kafka container) or change the published port below.
+
+services:
+  kafka:
+    image: apache/kafka:4.3.0
+    container_name: kafka-share-demo
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # KIP-932: the share rebalance protocol is off by default — this is what
+      # actually turns share groups on.
+      KAFKA_GROUP_COORDINATOR_REBALANCE_PROTOCOLS: "classic,consumer,share"
+
+      # Single broker, so every internal topic has to be RF=1/ISR=1. The one
+      # that bites you is __share_group_state: it defaults to RF=3/ISR=2, fails
+      # to create, and then the share coordinator never starts — producers and
+      # admin keep working but share consumers just get empty polls forever.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: "1"
+
+      # Snappy demo: no startup rebalance delay, and a short acquisition lock so
+      # RELEASE'd / unacked records redeliver in ~1s. Both lock knobs move
+      # together — the duration must be >= the min (default min is 15000).
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_GROUP_SHARE_MIN_RECORD_LOCK_DURATION_MS: "1000"
+      KAFKA_GROUP_SHARE_RECORD_LOCK_DURATION_MS: "1000"
+
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
