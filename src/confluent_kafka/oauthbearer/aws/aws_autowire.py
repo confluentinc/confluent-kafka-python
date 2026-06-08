@@ -73,6 +73,9 @@ def create_handler(
     :raises ValueError: ``sasl_oauthbearer_config`` is ``None`` or empty;
         the wire-grammar parse fails (unknown key, malformed token, missing
         required field, range/enum violation, etc.).
+    :raises ImportError: the installed boto3 predates the minimum required by
+        the AWS IAM path (boto3 is present but too old for STS
+        ``GetWebIdentityToken``).
     :raises RuntimeError: AWS SDK reachability or initialisation failure
         (e.g. unknown region, malformed ``sts_endpoint``).
     """

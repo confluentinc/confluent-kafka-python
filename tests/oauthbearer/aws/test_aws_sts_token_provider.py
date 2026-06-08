@@ -24,6 +24,7 @@
 import base64
 import datetime
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import patch
 
@@ -36,7 +37,12 @@ pytest.importorskip("botocore")
 from botocore.exceptions import ClientError  # noqa: E402
 
 from confluent_kafka.oauthbearer.aws._aws_oauthbearer_config import AwsOAuthBearerConfig  # noqa: E402
-from confluent_kafka.oauthbearer.aws._aws_sts_token_provider import AwsStsTokenProvider  # noqa: E402
+from confluent_kafka.oauthbearer.aws._aws_sts_token_provider import (  # noqa: E402
+    MINIMUM_BOTO3_VERSION,
+    AwsStsTokenProvider,
+    _require_boto3_version,
+    _version_tuple,
+)
 
 # ---- Test helpers ----
 
@@ -384,3 +390,80 @@ def test_ctor_no_sts_endpoint_omits_endpoint_url_kwarg():
             "sts",
             region_name="us-east-1",
         )
+
+
+# ---- boto3 version floor check ----
+
+
+def test_version_tuple_parses_numeric_components():
+    assert _version_tuple("1.42.25") == (1, 42, 25)
+    assert _version_tuple("1.42.97") == (1, 42, 97)
+    assert _version_tuple("2.0.0") == (2, 0, 0)
+
+
+def test_version_tuple_tolerates_prerelease_suffix():
+    assert _version_tuple("1.42.0rc1") == (1, 42, 0)
+    assert _version_tuple("1.42.25.dev0") == (1, 42, 25, 0)
+
+
+def test_require_boto3_version_passes_on_installed_version():
+    # The opt-in test venv installs boto3 >= the floor, so this must not raise.
+    _require_boto3_version()
+
+
+def test_require_boto3_version_below_floor_raises(monkeypatch):
+    import boto3
+
+    monkeypatch.setattr(boto3, "__version__", "1.40.0")
+    with pytest.raises(ImportError, match="requires boto3>=") as exc_info:
+        _require_boto3_version()
+    # message names both the required floor and the offending installed version
+    assert MINIMUM_BOTO3_VERSION in str(exc_info.value)
+    assert "1.40.0" in str(exc_info.value)
+
+
+def test_require_boto3_version_at_floor_ok(monkeypatch):
+    import boto3
+
+    monkeypatch.setattr(boto3, "__version__", MINIMUM_BOTO3_VERSION)
+    _require_boto3_version()  # exactly the floor satisfies ">="
+
+
+def test_ctor_old_boto3_raises_before_building_client(monkeypatch):
+    """The floor check is wired into __init__ on the real-client path and fails
+    fast — before any boto3.Session/client is constructed."""
+    import boto3
+
+    monkeypatch.setattr(boto3, "__version__", "1.40.0")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    with patch("boto3.Session") as mock_session_cls:
+        with pytest.raises(ImportError, match="GetWebIdentityToken"):
+            AwsStsTokenProvider(cfg)  # no sts_client → real path → check runs
+        mock_session_cls.assert_not_called()  # raised before building a client
+
+
+def test_ctor_injected_client_skips_version_check(monkeypatch):
+    """Injecting an sts_client (test seam) bypasses the boto3 floor check — the
+    real boto3 isn't used for the STS call in that case."""
+    import boto3
+
+    monkeypatch.setattr(boto3, "__version__", "1.0.0")  # ancient, but skipped
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    provider = AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
+    assert provider is not None
+
+
+def test_minimum_boto3_version_matches_requirements_file():
+    """Guard against MINIMUM_BOTO3_VERSION drifting from the pinned floor in
+    requirements/requirements-oauthbearer-aws.txt."""
+    req = Path(__file__).resolve().parents[3] / "requirements" / "requirements-oauthbearer-aws.txt"
+    floor = None
+    for line in req.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("boto3") and ">=" in stripped:
+            floor = stripped.split(">=", 1)[1].strip()
+            break
+    assert floor == MINIMUM_BOTO3_VERSION, (
+        f"requirements-oauthbearer-aws.txt pins boto3>={floor} but "
+        f"MINIMUM_BOTO3_VERSION is {MINIMUM_BOTO3_VERSION}; keep them in sync."
+    )

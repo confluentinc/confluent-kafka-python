@@ -32,6 +32,41 @@ __all__ = ["AwsStsTokenProvider"]
 # credential-chain / signing diagnostic logs to stderr at DEBUG level.
 _BOTOCORE_LOGGER_NAME = "botocore"
 
+#: Minimum boto3 version required by the AWS IAM path.
+#: ``requirements/requirements-oauthbearer-aws.txt``.
+MINIMUM_BOTO3_VERSION = "1.42.25"
+
+
+def _version_tuple(version: str) -> Tuple[int, ...]:
+    """Parse a dotted version string into a tuple of its leading integers.
+
+    Tolerant of pre-release suffixes (``"1.42.0rc1"`` -> ``(1, 42, 0)``) so the
+    comparison considers only the numeric ``major.minor.micro`` components.
+    """
+    parts = []
+    for segment in version.split("."):
+        digits = ""
+        for ch in segment:
+            if not ch.isdigit():
+                break
+            digits += ch
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def _require_boto3_version() -> None:
+    """Raise :class:`ImportError` if the installed boto3 predates
+    :data:`MINIMUM_BOTO3_VERSION`.
+
+    """
+    if _version_tuple(boto3.__version__) < _version_tuple(MINIMUM_BOTO3_VERSION):
+        raise ImportError(
+            f"The AWS IAM OAUTHBEARER path requires boto3>={MINIMUM_BOTO3_VERSION} "
+            f"(for the STS GetWebIdentityToken operation), but found boto3 "
+            f"{boto3.__version__}. Upgrade with: "
+            f"pip install -U 'confluent-kafka[oauthbearer-aws]'."
+        )
+
 
 class AwsStsTokenProvider:
     """Mints OAUTHBEARER tokens via AWS STS ``GetWebIdentityToken``."""
@@ -48,6 +83,9 @@ class AwsStsTokenProvider:
             client directly instead of constructing a real boto3 STS client.
             Production callers pass ``None``.
         :raises TypeError: ``config`` is ``None``.
+        :raises ImportError: the installed boto3 is older than
+            :data:`MINIMUM_BOTO3_VERSION` (checked only on the real-client
+            path, i.e. when ``sts_client`` is ``None``).
         """
         if config is None:
             raise TypeError("config must not be None")
@@ -58,6 +96,9 @@ class AwsStsTokenProvider:
         if sts_client is not None:
             self._sts = sts_client
         else:
+            # Fail fast with a clear message if boto3 is present but too old for
+            # the STS GetWebIdentityToken operation.
+            _require_boto3_version()
             # boto3.Session() with explicit region_name short-circuits the
             # AWS_DEFAULT_REGION env lookup; client() still re-asserts the
             # region for STS endpoint resolution.
