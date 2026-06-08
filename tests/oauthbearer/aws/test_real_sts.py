@@ -66,7 +66,6 @@ pytestmark = pytest.mark.skipif(
 
 from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
 
-
 # =============================================================================
 # Configuration sourced from env vars so the test can be re-pointed at a
 # different role / audience without code changes.
@@ -135,9 +134,7 @@ def test_create_handler_mints_valid_jwt():
     # Expiry within the requested window.
     now = time.time()
     assert expiry > now, "expiry must be in the future"
-    assert expiry < now + 10 * 60, (
-        "expiry must be within 10 min for DurationSeconds <= 300"
-    )
+    assert expiry < now + 10 * 60, "expiry must be within 10 min for DurationSeconds <= 300"
 
     # Principal is a bare role ARN (AWS STS GetWebIdentityToken convention).
     assert _ARN_PATTERN.match(principal), f"unexpected principal: {principal!r}"
@@ -146,10 +143,7 @@ def test_create_handler_mints_valid_jwt():
     assert extensions == {}
 
     # Diagnostic for the run log so EC2 evidence is captured in CI / PR.
-    print(
-        f"\n[autowire-real] jwt_length={len(token)} "
-        f"principal={principal} expires_in={int(expiry - now)}s"
-    )
+    print(f"\n[autowire-real] jwt_length={len(token)} " f"principal={principal} expires_in={int(expiry - now)}s")
 
 
 def test_create_handler_jwt_length_matches_cross_language():
@@ -178,9 +172,7 @@ def test_create_handler_jwt_length_matches_cross_language():
     expected = int(expected_str)
     handler = create_handler(_default_config(), None)
     token, *_ = handler("")
-    assert len(token) == expected, (
-        f"expected {expected} bytes (cross-language match), got {len(token)}"
-    )
+    assert len(token) == expected, f"expected {expected} bytes (cross-language match), got {len(token)}"
 
 
 def test_create_handler_principal_matches_role_arn():
@@ -213,9 +205,7 @@ def test_create_handler_honours_duration_seconds():
     handler = create_handler(_default_config(duration_seconds="60"), None)
     _, expiry, _, _ = handler("")
     seconds_remaining = expiry - time.time()
-    assert 50 <= seconds_remaining <= 80, (
-        f"duration_seconds=60 → expected ~60s window, got {seconds_remaining:.0f}s"
-    )
+    assert 50 <= seconds_remaining <= 80, f"duration_seconds=60 → expected ~60s window, got {seconds_remaining:.0f}s"
 
 
 def test_create_handler_honours_signing_algorithm_rs256():
@@ -230,25 +220,20 @@ def test_create_handler_honours_signing_algorithm_rs256():
     header_b64url = token.split(".")[0]
     padding = "=" * (-len(header_b64url) % 4)
     header_json = json.loads(
-        base64.b64decode(
-            (header_b64url + padding).replace("-", "+").replace("_", "/")
-        ).decode("utf-8")
+        base64.b64decode((header_b64url + padding).replace("-", "+").replace("_", "/")).decode("utf-8")
     )
-    assert header_json.get("alg") == "RS256", (
-        f"header.alg expected RS256, got {header_json.get('alg')!r}"
-    )
+    assert header_json.get("alg") == "RS256", f"header.alg expected RS256, got {header_json.get('alg')!r}"
 
 
 def test_create_handler_honours_principal_name_override():
     """Setting principal_name=... in the wire grammar overrides the JWT 'sub'
     extraction at the autowire layer."""
     handler = create_handler(
-        _default_config(principal_name="custom-principal"), None,
+        _default_config(principal_name="custom-principal"),
+        None,
     )
     _, _, principal, _ = handler("")
-    assert principal == "custom-principal", (
-        f"principal_name override not honoured: got {principal!r}"
-    )
+    assert principal == "custom-principal", f"principal_name override not honoured: got {principal!r}"
 
 
 def test_create_handler_round_trips_sasl_extensions():
@@ -289,7 +274,8 @@ def test_create_handler_tag_claims_flow_to_sts():
     JWT — only meaningful on roles with ``sts:TagSession`` allowed.
     """
     handler = create_handler(
-        _default_config(tag_team="platform", tag_environment="prod"), None,
+        _default_config(tag_team="platform", tag_environment="prod"),
+        None,
     )
     # If our Tags param breaks the STS call, this raises.
     token, *_ = handler("")
@@ -333,9 +319,7 @@ def test_create_handler_jwt_audience_matches_request():
     handler = create_handler(_default_config(), None)
     token, *_ = handler("")
     payload = _decode_jwt_payload(token)
-    assert payload.get("aud") == _AUDIENCE, (
-        f"JWT aud {payload.get('aud')!r} doesn't match requested {_AUDIENCE!r}"
-    )
+    assert payload.get("aud") == _AUDIENCE, f"JWT aud {payload.get('aud')!r} doesn't match requested {_AUDIENCE!r}"
 
 
 # =============================================================================
@@ -399,11 +383,5 @@ def test_producer_with_marker_and_extensions_succeeds():
         }
     )
     elapsed = time.time() - t0
-    assert elapsed < 5.0, (
-        f"Producer with extensions took {elapsed:.1f}s — autowire path "
-        f"slow or broken"
-    )
-    print(
-        f"\n[autowire-real] Producer (with extensions) constructed via "
-        f"dispatcher in {elapsed:.2f}s"
-    )
+    assert elapsed < 5.0, f"Producer with extensions took {elapsed:.1f}s — autowire path " f"slow or broken"
+    print(f"\n[autowire-real] Producer (with extensions) constructed via " f"dispatcher in {elapsed:.2f}s")

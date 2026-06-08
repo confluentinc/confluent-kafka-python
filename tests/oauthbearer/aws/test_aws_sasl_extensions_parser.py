@@ -18,7 +18,6 @@ import pytest
 
 from confluent_kafka.oauthbearer.aws._aws_sasl_extensions_parser import parse
 
-
 # ---- Null / empty input → None ----
 
 

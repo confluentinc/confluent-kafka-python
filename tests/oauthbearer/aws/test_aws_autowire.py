@@ -22,8 +22,7 @@ import pytest
 
 pytest.importorskip("boto3")
 
-from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler
-
+from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
 
 # ---- Input validation (defensive checks for direct callers) ----
 
@@ -71,21 +70,24 @@ def test_create_handler_invalid_signing_algorithm_raises():
 def test_create_handler_invalid_duration_raises():
     with pytest.raises(ValueError, match="duration_seconds"):
         create_handler(
-            "region=us-east-1 audience=https://a duration_seconds=10", None,
+            "region=us-east-1 audience=https://a duration_seconds=10",
+            None,
         )
 
 
 def test_create_handler_unknown_key_raises():
     with pytest.raises(ValueError, match="not_a_key"):
         create_handler(
-            "region=us-east-1 audience=https://a not_a_key=foo", None,
+            "region=us-east-1 audience=https://a not_a_key=foo",
+            None,
         )
 
 
 def test_create_handler_invalid_extensions_grammar_raises():
     with pytest.raises(ValueError, match="sasl.oauthbearer.extensions"):
         create_handler(
-            "region=us-east-1 audience=https://a", "noEqualsHere",
+            "region=us-east-1 audience=https://a",
+            "noEqualsHere",
         )
 
 
@@ -93,7 +95,8 @@ def test_create_handler_aws_debug_dotnet_only_value_raises_with_platform_hint():
     """log4net / systemdiagnostics are .NET-only sinks; surface that clearly."""
     with pytest.raises(ValueError, match="not supported on this platform"):
         create_handler(
-            "region=us-east-1 audience=https://a aws_debug=log4net", None,
+            "region=us-east-1 audience=https://a aws_debug=log4net",
+            None,
         )
 
 
@@ -102,7 +105,8 @@ def test_create_handler_aws_debug_dotnet_only_value_raises_with_platform_hint():
 
 def test_create_handler_marker_only_minimum_config_returns_handler():
     handler = create_handler(
-        "region=us-east-1 audience=https://a", None,
+        "region=us-east-1 audience=https://a",
+        None,
     )
     assert handler is not None
     assert callable(handler)
@@ -143,21 +147,24 @@ def test_create_handler_principal_name_override_handler_ready():
 
 def test_create_handler_null_extensions_treats_as_absent():
     handler = create_handler(
-        "region=us-east-1 audience=https://a", None,
+        "region=us-east-1 audience=https://a",
+        None,
     )
     assert callable(handler)
 
 
 def test_create_handler_empty_extensions_treats_as_absent():
     handler = create_handler(
-        "region=us-east-1 audience=https://a", "",
+        "region=us-east-1 audience=https://a",
+        "",
     )
     assert callable(handler)
 
 
 def test_create_handler_single_extension_handler_ready():
     handler = create_handler(
-        "region=us-east-1 audience=https://a", "logicalCluster=lkc-abc",
+        "region=us-east-1 audience=https://a",
+        "logicalCluster=lkc-abc",
     )
     assert callable(handler)
 
@@ -182,6 +189,7 @@ def test_create_handler_does_not_call_sts_at_construction():
     Verify by patching boto3.Session to detect any client.get_web_identity_token call.
     """
     from unittest.mock import MagicMock, patch
+
     with patch("boto3.Session") as mock_session_cls:
         mock_session = mock_session_cls.return_value
         mock_client = MagicMock()
@@ -193,8 +201,8 @@ def test_create_handler_does_not_call_sts_at_construction():
 
 def test_create_handler_returned_callable_when_invoked_calls_sts():
     """When the returned callable is invoked, it triggers exactly one STS call."""
-    from unittest.mock import MagicMock, patch
     import datetime
+    from unittest.mock import MagicMock, patch
 
     canned_response = {
         "WebIdentityToken": _canned_jwt(),
@@ -222,8 +230,8 @@ def test_create_handler_returned_callable_when_invoked_calls_sts():
 def test_create_handler_returned_callable_round_trips_extensions():
     """Extensions configured via the typed property flow through to the
     4-tuple's extensions slot."""
-    from unittest.mock import MagicMock, patch
     import datetime
+    from unittest.mock import MagicMock, patch
 
     canned_response = {
         "WebIdentityToken": _canned_jwt(),
@@ -252,13 +260,8 @@ def test_create_handler_returned_callable_round_trips_extensions():
 
 def _base64url(data: bytes) -> str:
     import base64
-    return (
-        base64.b64encode(data)
-        .decode("ascii")
-        .rstrip("=")
-        .replace("+", "-")
-        .replace("/", "_")
-    )
+
+    return base64.b64encode(data).decode("ascii").rstrip("=").replace("+", "-").replace("/", "_")
 
 
 def _canned_jwt(sub: str = "arn:aws:iam::123:role/R") -> str:

@@ -25,12 +25,8 @@ import pytest
 
 pytest.importorskip("boto3")
 
-from confluent_kafka.oauthbearer.aws import aws_autowire
-from confluent_kafka.oauthbearer.aws.aws_autowire import (
-    OAuthBearerCallback,
-    create_handler,
-)
-
+from confluent_kafka.oauthbearer.aws import aws_autowire  # noqa: E402
+from confluent_kafka.oauthbearer.aws.aws_autowire import OAuthBearerCallback, create_handler  # noqa: E402
 
 # ---- Module surface ----
 
@@ -38,6 +34,7 @@ from confluent_kafka.oauthbearer.aws.aws_autowire import (
 def test_module_importable_at_canonical_path():
     """The C dispatcher does PyImport_ImportModule(...) with this exact path."""
     import importlib
+
     mod = importlib.import_module("confluent_kafka.oauthbearer.aws.aws_autowire")
     assert mod is aws_autowire
 
@@ -74,10 +71,7 @@ def test_create_handler_parameter_names_are_frozen():
 def test_create_handler_parameter_annotations_are_frozen():
     sig = inspect.signature(create_handler)
     assert sig.parameters["sasl_oauthbearer_config"].annotation is str
-    assert (
-        sig.parameters["sasl_oauthbearer_extensions"].annotation
-        == Optional[str]
-    )
+    assert sig.parameters["sasl_oauthbearer_extensions"].annotation == Optional[str]
 
 
 def test_create_handler_no_default_values():

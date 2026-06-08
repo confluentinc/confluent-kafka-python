@@ -39,31 +39,22 @@ def extract_sub(jwt: str) -> str:
     if jwt == "":
         raise ValueError("JWT is empty.")
     if len(jwt) > _MAX_TOKEN_LENGTH_CHARS:
-        raise ValueError(
-            f"JWT length {len(jwt)} exceeds maximum allowed "
-            f"({_MAX_TOKEN_LENGTH_CHARS})."
-        )
+        raise ValueError(f"JWT length {len(jwt)} exceeds maximum allowed " f"({_MAX_TOKEN_LENGTH_CHARS}).")
 
     parts = jwt.split(".")
     if len(parts) != 3:
-        raise ValueError(
-            f"JWT must have exactly 3 '.'-separated segments; got {len(parts)}."
-        )
+        raise ValueError(f"JWT must have exactly 3 '.'-separated segments; got {len(parts)}.")
 
     payload_bytes = _decode_base64url_segment(parts[1])
     try:
         payload_string = payload_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise ValueError(
-            f"JWT payload is not valid UTF-8: {exc}"
-        ) from exc
+        raise ValueError(f"JWT payload is not valid UTF-8: {exc}") from exc
 
     try:
         token = json.loads(payload_string)
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"JWT payload is not valid JSON: {exc}"
-        ) from exc
+        raise ValueError(f"JWT payload is not valid JSON: {exc}") from exc
 
     if not isinstance(token, dict):
         raise ValueError("JWT payload is not a JSON object.")
@@ -96,6 +87,4 @@ def _decode_base64url_segment(segment: str) -> bytes:
     try:
         return base64.b64decode(s.encode("ascii"), validate=True)
     except (binascii.Error, UnicodeEncodeError, ValueError) as exc:
-        raise ValueError(
-            f"JWT payload segment is not valid base64url: {exc}"
-        ) from exc
+        raise ValueError(f"JWT payload segment is not valid base64url: {exc}") from exc

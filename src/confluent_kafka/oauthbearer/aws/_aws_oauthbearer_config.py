@@ -86,24 +86,28 @@ NET_ONLY_AWS_DEBUG_VALUES = ("log4net", "systemdiagnostics")
 
 # Recognised non-tag keys for the wire grammar. Anything else (other than
 # ``tag_<NAME>``) raises "Unknown key" during :meth:`AwsOAuthBearerConfig.parse`.
-_RECOGNISED_KEYS = frozenset({
-    "region",
-    "audience",
-    "duration_seconds",
-    "signing_algorithm",
-    "sts_endpoint",
-    "principal_name",
-    "aws_debug",
-})
+_RECOGNISED_KEYS = frozenset(
+    {
+        "region",
+        "audience",
+        "duration_seconds",
+        "signing_algorithm",
+        "sts_endpoint",
+        "principal_name",
+        "aws_debug",
+    }
+)
 
-_NON_EMPTY_KEYS = frozenset({
-    "region",
-    "audience",
-    "signing_algorithm",
-    "sts_endpoint",
-    "principal_name",
-    "aws_debug",
-})
+_NON_EMPTY_KEYS = frozenset(
+    {
+        "region",
+        "audience",
+        "signing_algorithm",
+        "sts_endpoint",
+        "principal_name",
+        "aws_debug",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -123,41 +127,27 @@ class AwsOAuthBearerConfig:
     def __post_init__(self) -> None:
         """Final-state validation. Raises :class:`ValueError` on bad input."""
         if not isinstance(self.region, str) or self.region == "":
-            raise ValueError(
-                f"{CONFIG_KEY} 'region' must not be empty."
-            )
+            raise ValueError(f"{CONFIG_KEY} 'region' must not be empty.")
         if not isinstance(self.audience, str) or self.audience == "":
-            raise ValueError(
-                f"{CONFIG_KEY} 'audience' must not be empty."
-            )
+            raise ValueError(f"{CONFIG_KEY} 'audience' must not be empty.")
         if self.signing_algorithm not in ALLOWED_SIGNING_ALGORITHMS:
             raise ValueError(
-                f"{CONFIG_KEY} 'signing_algorithm' must be 'ES384' or 'RS256'; "
-                f"got {self.signing_algorithm!r}."
+                f"{CONFIG_KEY} 'signing_algorithm' must be 'ES384' or 'RS256'; " f"got {self.signing_algorithm!r}."
             )
         # bool is-a int in Python — reject explicitly so True/False doesn't
         # slip through as 1/0.
-        if (not isinstance(self.duration_seconds, int)
-                or isinstance(self.duration_seconds, bool)):
-            raise ValueError(
-                f"{CONFIG_KEY} 'duration_seconds' must be an integer."
-            )
-        if not (MIN_DURATION_SECONDS
-                <= self.duration_seconds
-                <= MAX_DURATION_SECONDS):
+        if not isinstance(self.duration_seconds, int) or isinstance(self.duration_seconds, bool):
+            raise ValueError(f"{CONFIG_KEY} 'duration_seconds' must be an integer.")
+        if not (MIN_DURATION_SECONDS <= self.duration_seconds <= MAX_DURATION_SECONDS):
             raise ValueError(
                 f"{CONFIG_KEY} 'duration_seconds' must be between "
                 f"{MIN_DURATION_SECONDS} and {MAX_DURATION_SECONDS} inclusive; "
                 f"got {self.duration_seconds}."
             )
         if self.sts_endpoint is not None and self.sts_endpoint == "":
-            raise ValueError(
-                f"{CONFIG_KEY} 'sts_endpoint' must not be empty."
-            )
+            raise ValueError(f"{CONFIG_KEY} 'sts_endpoint' must not be empty.")
         if self.principal_name is not None and self.principal_name == "":
-            raise ValueError(
-                f"{CONFIG_KEY} 'principal_name' must not be empty."
-            )
+            raise ValueError(f"{CONFIG_KEY} 'principal_name' must not be empty.")
         if self.aws_debug not in ALLOWED_AWS_DEBUG_VALUES:
             if self.aws_debug in NET_ONLY_AWS_DEBUG_VALUES:
                 raise ValueError(
@@ -166,22 +156,13 @@ class AwsOAuthBearerConfig:
                     f"{list(ALLOWED_AWS_DEBUG_VALUES)} only; "
                     f"'log4net' and 'systemdiagnostics' are .NET-only sinks."
                 )
-            raise ValueError(
-                f"{CONFIG_KEY} 'aws_debug' must be one of: "
-                f"none, console. Got {self.aws_debug!r}."
-            )
+            raise ValueError(f"{CONFIG_KEY} 'aws_debug' must be one of: " f"none, console. Got {self.aws_debug!r}.")
         if self.tags is not None:
             if not isinstance(self.tags, dict):
-                raise ValueError(
-                    f"{CONFIG_KEY} 'tags' must be a dict."
-                )
+                raise ValueError(f"{CONFIG_KEY} 'tags' must be a dict.")
             if len(self.tags) > MAX_TAGS:
-                raise ValueError(
-                    f"{CONFIG_KEY} has {len(self.tags)} tags; AWS allows at "
-                    f"most {MAX_TAGS}."
-                )
-        if (self.sasl_extensions is not None
-                and not isinstance(self.sasl_extensions, dict)):
+                raise ValueError(f"{CONFIG_KEY} has {len(self.tags)} tags; AWS allows at " f"most {MAX_TAGS}.")
+        if self.sasl_extensions is not None and not isinstance(self.sasl_extensions, dict):
             raise ValueError("sasl_extensions, if set, must be a dict.")
 
     @classmethod
@@ -223,9 +204,7 @@ class AwsOAuthBearerConfig:
             context_label=CONFIG_KEY,
         ):
             if key in _NON_EMPTY_KEYS and value == "":
-                raise ValueError(
-                    f"{CONFIG_KEY} {key!r} must not be empty."
-                )
+                raise ValueError(f"{CONFIG_KEY} {key!r} must not be empty.")
 
             if key == "region":
                 region = value
@@ -237,10 +216,7 @@ class AwsOAuthBearerConfig:
                 try:
                     duration_seconds = int(value)
                 except ValueError as exc:
-                    raise ValueError(
-                        f"{CONFIG_KEY} 'duration_seconds' must be an integer; "
-                        f"got {value!r}."
-                    ) from exc
+                    raise ValueError(f"{CONFIG_KEY} 'duration_seconds' must be an integer; " f"got {value!r}.") from exc
             elif key == "sts_endpoint":
                 sts_endpoint = value
             elif key == "principal_name":
@@ -251,27 +227,19 @@ class AwsOAuthBearerConfig:
                 # straightforward.
                 aws_debug = value.lower()
             elif key.startswith(TAG_KEY_PREFIX):
-                tag_name = key[len(TAG_KEY_PREFIX):]
+                tag_name = key[len(TAG_KEY_PREFIX) :]
                 if tag_name == "":
-                    raise ValueError(
-                        f"{CONFIG_KEY} tag key {key!r} has empty name."
-                    )
+                    raise ValueError(f"{CONFIG_KEY} tag key {key!r} has empty name.")
                 if tags is None:
                     tags = {}
                 tags[tag_name] = value  # last-wins on duplicate tag names
             else:
-                raise ValueError(
-                    f"Unknown key {key!r} in {CONFIG_KEY}."
-                )
+                raise ValueError(f"Unknown key {key!r} in {CONFIG_KEY}.")
 
         if region is None:
-            raise ValueError(
-                f"'region' is required in {CONFIG_KEY}."
-            )
+            raise ValueError(f"'region' is required in {CONFIG_KEY}.")
         if audience is None:
-            raise ValueError(
-                f"'audience' is required in {CONFIG_KEY}."
-            )
+            raise ValueError(f"'audience' is required in {CONFIG_KEY}.")
 
         return cls(
             region=region,

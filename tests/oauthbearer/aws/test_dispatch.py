@@ -24,7 +24,6 @@ no direct path to the helper exists from Python — that's the design.
 
 import base64
 import datetime
-import importlib
 import sys
 from typing import Any, Dict, Optional
 from unittest.mock import MagicMock, patch
@@ -35,7 +34,6 @@ pytest.importorskip("boto3")
 
 import confluent_kafka  # noqa: E402
 from confluent_kafka.admin import AdminClient  # noqa: E402
-
 
 # ---- Test helpers ----
 
@@ -54,7 +52,13 @@ def _canned_response() -> Dict[str, Any]:
     return {
         "WebIdentityToken": _canned_jwt(),
         "Expiration": datetime.datetime(
-            2099, 4, 21, 6, 6, 47, tzinfo=datetime.timezone.utc,
+            2099,
+            4,
+            21,
+            6,
+            6,
+            47,
+            tzinfo=datetime.timezone.utc,
         ),
     }
 
@@ -99,10 +103,12 @@ def test_marker_absent_producer_constructs_unchanged():
 
 
 def test_marker_absent_consumer_constructs_unchanged():
-    c = confluent_kafka.Consumer({
-        "bootstrap.servers": "localhost:9092",
-        "group.id": "test-group",
-    })
+    c = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": "localhost:9092",
+            "group.id": "test-group",
+        }
+    )
     c.close()
 
 
@@ -124,8 +130,7 @@ def test_marker_absent_does_not_import_aws_modules():
         "confluent_kafka.oauthbearer.aws._aws_sts_token_provider",
     ]:
         assert name not in sys.modules, (
-            f"Dispatcher imported {name} when no marker was set — "
-            "this means the no-op short-circuit broke."
+            f"Dispatcher imported {name} when no marker was set — " "this means the no-op short-circuit broke."
         )
 
 
@@ -138,12 +143,14 @@ def test_other_marker_value_passes_through_unchanged():
     # to NOT raise our ValueError. (librdkafka itself may complain about the
     # value, but our dispatcher must not.)
     with pytest.raises(Exception) as exc_info:
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "azure_imds",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "azure_imds",
+            }
+        )
     # Whatever librdkafka raises, it must NOT be our method-requirement
     # error or our config-requirement error.
     msg = str(exc_info.value)
@@ -156,35 +163,41 @@ def test_other_marker_value_passes_through_unchanged():
 
 def test_marker_without_method_raises():
     with pytest.raises(ValueError, match="method=oidc"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
 
 
 def test_marker_with_method_default_raises():
     with pytest.raises(ValueError, match="method=oidc"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "default",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "default",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
 
 
 def test_marker_with_method_oidc_uppercase_raises():
     """Strict matching — librdkafka's method values are lowercase canonical."""
     with pytest.raises(ValueError, match="method=oidc"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "OIDC",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "OIDC",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
 
 
 # ---- 4. sasl.oauthbearer.config requirement ----
@@ -192,23 +205,27 @@ def test_marker_with_method_oidc_uppercase_raises():
 
 def test_marker_with_method_oidc_but_missing_config_raises():
     with pytest.raises(ValueError, match="sasl.oauthbearer.config.*missing or empty"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+            }
+        )
 
 
 def test_marker_with_method_oidc_but_empty_config_raises():
     with pytest.raises(ValueError, match="sasl.oauthbearer.config.*missing or empty"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "",
+            }
+        )
 
 
 # ---- 5. Happy path: marker + method=oidc + valid config + boto3 stubbed ----
@@ -221,9 +238,7 @@ def test_happy_path_producer_constructs_with_marker(mocked_boto3):
 
 
 def test_happy_path_consumer_constructs_with_marker(mocked_boto3):
-    c = confluent_kafka.Consumer(
-        _minimal_aws_iam_config({"group.id": "test-group"})
-    )
+    c = confluent_kafka.Consumer(_minimal_aws_iam_config({"group.id": "test-group"}))
     assert c is not None
     c.close()
 
@@ -240,6 +255,7 @@ async def test_happy_path_aio_producer_constructs_with_marker(mocked_boto3):
     must run inside an async context (pyproject.toml's asyncio_mode=auto
     handles that for async def test functions)."""
     from confluent_kafka.aio import AIOProducer
+
     p = AIOProducer(_minimal_aws_iam_config())
     assert p is not None
 
@@ -247,6 +263,7 @@ async def test_happy_path_aio_producer_constructs_with_marker(mocked_boto3):
 async def test_happy_path_aio_consumer_constructs_with_marker(mocked_boto3):
     """Same async-context requirement as AIOProducer."""
     from confluent_kafka.aio import AIOConsumer
+
     c = AIOConsumer(_minimal_aws_iam_config({"group.id": "test-group"}))
     assert c is not None
 
@@ -268,15 +285,17 @@ def test_explicit_oauth_cb_wins_over_marker():
         if name.startswith("confluent_kafka.oauthbearer.aws"):
             del sys.modules[name]
 
-    p = confluent_kafka.Producer({
-        "bootstrap.servers": "broker.invalid:9092",
-        "security.protocol": "SASL_SSL",
-        "sasl.mechanisms": "OAUTHBEARER",
-        "sasl.oauthbearer.method": "oidc",
-        "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-        "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        "oauth_cb": user_oauth_cb,
-    })
+    p = confluent_kafka.Producer(
+        {
+            "bootstrap.servers": "broker.invalid:9092",
+            "security.protocol": "SASL_SSL",
+            "sasl.mechanisms": "OAUTHBEARER",
+            "sasl.oauthbearer.method": "oidc",
+            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            "oauth_cb": user_oauth_cb,
+        }
+    )
     assert p is not None
     p.flush(timeout=0.1)
     # The autowire module must not have been imported.
@@ -289,36 +308,42 @@ def test_explicit_oauth_cb_wins_over_marker():
 def test_marker_with_invalid_config_grammar_raises(mocked_boto3):
     """Config parser ValueError surfaces through the dispatcher."""
     with pytest.raises(ValueError, match="Unknown key.*not_a_key"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a not_a_key=foo",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a not_a_key=foo",
+            }
+        )
 
 
 def test_marker_with_invalid_signing_algorithm_raises(mocked_boto3):
     with pytest.raises(ValueError, match="signing_algorithm"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a signing_algorithm=HS256",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a signing_algorithm=HS256",
+            }
+        )
 
 
 def test_marker_with_invalid_extensions_grammar_raises(mocked_boto3):
     with pytest.raises(ValueError, match="sasl.oauthbearer.extensions"):
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-            "sasl.oauthbearer.extensions": "malformed-no-equals",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.extensions": "malformed-no-equals",
+            }
+        )
 
 
 # ---- 8. Friendly ImportError when the optional extra is missing ----
@@ -346,13 +371,15 @@ def test_marker_with_missing_extra_raises_friendly_import_error(boto3_absent):
     ModuleNotFoundError from the import chain and rewrites it into a
     friendly install hint. __cause__ chain preserves the original."""
     with pytest.raises(ImportError) as exc_info:
-        confluent_kafka.Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        confluent_kafka.Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
     msg = str(exc_info.value)
     assert "oauthbearer-aws" in msg
     assert "pip install" in msg
@@ -363,25 +390,29 @@ def test_marker_with_missing_extra_raises_friendly_import_error(boto3_absent):
 
 def test_friendly_import_error_on_consumer_too(boto3_absent):
     with pytest.raises(ImportError, match="oauthbearer-aws"):
-        confluent_kafka.Consumer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "group.id": "g",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        confluent_kafka.Consumer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "group.id": "g",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
 
 
 def test_friendly_import_error_on_admin_client_too(boto3_absent):
     with pytest.raises(ImportError, match="oauthbearer-aws"):
-        AdminClient({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            "sasl.oauthbearer.method": "oidc",
-            "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-        })
+        AdminClient(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                "sasl.oauthbearer.method": "oidc",
+                "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            }
+        )
 
 
 # ---- 9. Marker is stripped before native handoff ----
@@ -406,17 +437,25 @@ def test_marker_with_extensions_plumbs_through(mocked_boto3):
     """The dispatcher reads sasl.oauthbearer.extensions and passes it as the
     second arg to create_handler. Verify by checking the returned callable
     yields the extensions in its 4-tuple result."""
-    p = confluent_kafka.Producer(_minimal_aws_iam_config({
-        "sasl.oauthbearer.extensions": "logicalCluster=lkc-123",
-    }))
+    p = confluent_kafka.Producer(
+        _minimal_aws_iam_config(
+            {
+                "sasl.oauthbearer.extensions": "logicalCluster=lkc-123",
+            }
+        )
+    )
     assert p is not None
     p.flush(timeout=0.1)
 
 
 def test_marker_with_empty_extensions_treated_as_absent(mocked_boto3):
     """Empty extensions string → autowire treats as None (no extensions)."""
-    p = confluent_kafka.Producer(_minimal_aws_iam_config({
-        "sasl.oauthbearer.extensions": "",
-    }))
+    p = confluent_kafka.Producer(
+        _minimal_aws_iam_config(
+            {
+                "sasl.oauthbearer.extensions": "",
+            }
+        )
+    )
     assert p is not None
     p.flush(timeout=0.1)

@@ -18,7 +18,6 @@ import pytest
 
 from confluent_kafka._util.kv_string_parser import parse_kv
 
-
 # ---- Null guards ----
 
 

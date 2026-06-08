@@ -30,16 +30,19 @@ def test_marker_value_is_locked_value():
 
 def test_c_dispatcher_recognises_python_authoritative_marker():
     import pytest
+
     from confluent_kafka import Producer
 
     with pytest.raises(ValueError, match="method=oidc"):
-        Producer({
-            "bootstrap.servers": "broker.invalid:9092",
-            "sasl.mechanisms": "OAUTHBEARER",
-            AWS_IAM_MARKER_KEY: AWS_IAM_MARKER_VALUE,
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
-            # Deliberately omitting sasl.oauthbearer.method to trigger the
-            # dispatcher's precondition check. If the dispatcher's C-side
-            # marker literals differ from AWS_IAM_MARKER_KEY/VALUE, the
-            # dispatcher won't fire and this ValueError won't raise.
-        })
+        Producer(
+            {
+                "bootstrap.servers": "broker.invalid:9092",
+                "sasl.mechanisms": "OAUTHBEARER",
+                AWS_IAM_MARKER_KEY: AWS_IAM_MARKER_VALUE,
+                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                # Deliberately omitting sasl.oauthbearer.method to trigger the
+                # dispatcher's precondition check. If the dispatcher's C-side
+                # marker literals differ from AWS_IAM_MARKER_KEY/VALUE, the
+                # dispatcher won't fire and this ValueError won't raise.
+            }
+        )

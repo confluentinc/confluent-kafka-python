@@ -54,6 +54,7 @@ __all__ = ["create_handler", "OAuthBearerCallback"]
 
 OAuthBearerCallback = Callable[[str], Tuple[str, float, str, Dict[str, str]]]
 
+
 def create_handler(
     sasl_oauthbearer_config: str,
     sasl_oauthbearer_extensions: Optional[str],

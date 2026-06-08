@@ -20,7 +20,6 @@ import pytest
 
 from confluent_kafka.oauthbearer.aws._aws_jwt_subject_extractor import extract_sub
 
-
 # ---- Test helpers ----
 
 
@@ -102,10 +101,7 @@ def test_extract_sub_assumed_role_arn_returned():
 
 
 def test_extract_sub_other_claims_ignored():
-    jwt = _make_jwt(
-        '{"iss":"https://x","sub":"arn:aws:iam::1:role/R",'
-        '"aud":"a","exp":1,"iat":0,"jti":"j"}'
-    )
+    jwt = _make_jwt('{"iss":"https://x","sub":"arn:aws:iam::1:role/R",' '"aud":"a","exp":1,"iat":0,"jti":"j"}')
     assert extract_sub(jwt) == "arn:aws:iam::1:role/R"
 
 
@@ -127,7 +123,6 @@ def test_extract_sub_padded_base64url_also_works():
     header = _base64url_encode(b'{"alg":"none"}')
     # Encode WITHOUT stripping padding.
     payload = base64.b64encode(b'{"sub":"abc"}').decode("ascii").replace("+", "-").replace("/", "_")
-    jwt = f"{header}.{payload}."
     jwt_3seg = f"{header}.{payload}.sig"
     assert extract_sub(jwt_3seg) == "abc"
 
@@ -140,11 +135,14 @@ def test_extract_sub_url_safe_chars_handled():
     assert extract_sub(jwt) == "x"
 
 
-@pytest.mark.parametrize("payload_json,expected_sub", [
-    ('{"sub":"a"}', "a"),     # → encoded length % 4 = 3 (one '=' padded)
-    ('{"sub":"ab"}', "ab"),   # → encoded length % 4 = 0 (no padding)
-    ('{"sub":"abc"}', "abc"),  # → encoded length % 4 = 2 (two '==' padded)
-])
+@pytest.mark.parametrize(
+    "payload_json,expected_sub",
+    [
+        ('{"sub":"a"}', "a"),  # → encoded length % 4 = 3 (one '=' padded)
+        ('{"sub":"ab"}', "ab"),  # → encoded length % 4 = 0 (no padding)
+        ('{"sub":"abc"}', "abc"),  # → encoded length % 4 = 2 (two '==' padded)
+    ],
+)
 def test_extract_sub_padding_branches_all_hit_decodes_correctly(payload_json, expected_sub):
     """Explicit per-branch coverage of the % 4 padding switch."""
     assert extract_sub(_make_jwt(payload_json)) == expected_sub

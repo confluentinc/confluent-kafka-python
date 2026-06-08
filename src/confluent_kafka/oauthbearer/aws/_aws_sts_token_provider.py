@@ -22,7 +22,6 @@ import boto3
 from . import _aws_jwt_subject_extractor
 from ._aws_oauthbearer_config import (
     AWS_DEBUG_CONSOLE,
-    AWS_DEBUG_NONE,
     AwsOAuthBearerConfig,
 )
 
@@ -110,23 +109,17 @@ class AwsStsTokenProvider:
             "DurationSeconds": self._cfg.duration_seconds,
         }
         if self._cfg.tags:
-            request_kwargs["Tags"] = [
-                {"Key": k, "Value": v} for k, v in self._cfg.tags.items()
-            ]
+            request_kwargs["Tags"] = [{"Key": k, "Value": v} for k, v in self._cfg.tags.items()]
 
         response = self._sts.get_web_identity_token(**request_kwargs)
 
         jwt = response.get("WebIdentityToken")
         if not isinstance(jwt, str) or not jwt:
-            raise ValueError(
-                "STS response missing WebIdentityToken; cannot mint OAUTHBEARER token."
-            )
+            raise ValueError("STS response missing WebIdentityToken; cannot mint OAUTHBEARER token.")
 
         expiration = response.get("Expiration")
         if expiration is None:
-            raise ValueError(
-                "STS response missing Expiration; cannot compute token lifetime."
-            )
+            raise ValueError("STS response missing Expiration; cannot compute token lifetime.")
         # boto3 normalises the timestamp to a tz-aware UTC datetime;
         # .timestamp() returns epoch seconds as a float.
         expiry_epoch_seconds = expiration.timestamp()
