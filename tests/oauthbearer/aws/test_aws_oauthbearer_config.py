@@ -118,7 +118,7 @@ def test_parse_disallowed_signing_algorithm_raises(alg):
         AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a signing_algorithm={alg}")
 
 
-# ---- aws_debug (Python subset: none/console only) ----
+# ---- aws_debug (none/console only) ----
 
 
 def test_parse_no_aws_debug_defaults_to_none():
@@ -151,15 +151,11 @@ def test_parse_aws_debug_case_insensitive_accepted(value, expected):
     assert cfg.aws_debug == expected
 
 
-@pytest.mark.parametrize("value", ["log4net", "systemdiagnostics", "Log4Net", "SystemDiagnostics"])
-def test_parse_aws_debug_dotnet_only_values_rejected_with_clear_message(value):
-    """log4net / systemdiagnostics are .NET sinks; Python rejects with a
-    platform-clarity message so cross-language users see the constraint."""
-    with pytest.raises(ValueError, match="not supported on this platform"):
-        AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a aws_debug={value}")
-
-
-@pytest.mark.parametrize("value", ["verbose", "etw", "debug", "true", "foo"])
+# Every unsupported aws_debug value is rejected with the same uniform error.
+@pytest.mark.parametrize(
+    "value",
+    ["verbose", "etw", "debug", "true", "foo", "log4net", "systemdiagnostics", "Log4Net", "SystemDiagnostics"],
+)
 def test_parse_aws_debug_invalid_value_raises(value):
     with pytest.raises(ValueError, match="aws_debug.*none, console"):
         AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a aws_debug={value}")

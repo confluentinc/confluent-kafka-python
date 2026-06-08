@@ -22,7 +22,7 @@ The full grammar (whitespace-separated ``key=value`` pairs, no quoting):
     signing_algorithm=ES384|RS256  (default: ES384)
     sts_endpoint=<url>             (optional, FIPS / VPC)
     principal_name=<value>         (optional, override JWT 'sub')
-    aws_debug=none|console         (default: none, Pythonic subset)
+    aws_debug=none|console         (default: none)
     tag_<name>=<value>             (zero or more JWT custom claims, max 50)
 
 SASL extensions arrive separately via :data:`sasl_extensions` (parsed from
@@ -48,7 +48,6 @@ __all__ = [
     "AWS_DEBUG_NONE",
     "AWS_DEBUG_CONSOLE",
     "ALLOWED_AWS_DEBUG_VALUES",
-    "NET_ONLY_AWS_DEBUG_VALUES",
     "AwsOAuthBearerConfig",
 ]
 
@@ -77,11 +76,8 @@ MAX_TAGS: int = 50
 AWS_DEBUG_NONE: str = "none"
 AWS_DEBUG_CONSOLE: str = "console"
 
-#: ``aws_debug`` values accepted by the Python client.
+#: ``aws_debug`` values accepted by the Python client: ``none`` and ``console``.
 ALLOWED_AWS_DEBUG_VALUES = (AWS_DEBUG_NONE, AWS_DEBUG_CONSOLE)
-
-#: ``aws_debug`` values that exist in .NET but are not supported in Python.
-NET_ONLY_AWS_DEBUG_VALUES = ("log4net", "systemdiagnostics")
 
 
 # Recognised non-tag keys for the wire grammar. Anything else (other than
@@ -149,14 +145,7 @@ class AwsOAuthBearerConfig:
         if self.principal_name is not None and self.principal_name == "":
             raise ValueError(f"{CONFIG_KEY} 'principal_name' must not be empty.")
         if self.aws_debug not in ALLOWED_AWS_DEBUG_VALUES:
-            if self.aws_debug in NET_ONLY_AWS_DEBUG_VALUES:
-                raise ValueError(
-                    f"{CONFIG_KEY} 'aws_debug={self.aws_debug}' is not "
-                    f"supported on this platform. The Python client supports "
-                    f"{list(ALLOWED_AWS_DEBUG_VALUES)} only; "
-                    f"'log4net' and 'systemdiagnostics' are .NET-only sinks."
-                )
-            raise ValueError(f"{CONFIG_KEY} 'aws_debug' must be one of: " f"none, console. Got {self.aws_debug!r}.")
+            raise ValueError(f"{CONFIG_KEY} 'aws_debug' must be one of: none, console. Got {self.aws_debug!r}.")
         if self.tags is not None:
             if not isinstance(self.tags, dict):
                 raise ValueError(f"{CONFIG_KEY} 'tags' must be a dict.")
@@ -222,9 +211,8 @@ class AwsOAuthBearerConfig:
             elif key == "principal_name":
                 principal_name = value
             elif key == "aws_debug":
-                # Normalize case (matches .NET's case-insensitive parsing) so
-                # downstream comparisons against ALLOWED_AWS_DEBUG_VALUES are
-                # straightforward.
+                # Normalize case so downstream comparisons against
+                # ALLOWED_AWS_DEBUG_VALUES are straightforward.
                 aws_debug = value.lower()
             elif key.startswith(TAG_KEY_PREFIX):
                 tag_name = key[len(TAG_KEY_PREFIX) :]

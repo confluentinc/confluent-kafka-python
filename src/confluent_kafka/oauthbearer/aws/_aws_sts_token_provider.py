@@ -112,9 +112,8 @@ class AwsStsTokenProvider:
     def _apply_aws_debug(aws_debug: str) -> None:
         """Apply the ``aws_debug`` side-effect to botocore's logger.
 
-        Process-wide effect, intentionally — mirrors .NET's
-        ``AWSConfigs.LoggingConfig.LogTo`` behaviour. When the user opts in
-        with ``aws_debug=console``, every boto3 client in the process gets
+        Process-wide effect, intentionally. When the user opts in with
+        ``aws_debug=console``, every boto3 client in the process gets
         DEBUG-level stderr logs. ``aws_debug=none`` is a no-op so any
         logging the user has configured elsewhere is preserved.
         """

@@ -91,9 +91,9 @@ def test_create_handler_invalid_extensions_grammar_raises():
         )
 
 
-def test_create_handler_aws_debug_dotnet_only_value_raises_with_platform_hint():
-    """log4net / systemdiagnostics are .NET-only sinks; surface that clearly."""
-    with pytest.raises(ValueError, match="not supported on this platform"):
+def test_create_handler_aws_debug_invalid_value_raises():
+    """An unsupported aws_debug value is rejected — the client accepts none/console only."""
+    with pytest.raises(ValueError, match="aws_debug.*none, console"):
         create_handler(
             "region=us-east-1 audience=https://a aws_debug=log4net",
             None,
