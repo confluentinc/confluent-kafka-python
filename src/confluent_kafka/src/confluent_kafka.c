@@ -1103,8 +1103,8 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
         else
                 self->latency = -1;
 
-        /* Share consumer: 0 from librdkafka means unavailable; store as -1
-         * so the Python accessor returns None for non-share consumers. */
+        /* librdkafka returns 0 when delivery count is unavailable (e.g.
+         * non-share consumers); map to -1 so Python sees None. */
         int16_t delivery_count = rd_kafka_message_delivery_count(rkm);
         self->delivery_count   = delivery_count > 0 ? delivery_count : -1;
 
@@ -1595,10 +1595,8 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 }
 
 /**
- * @brief Convert a per-partition commit result list into a Python
- * dict(TopicPartition -> KafkaError | None).
- *
- * @returns The new Python dict, or NULL on allocation failure.
+ * @brief Convert per-partition commit results to a Python
+ *        dict(TopicPartition -> KafkaError | None).
  */
 PyObject *c_parts_to_dict_topic_partition_to_error(
     const rd_kafka_topic_partition_list_t *c_parts) {
@@ -2062,6 +2060,12 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         PyObject *eo, *result;
         CallState *cs;
 
+        /* error_cb only runs while a thread is draining rk_rep with
+         * callbacks, and every such drain — poll, commit, and the
+         * consumer-close inside dealloc and the constructors' failure
+         * paths — is wrapped in CallState_begin/end (see ShareConsumer.c
+         * and Consumer.c). So a CallState is always present on this thread;
+         * CallState_get() relocks the GIL via the saved thread state. */
         cs = CallState_get(h);
 
         /* If the client raised a fatal error we'll raise an exception
@@ -2088,7 +2092,8 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 CallState_fetch_exception(cs);
         crash:
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                /* Use the callback's rk: h->rk is NULL on a share consumer. */
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2154,7 +2159,8 @@ static void throttle_cb(rd_kafka_t *rk,
          */
 err:
         CallState_crash(cs);
-        rd_kafka_yield(h->rk);
+        /* Use callback's rk — h->rk is NULL on share consumer. */
+        rd_kafka_yield(rk);
 done:
         CallState_resume(cs);
 }
@@ -2179,7 +2185,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2214,7 +2220,7 @@ log_cb(const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield(rk);
         }
 
         CallState_resume(cs);
@@ -2307,16 +2313,13 @@ int wait_for_oauth_token_set(Handle *h) {
         }
 
         if (!h->oauth_token_set) {
-                /* Token not set within timeout */
+                /* Token timeout. Don't tear down here — each _init knows
+                 * whether to call rd_kafka_destroy() or
+                 * rd_kafka_share_destroy() for what it allocated. */
                 cfl_PyErr_Format(
                     RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
                     "OAuth token not set within %d seconds timeout",
                     max_wait_sec);
-                CallState cs;
-                CallState_begin(h, &cs);
-                rd_kafka_destroy(h->rk);
-                h->rk = NULL;
-                CallState_end(h, &cs);
                 return -1;
         }
         return 0;
@@ -2379,7 +2382,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
-            h->rk, token, (int64_t)(expiry * 1000), principal,
+            rk, token, (int64_t)(expiry * 1000), principal,
             (const char **)rd_extensions, rd_extensions_size, err_msg,
             sizeof(err_msg));
         Py_DECREF(result);
@@ -2399,8 +2402,9 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         goto done;
 
 fail:
+        /* h->rk is NULL on share consumer; use the callback's rk. */
         err_code = rd_kafka_oauthbearer_set_token_failure(
-            h->rk, "OAuth callback raised exception");
+            rk, "OAuth callback raised exception");
         if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Failed to set token failure");
@@ -2410,7 +2414,8 @@ fail:
         goto done;
 err:
         PyGILState_Release(gstate);
-        rd_kafka_yield(h->rk);
+        rd_kafka_yield(rk);
+        return;
 done:
         PyGILState_Release(gstate);
 }
@@ -2451,6 +2456,11 @@ void Handle_clear(Handle *h) {
                 h->logger = NULL;
         }
 
+        if (h->oauth_cb) {
+                Py_DECREF(h->oauth_cb);
+                h->oauth_cb = NULL;
+        }
+
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);
@@ -2472,6 +2482,12 @@ int Handle_traverse(Handle *h, visitproc visit, void *arg) {
 
         if (h->stats_cb)
                 Py_VISIT(h->stats_cb);
+
+        if (h->oauth_cb)
+                Py_VISIT(h->oauth_cb);
+
+        if (h->logger)
+                Py_VISIT(h->logger);
 
         return 0;
 }

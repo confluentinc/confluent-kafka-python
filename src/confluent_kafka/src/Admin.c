@@ -553,11 +553,11 @@ Admin_config_dict_to_c(void *c_obj, PyObject *dict, const char *op_name) {
 static PyObject *
 Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *topics = NULL, *future, *validate_only_obj = NULL;
-        static char *kws[]                 = {"topics", "future",
-                                              /* options */
-                                              "validate_only", "request_timeout",
-                                              "operation_timeout", NULL};
-        struct Admin_options options       = Admin_options_INITIALIZER;
+        static char *kws[]           = {"topics", "future",
+                                        /* options */
+                                        "validate_only", "request_timeout",
+                                        "operation_timeout", NULL};
+        struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         int tcnt;
         int i;
@@ -702,10 +702,10 @@ err:
  */
 static PyObject *
 Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *topics                   = NULL, *future;
-        static char *kws[]                 = {"topics", "future",
-                                              /* options */
-                                              "request_timeout", "operation_timeout", NULL};
+        PyObject *topics   = NULL, *future;
+        static char *kws[] = {"topics", "future",
+                              /* options */
+                              "request_timeout", "operation_timeout", NULL};
         struct Admin_options options       = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         int tcnt;
@@ -807,11 +807,11 @@ err:
 static PyObject *
 Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *topics = NULL, *future, *validate_only_obj = NULL;
-        static char *kws[]                 = {"topics", "future",
-                                              /* options */
-                                              "validate_only", "request_timeout",
-                                              "operation_timeout", NULL};
-        struct Admin_options options       = Admin_options_INITIALIZER;
+        static char *kws[]           = {"topics", "future",
+                                        /* options */
+                                        "validate_only", "request_timeout",
+                                        "operation_timeout", NULL};
+        struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         int tcnt;
         int i;
@@ -934,10 +934,10 @@ err:
 static PyObject *
 Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *resources, *future;
-        static char *kws[]                 = {"resources", "future",
-                                              /* options */
-                                              "request_timeout", "broker", NULL};
-        struct Admin_options options       = Admin_options_INITIALIZER;
+        static char *kws[]           = {"resources", "future",
+                                        /* options */
+                                        "request_timeout", "broker", NULL};
+        struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         PyObject *ConfigResource_type;
         int cnt, i;
@@ -1064,11 +1064,11 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
                                                  PyObject *args,
                                                  PyObject *kwargs) {
         PyObject *resources, *future;
-        PyObject *validate_only_obj        = NULL;
-        static char *kws[]                 = {"resources", "future",
-                                              /* options */
-                                              "validate_only", "request_timeout", "broker",
-                                              NULL};
+        PyObject *validate_only_obj = NULL;
+        static char *kws[] = {"resources", "future",
+                              /* options */
+                              "validate_only", "request_timeout", "broker",
+                              NULL};
         struct Admin_options options       = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         PyObject *ConfigResource_type, *ConfigEntry_type;
@@ -1232,11 +1232,11 @@ err:
 static PyObject *
 Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *resources, *future;
-        PyObject *validate_only_obj        = NULL;
-        static char *kws[]                 = {"resources", "future",
-                                              /* options */
-                                              "validate_only", "request_timeout", "broker",
-                                              NULL};
+        PyObject *validate_only_obj = NULL;
+        static char *kws[] = {"resources", "future",
+                              /* options */
+                              "validate_only", "request_timeout", "broker",
+                              NULL};
         struct Admin_options options       = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         PyObject *ConfigResource_type;
@@ -3696,8 +3696,8 @@ Admin_c_ConfigEntries_to_py(PyObject *ConfigEntry_type,
                                   rd_kafka_ConfigEntry_is_synonym(ent));
 
                 c_synonyms = rd_kafka_ConfigEntry_synonyms(ent, &synonym_cnt);
-                synonyms   = Admin_c_ConfigEntries_to_py(ConfigEntry_type,
-                                                         c_synonyms, synonym_cnt);
+                synonyms = Admin_c_ConfigEntries_to_py(ConfigEntry_type,
+                                                       c_synonyms, synonym_cnt);
                 if (!synonyms) {
                         Py_DECREF(kwargs);
                         Py_DECREF(dict);
@@ -5537,10 +5537,20 @@ static int Admin_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 rd_kafka_set_log_queue(self->rk, NULL);
 
 
-        /* Wait for the background thread to set the token */
-        if (self->oauth_cb) {
-                return wait_for_oauth_token_set(self);
+        /* Wait for the background thread to set the token. Caller owns
+         * destroy on failure — wait_for_oauth_token_set no longer touches
+         * self->rk (see refactor note in confluent_kafka.c). */
+        int ret_wait_oauth = wait_for_oauth_token_set(self);
+        if (ret_wait_oauth == -1) {
+                CallState cs;
+                CallState_begin(self, &cs);
+                rd_kafka_destroy(self->rk);
+                CallState_end(self, &cs);
+                self->rk = NULL;
         }
+
+        if (self->oauth_cb)
+                return ret_wait_oauth;
 
         return 0;
 }
