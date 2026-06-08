@@ -34,7 +34,11 @@ if __name__ == '__main__':
 
     # Producer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-    conf = {'bootstrap.servers': broker}
+    conf = {
+        'bootstrap.servers': broker,
+        'client.id': 'py-producer',
+        'enable.metrics.push': True,
+    }
 
     # Create Producer instance
     p = Producer(**conf)
