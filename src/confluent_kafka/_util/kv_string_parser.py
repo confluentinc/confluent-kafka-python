@@ -74,8 +74,6 @@ def parse_kv(
         idx = token.find("=")
         if idx <= 0:
             what = f"'{context_label}'" if context_label else "key=value"
-            raise ValueError(
-                f"Malformed {what} entry '{token}' (expected key=value)."
-            )
+            raise ValueError(f"Malformed {what} entry '{token}' (expected key=value).")
 
-        yield token[:idx], token[idx + 1:]
+        yield token[:idx], token[idx + 1 :]
