@@ -1,0 +1,59 @@
+# Slim, demo-only Kafka + Schema Registry stack (KRaft mode — no ZooKeeper).
+# Plain HTTP, no TLS, no auth: optimized for a low-friction live demo, NOT production.
+#
+#   docker compose -f examples/sr_demo/docker-compose.demo.yaml up -d
+#   curl -s localhost:8081/subjects        # -> []   (registry is up and empty)
+#   docker compose -f examples/sr_demo/docker-compose.demo.yaml down -v
+#
+# Clients connect with:  bootstrap.servers=localhost:9092  and  url=http://localhost:8081
+#
+# Uses :latest images as requested. Pin to a fixed tag (e.g. :7.9.0) for reproducibility.
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    hostname: kafka
+    container_name: sr-demo-kafka
+    ports:
+      - "9092:9092"            # host access for clients (bootstrap.servers=localhost:9092)
+    environment:
+      # --- KRaft: single node acting as both broker and controller (no ZooKeeper) ---
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk   # any 22-char base64 UUID; formats storage on first boot
+      # --- Listeners: internal (for Schema Registry), controller, and host access ---
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # --- Single-node replication factors (defaults assume a 3-node cluster) ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # --- KIP-932 share groups (off by default): add the 'share' rebalance
+      #     protocol and size the share-coordinator state topic for single node ---
+      KAFKA_GROUP_COORDINATOR_REBALANCE_PROTOCOLS: classic,consumer,share
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    hostname: schema-registry
+    container_name: sr-demo-schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy   # wait until the broker actually answers, not just "started"
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
