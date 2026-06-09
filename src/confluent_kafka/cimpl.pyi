@@ -35,7 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, FrozenSet, List, Literal, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union, overload
 
 try:
     from typing import Self
@@ -53,7 +53,7 @@ DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
 # (offsets, exception) — note the order is offsets-first, opposite of on_commit.
 AcknowledgementCommitCallback = Callable[
-    [Dict['TopicPartition', FrozenSet[int]], Optional['KafkaException']], None
+    [Dict['TopicPartition', Set[int]], Optional['KafkaException']], None
 ]
 
 # ===== CLASSES (Manual - stubgen missed these) =====

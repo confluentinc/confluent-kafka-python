@@ -1636,7 +1636,7 @@ err:
 
 /**
  * @brief Convert a share-consumer per-partition acknowledged-offsets list into
- *        a Python dict(TopicPartition -> frozenset(int)).
+ *        a Python dict(TopicPartition -> set(int)).
  *
  * @returns The new Python dict, or NULL on allocation failure with an
  *          exception set.
@@ -1694,7 +1694,7 @@ PyObject *c_share_partition_offsets_list_to_py_dict(
                 if (!partition_key)
                         goto err;
 
-                offset_set = PyFrozenSet_New(NULL);
+                offset_set = PySet_New(NULL);
                 if (!offset_set)
                         goto err;
 

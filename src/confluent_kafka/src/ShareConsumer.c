@@ -589,17 +589,18 @@ static void ShareConsumer_acknowledgement_commit_cb(
         PyObject *exception = NULL;
         PyObject *args      = NULL;
         PyObject *result    = NULL;
-        PyObject *cb;
+        PyObject *cb        = NULL;
         CallState *cs;
 
         /* Own a ref to the callback for the whole call: the user callback (or
-         * a finalizer) can clear or replace the registration mid-flight. */
+         * a finalizer) can clear or replace the registration mid-flight.
+         * INCREF only after CallState_get reacquires the GIL. */
         cb = self->u.ShareConsumer.on_share_acknowledgement_commit;
         if (!cb)
                 return;
-        Py_INCREF(cb);
 
         cs = CallState_get(self);
+        Py_INCREF(cb);
 
         offsets = partitions
                       ? c_share_partition_offsets_list_to_py_dict(partitions)
@@ -608,6 +609,8 @@ static void ShareConsumer_acknowledgement_commit_cb(
                 goto crash;
 
         if (err) {
+                /* Passing NULL for the message makes KafkaError use err's
+                 * default string. */
                 PyObject *kafka_error = KafkaError_new_or_None(err, NULL);
                 exception = PyObject_CallFunctionObjArgs(KafkaException,
                                                          kafka_error, NULL);
@@ -643,7 +646,7 @@ crash:
         rd_kafka_yield(NULL);
 
 done:
-        Py_DECREF(cb);
+        Py_XDECREF(cb);
         Py_XDECREF(offsets);
         Py_XDECREF(exception);
         Py_XDECREF(args);
@@ -686,6 +689,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
             callback == Py_None ? NULL
                                 : ShareConsumer_acknowledgement_commit_cb,
             &self->base);
+
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
                 return NULL;
@@ -956,7 +960,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"
      "  :param callback: A callable\n"
      "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
-     "      ``Dict[TopicPartition, frozenset[int]]`` of acknowledged offsets\n"
+     "      ``Dict[TopicPartition, set[int]]`` of acknowledged offsets\n"
      "      per partition and ``exception`` is a :py:class:`KafkaException`\n"
      "      on failure or ``None`` on success. Pass ``None`` to clear the\n"
      "      currently registered callback.\n"
