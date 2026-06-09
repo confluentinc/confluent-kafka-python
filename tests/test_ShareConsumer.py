@@ -266,11 +266,14 @@ def test_subscribe_with_non_list_raises(share_consumer):
         share_consumer.subscribe(None)
 
 
-def test_subscribe_with_empty_list_raises(share_consumer):
-    """librdkafka rejects an empty subscription with _INVALID_ARG."""
-    with pytest.raises(KafkaException) as exc_info:
-        share_consumer.subscribe([])
-    assert exc_info.value.args[0].code() == KafkaError._INVALID_ARG
+def test_subscribe_with_empty_list_unsubscribes(share_consumer):
+    """subscribe([]) is equivalent to unsubscribe(): an empty topic list
+    clears the current subscription instead of raising."""
+    share_consumer.subscribe(['test-topic'])
+    assert share_consumer.subscription() == ['test-topic']
+
+    share_consumer.subscribe([])  # no exception
+    assert share_consumer.subscription() == []
 
 
 def test_poll_with_non_numeric_timeout_raises(share_consumer):

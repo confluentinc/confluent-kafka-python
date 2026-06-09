@@ -35,7 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, FrozenSet, List, Literal, Optional, Tuple, Union, overload
 
 try:
     from typing import Self
@@ -51,6 +51,10 @@ from ._types import HeadersType
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
+# (offsets, exception) — note the order is offsets-first, opposite of on_commit.
+AcknowledgementCommitCallback = Callable[
+    [Dict['TopicPartition', FrozenSet[int]], Optional['KafkaException']], None
+]
 
 # ===== CLASSES (Manual - stubgen missed these) =====
 
@@ -574,22 +578,23 @@ class ShareConsumer:
     def subscribe(self, topics: List[str]) -> None: ...
     def unsubscribe(self) -> None: ...
     def subscription(self) -> List[str]: ...
-    # TODO KIP-932: poll() returns List[Message] today. Java returns a
-    # dedicated container object (ConsumerRecords) instead of a list so it
-    # can carry extra metadata alongside the records. Replace List[Message]
-    # with a Messages container class once we have a clear use for that
-    # metadata in Python.
+    # TODO KIP-932: poll() returns List[Message] today. Replace it with a
+    # Messages container class once we have a clear use for carrying extra
+    # metadata alongside the records.
     def poll(self, timeout: float = -1) -> List[Message]: ...
     def acknowledge(self, message: Message, ack_type: AcknowledgeType = ...) -> None: ...
     def acknowledge_offset(
         self, topic: str, partition: int, offset: int, ack_type: AcknowledgeType = ...
     ) -> None: ...
-    # TODO KIP-932: Java's share-consumer commit returns a map keyed by
-    # TopicIdPartition (topic name + topic UUID + partition). Python uses
-    # the existing TopicPartition (no UUID) for now. Add a TopicIdPartition
-    # class once the interface is finalized.
+    # TODO KIP-932: commit_sync() is keyed by the existing TopicPartition
+    # (no UUID) for now. A future TopicIdPartition (topic name + topic UUID
+    # + partition) would carry the UUID; add that class once the interface
+    # is finalized.
     def commit_sync(self, timeout: float = 60) -> Dict[TopicPartition, Optional[KafkaError]]: ...
     def commit_async(self) -> None: ...
+    def set_acknowledgement_commit_callback(
+        self, callback: Optional[AcknowledgementCommitCallback]
+    ) -> None: ...
     def close(self) -> None: ...
     def __enter__(self) -> "ShareConsumer": ...
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...

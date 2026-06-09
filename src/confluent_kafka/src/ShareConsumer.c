@@ -63,6 +63,13 @@ static void ShareConsumer_clear0(ShareConsumerHandle *self) {
                 Py_DECREF(self->base.u.Consumer.on_commit);
                 self->base.u.Consumer.on_commit = NULL;
         }
+
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit) {
+                Py_DECREF(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    NULL;
+        }
 }
 
 static int ShareConsumer_clear(ShareConsumerHandle *self) {
@@ -102,6 +109,9 @@ ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
          * at config time (see ShareConsumer_clear0). */
         if (self->base.u.Consumer.on_commit)
                 Py_VISIT(self->base.u.Consumer.on_commit);
+        if (self->base.u.ShareConsumer.on_share_acknowledgement_commit)
+                Py_VISIT(
+                    self->base.u.ShareConsumer.on_share_acknowledgement_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -591,6 +601,141 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 
 
 /**
+ * @brief Trampoline for the share-consumer acknowledgement-commit callback.
+ */
+static void ShareConsumer_acknowledgement_commit_cb(
+    rd_kafka_share_t *rkshare,
+    rd_kafka_share_partition_offsets_list_t *partitions,
+    rd_kafka_resp_err_t err,
+    void *opaque) {
+        Handle *self        = opaque;
+        PyObject *offsets   = NULL;
+        PyObject *exception = NULL;
+        PyObject *args      = NULL;
+        PyObject *result    = NULL;
+        PyObject *cb;
+        CallState *cs;
+
+        /* Own a ref to the callback for the whole call: the user callback (or
+         * a finalizer) can clear or replace the registration mid-flight. */
+        cb = self->u.ShareConsumer.on_share_acknowledgement_commit;
+        if (!cb)
+                return;
+        Py_INCREF(cb);
+
+        cs = CallState_get(self);
+
+        offsets = partitions
+                      ? c_share_partition_offsets_list_to_py_dict(partitions)
+                      : PyDict_New();
+        if (!offsets)
+                goto crash;
+
+        if (err) {
+                PyObject *kafka_error = KafkaError_new_or_None(err, NULL);
+                exception = PyObject_CallFunctionObjArgs(KafkaException,
+                                                         kafka_error, NULL);
+                Py_DECREF(kafka_error);
+                if (!exception)
+                        goto crash;
+        } else {
+                Py_INCREF(Py_None);
+                exception = Py_None;
+        }
+
+        args = Py_BuildValue("(OO)", offsets, exception);
+        if (!args) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                 "Unable to build callback args");
+                goto crash;
+        }
+
+        result = PyObject_CallObject(cb, args);
+        if (!result)
+                goto crash;
+
+        goto done;
+
+crash:
+        CallState_fetch_exception(cs);
+        CallState_crash(cs);
+        /* NULL is fine: rd_kafka_yield() only sets a thread-local flag and
+         * never reads the handle. We couldn't pass the real rk
+         * since rd_kafka_share_t keeps its rd_kafka_t private.
+         * TODO KIP-932: pass the real handle once a
+         * share -> rd_kafka_t accessor exists. */
+        rd_kafka_yield(NULL);
+
+done:
+        Py_DECREF(cb);
+        Py_XDECREF(offsets);
+        Py_XDECREF(exception);
+        Py_XDECREF(args);
+        Py_XDECREF(result);
+        CallState_resume(cs);
+}
+
+
+/**
+ * @brief Set or clear the acknowledgement-commit callback at runtime.
+ *
+ * Pass None to clear.
+ */
+static PyObject *
+ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
+                                                  PyObject *args,
+                                                  PyObject *kwargs) {
+        PyObject *callback = NULL;
+        PyObject *old;
+        rd_kafka_error_t *error;
+        static char *kws[] = {"callback", NULL};
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &callback))
+                return NULL;
+
+        if (callback != Py_None && !PyCallable_Check(callback)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "callback must be callable or None");
+                return NULL;
+        }
+
+        error = rd_kafka_share_set_acknowledgement_commit_cb(
+            self->rkshare,
+            callback == Py_None ? NULL
+                                : ShareConsumer_acknowledgement_commit_cb,
+            &self->base);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        /* Swap the stashed PyObject only after librdkafka accepts the
+         * registration so a failed registration leaves the prior callback
+         * intact. Store the new value before dropping the old ref: releasing
+         * the old callback may run a finalizer, and GC traverse must not see
+         * the field pointing at a freed object. */
+        old = self->base.u.ShareConsumer.on_share_acknowledgement_commit;
+        if (callback == Py_None) {
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    NULL;
+        } else {
+                Py_INCREF(callback);
+                self->base.u.ShareConsumer.on_share_acknowledgement_commit =
+                    callback;
+        }
+        Py_XDECREF(old);
+
+        Py_RETURN_NONE;
+}
+
+
+/**
  * @brief Close the share consumer.
  */
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
@@ -802,13 +947,38 @@ static PyMethodDef ShareConsumer_methods[] = {
      ".. py:function:: commit_async()\n"
      "\n"
      "  Asynchronously commit pending acknowledgements. Returns immediately;\n"
-     "  broker results are delivered via the configured\n"
-     "  ``share_acknowledgement_commit_cb`` callback.\n"
+     "  broker results are delivered to the callback registered via\n"
+     "  :py:func:`set_acknowledgement_commit_callback`, if any.\n"
      "\n"
      "  :returns: None\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises TypeError: if any arguments are passed\n"
+     "\n"},
+
+    {"set_acknowledgement_commit_callback",
+     (PyCFunction)ShareConsumer_set_acknowledgement_commit_callback,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: set_acknowledgement_commit_callback(callback)\n"
+     "\n"
+     "  Register a callback invoked with the acknowledged offsets once the\n"
+     "  broker responds to an acknowledgement commit. It is always dispatched\n"
+     "  on the application thread, from within whichever consumer call is\n"
+     "  serving the response queue (:py:func:`poll`, :py:func:`commit_sync`,\n"
+     "  or :py:func:`close`), never from a background thread. Results of\n"
+     "  :py:func:`commit_async` are delivered on a subsequent such call.\n"
+     "\n"
+     "  :param callback: A callable\n"
+     "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
+     "      ``Dict[TopicPartition, frozenset[int]]`` of acknowledged offsets\n"
+     "      per partition and ``exception`` is a :py:class:`KafkaException`\n"
+     "      on failure or ``None`` on success. Pass ``None`` to clear the\n"
+     "      currently registered callback.\n"
+     "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
+     "  :raises KafkaException: with ``_STATE`` if called from within the\n"
+     "      acknowledgement-commit callback. This applies to every\n"
+     "      ShareConsumer method.\n"
+     "  :raises RuntimeError: if called on a closed share consumer.\n"
      "\n"},
 
     {"close", (PyCFunction)ShareConsumer_close, METH_NOARGS,
