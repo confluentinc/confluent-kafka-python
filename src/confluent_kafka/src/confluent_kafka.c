@@ -1642,7 +1642,7 @@ err:
  *          exception set.
  */
 PyObject *c_share_partition_offsets_list_to_py_dict(
-    const rd_kafka_share_partition_offsets_list_t *list) {
+    const rd_kafka_share_partition_offsets_list_t *partition_offsets_list) {
         PyObject *result        = NULL;
         PyObject *partition_key = NULL;
         PyObject *offset_set    = NULL;
@@ -1655,15 +1655,16 @@ PyObject *c_share_partition_offsets_list_to_py_dict(
 
         /* The only caller already rules out a NULL list, but don't rely on
          * that here: just hand back the empty dict. */
-        if (!list)
+        if (!partition_offsets_list)
                 return result;
 
-        partition_count = rd_kafka_share_partition_offsets_list_count(list);
+        partition_count =
+            rd_kafka_share_partition_offsets_list_count(partition_offsets_list);
         for (partition_index = 0; partition_index < partition_count;
              partition_index++) {
-                const rd_kafka_share_partition_offsets_t *entry =
-                    rd_kafka_share_partition_offsets_list_get(list,
-                                                              partition_index);
+                const rd_kafka_share_partition_offsets_t *partition_offsets =
+                    rd_kafka_share_partition_offsets_list_get(
+                        partition_offsets_list, partition_index);
                 const rd_kafka_topic_partition_t *rktpar;
                 const int64_t *offsets;
                 size_t offsets_count;
@@ -1672,16 +1673,18 @@ PyObject *c_share_partition_offsets_list_to_py_dict(
                 /* The accessors below and c_part_to_py() both deref their
                  * argument without a NULL check, so skip a bad entry
                  * instead of segfaulting on it. */
-                if (!entry)
+                if (!partition_offsets)
                         continue;
 
-                rktpar = rd_kafka_share_partition_offsets_partition(entry);
+                rktpar = rd_kafka_share_partition_offsets_partition(
+                    partition_offsets);
                 if (!rktpar)
                         continue;
 
-                offsets = rd_kafka_share_partition_offsets_offsets(entry);
-                offsets_count =
-                    rd_kafka_share_partition_offsets_offsets_cnt(entry);
+                offsets =
+                    rd_kafka_share_partition_offsets_offsets(partition_offsets);
+                offsets_count = rd_kafka_share_partition_offsets_offsets_cnt(
+                    partition_offsets);
                 /* A NULL offsets array with a non-zero count would be a bug;
                  * clamp to 0 so we never deref it below. */
                 if (!offsets)

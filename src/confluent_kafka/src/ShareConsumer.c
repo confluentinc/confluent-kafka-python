@@ -613,10 +613,15 @@ static void ShareConsumer_acknowledgement_commit_cb(
         PyObject *exception = NULL;
         PyObject *args      = NULL;
         PyObject *result    = NULL;
+        PyObject *cb;
         CallState *cs;
 
-        if (!self->u.ShareConsumer.on_share_acknowledgement_commit)
+        /* Own a ref to the callback for the whole call: the user callback (or
+         * a finalizer) can clear or replace the registration mid-flight. */
+        cb = self->u.ShareConsumer.on_share_acknowledgement_commit;
+        if (!cb)
                 return;
+        Py_INCREF(cb);
 
         cs = CallState_get(self);
 
@@ -645,8 +650,7 @@ static void ShareConsumer_acknowledgement_commit_cb(
                 goto crash;
         }
 
-        result = PyObject_CallObject(
-            self->u.ShareConsumer.on_share_acknowledgement_commit, args);
+        result = PyObject_CallObject(cb, args);
         if (!result)
                 goto crash;
 
@@ -663,6 +667,7 @@ crash:
         rd_kafka_yield(NULL);
 
 done:
+        Py_DECREF(cb);
         Py_XDECREF(offsets);
         Py_XDECREF(exception);
         Py_XDECREF(args);
@@ -681,6 +686,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
                                                   PyObject *args,
                                                   PyObject *kwargs) {
         PyObject *callback = NULL;
+        PyObject *old;
         rd_kafka_error_t *error;
         static char *kws[] = {"callback", NULL};
 
@@ -711,8 +717,10 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
 
         /* Swap the stashed PyObject only after librdkafka accepts the
          * registration so a failed registration leaves the prior callback
-         * intact. */
-        Py_XDECREF(self->base.u.ShareConsumer.on_share_acknowledgement_commit);
+         * intact. Store the new value before dropping the old ref: releasing
+         * the old callback may run a finalizer, and GC traverse must not see
+         * the field pointing at a freed object. */
+        old = self->base.u.ShareConsumer.on_share_acknowledgement_commit;
         if (callback == Py_None) {
                 self->base.u.ShareConsumer.on_share_acknowledgement_commit =
                     NULL;
@@ -721,6 +729,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
                 self->base.u.ShareConsumer.on_share_acknowledgement_commit =
                     callback;
         }
+        Py_XDECREF(old);
 
         Py_RETURN_NONE;
 }

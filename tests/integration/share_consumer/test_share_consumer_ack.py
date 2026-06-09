@@ -1013,8 +1013,8 @@ def test_callback_fires_on_commit_sync(kafka_cluster):
 
 
 def test_callback_fires_during_close(kafka_cluster):
-    """close() drains pending share-ack ops, so unacked-at-close work still
-    surfaces through the cb with the offsets that were acked."""
+    """close() drains the inflight ack-commit, so the cb fires for the acked
+    offsets even though we never poll() after commit_async()."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-close')
     num_messages = 3
 
@@ -1186,10 +1186,7 @@ def test_callback_reentrancy_guard(kafka_cluster):
     finally:
         # Replace the reentrant cb before close so close()'s drain doesn't
         # re-trip the guards.
-        try:
-            sc.set_acknowledgement_commit_callback(None)
-        except Exception:
-            pass
+        sc.set_acknowledgement_commit_callback(None)
         sc.close()
 
 
@@ -1279,10 +1276,7 @@ def test_callback_exception_propagates_from_poll(kafka_cluster):
         assert raised is sentinel, f'expected sentinel ValueError, got {raised!r}'
     finally:
         # Replace the raising cb before close so close() doesn't fire it.
-        try:
-            sc.set_acknowledgement_commit_callback(None)
-        except Exception:
-            pass
+        sc.set_acknowledgement_commit_callback(None)
         sc.close()
 
 
