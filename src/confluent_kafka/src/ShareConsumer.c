@@ -48,25 +48,7 @@ typedef struct {
 } ShareConsumerHandle;
 
 
-static void ShareConsumer_clear0(ShareConsumerHandle *self) {
-        /* consumer_conf_set_special INCREFs on_commit into
-         * base.u.Consumer.on_commit for any consumer type, even though
-         * ShareConsumer never registers the offset commit trampoline so the
-         * callback can't fire. Match the INCREF with a DECREF here to avoid
-         * leaking the user's callback. Mirrors Consumer_clear0.
-         *
-         * TODO KIP-932: remove this DECREF dance once on_commit is rejected
-         * at config time (see ShareConsumer_init / common_conf_setup) and
-         * callbacks are properly modeled for share consumers. The reference
-         * shouldn't be acquired in the first place. */
-        if (self->base.u.Consumer.on_commit) {
-                Py_DECREF(self->base.u.Consumer.on_commit);
-                self->base.u.Consumer.on_commit = NULL;
-        }
-}
-
 static int ShareConsumer_clear(ShareConsumerHandle *self) {
-        ShareConsumer_clear0(self);
         Handle_clear(&self->base);
         return 0;
 }
@@ -74,20 +56,19 @@ static int ShareConsumer_clear(ShareConsumerHandle *self) {
 static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         PyObject_GC_UnTrack(self);
 
-        ShareConsumer_clear0(self);
-
         if (self->rkshare) {
                 CallState cs;
                 CallState_begin(&self->base, &cs);
                 /* TODO KIP-932: Use rd_kafka_share_destroy_flags() once
                  * available in the librdkafka public API. */
-                rd_kafka_share_destroy(self->rkshare);
+                rd_kafka_error_t *destroy_error =
+                    rd_kafka_share_destroy(self->rkshare);
+                if (destroy_error)
+                        rd_kafka_error_destroy(destroy_error);
                 self->rkshare = NULL;
                 CallState_end(&self->base, &cs);
         }
 
-        /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
-         * pair above and just call ShareConsumer_clear(self) here. */
         Handle_clear(&self->base);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
@@ -95,13 +76,6 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
 static int
 ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
-        /* See ShareConsumer_clear: pair the DECREF with a Py_VISIT so cyclic
-         * GC can find on_commit if a user accidentally passed one.
-         *
-         * TODO KIP-932: drop this special-case once on_commit is rejected
-         * at config time (see ShareConsumer_clear0). */
-        if (self->base.u.Consumer.on_commit)
-                Py_VISIT(self->base.u.Consumer.on_commit);
         return Handle_traverse(&self->base, visit, arg);
 }
 
@@ -280,17 +254,6 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         total_timeout_ms = cfl_timeout_ms(tmout);
 
         CallState_begin(&self->base, &cs);
-
-        /* TODO KIP-932: Consumer.c caches a queue handle (rkqu) from
-         * rd_kafka_queue_get_consumer() and feeds it to
-         * rd_kafka_consume_batch_queue() / rd_kafka_commit_queue() to pin
-         * batch fetch and async commits onto the user's polling thread.
-         * Share has no equivalent: rd_kafka_share_consume_batch() takes the
-         * rd_kafka_share_t* directly and librdkafka exposes neither
-         * rd_kafka_share_get_queue() nor the inner rd_kafka_t*. Until that
-         * lands, error_cb/stats_cb/throttle_cb dispatch relies on
-         * rd_kafka_share_consume_batch draining rk_rep internally; see
-         * the callback-dispatch TODO in ShareConsumer_init. */
 
         /* Chunked polling pattern for signal interruptibility. */
         while (1) {
@@ -596,20 +559,30 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
                                      PyObject *ignore) {
         rd_kafka_error_t *error;
+        rd_kafka_error_t *destroy_error;
         CallState cs;
 
         if (!self->rkshare)
                 Py_RETURN_NONE;
 
         CallState_begin(&self->base, &cs);
-        error = rd_kafka_share_consumer_close(self->rkshare);
-        rd_kafka_share_destroy(self->rkshare);
+        error         = rd_kafka_share_consumer_close(self->rkshare);
+        destroy_error = rd_kafka_share_destroy(self->rkshare);
         self->rkshare = NULL;
         if (!CallState_end(&self->base, &cs)) {
                 if (error)
                         rd_kafka_error_destroy(error);
+                if (destroy_error)
+                        rd_kafka_error_destroy(destroy_error);
                 return NULL;
         }
+
+        /* close was clean — surface the destroy error instead */
+        if (!error)
+                error = destroy_error;
+        /* close already errored — keep it, free destroy's */
+        else if (destroy_error)
+                rd_kafka_error_destroy(destroy_error);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -835,6 +808,51 @@ static PyMethodDef ShareConsumer_methods[] = {
 
 
 /**
+ * @brief Reject share-incompatible config keys before common_conf_setup
+ *        sees them. Scans both the positional config dict (args[0]) and
+ *        kwargs; common_conf_setup merges them later with kwargs winning,
+ *        so checking presence in either source matches the eventual
+ *        resolved view. Keeps confluent_kafka.c ignorant of share
+ *        consumers — no flag on Handle, no share-specific branches in
+ *        the shared config setup path.
+ *
+ * TODO KIP-932: This is a stopgap. Rejecting share-incompatible config is
+ *        really librdkafka's responsibility — it should refuse these keys
+ *        for a share consumer at conf-set time. Once librdkafka implements
+ *        that, remove this function and its call in ShareConsumer_init and
+ *        depend on librdkafka's rejection instead.
+ *
+ * @returns 0 if no rejected keys are present, -1 on rejection (a Python
+ *          ValueError is set).
+ */
+static int ShareConsumer_reject_incompatible_config(PyObject *args,
+                                                    PyObject *kwargs) {
+        static const char *const share_rejected_keys[] = {
+            "stats_cb", "statistics.interval.ms", "on_commit", NULL};
+        PyObject *positional_dict = NULL;
+        int i;
+
+        if (args && PyTuple_Check(args) && PyTuple_Size(args) >= 1) {
+                PyObject *cand = PyTuple_GetItem(args, 0);
+                if (cand && PyDict_Check(cand))
+                        positional_dict = cand;
+        }
+        for (i = 0; share_rejected_keys[i]; i++) {
+                const char *key = share_rejected_keys[i];
+                if ((positional_dict &&
+                     PyDict_GetItemString(positional_dict, key)) ||
+                    (kwargs && PyDict_GetItemString(kwargs, key))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "%s is not supported on ShareConsumer",
+                                     key);
+                        return -1;
+                }
+        }
+        return 0;
+}
+
+
+/**
  * @brief Initialize ShareConsumer.
  */
 static int
@@ -849,16 +867,15 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        if (ShareConsumer_reject_incompatible_config(args, kwargs) == -1)
+                return -1;
+
         self->base.type = RD_KAFKA_CONSUMER;
-        /* TODO KIP-932: RD_KAFKA_CONSUMER is intentional, not a copy-paste
-         * from Consumer.c: it makes common_conf_setup enforce "group.id must
-         * be set", which share consumers also need.
-         *
-         * Revisit this once share-consumer config handling has its own setup
-         * path. Today we route through the regular consumer config setup,
-         * which means consumer-only knobs (e.g. on_commit) can be set
-         * silently — see ShareConsumer_clear0. A dedicated share-consumer
-         * path should reject those at config time. */
+        /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from
+         * Consumer.c: it makes common_conf_setup enforce "group.id must be
+         * set", which share consumers also need. Share-incompatible knobs
+         * (stats_cb / statistics.interval.ms / on_commit) are filtered
+         * above before reaching common_conf_setup. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
                 return -1; /* Exception raised by common_conf_setup() */
@@ -866,17 +883,6 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         /* TODO KIP-932: Remove after interface of librdkafka is updated to
          * return double pointer */
         self->batch_size = 10005;
-
-        /* TODO KIP-932: callback dispatch needs verification. error_cb /
-         * stats_cb / throttle_cb trampolines call CallState_get(), which
-         * asserts (process abort) on a missing CallState. Regular Consumer
-         * pins callbacks to the user thread via rd_kafka_poll_set_consumer;
-         * share has no equivalent. It works today only because
-         * rd_kafka_share_consume_batch drains rk_rep at entry/exit'
-         * The KIP-932 design doc guarantees this for
-         * share_acknowledgement_commit_cb but not the legacy callbacks —
-         * Alternatively add a share poll_set_consumer
-         * analogue. */
 
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
@@ -887,14 +893,66 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
-        /* TODO KIP-932: call rd_kafka_set_log_queue() once librdkafka adds a
-         * rd_kafka_share_set_log_queue() wrapper — needs rd_kafka_t *, which
-         * is opaque inside rd_kafka_share_t in the public API. */
+        /* Forward the share consumer's internal log queue onto rk_rep so
+         * log_cb fires during share_consume_batch / commit_sync /
+         * commit_async drains. common_conf_setup sets log.queue=true
+         * whenever `logger` is configured; without this forwarding the
+         * records sit in rk_logq forever. Mirrors Consumer.c:1819-1820. */
+        if (self->base.logger) {
+                rd_kafka_resp_err_t err =
+                    rd_kafka_share_set_log_queue(self->rkshare, NULL);
+                if (err) {
+                        cfl_PyErr_Format(err,
+                                         "Failed to set share log queue: %s",
+                                         rd_kafka_err2str(err));
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
+                        CallState_end(&self->base, &cs);
+                        self->rkshare = NULL;
+                        return -1;
+                }
+        }
 
-        /* TODO KIP-932: call rd_kafka_sasl_background_callbacks_enable() for
-         * OAuth once librdkafka adds a share-level wrapper for the same reason.
-         */
+        /* OAuth wiring: enable SASL background callbacks so the
+         * oauthbearer_token_refresh_cb fires on librdkafka's own thread
+         * during init (otherwise we'd have the chicken-and-egg problem
+         * — can't poll until connected, can't connect without a token).
+         * Then block until the initial token is set. Mirrors
+         * Consumer.c:1812-1833. */
+        if (self->base.oauth_cb) {
+                rd_kafka_error_t *oauth_err =
+                    rd_kafka_share_sasl_background_callbacks_enable(
+                        self->rkshare);
+                if (oauth_err) {
+                        cfl_PyErr_from_error_destroy(oauth_err);
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
+                        CallState_end(&self->base, &cs);
+                        self->rkshare = NULL;
+                        return -1;
+                }
 
+                int ret_wait_oauth = wait_for_oauth_token_set(&self->base);
+                if (ret_wait_oauth == -1) {
+                        CallState cs;
+                        CallState_begin(&self->base, &cs);
+                        rd_kafka_error_t *destroy_error =
+                            rd_kafka_share_destroy(self->rkshare);
+                        if (destroy_error)
+                                rd_kafka_error_destroy(destroy_error);
+                        CallState_end(&self->base, &cs);
+                        self->rkshare = NULL;
+                }
+                return ret_wait_oauth;
+        }
 
         return 0;
 }
