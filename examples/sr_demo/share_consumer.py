@@ -13,6 +13,7 @@
 #     python share_consumer.py --schema v2      # resolve everything through v2 (old records get email='')
 #     python share_consumer.py -n 2
 #     python share_consumer.py --loop           # keep polling the queue forever (Ctrl-C to stop)
+#     python share_consumer.py --reset latest   # don't rewind a fresh group to the start of the topic
 #
 # ── REQUIREMENTS (this is NOT the published-package path) ─────────────────────
 #   * The LOCAL KIP-932 build of confluent_kafka from this branch. ShareConsumer
@@ -27,9 +28,25 @@ import argparse
 import time
 
 from confluent_kafka import DeserializingShareConsumer
+from confluent_kafka.admin import AdminClient, AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from confluent_kafka.schema_registry.avro import AvroDeserializer
 
 from _common import BROKERS, SCHEMAS, STRATEGY_CONF, TOPIC, schema_registry_client
+
+
+def set_group_offset_reset(bootstrap, group, reset):
+    # share.auto.offset.reset is a broker-side *group* config (default 'latest').
+    # Set it before joining so a fresh group reads from the start.
+    admin = AdminClient({"bootstrap.servers": bootstrap})
+    res = ConfigResource(
+        ResourceType.GROUP,
+        group,
+        incremental_configs=[
+            ConfigEntry("share.auto.offset.reset", reset, incremental_operation=AlterConfigOpType.SET),
+        ],
+    )
+    for fut in admin.incremental_alter_configs([res]).values():
+        fut.result()
 
 
 def main():
@@ -41,6 +58,12 @@ def main():
         help="reader schema to resolve against; default: each record's writer schema",
     )
     parser.add_argument("--group", default="sr-demo-share", help="share group id")
+    parser.add_argument(
+        "--reset",
+        choices=["earliest", "latest"],
+        default="earliest",
+        help="share.auto.offset.reset for the group (applied via AdminClient before joining)",
+    )
     parser.add_argument("-n", "--count", type=int, default=10, help="max records to read before stopping")
     parser.add_argument("--timeout", type=float, default=15.0, help="give up after this many seconds")
     parser.add_argument("--loop", action="store_true", help="poll forever until Ctrl-C (ignores --count/--timeout)")
@@ -49,6 +72,11 @@ def main():
     sr = schema_registry_client()
     reader_schema = SCHEMAS[args.schema] if args.schema else None
     value_deserializer = AvroDeserializer(sr, reader_schema, conf=dict(STRATEGY_CONF))
+
+    # A new share group starts at 'latest' by default, so it would never see records
+    # produced before it joined. share.auto.offset.reset is a broker-side *group*
+    # config, so set it via the AdminClient before the consumer joins.
+    set_group_offset_reset(BROKERS, args.group, args.reset)
 
     consumer = DeserializingShareConsumer(
         {

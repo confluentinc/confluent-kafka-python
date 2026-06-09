@@ -33,9 +33,10 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      # --- KIP-932 share groups (off by default): add the 'share' rebalance
-      #     protocol and size the share-coordinator state topic for single node ---
-      KAFKA_GROUP_COORDINATOR_REBALANCE_PROTOCOLS: classic,consumer,share
+      # --- KIP-932 single-node share-coordinator state topic. Defaults assume a
+      #     multi-broker cluster (min.isr=2); without this the share coordinator
+      #     can't persist session state -> share fetches fail with
+      #     "share session was not found" and consumers receive nothing. ---
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
     healthcheck:
