@@ -1597,6 +1597,8 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 /**
  * @brief Convert per-partition commit results to a Python
  *        dict(TopicPartition -> KafkaError | None).
+ *
+ * @returns The new Python dict, or NULL on allocation failure.
  */
 PyObject *c_parts_to_dict_topic_partition_to_error(
     const rd_kafka_topic_partition_list_t *c_parts) {
@@ -2220,7 +2222,9 @@ log_cb(const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(rk);
+                /* log_cb's rk is const; yield needs non-const. Safe to
+                 * cast — yield is callback-safe and doesn't mutate rk. */
+                rd_kafka_yield((rd_kafka_t *)rk);
         }
 
         CallState_resume(cs);
@@ -2285,12 +2289,15 @@ static int py_extensions_to_c(char **extensions,
 
 
 /**
- * @brief Waits for OAuth callback to set the token
+ * @brief Waits for the OAuth callback to set the token during client init,
+ *        so we have a token before returning.
  *
- * Useful during client init as we want to ensure we have the token before we
- * return back
+ * @returns 0 if the token was set within the timeout (or if oauth_cb is not
+ *          configured); -1 on timeout, with a Python exception set.
  *
- * Returns 0 if token was set within the timeout period, -1 otherwise.
+ * @remark On -1 the caller owns teardown. This intentionally does NOT call
+ *         rd_kafka_destroy() / rd_kafka_share_destroy() — each client type
+ *         knows which destroy API matches what it allocated.
  */
 int wait_for_oauth_token_set(Handle *h) {
 

@@ -559,15 +559,16 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
                                      PyObject *ignore) {
         rd_kafka_error_t *error;
+        rd_kafka_error_t *destroy_error;
         CallState cs;
 
         if (!self->rkshare)
                 Py_RETURN_NONE;
 
         CallState_begin(&self->base, &cs);
-        error = rd_kafka_share_consumer_close(self->rkshare);
-        rd_kafka_error_t *destroy_error = rd_kafka_share_destroy(self->rkshare);
-        self->rkshare                   = NULL;
+        error         = rd_kafka_share_consumer_close(self->rkshare);
+        destroy_error = rd_kafka_share_destroy(self->rkshare);
+        self->rkshare = NULL;
         if (!CallState_end(&self->base, &cs)) {
                 if (error)
                         rd_kafka_error_destroy(error);
