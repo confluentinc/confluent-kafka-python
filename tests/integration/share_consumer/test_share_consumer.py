@@ -21,7 +21,7 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaException, Producer
+from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Producer
 from tests.common import (
     drain_share_consumers,
     set_group_config,
@@ -406,7 +406,8 @@ def test_poll_with_zero_timeout(kafka_cluster):
 
 
 def test_unsubscribe_stops_delivery(kafka_cluster):
-    """After unsubscribe, future polls return no records even when broker has new ones."""
+    """After unsubscribe, poll() raises _STATE — can't even fetch, let alone
+    deliver."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-unsub')
 
     sc = kafka_cluster.share_consumer()
@@ -427,14 +428,11 @@ def test_unsubscribe_stops_delivery(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        post = []
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            for m in sc.poll(timeout=0.5):
-                if m.error() is None:
-                    post.append(m)
-
-        assert post == [], f"Records delivered after unsubscribe: {len(post)} messages"
+        # No subscription anymore, so poll() raises _STATE instead of returning
+        # an empty batch. Those 5 new records just sit on the broker.
+        with pytest.raises(KafkaException) as ex:
+            sc.poll(timeout=0.5)
+        assert ex.value.args[0].code() == KafkaError._STATE
     finally:
         sc.close()
 
