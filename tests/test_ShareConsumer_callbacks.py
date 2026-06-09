@@ -255,6 +255,9 @@ def test_log_cb():
         }
     )
 
+    # poll() raises _STATE unless we're subscribed, so subscribe — no broker
+    # needed, the log queue drains before that check.
+    sc.subscribe(['test-topic'])
     sc.poll(timeout=0.2)
     sc.close()
 
@@ -290,6 +293,10 @@ def test_log_cb_requires_polling():
             'logger': logger,
         }
     )
+
+    # poll() needs a subscription or it raises _STATE. subscribe() is async and
+    # drains nothing, so the no-logs-yet check below still holds.
+    sc.subscribe(['test-topic'])
 
     # Without poll(), the share consumer never drains its log queue.
     # librdkafka emits INIT records during rd_kafka_share_consumer_new

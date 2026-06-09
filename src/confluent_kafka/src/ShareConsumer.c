@@ -899,12 +899,13 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
          * whenever `logger` is configured; without this forwarding the
          * records sit in rk_logq forever. Mirrors Consumer.c:1819-1820. */
         if (self->base.logger) {
-                rd_kafka_resp_err_t err =
+                rd_kafka_error_t *error =
                     rd_kafka_share_set_log_queue(self->rkshare, NULL);
-                if (err) {
-                        cfl_PyErr_Format(err,
+                if (error) {
+                        cfl_PyErr_Format(rd_kafka_error_code(error),
                                          "Failed to set share log queue: %s",
-                                         rd_kafka_err2str(err));
+                                         rd_kafka_error_string(error));
+                        rd_kafka_error_destroy(error);
                         CallState cs;
                         CallState_begin(&self->base, &cs);
                         rd_kafka_error_t *destroy_error =
