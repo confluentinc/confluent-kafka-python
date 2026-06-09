@@ -35,7 +35,7 @@ Run instructions::
 
     # On EC2 with role attached, audience-trust-policy enabled:
     export RUN_AWS_STS_REAL=1
-    export AWS_REGION=eu-north-1
+    export AWS_STS_TEST_REGION=eu-north-1     # AWS_REGION also accepted (fallback)
     export AWS_STS_TEST_AUDIENCE=https://api.example.com
     /tmp/ckp-optin/bin/pytest -v -s tests/oauthbearer/aws/test_real_sts.py
 
@@ -71,7 +71,7 @@ from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler  # noqa:
 # different role / audience without code changes.
 # =============================================================================
 
-_REGION = os.environ.get("AWS_REGION", "eu-north-1")
+_REGION = os.environ.get("AWS_STS_TEST_REGION") or os.environ.get("AWS_REGION", "eu-north-1")
 _AUDIENCE = os.environ.get("AWS_STS_TEST_AUDIENCE", "https://api.example.com")
 _DURATION = os.environ.get("DURATION_SECONDS", "300")
 
