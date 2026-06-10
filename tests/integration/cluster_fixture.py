@@ -141,16 +141,16 @@ class KafkaClusterFixture(object):
 
         return TestConsumer(consumer_conf)
 
-    def share_consumer(self, conf=None):
+    def _share_consumer_conf(self, conf=None):
         """
-        Returns a share consumer bound to this cluster.
+        Builds share-consumer config bound to this cluster, including the
+        per-group share.auto.offset.reset setup shared by every share consumer.
 
         Args:
             conf (dict): ShareConsumer config overrides
 
         Returns:
-            ShareConsumer: A new TestShareConsumer instance
-
+            dict: the resolved share-consumer configuration
         """
         share_conf = self.client_conf({'group.id': str(uuid1())})
 
@@ -159,7 +159,7 @@ class KafkaClusterFixture(object):
 
         # KIP-932: share.auto.offset.reset is a per-group broker-side config with default as "latest".
         # Set to "earliest" so tests don't have to set it in every call.
-        # TODO KIP-932: this shouldn't live in the share_consumer fixture —
+        # TODO KIP-932: this shouldn't live in a per-consumer fixture —
         # share.auto.offset.reset is a property of the group, not the consumer.
         # Re-issuing the alter on every consumer construction for the same
         # group.id is unnecessary. Lift this to a per-group setup step.
@@ -175,10 +175,23 @@ class KafkaClusterFixture(object):
                 ),
             ],
         )
-        for f in self.admin().incremental_alter_configs([res]).values():
-            f.result()
+        for future in self.admin().incremental_alter_configs([res]).values():
+            future.result()
 
-        return TestShareConsumer(share_conf)
+        return share_conf
+
+    def share_consumer(self, conf=None):
+        """
+        Returns a share consumer bound to this cluster.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+        Returns:
+            ShareConsumer: A new TestShareConsumer instance
+
+        """
+        return TestShareConsumer(self._share_consumer_conf(conf))
 
     def deserializing_share_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -199,25 +212,7 @@ class KafkaClusterFixture(object):
         Returns:
             DeserializingShareConsumer: A new TestDeserializingShareConsumer instance
         """
-        share_conf = self.client_conf({'group.id': str(uuid1())})
-
-        if conf is not None:
-            share_conf.update(conf)
-
-        reset = share_conf.pop('auto.offset.reset', 'earliest')
-        res = ConfigResource(
-            ResourceType.GROUP,
-            share_conf['group.id'],
-            incremental_configs=[
-                ConfigEntry(
-                    'share.auto.offset.reset',
-                    reset,
-                    incremental_operation=AlterConfigOpType.SET,
-                ),
-            ],
-        )
-        for f in self.admin().incremental_alter_configs([res]).values():
-            f.result()
+        share_conf = self._share_consumer_conf(conf)
 
         if key_deserializer is not None:
             share_conf['key.deserializer'] = key_deserializer

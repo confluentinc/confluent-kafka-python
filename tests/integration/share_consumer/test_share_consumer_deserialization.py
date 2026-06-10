@@ -25,8 +25,14 @@ record on the next poll, which keeps the consumer making forward progress.
 """
 
 import time
+from collections import namedtuple
+
+import pytest
 
 from confluent_kafka import AcknowledgeType, KafkaError
+from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
+from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
+from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer, ProtobufSerializer
 from confluent_kafka.serialization import (
     IntegerDeserializer,
     IntegerSerializer,
@@ -34,6 +40,7 @@ from confluent_kafka.serialization import (
     StringSerializer,
 )
 from tests.common import drain_share_consumers
+from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 
 
 def _poison_value_deserializer(data, ctx):
@@ -222,5 +229,102 @@ def test_implicit_poison_forward_progress(kafka_cluster):
                 if m.error() is None:
                     got.append(m.value())
         assert got == ['good'], f'expected forward progress to deliver "good", got {got}'
+    finally:
+        sc.close()
+
+
+# --- Schema Registry formats (Avro / Protobuf / JSON Schema) ---------------
+#
+# The primitive (string/integer) cases above already prove the share consumer
+# applies a value deserializer and isolates a failure. These cases extend that
+# to the Confluent Schema Registry formats end-to-end. Each builder returns the
+# (serializer, deserializer, value) for one format; the produced value is
+# compared with == after the roundtrip — Avro and JSON Schema decode to dicts
+# and protobuf messages compare by value, so one equality check covers all three.
+
+_SrCase = namedtuple('_SrCase', ['serializer', 'deserializer', 'value'])
+
+
+def _avro_case(sr):
+    schema_str = (
+        '{"type": "record", "name": "DscAvroValue", "fields": ['
+        '{"name": "id", "type": "int"}, {"name": "name", "type": "string"}]}'
+    )
+    return _SrCase(AvroSerializer(sr, schema_str), AvroDeserializer(sr), {'id': 7, 'name': 'avro'})
+
+
+def _protobuf_case(sr):
+    pb2 = PublicTestProto_pb2.TestMessage
+    conf = {'use.deprecated.format': False}
+    value = pb2(test_string='proto', test_bool=True, test_double=1.5)
+    return _SrCase(ProtobufSerializer(pb2, sr, conf), ProtobufDeserializer(pb2, conf), value)
+
+
+def _json_case(sr):
+    schema_str = (
+        '{"type": "object", "properties": {'
+        '"id": {"type": "integer"}, "name": {"type": "string"}}, "required": ["id", "name"]}'
+    )
+    return _SrCase(JSONSerializer(schema_str, sr), JSONDeserializer(schema_str), {'id': 7, 'name': 'json'})
+
+
+_SR_CASE_BUILDERS = [_avro_case, _protobuf_case, _json_case]
+_SR_CASE_IDS = ['avro', 'protobuf', 'json']
+
+
+@pytest.mark.parametrize('build_case', _SR_CASE_BUILDERS, ids=_SR_CASE_IDS)
+def test_schema_registry_roundtrip(kafka_cluster, build_case):
+    """A Schema-Registry-serialized value round-trips through
+    DeserializingShareConsumer.poll() for Avro, Protobuf and JSON Schema."""
+    case = build_case(kafka_cluster.schema_registry())
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-dsc-sr-roundtrip')
+
+    producer = kafka_cluster.producer(value_serializer=case.serializer)
+    sc = kafka_cluster.deserializing_share_consumer(value_deserializer=case.deserializer)
+    try:
+        sc.subscribe([topic])
+        producer.produce(topic, value=case.value)
+        producer.flush(timeout=10.0)
+
+        received = drain_share_consumers([sc], 1)[0]
+        assert len(received) == 1
+        assert received[0].value() == case.value
+    finally:
+        sc.close()
+
+
+@pytest.mark.parametrize('build_case', _SR_CASE_BUILDERS, ids=_SR_CASE_IDS)
+def test_schema_registry_poison_marked(kafka_cluster, build_case):
+    """For each Schema Registry format, a record that fails to deserialize is
+    marked (_VALUE_DESERIALIZATION) with its raw bytes preserved rather than
+    raised, and the good record in the same batch still deserializes."""
+    case = build_case(kafka_cluster.schema_registry())
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-dsc-sr-poison')
+    poison = b'not-a-schema-registry-framed-record'  # no leading magic byte -> deserializer raises
+
+    producer = kafka_cluster.producer(value_serializer=case.serializer)
+    raw_producer = kafka_cluster.cimpl_producer()
+    sc = kafka_cluster.deserializing_share_consumer(value_deserializer=case.deserializer)
+    try:
+        sc.subscribe([topic])
+        producer.produce(topic, value=case.value)
+        producer.flush(timeout=10.0)
+        raw_producer.produce(topic, value=poison)
+        raw_producer.flush(timeout=10.0)
+
+        # drain_share_consumers drops errored messages, so poll directly to capture the poison.
+        seen = {}
+        deadline = time.time() + 20.0
+        while time.time() < deadline and len(seen) < 2:
+            for m in sc.poll(timeout=0.5):
+                seen[(m.partition(), m.offset())] = m
+        assert len(seen) == 2, 'batch lost a record on poison'
+
+        good = [m for m in seen.values() if m.error() is None]
+        bad = [m for m in seen.values() if m.error() is not None]
+        assert len(good) == 1 and good[0].value() == case.value
+        assert len(bad) == 1
+        assert bad[0].error().code() == KafkaError._VALUE_DESERIALIZATION
+        assert bad[0].value() == poison  # raw bytes preserved
     finally:
         sc.close()
