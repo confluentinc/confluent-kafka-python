@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2016 Confluent Inc.
+# Copyright 2016-2026 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,153 +15,205 @@
 # limitations under the License.
 #
 
+"""
+confluent-kafka-python verifiable producer for Apache Kafka's Ducktape
+system tests.
+
+Accepts the standardized verifiable-producer CLI and emits the
+newline-delimited JSON event stream (``startup_complete``,
+``producer_send_success``, ``producer_send_error``, ``shutdown_complete``,
+``tool_data``) parsed by
+``apache/kafka/tests/kafkatest/services/verifiable_producer.py``.
+
+Run directly with::
+
+    python -m confluent_kafka.kafkatest.verifiable_producer <options>
+"""
+
 import argparse
 import time
-from typing import Optional
 
-from verifiable_client import VerifiableClient
+try:
+    from confluent_kafka.kafkatest.verifiable_client import VerifiableClient
+except ImportError:
+    # Allow running as a plain script (python verifiable_producer.py ...).
+    from verifiable_client import VerifiableClient
 
 from confluent_kafka import KafkaException, Producer
 
 
 class VerifiableProducer(VerifiableClient):
-    """
-    confluent-kafka-python backed VerifiableProducer class for use with
-    Kafka's kafkatests client tests.
-    """
+    """confluent-kafka-python backed VerifiableProducer for Kafka's
+    kafkatest client tests."""
 
     def __init__(self, conf):
-        """
-        conf is a config dict passed to confluent_kafka.Producer()
-        """
         super(VerifiableProducer, self).__init__(conf)
-        self.conf['on_delivery'] = self.dr_cb
-        self.producer = Producer(**self.conf)
-        self.num_acked = 0
+        producer_conf = dict(self.conf)
+        producer_conf['on_delivery'] = self.dr_cb
+        self.producer = Producer(**producer_conf)
         self.num_sent = 0
+        self.num_acked = 0
         self.num_err = 0
+        self.target_throughput = -1
+        self.start_ms = self._now_ms()
 
     def dr_cb(self, err, msg):
-        """Per-message Delivery report callback. Called from poll()"""
+        """Per-message delivery report callback, served from poll()."""
         if err:
             self.num_err += 1
-            self.send(
-                {
-                    'name': 'producer_send_error',
-                    'message': str(err),
-                    'topic': msg.topic(),
-                    'key': msg.key(),
-                    'value': msg.value(),
-                }
-            )
+            self.send({
+                'name': 'producer_send_error',
+                'topic': msg.topic(),
+                'key': _to_str(msg.key()),
+                'value': _to_str(msg.value()),
+                'message': str(err),
+                'exception': err.name() if hasattr(err, 'name') else str(err),
+            })
         else:
             self.num_acked += 1
-            self.send(
-                {
-                    'name': 'producer_send_success',
-                    'topic': msg.topic(),
-                    'partition': msg.partition(),
-                    'offset': msg.offset(),
-                    'key': msg.key(),
-                    'value': msg.value(),
-                }
-            )
+            self.send({
+                'name': 'producer_send_success',
+                'topic': msg.topic(),
+                'partition': msg.partition(),
+                'offset': msg.offset(),
+                'key': _to_str(msg.key()),
+                'value': _to_str(msg.value()),
+            })
 
-        pass
+    def emit_tool_data(self):
+        """Emit the final tool_data summary event."""
+        elapsed_ms = self._now_ms() - self.start_ms
+        avg = (self.num_acked * 1000.0 / elapsed_ms) if elapsed_ms > 0 else 0.0
+        self.send({
+            'name': 'tool_data',
+            'sent': self.num_sent,
+            'acked': self.num_acked,
+            'target_throughput': self.target_throughput,
+            'avg_throughput': round(avg, 2),
+        })
 
 
-if __name__ == '__main__':
+def _to_str(b):
+    """Decode message key/value bytes to str for JSON; None stays None."""
+    if b is None:
+        return None
+    if isinstance(b, bytes):
+        return b.decode('utf-8', errors='replace')
+    return b
 
+
+def main():
     parser = argparse.ArgumentParser(description='Verifiable Python Producer')
     parser.add_argument('--topic', type=str, required=True)
-    parser.add_argument('--throughput', type=int, default=0)
-    parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
+    parser.add_argument('--broker-list', dest='conf_bootstrap.servers',
+                        help='Bootstrap broker(s); also --bootstrap-server')
     parser.add_argument('--bootstrap-server', dest='conf_bootstrap.servers')
-    parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000)  # avoid infinite
-    parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
-    parser.add_argument('--acks', type=int, dest='topicconf_request.required.acks', default=-1)
-    parser.add_argument('--message-create-time', type=int, dest='create_time', default=0)
-    parser.add_argument('--repeating-keys', type=int, dest='repeating_keys', default=0)
-    parser.add_argument('--producer.config', dest='producer_config')
-    parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
+    # -1 = infinite. (The legacy client silently capped this at 1e6.)
+    parser.add_argument('--max-messages', type=int, dest='max_messages',
+                        default=-1)
+    parser.add_argument('--throughput', type=int, default=-1,
+                        help='Msgs/sec; -1 = unlimited')
+    # 'acks' is a global producer config (alias for request.required.acks).
+    parser.add_argument('--acks', type=str, dest='conf_acks', default='-1')
+    parser.add_argument('--value-prefix', dest='value_prefix', type=str,
+                        default=None)
+    parser.add_argument('--repeating-keys', type=int, dest='repeating_keys',
+                        default=0)
+    parser.add_argument('--message-create-time', type=int, dest='create_time',
+                        default=-1, help='Epoch ms baseline for timestamps')
+    parser.add_argument('--command-config', dest='command_config',
+                        help='Client properties file')
+    parser.add_argument('--producer.config', dest='command_config',
+                        help='Client properties file (deprecated alias)')
+    parser.add_argument('--debug', dest='conf_debug',
+                        help='librdkafka debug flags')
+    parser.add_argument('-X', nargs=1, dest='extra_conf', action='append',
+                        help='Raw librdkafka property key=value', default=[])
     args = vars(parser.parse_args())
 
-    conf = {'broker.version.fallback': '0.9.0', 'produce.offset.report': True}
+    if args.get('conf_bootstrap.servers') is None:
+        parser.error('--bootstrap-server (or --broker-list) is required')
 
-    if args.get('producer_config', None) is not None:
-        args.update(VerifiableClient.read_config_file(args['producer_config']))
-
-    args.update([x[0].split('=') for x in args.get('extra_conf', [])])
-
-    VerifiableClient.set_config(conf, args)
+    # Build the full config (flags + --command-config file + -X overrides +
+    # JAAS), then construct the producer once.
+    conf = VerifiableClient.build_conf(args, 'command_config')
+    # No retries, so each delivery report reflects a single produce attempt.
+    conf.setdefault('retries', 0)
 
     vp = VerifiableProducer(conf)
 
-    vp.max_msgs = args['max_msgs']
-    throughput = args['throughput']
     topic = args['topic']
+    max_messages = args['max_messages']
+    throughput = args['throughput']
+    create_time = args['create_time']
+    repeating_keys = args['repeating_keys']
+    vp.target_throughput = throughput
+
     if args['value_prefix'] is not None:
         value_fmt = args['value_prefix'] + '.%d'
     else:
         value_fmt = '%d'
 
-    repeating_keys = args['repeating_keys']
+    # Seconds between messages for rate limiting, or 0 for unlimited.
+    delay = (1.0 / throughput) if throughput > 0 else 0.0
+
+    vp.dbg('Producing %s messages at a rate of %s/s'
+           % ('unlimited' if max_messages < 0 else max_messages, throughput))
+
+    vp.start_ms = vp._now_ms()
+    vp.emit_event('startup_complete')
+
     key_counter = 0
-
-    if throughput > 0:
-        delay = 1.0 / throughput
-    else:
-        delay = 0
-
-    vp.dbg('Producing %d messages at a rate of %d/s' % (vp.max_msgs, throughput))
-
+    counter = 0
     try:
-        for i in range(0, vp.max_msgs):
-            if not vp.run:
-                break
-
+        while vp.run and (max_messages < 0 or counter < max_messages):
             t_end = time.time() + delay
-            while vp.run:
-                key: Optional[str]
-                if repeating_keys != 0:
-                    key = '%d' % key_counter
-                    key_counter = (key_counter + 1) % repeating_keys
-                else:
-                    key = None
 
-                try:
-                    vp.producer.produce(topic, value=(value_fmt % i), key=key, timestamp=args.get('create_time', 0))
-                    vp.num_sent += 1
-                except KafkaException as e:
-                    vp.err('produce() #%d/%d failed: %s' % (i, vp.max_msgs, str(e)))
-                    vp.num_err += 1
-                except BufferError:
-                    vp.dbg(
-                        'Local produce queue full (produced %d/%d msgs), waiting for deliveries..' % (i, vp.max_msgs)
-                    )
-                    vp.producer.poll(timeout=0.5)
-                    continue
-                break
+            if repeating_keys > 0:
+                key = '%d' % (key_counter % repeating_keys)
+                key_counter += 1
+            else:
+                key = None
 
-            # Delay to achieve desired throughput,
-            # but make sure poll is called at least once
-            # to serve DRs.
+            kwargs = {'value': value_fmt % counter, 'key': key}
+            if create_time >= 0:
+                kwargs['timestamp'] = create_time + (vp._now_ms() - vp.start_ms)
+
+            try:
+                vp.producer.produce(topic, **kwargs)
+                vp.num_sent += 1
+                counter += 1
+            except BufferError:
+                # Local queue full: serve delivery reports and retry the same
+                # message without advancing the counter.
+                vp.producer.poll(0.1)
+                continue
+            except KafkaException as e:
+                vp.num_err += 1
+                vp.err('produce() #%d failed: %s' % (counter, e))
+
+            # Rate-limit: keep polling (serving DRs) until the deadline, but
+            # poll at least once so deliveries get served.
             while True:
-                remaining = max(0, t_end - time.time())
-                vp.producer.poll(timeout=remaining)
-                if remaining <= 0.00000001:
+                remaining = max(0.0, t_end - time.time())
+                vp.producer.poll(remaining)
+                if remaining <= 1e-8:
                     break
 
     except KeyboardInterrupt:
         pass
 
-    # Flush remaining messages to broker.
     vp.dbg('Flushing')
     try:
-        vp.producer.flush(5)
+        vp.producer.flush(30)
     except KeyboardInterrupt:
         pass
 
-    vp.send({'name': 'shutdown_complete', '_qlen': len(vp.producer)})
+    vp.emit_event('shutdown_complete')
+    vp.emit_tool_data()
+    vp.dbg('All done: sent=%d acked=%d err=%d'
+           % (vp.num_sent, vp.num_acked, vp.num_err))
 
-    vp.dbg('All done')
+
+if __name__ == '__main__':
+    main()
