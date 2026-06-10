@@ -38,7 +38,7 @@
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.14.2"
+#define CFL_VERSION_STR "2.14.2.dev2"
 
 /**
  * Minimum required librdkafka version. This is checked both during

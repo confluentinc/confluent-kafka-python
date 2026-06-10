@@ -1,6 +1,15 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.xx.x
+## v2.14.2.dev2
+
+### Enhancements
+
+- Add AWS IAM OAUTHBEARER authentication via optional `oauthbearer-aws` extra. Set
+  `sasl.oauthbearer.method=oidc` + `sasl.oauthbearer.metadata.authentication.type=aws_iam`
+  + `sasl.oauthbearer.config="region=... audience=..."` to autowire a refresh
+  callback that mints fresh JWTs via AWS STS `GetWebIdentityToken` on every
+  token refresh, using boto3's default credential chain. Cross-language wire
+  parity with .NET / JS / Go. See `examples/oauth_oidc_ccloud_aws_iam.py`.
 
 ### Fixes
 
