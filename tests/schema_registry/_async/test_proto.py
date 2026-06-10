@@ -20,14 +20,17 @@ from decimal import Decimal
 from io import BytesIO
 
 import pytest
+from google.protobuf import descriptor_pb2
 
 from confluent_kafka.schema_registry.protobuf import (
+    AsyncProtobufDeserializer,
     AsyncProtobufSerializer,
     _create_index_array,
     decimal_to_protobuf,
     protobuf_to_decimal,
 )
 from confluent_kafka.schema_registry.serde import SchemaId
+from confluent_kafka.serialization import SerializationError
 from tests.integration.schema_registry.data.proto import DependencyTestProto_pb2, metadata_proto_pb2
 
 
@@ -46,6 +49,40 @@ def test_create_index(pb2, coordinates):
     msg_idx = _create_index_array(pb2.DESCRIPTOR)
 
     assert msg_idx == coordinates
+
+
+def _two_message_file_proto():
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name = "test.proto"
+    fdp.package = "pkg"
+    first = fdp.message_type.add()
+    first.name = "First"
+    nested = first.nested_type.add()
+    nested.name = "Inner"
+    second = fdp.message_type.add()
+    second.name = "Second"
+    return fdp
+
+
+def test_message_index_in_range():
+    deserializer = object.__new__(AsyncProtobufDeserializer)
+    fdp = _two_message_file_proto()
+
+    assert deserializer._get_message_desc_proto("", fdp, [0])[0] == "First"
+    assert deserializer._get_message_desc_proto("", fdp, [1])[0] == "Second"
+    assert deserializer._get_message_desc_proto("", fdp, [0, 0])[0] == "First.Inner"
+
+
+@pytest.mark.parametrize("msg_index", [[-1], [2], [0, -1], [0, 5]])
+def test_message_index_out_of_range(msg_index):
+    # The message index array is attacker-controlled wire framing; a zigzag
+    # varint can decode to a negative or out-of-range value. A negative index
+    # would otherwise wrap around and resolve to a different message type.
+    deserializer = object.__new__(AsyncProtobufDeserializer)
+    fdp = _two_message_file_proto()
+
+    with pytest.raises(SerializationError, match="out of range"):
+        deserializer._get_message_desc_proto("", fdp, msg_index)
 
 
 @pytest.mark.parametrize(
