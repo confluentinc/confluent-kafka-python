@@ -272,8 +272,11 @@ async def test_happy_path_aio_consumer_constructs_with_marker(mocked_boto3):
 
 
 def test_explicit_oauth_cb_wins_over_marker():
-    """When user supplies their own oauth_cb, our dispatcher strips the marker
-    and yields. boto3 is NOT touched."""
+    """When the user supplies their own oauth_cb, the dispatcher leaves the
+    marker in place and yields — the explicit handler wins and boto3 is NOT
+    touched. The AWS-IAM-aware librdkafka accepts the marker and uses the
+    user's oauth_cb (its native aws_iam cb only registers when no refresh cb
+    is set)."""
     sentinel_called = []
 
     def user_oauth_cb(config_str):
@@ -415,17 +418,18 @@ def test_friendly_import_error_on_admin_client_too(boto3_absent):
         )
 
 
-# ---- 9. Marker is stripped before native handoff ----
+# ---- 9. Marker is passed through to the AWS-IAM-aware librdkafka ----
 
 
-def test_marker_stripped_after_autowire(mocked_boto3):
-    """The C dispatcher must strip the marker from confdict before the
-    config-iteration loop sees it. Today's bundled librdkafka doesn't know
-    the 'aws_iam' enum value and would reject it at rd_kafka_conf_set time.
-    If the strip stops working, this test fails with librdkafka's
-    'invalid value' error rather than Producer constructing cleanly."""
+def test_marker_passed_through_to_librdkafka(mocked_boto3):
+    """The dispatcher leaves the 'aws_iam' marker in confdict; it is passed to
+    librdkafka unchanged. The bundled AWS-IAM-aware librdkafka recognizes the
+    'aws_iam' enum value and accepts it at rd_kafka_conf_set time (bypassing
+    the token.endpoint.url + grant-type requirements), so the Producer
+    constructs cleanly. This also pins the requirement that the linked
+    librdkafka be AWS-IAM-aware: against stock librdkafka the marker would be
+    rejected with an 'invalid value' error here."""
     p = confluent_kafka.Producer(_minimal_aws_iam_config())
-    # If we got here, the strip succeeded — librdkafka never saw the marker.
     assert p is not None
     p.flush(timeout=0.1)
 

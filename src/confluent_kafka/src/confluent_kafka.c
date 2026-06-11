@@ -2605,8 +2605,8 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  * Flow:
  *   1. Skip if the marker key is absent or its value is not "aws_iam".
  *      (Other values like "azure_imds" flow through to librdkafka unchanged.)
- *   2. If oauth_cb is already set, strip the marker and skip autowire —
- *      the explicit handler wins (precedence rule).
+ *   2. If oauth_cb is already set, the explicit handler wins (precedence
+ *      rule) — return immediately, leaving the marker in place.
  *   3. Require sasl.oauthbearer.method == "oidc". The AWS IAM path runs as
  *      a high-level-client refresh callback inside librdkafka's OIDC
  *      subsystem (parallel to azure_imds); without method=oidc the
@@ -2622,49 +2622,28 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  *      The returned Python callable replaces oauth_cb in confdict; the
  *      existing config-iteration loop below picks it up and registers the
  *      librdkafka refresh callback.
- *   7+. Strip the marker key + auto-set THREE sentinel OIDC fields that
- *      librdkafka's config-finalize demands when method=oidc. The full set:
- *        - sasl.oauthbearer.token.endpoint.url
- *        - sasl.oauthbearer.client.id
- *        - sasl.oauthbearer.client.secret
+ *   7. Leave the marker in confdict and return — it is passed to librdkafka
+ *      unchanged.
  *
- *      Why all three are needed:
- *        librdkafka has TWO mandatory-field checks gated on the marker value:
+ *      Native librdkafka handling (this REQUIRES an AWS-IAM-aware build; the
+ *      bundled librdkafka floor is >= v2.14.2-aws-iam.2-dev — see
+ *      MIN_RD_KAFKA_VERSION in confluent_kafka.h):
+ *        - `aws_iam` is a recognized value for metadata.authentication.type
+ *          (rdkafka_conf.c), so rd_kafka_conf_set() accepts the marker.
+ *        - librdkafka bypasses the mandatory token.endpoint.url check for
+ *          AWS_IAM, and the grant-type finalize runs only for type==NONE — so
+ *          no sentinel OIDC fields are required.
+ *        - librdkafka registers its own aws_iam refresh cb only when no
+ *          token_refresh_cb is set (rdkafka.c). Since step 6 registered our
+ *          oauth_cb, our callback owns the token fetch and librdkafka's native
+ *          aws_iam stub never fires; the built-in OIDC fetcher is likewise
+ *          skipped when a refresh cb is present (rdkafka_conf.c).
  *
- *        (a) rdkafka_conf.c:4130 demands token.endpoint.url unless
- *            metadata_authentication.type == AZURE_IMDS or AWS_IAM. With
- *            the marker stripped, this check fires unless we provide a URL.
- *
- *        (b) rdkafka_conf.c:4155 — finalize_oauthbearer_oidc_grant_type
- *            ONLY runs when metadata_authentication.type == NONE. With the
- *            marker stripped, it runs and demands client.id + client.secret
- *            (for the default CLIENT_CREDENTIALS grant type).
- *
- *      Why both old AND new librdkafkas tolerate this:
- *        - librdkafka < AWS-IAM-aware: doesn't know `aws_iam`, rejects the
- *          marker value at rd_kafka_conf_set() time. We must strip first.
- *          The 3 sentinels then satisfy its OIDC mandatory checks.
- *        - librdkafka >= AWS-IAM-aware: would honour the marker (bypass
- *          token.endpoint.url and skip the grant-type check), but we strip
- *          it for backward compatibility with older librdkafkas. The 3
- *          sentinels keep this path working too.
- *
- *      The sentinels are NEVER used at runtime. librdkafka's config
- *      finalize at rdkafka_conf.c:4166-4169 explicitly skips the built-in
- *      OIDC token fetcher when a refresh callback is registered:
- *          "Enable background thread for the builtin OIDC handler,
- *           unless a refresh callback has been set."
- *      Our autowire registers an oauth_cb. The sentinel URL uses RFC 2606
- *      `.invalid` TLD so even an accidental fetch would fail at DNS.
- *
- *      TODO: REMOVE STEPS 8+9 (strip + sentinels) once librdkafka
- *      v2.14.2-aws-iam.2-dev (or the official release that supersedes it)
- *      becomes the bundled MIN_VER floor. Leave the marker in place; the
- *      AWS-IAM-aware librdkafka knows `aws_iam`, bypasses the
- *      token.endpoint.url check, and skips the grant-type check entirely.
- *      All three sentinels become unnecessary at that point. The removal
- *      MUST be done in the same PR that bumps the librdkafka floor.
- *      Project memory: project_aws_iam_python_alignment.md decision #6.
+ *      History: earlier versions stripped the marker and injected 3 sentinel
+ *      OIDC fields (token.endpoint.url, client.id, client.secret) so the path
+ *      also worked on stock librdkafka that didn't know `aws_iam`. That strip
+ *      + sentinels was removed once the AWS-IAM-aware librdkafka became the
+ *      bundled floor. Project memory: project_aws_iam_python_alignment.md #6.
  *
  * @returns 0 on success (no-op or autowire complete), -1 on error
  *          (PyErr_* is set; caller goto outer_err).
@@ -2724,14 +2703,13 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return 0;
         }
 
-        /* 2. Explicit oauth_cb wins. Skip ahead to strip+sentinels — librdkafka
-         * still needs the sentinels because we strip the marker (so its
-         * AWS_IAM bypass paths don't fire). The user's oauth_cb takes over
-         * the actual refresh path; the sentinels are just there to keep
-         * librdkafka's config-finalize happy. */
+        /* 2. Explicit oauth_cb wins (precedence). Leave the marker in place and
+         * return — the AWS-IAM-aware librdkafka accepts `aws_iam` and uses the
+         * user's oauth_cb (it only registers its own native aws_iam refresh cb
+         * when no refresh cb is set; see rdkafka.c). Nothing else to do. */
         cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
         if (cb && cb != Py_None) {
-                goto strip_and_sentinels;
+                return 0;
         }
 
         /* 3. Require sasl.oauthbearer.method = "oidc". */
@@ -2805,57 +2783,13 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         }
         Py_DECREF(callback);
 
-strip_and_sentinels:
-        /* 8. Strip the marker. UNCONDITIONAL — see TODO at top of function.
-         * Reached from both the autowire-fires path AND the
-         * explicit-oauth_cb-wins path (goto from step 2). */
-        if (PyDict_DelItemString(confdict, MARKER_KEY) == -1) {
-                return -1;
-        }
-
-        /* 9. Auto-set 3 sentinel OIDC fields that librdkafka demands when
-         * method=oidc. Required because we stripped the marker in step 8
-         * (so librdkafka's AWS_IAM bypass paths never fire). The sentinels
-         * are never used at runtime — the oauth_cb (autowired or user-
-         * supplied) takes over the token fetch entirely. See TODO at top
-         * of function for full reasoning. User-supplied values are
-         * respected (no clobber). */
-        {
-                static const struct {
-                        const char *key;
-                        const char *value;
-                } SENTINELS[] = {
-                    {"sasl.oauthbearer.token.endpoint.url",
-                     "https://aws-iam-autowire.invalid/"},
-                    {"sasl.oauthbearer.client.id", "aws-iam-autowire"},
-                    {"sasl.oauthbearer.client.secret", "aws-iam-autowire"},
-                };
-                size_t i;
-                for (i = 0;
-                     i < sizeof(SENTINELS) / sizeof(SENTINELS[0]);
-                     i++) {
-                        PyObject *existing;
-                        PyObject *val;
-
-                        existing = PyDict_GetItemString(confdict,
-                                                        SENTINELS[i].key);
-                        if (existing) {
-                                /* User already supplied a value — respect it. */
-                                continue;
-                        }
-                        val = PyUnicode_FromString(SENTINELS[i].value);
-                        if (!val) {
-                                return -1;
-                        }
-                        if (PyDict_SetItemString(confdict, SENTINELS[i].key,
-                                                 val) == -1) {
-                                Py_DECREF(val);
-                                return -1;
-                        }
-                        Py_DECREF(val);
-                }
-        }
-
+        /* 8. Leave the marker in confdict — it is passed to librdkafka
+         * unchanged. The AWS-IAM-aware librdkafka recognizes `aws_iam`,
+         * bypasses the token.endpoint.url + grant-type requirements
+         * (rdkafka_conf.c), and — because step 7 registered our oauth_cb
+         * (token_refresh_cb) — uses our callback for the token rather than its
+         * native aws_iam stub (which only registers when no refresh cb is set;
+         * rdkafka.c). No marker strip, no sentinel OIDC fields needed. */
         return 0;
 }
 
