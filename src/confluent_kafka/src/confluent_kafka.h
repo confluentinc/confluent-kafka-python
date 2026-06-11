@@ -38,24 +38,31 @@
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.14.2"
+#define CFL_VERSION_STR "2.14.2.dev2"
 
 /**
  * Minimum required librdkafka version. This is checked both during
  * build-time (just below) and runtime (see confluent_kafka.c).
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
+ *
+ * Floor is v2.14.2 to match the bundled AWS-IAM-aware librdkafka
+ * (v2.14.2-aws-iam.2-dev), which the OAUTHBEARER aws_iam autowire path
+ * requires (the dispatcher passes the `aws_iam` marker straight to
+ * librdkafka — see resolve_aws_oauthbearer_marker in confluent_kafka.c).
+ * Note: the version number alone cannot distinguish an aws_iam-aware build
+ * from stock 2.14.2; the AWS-IAM behavior is guaranteed by the bundled wheel.
  */
-#define MIN_RD_KAFKA_VERSION 0x020e00ff
+#define MIN_RD_KAFKA_VERSION 0x020e02ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.14.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.14.2 or later. "        \
         "Install the latest version of librdkafka from Homebrew by running "   \
         "`brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.14.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.14.2 or later. "        \
         "Install the latest version of librdkafka from the Confluent "         \
         "repositories, see http://docs.confluent.io/current/installation.html"
 #endif
@@ -63,10 +70,10 @@
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.14.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+    "confluent-kafka-python requires librdkafka v2.14.2 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.14.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+    "confluent-kafka-python requires librdkafka v2.14.2 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
