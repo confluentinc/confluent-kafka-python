@@ -584,22 +584,22 @@ static void ShareConsumer_acknowledgement_commit_cb(
     rd_kafka_share_partition_offsets_list_t *partitions,
     rd_kafka_resp_err_t err,
     void *opaque) {
-        Handle *self        = opaque;
-        PyObject *offsets   = NULL;
-        PyObject *exception = NULL;
-        PyObject *args      = NULL;
-        PyObject *result    = NULL;
-        PyObject *cb        = NULL;
+        ShareConsumerHandle *self = opaque;
+        PyObject *offsets         = NULL;
+        PyObject *exception       = NULL;
+        PyObject *args            = NULL;
+        PyObject *result          = NULL;
+        PyObject *cb              = NULL;
         CallState *cs;
 
         /* Own a ref to the callback for the whole call: the user callback (or
          * a finalizer) can clear or replace the registration mid-flight.
          * INCREF only after CallState_get reacquires the GIL. */
-        cb = self->u.ShareConsumer.on_share_acknowledgement_commit;
+        cb = self->base.u.ShareConsumer.on_share_acknowledgement_commit;
         if (!cb)
                 return;
 
-        cs = CallState_get(self);
+        cs = CallState_get(&self->base);
         Py_INCREF(cb);
 
         offsets = partitions
@@ -688,7 +688,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
             self->rkshare,
             callback == Py_None ? NULL
                                 : ShareConsumer_acknowledgement_commit_cb,
-            &self->base);
+            self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
