@@ -114,10 +114,7 @@ def test_share_consumer_oauth_refresh_through_reauth(oauth_share_consumer_conf):
 #
 # TODO KIP-932: fix the OAuth construction path so it surfaces a KafkaException
 # instead of a SystemError, then re-enable this test.
-@pytest.mark.skip(
-    reason="Latent OAuth bug: failed construction raises SystemError instead of "
-    "KafkaException."
-)
+@pytest.mark.skip(reason="Latent OAuth bug: failed construction raises SystemError instead of " "KafkaException.")
 def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consumer_conf):
     """Expired token is rejected by the broker; error_cb fires from the poll drain.
 
