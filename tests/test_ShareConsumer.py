@@ -577,8 +577,8 @@ def test_concurrent_thread_access_raises_conflict():
             try:
                 sc.commit_async()
             except KafkaException as exc:
-                code = exc.args[0].code()
-                (conflicts if code == KafkaError._CONFLICT else other_errors).append(code)
+                err = exc.args[0]
+                (conflicts if err.code() == KafkaError._CONFLICT else other_errors).append(err)
             except Exception as exc:  # noqa: BLE001 - record anything unexpected
                 other_errors.append(repr(exc))
 
@@ -601,4 +601,6 @@ def test_concurrent_thread_access_raises_conflict():
         sc.close()
 
     assert conflicts, "second-thread access during poll() should have raised _CONFLICT"
-    assert not other_errors, f"unexpected non-_CONFLICT errors from second thread: {other_errors}"
+    assert all(err.code() == KafkaError._CONFLICT for err in conflicts)
+    assert 'multi-threaded' in conflicts[0].str().lower(), f"unexpected _CONFLICT message: {conflicts[0].str()!r}"
+    assert not other_errors, f"unexpected errors from second thread: {[str(e) for e in other_errors]}"

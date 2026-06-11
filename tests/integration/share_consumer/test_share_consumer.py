@@ -152,6 +152,7 @@ def test_header_order_preserved(kafka_cluster):
 
         received = drain_share_consumers([sc], 1)[0]
         assert len(received) == 1
+        assert received[0].value() == b'v'
         assert received[0].headers() == headers, f"header order/content changed: {received[0].headers()}"
     finally:
         sc.close()
@@ -236,12 +237,13 @@ def test_single_consumer_multi_partition_full_coverage(kafka_cluster):
         total = n_partitions * per_partition
         received = drain_share_consumers([sc], total)[0]
 
+        # Exactly the produced records: unique offsets, exact value set, every
+        # partition represented.
         unique_records = {(m.partition(), m.offset()) for m in received}
         assert len(unique_records) == total, f"expected {total} unique records, got {len(unique_records)}"
-        partitions_seen = {m.partition() for m in received}
-        assert partitions_seen == set(
-            range(n_partitions)
-        ), f"expected records from all {n_partitions} partitions, got {sorted(partitions_seen)}"
+        expected_values = sorted(f'p{p}-{i}'.encode() for p in range(n_partitions) for i in range(per_partition))
+        assert sorted(m.value() for m in received) == expected_values, 'received values do not match the produced set'
+        assert {m.partition() for m in received} == set(range(n_partitions))
     finally:
         sc.close()
 
@@ -272,15 +274,16 @@ def test_max_poll_records_caps_batch(kafka_cluster):
             producer.flush(timeout=10.0)
 
         batch_sizes = []
-        received = 0
+        received_values = []
         deadline = time.time() + 30.0
-        while time.time() < deadline and received < n:
-            batch = [m for m in sc.poll(timeout=0.5) if m.error() is None]
+        while time.time() < deadline and len(received_values) < n:
+            batch = [m.value() for m in sc.poll(timeout=0.5) if m.error() is None]
             if batch:
                 batch_sizes.append(len(batch))
-                received += len(batch)
+                received_values.extend(batch)
 
-        assert received == n, f"expected all {n} records, got {received}"
+        expected_values = sorted(f'msg-{i}'.encode() for i in range(n))
+        assert sorted(received_values) == expected_values, 'received values do not match the produced set'
         assert all(size <= cap for size in batch_sizes), f"a poll() exceeded max.poll.records={cap}: {batch_sizes}"
         assert len(batch_sizes) >= 2, f"expected >=2 capped batches for {n} records at cap {cap}, got {batch_sizes}"
     finally:
@@ -812,7 +815,9 @@ def test_subscribe_before_topic_exists(kafka_cluster):
         producer.flush(timeout=10.0)
 
         received = drain_share_consumers([sc], n, timeout_s=30.0)[0]
-        assert len(received) == n, f'expected {n} records after topic creation, got {len(received)}'
+        assert sorted(m.value() for m in received) == sorted(
+            f'msg-{i}'.encode() for i in range(n)
+        ), 'expected exactly the records produced after the topic was created'
     finally:
         sc.close()
 
@@ -833,7 +838,7 @@ def test_resubscribe_same_topic_keeps_delivering(kafka_cluster):
             producer.produce(topic, value=f'first-{i}'.encode())
         producer.flush(timeout=10.0)
         first = drain_share_consumers([sc], 5)[0]
-        assert len(first) == 5, f'phase 1 incomplete: {len(first)}/5'
+        assert sorted(m.value() for m in first) == [f'first-{i}'.encode() for i in range(5)], 'phase 1 records mismatch'
 
         # Redundant re-subscribe to the same topic; drive heartbeats so the
         # (unchanged) subscription settles before producing more.
@@ -845,7 +850,11 @@ def test_resubscribe_same_topic_keeps_delivering(kafka_cluster):
             producer.produce(topic, value=f'second-{i}'.encode())
         producer.flush(timeout=10.0)
         second = drain_share_consumers([sc], 5)[0]
-        assert len(second) == 5, f're-subscribe to same topic broke delivery: {len(second)}/5'
+        # Exactly the new records — and only those, proving the redundant
+        # re-subscribe didn't redeliver phase 1's already-consumed records.
+        assert sorted(m.value() for m in second) == [
+            f'second-{i}'.encode() for i in range(5)
+        ], 're-subscribe to the same topic should deliver the new records and only those'
         assert all(m.topic() == topic for m in second)
     finally:
         sc.close()
