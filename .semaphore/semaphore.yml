@@ -583,6 +583,57 @@ blocks:
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
+  # TODO KIP-932: runs on every workflow (incl. PRs) while we tune the LSAN
+  # suppression baseline. Leaks don't gate yet (ASAN exitcode=0); flip that off
+  # — and ideally move this back to a manual promotion — once it's reliably green.
+  - name: "Share consumer tests under ASAN+LSAN"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      prologue:
+        commands:
+          # Ubuntu 24.04's high-entropy ASLR collides with the sanitizer shadow
+          # mapping; lower it or libasan aborts before main().
+          - sudo sysctl -w vm.mmap_rnd_bits=28
+      epilogue:
+        always:
+          commands:
+            - cp asan-share-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/asan/
+      jobs:
+        - name: "ShareConsumer binding layer (ASAN + LSAN)"
+          commands:
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - uv pip install -r requirements/requirements-tests.txt
+            # Build an ASAN-instrumented librdkafka from the share consumer
+            # branch, then build the cimpl extension against it with the same
+            # instrumentation so binding-layer leaks show real source frames.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_SANITIZE=address tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-fsanitize=address -g -fno-omit-frame-pointer -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-fsanitize=address -L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # python3 isn't an ASAN build, so libasan has to be preloaded to come
+            # first; PYTHONMALLOC=malloc lets LSAN see allocations pymalloc would
+            # otherwise hide. exitcode=0 keeps leaks non-blocking for now — pytest
+            # failures still gate. Both files are broker-free.
+            - |
+              set -o pipefail
+              LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
+                PYTHONMALLOC=malloc \
+                ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=0:print_stacktrace=1:symbolize=1" \
+                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
+                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
