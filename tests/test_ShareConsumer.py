@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, ShareConsumer
+from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Message, ShareConsumer
 from tests.common import (
     TestShareConsumer,
     TestUtils,
@@ -129,6 +129,41 @@ def test_subscribe(share_consumer):
     assert 'test-topic' in subscription
 
 
+def test_subscribe_multiple_topics(share_consumer):
+    """subscribe() with several topics: subscription() reports all of them.
+
+    The result comes back sorted rather than in insertion order, so compare
+    order-agnostically — what matters is that every topic survives the round
+    trip, not the ordering."""
+    share_consumer.subscribe(['topic-c', 'topic-a', 'topic-b'])
+    assert sorted(share_consumer.subscription()) == ['topic-a', 'topic-b', 'topic-c']
+
+
+def test_subscribe_idempotent_and_incremental(share_consumer):
+    """Re-subscribing to the same set is idempotent, growing the topic list
+    grows the subscription, and a repeated unsubscribe() is a harmless no-op.
+    """
+    # Incremental: each subscribe() fully replaces the prior set, so a growing
+    # list yields a growing subscription.
+    share_consumer.subscribe(['a'])
+    assert share_consumer.subscription() == ['a']
+    share_consumer.subscribe(['a', 'b'])
+    assert sorted(share_consumer.subscription()) == ['a', 'b']
+    share_consumer.subscribe(['a', 'b', 'c'])
+    assert sorted(share_consumer.subscription()) == ['a', 'b', 'c']
+
+    # Idempotent: subscribing to the same set repeatedly doesn't duplicate it.
+    share_consumer.subscribe(['x', 'y'])
+    share_consumer.subscribe(['x', 'y'])
+    share_consumer.subscribe(['x', 'y'])
+    assert sorted(share_consumer.subscription()) == ['x', 'y']
+
+    # Repeated unsubscribe is a no-op, not an error.
+    share_consumer.unsubscribe()
+    share_consumer.unsubscribe()
+    assert share_consumer.subscription() == []
+
+
 def test_unsubscribe(share_consumer):
     """Test unsubscribe() method."""
     share_consumer.subscribe(['test-topic'])
@@ -138,12 +173,32 @@ def test_unsubscribe(share_consumer):
     assert len(subscription) == 0
 
 
+def test_unsubscribe_without_subscription_is_noop(share_consumer):
+    """unsubscribe() before any subscribe() is a no-op: it returns None and
+    leaves the subscription empty rather than raising."""
+    assert share_consumer.subscription() == []
+    assert share_consumer.unsubscribe() is None
+    assert share_consumer.subscription() == []
+
+
 def test_poll_no_broker(share_consumer):
     """Test poll() returns empty list when no broker available."""
     share_consumer.subscribe(['test-topic'])
 
     messages = share_consumer.poll(timeout=0.1)
     assert messages == []
+
+
+def test_poll_without_subscription_raises_state(share_consumer):
+    """poll() before any subscribe() raises KafkaException(_STATE).
+
+    The "not subscribed" check fires before any broker I/O, so this returns
+    immediately without a broker. We assert only the error code, not the
+    message: depending on timing it can be either "not subscribed" or
+    "consumer group not initialized", both of which are _STATE."""
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.poll(timeout=0.1)
+    assert ex.value.args[0].code() == KafkaError._STATE
 
 
 def test_commit_does_not_hang_on_unreachable_broker():
@@ -240,6 +295,17 @@ def test_any_method_after_close_throws_exception():
         sc.poll(timeout=0.1)
     assert ex.match('Share consumer closed')
 
+    # The closed-state check happens before argument parsing, so acknowledge(None)
+    # raises the closed-consumer RuntimeError rather than a TypeError about the
+    # non-Message argument.
+    with pytest.raises(RuntimeError) as ex:
+        sc.acknowledge(None, AcknowledgeType.ACCEPT)
+    assert ex.match('Share consumer closed')
+
+    with pytest.raises(RuntimeError) as ex:
+        sc.acknowledge_offset('test-topic', 0, 0, AcknowledgeType.ACCEPT)
+    assert ex.match('Share consumer closed')
+
     with pytest.raises(RuntimeError) as ex:
         sc.commit_sync(timeout=0.1)
     assert ex.match('Share consumer closed')
@@ -269,13 +335,42 @@ def test_subscribe_with_non_list_raises(share_consumer):
 
 
 def test_subscribe_with_empty_list_unsubscribes(share_consumer):
-    """subscribe([]) is equivalent to unsubscribe(): an empty topic list
-    clears the current subscription instead of raising."""
+    """subscribe([]) is equivalent to unsubscribe(): an empty topic list clears
+    the current subscription instead of raising, after which poll() raises
+    _STATE (not subscribed).
+
+    This is an empty *list* — an empty topic *name* is a different case and
+    still raises _INVALID_ARG (test_subscribe_rejects_empty_and_duplicate_topic_names).
+    """
     share_consumer.subscribe(['test-topic'])
     assert share_consumer.subscription() == ['test-topic']
 
-    share_consumer.subscribe([])  # no exception
+    assert share_consumer.subscribe([]) is None
     assert share_consumer.subscription() == []
+
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.poll(timeout=0.1)
+    assert ex.value.args[0].code() == KafkaError._STATE
+
+
+def test_subscribe_rejects_empty_and_duplicate_topic_names(share_consumer):
+    """An empty topic name and duplicate topic names are rejected with
+    _INVALID_ARG. (An empty *list* is a different case — it unsubscribes.)"""
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.subscribe([''])
+    assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.subscribe(['dup-topic', 'dup-topic'])
+    assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+
+
+def test_subscribe_accepts_caret_topic_as_literal_name(share_consumer):
+    """A '^'-prefixed name is accepted and stored verbatim — it's treated as a
+    literal topic name, not a regex pattern. Whether it matches any topic is a
+    broker-side question; here we just confirm it's accepted and round-trips."""
+    share_consumer.subscribe(['^literal-name'])
+    assert share_consumer.subscription() == ['^literal-name']
 
 
 def test_poll_with_non_numeric_timeout_raises(share_consumer):
@@ -300,6 +395,21 @@ def test_acknowledge_rejects_non_message_argument(share_consumer):
     for bad in (None, 'not-a-message', 42, object(), []):
         with pytest.raises(TypeError):
             share_consumer.acknowledge(bad, AcknowledgeType.ACCEPT)
+
+
+def test_acknowledge_none_topic_message_rejected(share_consumer):
+    """acknowledge() of a Message with no topic (topic() is None) is rejected
+    with _INVALID_ARG rather than crashing on the missing topic.
+
+    partition/offset are valid, so the absent topic is the only thing wrong.
+    A missing topic is checked before the ack-mode check, which is why the
+    default implicit-mode fixture works here — the same call with a real topic
+    would instead return _STATE (an explicit ack in implicit mode)."""
+    msg = Message(partition=0, offset=0)
+    assert msg.topic() is None
+    with pytest.raises(KafkaException) as ex:
+        share_consumer.acknowledge(msg, AcknowledgeType.ACCEPT)
+    assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
 
 def test_acknowledge_offset_rejects_non_str_topic(share_consumer):
@@ -335,6 +445,35 @@ def test_acknowledge_offset_rejects_negative_offset(share_consumer):
     with pytest.raises(KafkaException) as ex:
         share_consumer.acknowledge_offset('topic', 0, -1, AcknowledgeType.ACCEPT)
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+
+
+def test_acknowledge_offset_rejects_out_of_range_ack_type():
+    """An out-of-range AcknowledgeType is rejected with _INVALID_ARG.
+
+    Only ACCEPT(1), RELEASE(2) and REJECT(3) are valid. The ack_type is only
+    checked after the ack-mode check, and an explicit ack in implicit mode
+    returns _STATE first — so this needs an explicit-mode consumer (not the
+    shared implicit fixture) to actually reach the type check. topic/partition/
+    offset are valid, so the bad ack_type is the only thing wrong. acknowledge()
+    takes the same path, so this covers both ack APIs."""
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-bad-ack-type'),
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+            'share.acknowledgement.mode': 'explicit',
+        }
+    )
+    try:
+        # 0 sits just below ACCEPT(1), 4 just above REJECT(3); 999 is far out.
+        for bad_ack_type in (0, 4, 999):
+            with pytest.raises(KafkaException) as ex:
+                sc.acknowledge_offset('test-topic', 0, 0, bad_ack_type)
+            assert (
+                ex.value.args[0].code() == KafkaError._INVALID_ARG
+            ), f'ack_type={bad_ack_type} should be rejected with _INVALID_ARG'
+    finally:
+        sc.close()
 
 
 def test_commit_sync_rejects_non_numeric_timeout(share_consumer):
@@ -408,3 +547,60 @@ def test_poll_interruptible_by_signal():
         sc2.close()
 
     assert interrupted, "poll() (infinite) should have been interrupted by SIGINT"
+
+
+def test_concurrent_thread_access_raises_conflict():
+    """A ShareConsumer is not safe for concurrent use: touching it from a
+    second thread while another thread is inside poll() raises
+    KafkaException(_CONFLICT).
+
+    Ownership is held by whichever thread is currently in a call, for the whole
+    duration of that call (including poll()'s blocking wait), so a second
+    thread's call is rejected. No broker needed — the guard is local and stays
+    held across the idle poll, so the hammer thread reliably hits it.
+    commit_async() makes a good probe: it's guarded but returns immediately.
+    """
+    sc = TestShareConsumer(
+        {
+            'group.id': unique_id('test-share-conflict'),
+            'socket.timeout.ms': 100,
+        }
+    )
+    sc.subscribe(['test-topic'])
+
+    conflicts = []
+    other_errors = []
+    stop = threading.Event()
+
+    def hammer():
+        while not stop.is_set():
+            try:
+                sc.commit_async()
+            except KafkaException as exc:
+                err = exc.args[0]
+                (conflicts if err.code() == KafkaError._CONFLICT else other_errors).append(err)
+            except Exception as exc:  # noqa: BLE001 - record anything unexpected
+                other_errors.append(repr(exc))
+
+    hammer_thread = threading.Thread(target=hammer, daemon=True)
+    hammer_thread.start()
+    try:
+        # Keep the consumer busy inside poll() until the hammer thread sees a
+        # conflict, or give up after a few seconds. The main thread can lose the
+        # race too if the hammer briefly grabs ownership — that's fine, swallow
+        # it and keep polling.
+        deadline = time.monotonic() + 3.0
+        while not conflicts and time.monotonic() < deadline:
+            try:
+                sc.poll(timeout=0.2)
+            except KafkaException:
+                pass
+    finally:
+        stop.set()
+        hammer_thread.join(timeout=2.0)
+        sc.close()
+
+    assert conflicts, "second-thread access during poll() should have raised _CONFLICT"
+    assert all(err.code() == KafkaError._CONFLICT for err in conflicts)
+    assert 'multi-threaded' in conflicts[0].str().lower(), f"unexpected _CONFLICT message: {conflicts[0].str()!r}"
+    assert not other_errors, f"unexpected errors from second thread: {[str(e) for e in other_errors]}"
