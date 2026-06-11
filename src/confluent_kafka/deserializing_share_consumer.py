@@ -121,20 +121,22 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
         Deserialize a single message's value and key.
 
         Both fields are deserialized into locals and written back to the
-        message only once *both* succeed, so a failure leaves the record's raw
-        key and value bytes untouched (and therefore still acknowledgeable). On
-        failure the record is marked via :py:func:`Message.set_error` rather
-        than raising, so the rest of the batch (already fetched from the broker)
-        is not lost. The deserializer calls and the context/header setup they
-        use are guarded, so a failure marks only this record instead of
-        aborting the batch.
+        message only once *both* succeed, so a deserialization failure leaves
+        the record's raw key and value bytes untouched (and therefore still
+        acknowledgeable). On a deserialization failure the record is marked via
+        :py:func:`Message.set_error` rather than raising, so the rest of the
+        batch (already fetched from the broker) is not lost. The deserializer
+        calls and the context/header setup they use are guarded, so a failure
+        marks only this record instead of aborting the batch.
+
+        A message with no topic is a broken invariant rather than a per-record
+        data error, so it raises :py:exc:`TypeError` (matching
+        :py:class:`DeserializingConsumer`).
         """
 
         topic = msg.topic()
         if topic is None:
-            # no topic to deserialize against; flag it rather than raise
-            msg.set_error(KafkaError(KafkaError._VALUE_DESERIALIZATION, "Message topic is None"))
-            return
+            raise TypeError("Message topic is None")
 
         try:
             ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
@@ -142,7 +144,7 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
             if self._value_deserializer is not None:
                 value = self._value_deserializer(value, ctx)
         except Exception as se:
-            msg.set_error(KafkaError(KafkaError._VALUE_DESERIALIZATION, f"{type(se).__name__}: {se}"))
+            msg.set_error(KafkaError(KafkaError._VALUE_DESERIALIZATION, str(se)))
             return
 
         try:
@@ -151,8 +153,8 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
                 ctx.field = MessageField.KEY
                 key = self._key_deserializer(key, ctx)
         except Exception as se:
-            msg.set_error(KafkaError(KafkaError._KEY_DESERIALIZATION, f"{type(se).__name__}: {se}"))
+            msg.set_error(KafkaError(KafkaError._KEY_DESERIALIZATION, str(se)))
             return
 
-        msg.set_value(value)
         msg.set_key(key)
+        msg.set_value(value)

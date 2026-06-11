@@ -595,10 +595,23 @@ static PyObject *Message_set_topic(Message *self, PyObject *new_topic) {
 }
 
 static PyObject *Message_set_error(Message *self, PyObject *new_error) {
-        if (self->error)
-                Py_DECREF(self->error);
-        self->error = new_error;
-        Py_INCREF(self->error);
+        if (new_error != Py_None &&
+            !PyObject_TypeCheck(new_error, &KafkaErrorType)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "error must be a KafkaError or None");
+                return NULL;
+        }
+
+        Py_XDECREF(self->error);
+
+        if (new_error == Py_None) {
+                /* None clears the error; Message stores "no error" as NULL
+                 * (Message_error then returns None for it). */
+                self->error = NULL;
+        } else {
+                Py_INCREF(new_error);
+                self->error = new_error;
+        }
 
         Py_RETURN_NONE;
 }
@@ -754,9 +767,10 @@ static PyMethodDef Message_methods[] = {
     {"set_error", (PyCFunction)Message_set_error, METH_O,
      "  Set the field 'Message.error' with new value.\n"
      "\n"
-     "  :param object value: Message.error.\n"
+     "  :param object value: a KafkaError to set, or None to clear it.\n"
      "  :returns: None.\n"
      "  :rtype: None\n"
+     "  :raises TypeError: if value is neither a KafkaError nor None.\n"
      "\n"},
     {"__reduce__", (PyCFunction)Message_reduce, METH_NOARGS,
      " Function for serializing Message using the pickle protocol."},
