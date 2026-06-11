@@ -480,13 +480,14 @@ class SoakClient(object):
                 try:
                     if use_sync:
                         result = self.share_consumer.commit_sync(timeout=10.0)
-                        partition_errs = sum(
-                            1 for err in result.values() if err is not None
-                        )
-                        if partition_errs > 0:
+                        err_details = [
+                            "{}/{}={}".format(tp.topic, tp.partition, err)
+                            for tp, err in result.items() if err is not None
+                        ]
+                        if err_details:
                             self.logger.warning(
-                                "share: commit_sync had {} partition error(s)"
-                                .format(partition_errs)
+                                "share: commit_sync had {} partition error(s): {}"
+                                .format(len(err_details), "; ".join(err_details))
                             )
                             self.share_err_cnt += 1
                             self.incr_counter("consumer.error", 1)
