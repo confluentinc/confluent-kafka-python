@@ -17,29 +17,14 @@
 
 """End-to-end example for AWS IAM OAUTHBEARER authentication.
 
-Creates a unique topic, produces messages for ``--run-for`` seconds, and
-consumes them back — exercising the autowire path across AdminClient,
-Producer, and Consumer.
-
 Activation is config-only: setting
-``sasl.oauthbearer.metadata.authentication.type=aws_iam`` is enough. The C
-extension detects the marker and wires up the OAUTHBEARER refresh callback —
-no ``import confluent_kafka.oauthbearer.aws`` is needed at the call site.
-
-With ``--duration-seconds 60`` (the AWS-STS minimum) and the default
-``--run-for 120``, the ``debug=security`` log stream shows librdkafka refresh
-the token mid-run (it refreshes at ~80% of the token lifetime).
+``sasl.oauthbearer.metadata.authentication.type=aws_iam`` is enough.
 
 Install:
     pip install 'confluent-kafka[oauthbearer-aws]'
 
-Prerequisites:
-  1. Runs on AWS compute (EC2 / EKS / ECS / Fargate / Lambda) with an IAM role
-     attached — boto3's default credential chain resolves it, no static keys.
-  2. The role's trust policy allows ``sts:GetWebIdentityToken`` for the audience.
-  3. ``aws iam enable-outbound-web-identity-federation`` has been run once on
-     the account by an administrator.
-  4. The role has produce + consume + create-topic rights on the cluster.
+Runs on AWS compute (EC2 / EKS / ECS / Fargate / Lambda) with an IAM role
+attached — boto3's default credential chain resolves it, no static keys.
 
 To run:
     python oauth_oidc_ccloud_aws_iam.py \\
@@ -65,21 +50,14 @@ def common_config(args):
         'bootstrap.servers': args.bootstrap_servers,
         'security.protocol': 'SASL_SSL',
         'sasl.mechanisms': 'OAUTHBEARER',
-        # The four AWS IAM autowire keys: method=oidc is required (the AWS path
-        # runs inside librdkafka's OIDC subsystem); the marker triggers
-        # autowiring; the config string is the AWS wire grammar
-        # (whitespace-separated key=value — region and audience required).
         'sasl.oauthbearer.method': 'oidc',
         'sasl.oauthbearer.metadata.authentication.type': 'aws_iam',
         'sasl.oauthbearer.config': f'region={args.region} '
         f'audience={args.audience} '
         f'duration_seconds={args.duration_seconds}',
-        # Surfaces the SASL handshake + OAUTHBEARER refresh events on stderr.
         'debug': 'security',
     }
 
-    # Optional SASL extensions (RFC 7628) forwarded verbatim to the broker,
-    # e.g. logicalCluster=lkc-abc,identityPoolId=pool-xyz
     if args.extensions:
         conf['sasl.oauthbearer.extensions'] = args.extensions
 
@@ -95,7 +73,6 @@ def consumer_config(args, group_id):
 
 
 def create_topic(admin_conf, topic_name, num_partitions=1, replication_factor=3):
-    """Create the topic (RF=3 is the Confluent Cloud default)."""
     admin = AdminClient(admin_conf)
     futures = admin.create_topics(
         [

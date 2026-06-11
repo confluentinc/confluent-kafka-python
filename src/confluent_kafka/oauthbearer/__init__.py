@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Namespace package for OAUTHBEARER provider integrations.
-
-Cloud-specific subpackages (e.g. :mod:`confluent_kafka.oauthbearer.aws`) live
-under here and are gated by their own PEP 621 extras.
-"""
+"""Namespace package for OAUTHBEARER provider integrations."""
