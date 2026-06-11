@@ -25,10 +25,12 @@ Broker-free: the deserialization logic is exercised by constructing
 paths shared with ShareConsumer.
 
 A record that fails to deserialize is marked via ``msg.set_error(...)`` and
-kept; ``_deserialize`` never raises. share.acknowledgement.mode is handed
-straight to librdkafka and does not change this. On failure the message is left
-fully raw (value and key are written back only after *both* deserialize), so a
-failed record stays acknowledgeable.
+kept; ``_deserialize`` does not raise on a deserialization failure (a missing
+topic is a broken invariant and does raise ``TypeError``).
+share.acknowledgement.mode is handed straight to librdkafka and does not change
+this. On a deserialization failure the message is left fully raw (value and key
+are written back only after *both* deserialize), so a failed record stays
+acknowledgeable.
 """
 
 import pytest
@@ -248,11 +250,14 @@ def test_key_failure_marks_error(make_dsc, explicit):
 
 
 @pytest.mark.parametrize("explicit", [False, True])
-def test_none_topic_marks_error(make_dsc, explicit):
+def test_none_topic_raises_type_error(make_dsc, explicit):
+    # A message with no topic is a broken invariant, not a per-record data
+    # error, so _deserialize raises TypeError (matching DeserializingConsumer)
+    # rather than marking the record.
     dsc = make_dsc(explicit=explicit, value_deserializer=StringDeserializer())
     msg = _make_message(value=b'v', topic=None)
-    dsc._deserialize(msg)
-    assert msg.error().code() == KafkaError._VALUE_DESERIALIZATION
+    with pytest.raises(TypeError, match='Message topic is None'):
+        dsc._deserialize(msg)
 
 
 @pytest.mark.parametrize("explicit", [False, True])
