@@ -1323,3 +1323,165 @@ def test_rebind_releases_previous_callback(kafka_cluster):
         assert second_ref() is None, 'second cb still alive after clear — stash leaked'
     finally:
         sc.close()
+
+
+# --- acknowledgement-commit callback: error delivery ----------------------
+#
+# The cb tests above all check the happy path (exc is None). These check the
+# other half: when the broker rejects an ack, the cb's second arg is a
+# KafkaException instead, still carrying the offsets it applies to.
+#
+# Lock-expiry INVALID_RECORD_STATE is the only rejection we can force without a
+# mock cluster: ack a record, let its lock lapse (1s, from tests/common
+# broker_conf), then commit the now-stale ack.
+
+
+def _ack_then_let_lock_expire(sc, num_messages, lock_sleep_s=2.0, timeout_s=20.0):
+    """Consume num_messages, ACCEPT each, then sleep past the broker's 1s lock
+    so the acks go stale. Returns the acked offsets. We ack inside the loop
+    rather than after it, else the next poll() trips _STATE on the unacked
+    batch."""
+    acked_offsets = set()
+    batch = []
+    deadline = time.time() + timeout_s
+    while time.time() < deadline and len(batch) < num_messages:
+        for m in sc.poll(timeout=0.5):
+            if m.error() is None:
+                batch.append(m)
+                sc.acknowledge(m, AcknowledgeType.ACCEPT)
+                acked_offsets.add(m.offset())
+    assert len(batch) == num_messages, f'received {len(batch)} of {num_messages}'
+    time.sleep(lock_sleep_s)
+    return acked_offsets
+
+
+def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
+    """Stale ack + commit_async: the rejection comes back through the cb as a
+    KafkaException carrying INVALID_RECORD_STATE, offsets attached."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-err-async')
+    num_messages = 3
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        invocations = []
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        acked_offsets = _ack_then_let_lock_expire(sc, num_messages)
+
+        sc.commit_async()
+
+        # Poll until the rejection lands. The expired records get redelivered
+        # and, unacked, would block the next poll with _STATE — don't care,
+        # we're just here to drain the response queue. Swallow it, keep going.
+        deadline = time.time() + 15.0
+        while time.time() < deadline and not any(exc is not None for _, exc in invocations):
+            try:
+                sc.poll(timeout=0.5)
+            except KafkaException:
+                pass
+
+        errored = [(offsets, exc) for offsets, exc in invocations if exc is not None]
+        assert errored, f'cb never reported an error; invocations={invocations!r}'
+
+        cb_offsets = set()
+        for offsets, exc in errored:
+            assert isinstance(exc, KafkaException), f'exc is not a KafkaException: {exc!r}'
+            err = exc.args[0]
+            assert err.code() == KafkaError.INVALID_RECORD_STATE
+            assert err.name() == 'INVALID_RECORD_STATE'
+            # retriable()/fatal() are always False here — the error is built
+            # from a bare code with no per-instance flags, so branch on code(),
+            # not the flags. See docs/share_consumer_error_mapping.md.
+            assert err.retriable() is False
+            assert err.fatal() is False
+            # The error doesn't replace the offsets — they come through too.
+            assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
+            tp = next(iter(offsets))
+            assert isinstance(tp, TopicPartition)
+            assert tp.topic == topic
+            assert isinstance(offsets[tp], frozenset)
+            cb_offsets |= offsets[tp]
+        assert cb_offsets == acked_offsets, f'cb error saw {cb_offsets}, acked {acked_offsets}'
+    finally:
+        sc.set_acknowledgement_commit_callback(None)
+        sc.close()
+
+
+def test_callback_reports_invalid_record_state_on_commit_sync(kafka_cluster):
+    """commit_sync reports the rejection twice — in its result dict and to the
+    cb — and the two had better agree. The cb fires inline, so no poll()."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-err-sync')
+    num_messages = 3
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        invocations = []
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        _ack_then_let_lock_expire(sc, num_messages)
+
+        result = sc.commit_sync(timeout=10.0)
+
+        # First place it shows up: the per-partition result dict.
+        assert any(
+            err is not None and err.code() == KafkaError.INVALID_RECORD_STATE for err in result.values()
+        ), f'expected INVALID_RECORD_STATE in commit_sync result {result}'
+
+        # And again via the cb, which already fired inline before commit_sync
+        # returned — no poll in between.
+        errored = [(offsets, exc) for offsets, exc in invocations if exc is not None]
+        assert errored, f'cb never reported an error during commit_sync; invocations={invocations!r}'
+        for _, exc in errored:
+            assert isinstance(exc, KafkaException)
+            assert exc.args[0].code() == KafkaError.INVALID_RECORD_STATE
+    finally:
+        sc.set_acknowledgement_commit_callback(None)
+        sc.close()
+
+
+def test_callback_reports_error_during_close(kafka_cluster):
+    """No poll() after commit_async, so close() is what drains the response and
+    fires the cb — rejection included. Error-path twin of
+    test_callback_fires_during_close."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-err-close')
+    num_messages = 3
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    invocations = []
+    try:
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: invocations.append((offsets, exc)))
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        _ack_then_let_lock_expire(sc, num_messages)
+
+        # Fire the send but don't poll — let close() drain the response.
+        sc.commit_async()
+    finally:
+        sc.close()
+
+    errored = [(offsets, exc) for offsets, exc in invocations if exc is not None]
+    assert errored, f'cb did not report an error during close(); invocations={invocations!r}'
+    for offsets, exc in errored:
+        assert isinstance(exc, KafkaException)
+        assert exc.args[0].code() == KafkaError.INVALID_RECORD_STATE
+        # Failed offsets still ride along on the close-drained error.
+        assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
+        tp = next(iter(offsets))
+        assert tp.topic == topic
