@@ -1635,6 +1635,101 @@ err:
 }
 
 /**
+ * @brief Convert a share-consumer per-partition acknowledged-offsets list into
+ *        a Python dict(TopicPartition -> set(int)).
+ *
+ * @returns The new Python dict, or NULL on allocation failure with an
+ *          exception set.
+ */
+PyObject *c_share_partition_offsets_list_to_py_dict(
+    const rd_kafka_share_partition_offsets_list_t *partition_offsets_list) {
+        PyObject *result        = NULL;
+        PyObject *partition_key = NULL;
+        PyObject *offset_set    = NULL;
+        size_t partition_count;
+        size_t partition_index;
+
+        result = PyDict_New();
+        if (!result)
+                goto err;
+
+        /* The only caller already rules out a NULL list, but don't rely on
+         * that here: just hand back the empty dict. */
+        if (!partition_offsets_list)
+                return result;
+
+        partition_count =
+            rd_kafka_share_partition_offsets_list_count(partition_offsets_list);
+        for (partition_index = 0; partition_index < partition_count;
+             partition_index++) {
+                const rd_kafka_share_partition_offsets_t *partition_offsets =
+                    rd_kafka_share_partition_offsets_list_get(
+                        partition_offsets_list, partition_index);
+                const rd_kafka_topic_partition_t *rktpar;
+                const int64_t *offsets;
+                size_t offsets_count;
+                size_t offset_index;
+
+                /* The accessors below and c_part_to_py() both deref their
+                 * argument without a NULL check, so skip a bad entry
+                 * instead of segfaulting on it. */
+                if (!partition_offsets)
+                        continue;
+
+                rktpar = rd_kafka_share_partition_offsets_partition(
+                    partition_offsets);
+                if (!rktpar)
+                        continue;
+
+                offsets =
+                    rd_kafka_share_partition_offsets_offsets(partition_offsets);
+                offsets_count = rd_kafka_share_partition_offsets_offsets_cnt(
+                    partition_offsets);
+                /* A NULL offsets array with a non-zero count would be a bug;
+                 * clamp to 0 so we never deref it below. */
+                if (!offsets)
+                        offsets_count = 0;
+
+                partition_key = c_part_to_py(rktpar);
+                if (!partition_key)
+                        goto err;
+
+                offset_set = PySet_New(NULL);
+                if (!offset_set)
+                        goto err;
+
+                for (offset_index = 0; offset_index < offsets_count;
+                     offset_index++) {
+                        PyObject *offset = PyLong_FromLongLong(
+                            (long long)offsets[offset_index]);
+                        if (!offset)
+                                goto err;
+                        if (PySet_Add(offset_set, offset) == -1) {
+                                Py_DECREF(offset);
+                                goto err;
+                        }
+                        Py_DECREF(offset);
+                }
+
+                if (PyDict_SetItem(result, partition_key, offset_set) == -1)
+                        goto err;
+
+                Py_DECREF(partition_key);
+                Py_DECREF(offset_set);
+                partition_key = NULL;
+                offset_set    = NULL;
+        }
+
+        return result;
+
+err:
+        Py_XDECREF(partition_key);
+        Py_XDECREF(offset_set);
+        Py_XDECREF(result);
+        return NULL;
+}
+
+/**
  * @brief Convert Python list(TopicPartition) to C
  * rd_kafka_topic_partition_list_t.
  *
