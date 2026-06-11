@@ -1405,7 +1405,7 @@ def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
             tp = next(iter(offsets))
             assert isinstance(tp, TopicPartition)
             assert tp.topic == topic
-            assert isinstance(offsets[tp], frozenset)
+            assert isinstance(offsets[tp], set)
             cb_offsets |= offsets[tp]
         assert cb_offsets == acked_offsets, f'cb error saw {cb_offsets}, acked {acked_offsets}'
     finally:
