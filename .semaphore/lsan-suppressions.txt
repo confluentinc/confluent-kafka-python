@@ -1,0 +1,34 @@
+# LSAN suppressions for the share consumer ASAN pipeline (run-asan-tests.yml).
+#
+# CPython deliberately doesn't free a lot of interpreter state at shutdown
+# (type objects, interned strings, module dicts, codec caches), so LSAN reports
+# those as leaks. Suppress the interpreter's own one-time allocations here so
+# the log is left with leaks originating in our cimpl extension and librdkafka.
+#
+# This is a STARTING POINT, not a finished list — expect to add entries after
+# reading the first run's report (that triage is the real work). Keep every
+# rule scoped to interpreter internals; never suppress PyInit_cimpl or
+# confluent_kafka frames or you'll hide the leaks we're hunting for.
+
+# Object machinery / type setup kept for the life of the interpreter
+leak:_PyObject_GC_New
+leak:_PyObject_GC_NewVar
+leak:_PyObject_GC_Resize
+leak:PyType_Ready
+leak:type_new
+
+# Unicode interning — interned strings live until shutdown
+leak:_PyUnicode_New
+leak:PyUnicode_New
+leak:unicode_resize
+leak:PyUnicode_InternInPlace
+
+# Imports / modules / codecs — one-time startup allocations
+leak:_PyImport_FixupExtensionObject
+leak:PyModule_New
+leak:_PyCodecRegistry_Init
+
+# Raw interpreter allocator
+leak:_PyMem_RawMalloc
+leak:_PyMem_RawRealloc
+leak:_PyMem_RawCalloc
