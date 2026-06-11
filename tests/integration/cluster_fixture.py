@@ -32,7 +32,7 @@ from confluent_kafka.admin import (
 )
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from tests.common import TestConsumer, TestShareConsumer
+from tests.common import TestConsumer, TestDeserializingShareConsumer, TestShareConsumer
 from tests.common._async.consumer import TestAsyncDeserializingConsumer
 from tests.common._async.producer import TestAsyncSerializingProducer
 from tests.common.schema_registry import TestDeserializingConsumer
@@ -141,16 +141,16 @@ class KafkaClusterFixture(object):
 
         return TestConsumer(consumer_conf)
 
-    def share_consumer(self, conf=None):
+    def _share_consumer_conf(self, conf=None):
         """
-        Returns a share consumer bound to this cluster.
+        Builds share-consumer config bound to this cluster, including the
+        per-group share.auto.offset.reset setup shared by every share consumer.
 
         Args:
             conf (dict): ShareConsumer config overrides
 
         Returns:
-            ShareConsumer: A new TestShareConsumer instance
-
+            dict: the resolved share-consumer configuration
         """
         share_conf = self.client_conf({'group.id': str(uuid1())})
 
@@ -159,7 +159,7 @@ class KafkaClusterFixture(object):
 
         # KIP-932: share.auto.offset.reset is a per-group broker-side config with default as "latest".
         # Set to "earliest" so tests don't have to set it in every call.
-        # TODO KIP-932: this shouldn't live in the share_consumer fixture —
+        # TODO KIP-932: this shouldn't live in a per-consumer fixture —
         # share.auto.offset.reset is a property of the group, not the consumer.
         # Re-issuing the alter on every consumer construction for the same
         # group.id is unnecessary. Lift this to a per-group setup step.
@@ -175,10 +175,52 @@ class KafkaClusterFixture(object):
                 ),
             ],
         )
-        for f in self.admin().incremental_alter_configs([res]).values():
-            f.result()
+        for future in self.admin().incremental_alter_configs([res]).values():
+            future.result()
 
-        return TestShareConsumer(share_conf)
+        return share_conf
+
+    def share_consumer(self, conf=None):
+        """
+        Returns a share consumer bound to this cluster.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+        Returns:
+            ShareConsumer: A new TestShareConsumer instance
+
+        """
+        return TestShareConsumer(self._share_consumer_conf(conf))
+
+    def deserializing_share_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
+        """
+        Returns a DeserializingShareConsumer bound to this cluster.
+
+        Mirrors :func:`share_consumer` (including the per-group
+        share.auto.offset.reset=earliest setup) but returns a
+        DeserializingShareConsumer with the supplied key/value deserializers.
+
+        Args:
+            conf (dict): ShareConsumer config overrides
+
+            key_deserializer (Deserializer): deserializer to apply to message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            DeserializingShareConsumer: A new TestDeserializingShareConsumer instance
+        """
+        share_conf = self._share_consumer_conf(conf)
+
+        if key_deserializer is not None:
+            share_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            share_conf['value.deserializer'] = value_deserializer
+
+        return TestDeserializingShareConsumer(share_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
