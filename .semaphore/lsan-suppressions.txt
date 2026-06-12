@@ -1,0 +1,47 @@
+# LSAN suppressions for the share consumer ASAN pipeline (run-asan-tests.yml).
+#
+# CPython deliberately doesn't free a lot of interpreter state at shutdown
+# (type objects, interned strings, module dicts, codec caches), so LSAN reports
+# those as leaks. Suppress the interpreter's own one-time allocations here so
+# the log is left with leaks originating in our cimpl extension and librdkafka.
+#
+# This is a STARTING POINT, not a finished list — expect to add entries after
+# reading the first run's report (that triage is the real work). Keep every
+# rule scoped to interpreter internals or third-party extension module-init
+# (e.g. cryptography/cffi dragged in by trivup); never suppress PyInit_cimpl,
+# confluent_kafka, or librdkafka frames or you'll hide the leaks we're hunting.
+
+# Object machinery / type setup kept for the life of the interpreter
+leak:_PyObject_GC_New
+leak:_PyObject_GC_NewVar
+leak:_PyObject_GC_Resize
+leak:PyType_Ready
+leak:type_new
+
+# Unicode interning — interned strings live until shutdown
+leak:_PyUnicode_New
+leak:PyUnicode_New
+leak:unicode_resize
+leak:PyUnicode_InternInPlace
+
+# Imports / modules / codecs — one-time startup allocations
+leak:_PyImport_FixupExtensionObject
+leak:PyModule_New
+leak:_PyCodecRegistry_Init
+
+# Raw interpreter allocator
+leak:_PyMem_RawMalloc
+leak:_PyMem_RawRealloc
+leak:_PyMem_RawCalloc
+
+# Third-party C/Rust extension module-init leaks, pulled in transitively by
+# trivup (jwcrypto -> cryptography -> cffi) and the schema-registry client that
+# cluster_fixture imports at load time. One-time PyInit / pyo3 type-object setup
+# inside those .so's — not our code, not librdkafka. (Integration job only; the
+# broker-free job never imports these.)
+leak:cryptography
+leak:_cffi_backend
+leak:create_type_object
+leak:PyInit__openssl
+leak:_my_Py_InitModule
+leak:b_init_cffi_1_0_external_module
