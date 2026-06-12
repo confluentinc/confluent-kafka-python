@@ -98,7 +98,8 @@ class SoakClient(object):
         else:
             self.dr_cnt += 1
             self.incr_counter("producer.drok", 1)
-            self.set_gauge("producer.latency", msg.latency(), tags={"partition": "{}".format(msg.partition())})
+            # perf: per-message gauge disabled to reach high throughput.
+            # self.set_gauge("producer.latency", msg.latency(), tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
                 self.logger.debug(
                     "producer: delivered message to {} [{}] at offset {} in {}s".format(
@@ -119,7 +120,10 @@ class SoakClient(object):
                 self.producer.produce(
                     self.topic,
                     value=record.serialize(),
-                    headers={"msgid": str(record.msgid), "time": str(time.time()), "txcnt": str(txcnt)},
+                    # perf: "time" header dropped — it only fed the per-message
+                    # e2e latency gauge, which is now disabled. str(time.time())
+                    # was a syscall + float->str on every produced message.
+                    headers={"msgid": str(record.msgid), "txcnt": str(txcnt)},
                     on_delivery=self.dr_cb,
                 )
                 break
@@ -255,14 +259,16 @@ class SoakClient(object):
             self.msg_cnt += 1
             self.incr_counter("consumer.msg", 1)
 
-            # end-to-end latency
-            headers = dict(msg.headers())
-            txtime = headers.get('time', None)
-            if txtime is not None:
-                latency = time.time() - float(txtime)
-                self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
-            else:
-                latency = None
+            # perf: per-message end-to-end latency gauge disabled to reach
+            # high throughput (rebuilt a dict + gauge per message).
+            # headers = dict(msg.headers())
+            # txtime = headers.get('time', None)
+            # if txtime is not None:
+            #     latency = time.time() - float(txtime)
+            #     self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
+            # else:
+            #     latency = None
+            latency = None
 
             if (self.msg_cnt % self.disprate) == 0:
                 # Show a sample message every #disprate messages
@@ -416,15 +422,16 @@ class SoakClient(object):
                 self.share_msg_cnt += 1
                 self.incr_counter("consumer.msg", 1)
 
-                # end-to-end latency
-                headers = dict(msg.headers())
-                txtime = headers.get('time', None)
-                if txtime is not None:
-                    latency = time.time() - float(txtime)
-                    self.set_gauge(
-                        "consumer.e2e_latency", latency,
-                        tags={"partition": "{}".format(msg.partition())}
-                    )
+                # perf: per-message end-to-end latency gauge disabled to reach
+                # high throughput (rebuilt a dict + gauge per message).
+                # headers = dict(msg.headers())
+                # txtime = headers.get('time', None)
+                # if txtime is not None:
+                #     latency = time.time() - float(txtime)
+                #     self.set_gauge(
+                #         "consumer.e2e_latency", latency,
+                #         tags={"partition": "{}".format(msg.partition())}
+                #     )
 
                 if (self.share_msg_cnt % self.disprate) == 0:
                     self.logger.info(
@@ -480,14 +487,13 @@ class SoakClient(object):
                 try:
                     if use_sync:
                         result = self.share_consumer.commit_sync(timeout=10.0)
-                        err_details = [
-                            "{}/{}={}".format(tp.topic, tp.partition, err)
-                            for tp, err in result.items() if err is not None
-                        ]
-                        if err_details:
+                        partition_errs = sum(
+                            1 for err in result.values() if err is not None
+                        )
+                        if partition_errs > 0:
                             self.logger.warning(
-                                "share: commit_sync had {} partition error(s): {}"
-                                .format(len(err_details), "; ".join(err_details))
+                                "share: commit_sync had {} partition error(s)"
+                                .format(partition_errs)
                             )
                             self.share_err_cnt += 1
                             self.incr_counter("consumer.error", 1)
