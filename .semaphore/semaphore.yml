@@ -655,8 +655,8 @@ blocks:
               LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
                 PYTHONMALLOC=malloc \
                 ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
-                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
-                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log
+                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=1" \
+                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py tests/test_ShareConsumer_leak_canary.py 2>&1 | tee asan-share-tests.log
   # KIP-932: share-consumer INTEGRATION tests under ASAN+LSAN, gated per-PR
   # (companion to the broker-free job above). The broker is a JVM, so it must
   # never inherit LD_PRELOAD=libasan: trivup starts the cluster in a clean env
