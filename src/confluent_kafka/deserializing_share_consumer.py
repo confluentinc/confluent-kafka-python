@@ -128,8 +128,8 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
         acknowledgeable). On a deserialization failure the record is marked via
         :py:func:`Message.set_error` rather than raising, so the rest of the
         batch (already fetched from the broker) is not lost. The deserializer
-        calls and the context/header setup they use are guarded, so a failure
-        marks only this record instead of aborting the batch.
+        calls are guarded, so a failure marks only this record instead of
+        aborting the batch.
 
         A message with no topic is a broken invariant rather than a per-record
         data error, so it raises :py:exc:`TypeError` (matching
@@ -140,8 +140,8 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
         if topic is None:
             raise TypeError("Message topic is None")
 
+        ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
         try:
-            ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
             value = msg.value()
             if self._value_deserializer is not None:
                 value = self._value_deserializer(value, ctx)
