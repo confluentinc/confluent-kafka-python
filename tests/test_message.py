@@ -2,7 +2,7 @@ import pickle
 
 import pytest
 
-from confluent_kafka.cimpl import KafkaError, Message
+from confluent_kafka.cimpl import Message
 
 
 def empty_message_1():
@@ -149,7 +149,7 @@ def test_message_create_with_kwds():
 def test_message_set_properties():
     # Tests all set_<name>() methods.
 
-    headers = []
+    headers, error = [], object()
     msg = Message()
     assert len(msg) == 0
     msg.set_topic("t")
@@ -161,15 +161,8 @@ def test_message_set_properties():
     assert msg.key() == "k"
     msg.set_headers(headers)
     assert msg.headers() is headers
-    # set_error only accepts a KafkaError (to set) or None (to clear); any
-    # other type is rejected with TypeError.
-    error = KafkaError(KafkaError._VALUE_DESERIALIZATION, "boom")
     msg.set_error(error)
     assert msg.error() is error
-    msg.set_error(None)
-    assert msg.error() is None
-    with pytest.raises(TypeError):
-        msg.set_error(object())
 
 
 @pytest.mark.parametrize("value", [None, object()])

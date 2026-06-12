@@ -105,7 +105,9 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
             Records that arrived with an error (``msg.error()`` is not None) are
             returned unchanged. Records whose key or value fails to deserialize are
             returned with their raw bytes preserved and ``msg.error()`` set to a
-            ``_KEY_DESERIALIZATION`` or ``_VALUE_DESERIALIZATION`` error.
+            ``_KEY_DESERIALIZATION`` or ``_VALUE_DESERIALIZATION`` error. That error
+            is a :py:class:`KafkaError`, so a caller can tell the two cases apart
+            with ``msg.error().code()``.
         """
 
         messages = super(DeserializingShareConsumer, self).poll(timeout)
