@@ -657,6 +657,15 @@ blocks:
                 ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
                 LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=1" \
                 python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py tests/test_ShareConsumer_leak_canary.py 2>&1 | tee asan-share-tests.log
+              rc=$?
+              # exitcode=1 does NOT propagate when libasan is LD_PRELOADed into a
+              # non-instrumented python: LSAN prints the leak report but the
+              # process still exits 0. Gate on the report text, not the code.
+              if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-tests.log; then
+                echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              exit $rc
   # KIP-932: share-consumer INTEGRATION tests under ASAN+LSAN, gated per-PR
   # (companion to the broker-free job above). The broker is a JVM, so it must
   # never inherit LD_PRELOAD=libasan: trivup starts the cluster in a clean env
@@ -722,6 +731,14 @@ blocks:
                 --conf '["transaction.state.log.replication.factor=1","transaction.state.log.min.isr=1","offsets.topic.replication.factor=1","offsets.topic.min.isr=1","share.coordinator.state.topic.replication.factor=1","share.coordinator.state.topic.min.isr=1","group.share.record.lock.duration.ms=1000","group.share.min.record.lock.duration.ms=1000"]' \
                 --cmd 'LD_PRELOAD="$(gcc -print-file-name=libasan.so)" python -m pytest -v --timeout=300 tests/integration/share_consumer/' \
                 2>&1 | tee asan-share-integration-tests.log
+              rc=$?
+              # Same LD_PRELOAD exit-code caveat as the binding-layer job: a leak
+              # with otherwise-passing tests still exits 0, so gate on the text.
+              if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-integration-tests.log; then
+                echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              exit $rc
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
