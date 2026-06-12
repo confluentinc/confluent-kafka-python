@@ -21,7 +21,7 @@ import signal
 import time
 import uuid
 
-from confluent_kafka import Consumer, ShareConsumer
+from confluent_kafka import Consumer, DeserializingShareConsumer, ShareConsumer
 from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
@@ -282,6 +282,26 @@ def poll_ack_commit_loop(
 
 class TestShareConsumer(ShareConsumer):
     """Test wrapper around ShareConsumer."""
+
+    __test__ = False  # not a pytest collection target despite the Test* prefix
+
+    def __init__(self, conf=None, **kwargs):
+        effective_conf = {
+            'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS,
+        }
+        if conf:
+            effective_conf.update(conf)
+        super().__init__(effective_conf, **kwargs)
+
+
+class TestDeserializingShareConsumer(DeserializingShareConsumer):
+    """Test wrapper around DeserializingShareConsumer.
+
+    Mirrors :class:`TestShareConsumer`: injects a default bootstrap.servers so
+    unit tests can construct an instance without a broker. Share consumers have
+    their own group protocol, so (unlike TestDeserializingConsumer) there is no
+    group.protocol fixup here.
+    """
 
     __test__ = False  # not a pytest collection target despite the Test* prefix
 
