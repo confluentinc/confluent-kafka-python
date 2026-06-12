@@ -693,10 +693,12 @@ blocks:
             - sem-version java 17
             - pip install uv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
-            # pytest comes from requirements-tests; trivup is pinned to the vendored
-            # 0.14.0 (PyPI 0.12.2 breaks on Kafka 4.2.0's 0.0.0.0 quorum voters).
-            - uv pip install -r requirements/requirements-tests.txt
-            - uv pip install tests/trivup/trivup-0.14.0.tar.gz
+            # requirements-tests-install.txt pulls pytest, the schema-registry
+            # client deps (authlib/cryptography — cluster_fixture imports the SR
+            # client at module load, even though the share tests don't use SR),
+            # and the vendored trivup 0.14.0 (PyPI 0.12.2 breaks on Kafka 4.2.0's
+            # 0.0.0.0 quorum voters).
+            - uv pip install -r requirements/requirements-tests-install.txt
             # ASAN-instrumented librdkafka + cimpl, same build as the binding-layer job.
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
             - LIBRDKAFKA_SANITIZE=address tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest

@@ -7,8 +7,9 @@
 #
 # This is a STARTING POINT, not a finished list — expect to add entries after
 # reading the first run's report (that triage is the real work). Keep every
-# rule scoped to interpreter internals; never suppress PyInit_cimpl or
-# confluent_kafka frames or you'll hide the leaks we're hunting for.
+# rule scoped to interpreter internals or third-party extension module-init
+# (e.g. cryptography/cffi dragged in by trivup); never suppress PyInit_cimpl,
+# confluent_kafka, or librdkafka frames or you'll hide the leaks we're hunting.
 
 # Object machinery / type setup kept for the life of the interpreter
 leak:_PyObject_GC_New
@@ -32,3 +33,15 @@ leak:_PyCodecRegistry_Init
 leak:_PyMem_RawMalloc
 leak:_PyMem_RawRealloc
 leak:_PyMem_RawCalloc
+
+# Third-party C/Rust extension module-init leaks, pulled in transitively by
+# trivup (jwcrypto -> cryptography -> cffi) and the schema-registry client that
+# cluster_fixture imports at load time. One-time PyInit / pyo3 type-object setup
+# inside those .so's — not our code, not librdkafka. (Integration job only; the
+# broker-free job never imports these.)
+leak:cryptography
+leak:_cffi_backend
+leak:create_type_object
+leak:PyInit__openssl
+leak:_my_Py_InitModule
+leak:b_init_cffi_1_0_external_module
