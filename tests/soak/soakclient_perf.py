@@ -105,7 +105,11 @@ class SoakClient(object):
 
         else:
             self.dr_cnt += 1
-            self.incr_counter("producer.drok", 1)
+            # perf: batch OTEL counter updates every 1000 messages to avoid
+            # per-msg SDK overhead (~20-50us/call). Grafana rate calcs are
+            # unaffected since window >>0.5s.
+            if self.dr_cnt % 1000 == 0:
+                self.incr_counter("producer.drok", 1000)
             # perf: per-message gauge disabled to reach high throughput.
             # self.set_gauge("producer.latency", msg.latency(), tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
@@ -141,7 +145,9 @@ class SoakClient(object):
                 continue
 
         self.producer_msgid += 1
-        self.incr_counter("producer.send", 1)
+        # perf: batch OTEL counter updates every 1000 messages.
+        if self.producer_msgid % 1000 == 0:
+            self.incr_counter("producer.send", 1000)
 
     def producer_status(self):
         """Print producer status"""
@@ -265,7 +271,9 @@ class SoakClient(object):
                 self.incr_counter("consumer.msgerr", 1)
 
             self.msg_cnt += 1
-            self.incr_counter("consumer.msg", 1)
+            # perf: batch OTEL counter updates every 1000 messages.
+            if self.msg_cnt % 1000 == 0:
+                self.incr_counter("consumer.msg", 1000)
 
             # perf: per-message end-to-end latency gauge disabled to reach
             # high throughput (rebuilt a dict + gauge per message).
@@ -428,7 +436,9 @@ class SoakClient(object):
                     self.incr_counter("consumer.msgerr", 1)
 
                 self.share_msg_cnt += 1
-                self.incr_counter("consumer.msg", 1)
+                # perf: batch OTEL counter updates every 1000 messages.
+                if self.share_msg_cnt % 1000 == 0:
+                    self.incr_counter("consumer.msg", 1000)
 
                 # perf: per-message end-to-end latency gauge disabled to reach
                 # high throughput (rebuilt a dict + gauge per message).
