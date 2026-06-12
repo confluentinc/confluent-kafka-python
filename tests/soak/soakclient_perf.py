@@ -54,10 +54,17 @@ except ImportError:
 class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
+    # Target serialized value size in bytes. The `name` field is padded by
+    # repeating the base label until the JSON payload reaches roughly this
+    # size, so 10k msg/s ~= 10 MB/s of realistic throughput.
+    TARGET_VALUE_SIZE = 1024
+
     def __init__(self, msgid, name=None):
         self.msgid = msgid
         if name is None:
-            self.name = "SoakRecord nr #{}".format(self.msgid)
+            base = "SoakRecord nr #{}".format(self.msgid)
+            repeat = max(1, self.TARGET_VALUE_SIZE // (len(base) + 1))
+            self.name = " ".join([base] * repeat)
         else:
             self.name = name
 
