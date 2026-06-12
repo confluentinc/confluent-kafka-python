@@ -136,7 +136,7 @@ class SoakClient(object):
                     # e2e latency gauge, which is now disabled. str(time.time())
                     # was a syscall + float->str on every produced message.
                     headers={"msgid": str(record.msgid), "txcnt": str(txcnt)},
-                    on_delivery=self.dr_cb,
+                    # on_delivery=self.dr_cb,
                 )
                 break
 
