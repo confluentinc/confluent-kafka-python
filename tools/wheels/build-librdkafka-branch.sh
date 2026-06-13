@@ -73,6 +73,11 @@ fi
 if [[ -n $LIBRDKAFKA_SANITIZE ]]; then
     export CFLAGS="-fsanitize=${LIBRDKAFKA_SANITIZE} -g -fno-omit-frame-pointer ${CFLAGS}"
     export LDFLAGS="-fsanitize=${LIBRDKAFKA_SANITIZE} ${LDFLAGS}"
+elif [[ -n $LIBRDKAFKA_DEBUG ]]; then
+    # Valgrind build: keep debug symbols and drop optimization so Memcheck
+    # stacks are real and the optimizer doesn't synthesize false uninitialized
+    # reads. Same config librdkafka's own Valgrind CI uses.
+    CONFIGURE_OPTS="$CONFIGURE_OPTS --enable-devel --disable-optimization"
 else
     CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-debug-symbols"
 fi
