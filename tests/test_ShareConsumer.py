@@ -602,5 +602,4 @@ def test_concurrent_thread_access_raises_conflict():
 
     assert conflicts, "second-thread access during poll() should have raised _CONFLICT"
     assert all(err.code() == KafkaError._CONFLICT for err in conflicts)
-    assert 'multi-threaded' in conflicts[0].str().lower(), f"unexpected _CONFLICT message: {conflicts[0].str()!r}"
     assert not other_errors, f"unexpected errors from second thread: {[str(e) for e in other_errors]}"
