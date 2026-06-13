@@ -739,6 +739,69 @@ blocks:
                 rc=1
               fi
               exit $rc
+  # KIP-932: share-consumer binding layer under Valgrind memcheck, gated per-PR.
+  # Broker-free only — Memcheck's ~20-50x slowdown would blow the integration
+  # suite's 1s share-lock timing and run for hours, so we keep it to the fast
+  # tests. It catches the one class ASAN can't: reads of uninitialized memory in
+  # cimpl's own C. Valgrind and ASAN can't co-run, hence the separate non-ASAN
+  # LIBRDKAFKA_DEBUG build. Strict gate: any Memcheck error or a definite/possible
+  # leak fails the job (grep the report — Valgrind's own --error-exitcode is
+  # reliable here too, since it's the parent process, not LD_PRELOADed).
+  - name: "Share consumer binding layer (Valgrind)"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      epilogue:
+        always:
+          commands:
+            - cp valgrind-share-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/valgrind/
+      jobs:
+        - name: "ShareConsumer binding layer (Valgrind memcheck)"
+          commands:
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - uv pip install -r requirements/requirements-tests.txt
+            - sudo apt-get update -qq && sudo apt-get install -y -qq valgrind
+            # Non-ASAN debug build (-g, -O0) so Memcheck stacks are real and the
+            # optimizer doesn't fake uninitialized-read reports.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_DEBUG=1 tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-g -O0 -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # PYTHONMALLOC=malloc lets Memcheck see individual allocations instead
+            # of pymalloc arenas. librdkafka.suppressions (vendored) silences the
+            # glibc-TLS/getaddrinfo/OpenSSL false positives; grow
+            # valgrind-confluent.supp from the --gen-suppressions output on the
+            # first runs (expect some CPython interpreter noise to suppress).
+            - |
+              set -o pipefail
+              SUPP="--suppressions=${PWD}/.semaphore/librdkafka.suppressions"
+              [[ -f .semaphore/valgrind-confluent.supp ]] && SUPP="$SUPP --suppressions=${PWD}/.semaphore/valgrind-confluent.supp"
+              PYTHONMALLOC=malloc valgrind \
+                --error-exitcode=42 --exit-on-first-error=no \
+                --leak-check=full --show-leak-kinds=all \
+                --errors-for-leak-kinds=definite,possible \
+                --track-origins=yes --num-callers=40 --gen-suppressions=all \
+                $SUPP \
+                python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log
+              rc=$?
+              # Strict: fail on any Memcheck error or a definite/possible leak.
+              if grep -Eq 'ERROR SUMMARY: [1-9]|(definitely|possibly) lost: [1-9]' valgrind-share-tests.log; then
+                echo "Valgrind reported errors/leaks above — failing the job."
+                rc=1
+              fi
+              exit $rc
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
