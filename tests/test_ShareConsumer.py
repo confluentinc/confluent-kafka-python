@@ -248,6 +248,10 @@ def test_any_method_after_close_throws_exception():
         sc.commit_async()
     assert ex.match('Share consumer closed')
 
+    with pytest.raises(RuntimeError) as ex:
+        sc.set_sasl_credentials('user', 'pass')
+    assert ex.match('Share consumer closed')
+
 
 def test_required_group_id():
     """Test that group.id is required."""
@@ -300,6 +304,26 @@ def test_acknowledge_rejects_non_message_argument(share_consumer):
     for bad in (None, 'not-a-message', 42, object(), []):
         with pytest.raises(TypeError):
             share_consumer.acknowledge(bad, AcknowledgeType.ACCEPT)
+
+
+def test_set_sasl_credentials_accepts_strings(share_consumer):
+    """Setting credentials doesn't touch the network, so it works on an
+    unconnected consumer and just returns None."""
+    assert share_consumer.set_sasl_credentials('user', 'secret') is None
+    # keyword form
+    assert share_consumer.set_sasl_credentials(username='user2', password='s2') is None
+
+
+def test_set_sasl_credentials_rejects_bad_arguments(share_consumer):
+    """set_sasl_credentials() requires exactly two string arguments."""
+    with pytest.raises(TypeError):
+        share_consumer.set_sasl_credentials()  # missing both
+    with pytest.raises(TypeError):
+        share_consumer.set_sasl_credentials('user')  # missing password
+    with pytest.raises(TypeError):
+        share_consumer.set_sasl_credentials(123, 'pw')  # non-str username
+    with pytest.raises(TypeError):
+        share_consumer.set_sasl_credentials('user', None)  # non-str password
 
 
 def test_acknowledge_offset_rejects_non_str_topic(share_consumer):
