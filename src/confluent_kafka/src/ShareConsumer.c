@@ -73,10 +73,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         if (self->rkshare) {
                 CallState cs;
                 CallState_begin(&self->base, &cs);
-                /* TODO KIP-932: Use rd_kafka_share_destroy_flags() once
-                 * available in the librdkafka public API. */
-                rd_kafka_error_t *destroy_error =
-                    rd_kafka_share_destroy(self->rkshare);
+                rd_kafka_error_t *destroy_error = rd_kafka_share_destroy_flags(
+                    self->rkshare, RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
                 if (destroy_error)
                         rd_kafka_error_destroy(destroy_error);
                 self->rkshare = NULL;
