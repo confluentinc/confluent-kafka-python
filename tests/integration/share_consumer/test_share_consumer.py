@@ -103,6 +103,63 @@ def test_basic_consume_records(kafka_cluster):
         sc.close()
 
 
+def test_set_sasl_credentials_during_active_consumption(kafka_cluster):
+    """Changing credentials on a consumer that's already subscribed and
+    consuming shouldn't disrupt it: records produced after the change still
+    arrive."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-sasl-creds')
+    n = 20
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        sc.subscribe([topic])
+        # let the consumer settle in before changing anything
+        for _ in range(5):
+            sc.poll(timeout=0.2)
+
+        # change credentials mid-stream
+        assert sc.set_sasl_credentials('rotated-user', 'rotated-secret') is None
+
+        producer = kafka_cluster.cimpl_producer()
+        expected = [f'msg-{i}'.encode() for i in range(n)]
+        for v in expected:
+            producer.produce(topic, value=v)
+        producer.flush(timeout=10.0)
+
+        received = drain_share_consumers([sc], n)[0]
+        values = sorted(m.value() for m in received)
+        assert values == sorted(expected), f"Records lost after credential rotation: got {len(received)}/{n}"
+    finally:
+        sc.close()
+
+
+def test_set_sasl_credentials_before_subscribe_and_repeated(kafka_cluster):
+    """Setting credentials before subscribing, and more than once, still leaves
+    a working consumer."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-sasl-creds-presub')
+    n = 10
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        # Before subscribing, and more than once.
+        assert sc.set_sasl_credentials('user-1', 'pass-1') is None
+        assert sc.set_sasl_credentials('user-2', 'pass-2') is None
+
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        expected = [f'msg-{i}'.encode() for i in range(n)]
+        for v in expected:
+            producer.produce(topic, value=v)
+        producer.flush(timeout=10.0)
+
+        received = drain_share_consumers([sc], n)[0]
+        values = sorted(m.value() for m in received)
+        assert values == sorted(expected), f"Consume failed after pre-subscribe credential set: got {len(received)}/{n}"
+    finally:
+        sc.close()
+
+
 def test_message_fields_preserved(kafka_cluster):
     """Key, value, and headers round-trip intact through ShareConsumer."""
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-fields')
