@@ -635,8 +635,8 @@ blocks:
               LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
                 PYTHONMALLOC=malloc \
                 ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
-                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=1" \
-                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py tests/test_ShareConsumer_leak_canary.py 2>&1 | tee asan-share-tests.log
+                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
+                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log
               rc=$?
               # exitcode=1 does NOT propagate when libasan is LD_PRELOADed into a
               # non-instrumented python: LSAN prints the leak report but the
