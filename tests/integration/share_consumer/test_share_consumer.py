@@ -63,9 +63,9 @@ def test_concurrent_consumers(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received_1, received_2 = drain_share_consumers([sc1, sc2], n_messages)
-        offsets1 = {(m.topic(), m.partition(), m.offset()) for m in received_1}
-        offsets2 = {(m.topic(), m.partition(), m.offset()) for m in received_2}
+        received_msgs_1, received_msgs_2 = drain_share_consumers([sc1, sc2], n_messages)
+        offsets1 = {(msg.topic(), msg.partition(), msg.offset()) for msg in received_msgs_1}
+        offsets2 = {(msg.topic(), msg.partition(), msg.offset()) for msg in received_msgs_2}
 
         overlap = offsets1 & offsets2
         all_offsets = offsets1 | offsets2
@@ -95,8 +95,8 @@ def test_basic_consume_records(kafka_cluster):
             producer.produce(topic, value=v)
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], n)[0]
-        values = sorted(m.value() for m in received)
+        received_msgs = drain_share_consumers([sc], n)[0]
+        values = sorted(msg.value() for msg in received_msgs)
         assert values == sorted(expected), f"Value mismatch: expected {sorted(expected)}, got {values}"
     finally:
         sc.close()
@@ -120,10 +120,10 @@ def test_message_fields_preserved(kafka_cluster):
             produced.append((key, value, headers))
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 5)[0]
-        assert len(received) == 5
+        received_msgs = drain_share_consumers([sc], 5)[0]
+        assert len(received_msgs) == 5
 
-        got = sorted([(m.key(), m.value(), m.headers()) for m in received])
+        got = sorted([(msg.key(), msg.value(), msg.headers()) for msg in received_msgs])
         exp = sorted(produced)
         assert got == exp, f"Field mismatch: expected {exp}, got {got}"
     finally:
@@ -150,10 +150,10 @@ def test_header_order_preserved(kafka_cluster):
         producer.produce(topic, value=b'v', headers=headers)
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 1)[0]
-        assert len(received) == 1
-        assert received[0].value() == b'v'
-        assert received[0].headers() == headers, f"header order/content changed: {received[0].headers()}"
+        received_msgs = drain_share_consumers([sc], 1)[0]
+        assert len(received_msgs) == 1
+        assert received_msgs[0].value() == b'v'
+        assert received_msgs[0].headers() == headers, f"header order/content changed: {received_msgs[0].headers()}"
     finally:
         sc.close()
 
@@ -177,9 +177,9 @@ def test_timestamp_and_type_preserved(kafka_cluster):
         producer.produce(topic, value=b'v', timestamp=ts)
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 1)[0]
-        assert len(received) == 1
-        ts_type, ts_val = received[0].timestamp()
+        received_msgs = drain_share_consumers([sc], 1)[0]
+        assert len(received_msgs) == 1
+        ts_type, ts_val = received_msgs[0].timestamp()
         assert ts_type == TIMESTAMP_CREATE_TIME, f"expected CREATE_TIME, got timestamp_type {ts_type}"
         assert ts_val == ts, f"timestamp not preserved: expected {ts}, got {ts_val}"
     finally:
@@ -201,8 +201,8 @@ def test_zero_byte_and_null_key_value(kafka_cluster):
         producer.produce(topic, key=None, value=None)  # null -> offset 1
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 2)[0]
-        by_offset = {m.offset(): (m.key(), m.value()) for m in received}
+        received_msgs = drain_share_consumers([sc], 2)[0]
+        by_offset = {msg.offset(): (msg.key(), msg.value()) for msg in received_msgs}
         assert len(by_offset) == 2, f"expected 2 records, got {len(by_offset)}"
         ordered = [by_offset[o] for o in sorted(by_offset)]
         assert ordered[0] == (b'', b''), f"empty key/value not preserved: {ordered[0]}"
@@ -235,15 +235,17 @@ def test_single_consumer_multi_partition_full_coverage(kafka_cluster):
         producer.flush(timeout=10.0)
 
         total = n_partitions * per_partition
-        received = drain_share_consumers([sc], total)[0]
+        received_msgs = drain_share_consumers([sc], total)[0]
 
         # Exactly the produced records: unique offsets, exact value set, every
         # partition represented.
-        unique_records = {(m.partition(), m.offset()) for m in received}
+        unique_records = {(msg.partition(), msg.offset()) for msg in received_msgs}
         assert len(unique_records) == total, f"expected {total} unique records, got {len(unique_records)}"
         expected_values = sorted(f'p{p}-{i}'.encode() for p in range(n_partitions) for i in range(per_partition))
-        assert sorted(m.value() for m in received) == expected_values, 'received values do not match the produced set'
-        assert {m.partition() for m in received} == set(range(n_partitions))
+        assert (
+            sorted(msg.value() for msg in received_msgs) == expected_values
+        ), 'received values do not match the produced set'
+        assert {msg.partition() for msg in received_msgs} == set(range(n_partitions))
     finally:
         sc.close()
 
@@ -277,7 +279,7 @@ def test_max_poll_records_caps_batch(kafka_cluster):
         received_values = []
         deadline = time.time() + 30.0
         while time.time() < deadline and len(received_values) < n:
-            batch = [m.value() for m in sc.poll(timeout=0.5) if m.error() is None]
+            batch = [msg.value() for msg in sc.poll(timeout=0.5) if msg.error() is None]
             if batch:
                 batch_sizes.append(len(batch))
                 received_values.extend(batch)
@@ -311,8 +313,8 @@ def test_record_larger_than_fetch_max_bytes_delivered(kafka_cluster):
         producer.produce(topic, value=large)
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 2)[0]
-        values = sorted((m.value() for m in received), key=len)
+        received_msgs = drain_share_consumers([sc], 2)[0]
+        values = sorted((msg.value() for msg in received_msgs), key=len)
         assert values == [
             small,
             large,
@@ -346,8 +348,8 @@ def test_compression_codec_roundtrip(kafka_cluster, codec):
             producer.produce(topic, value=v)
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], n)[0]
-        assert sorted(m.value() for m in received) == sorted(expected), f"{codec}: value mismatch"
+        received_msgs = drain_share_consumers([sc], n)[0]
+        assert sorted(msg.value() for msg in received_msgs) == sorted(expected), f"{codec}: value mismatch"
     finally:
         sc.close()
 
@@ -368,12 +370,12 @@ def test_multi_topic_subscription(kafka_cluster):
             producer.produce(topic_b, value=f'b-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 2 * n_per_topic)[0]
-        topics_seen = {m.topic() for m in received}
+        received_msgs = drain_share_consumers([sc], 2 * n_per_topic)[0]
+        topics_seen = {msg.topic() for msg in received_msgs}
         assert topics_seen == {topic_a, topic_b}, f"Expected both topics, got {topics_seen}"
         assert (
-            len(received) == 2 * n_per_topic
-        ), f"Expected {2 * n_per_topic} records across both topics, got {len(received)}"
+            len(received_msgs) == 2 * n_per_topic
+        ), f"Expected {2 * n_per_topic} records across both topics, got {len(received_msgs)}"
     finally:
         sc.close()
 
@@ -400,15 +402,15 @@ def test_records_before_join_not_delivered(kafka_cluster):
         sc.subscribe([topic])
         # Observation window — pre-join records (if delivered at all) would
         # arrive here.
-        received = []
+        received_msgs = []
         deadline = time.time() + 8.0
         while time.time() < deadline:
-            for m in sc.poll(timeout=0.5):
-                if m.error() is None:
-                    received.append(m)
+            for msg in sc.poll(timeout=0.5):
+                if msg.error() is None:
+                    received_msgs.append(msg)
 
-        assert received == [], (
-            f"Pre-join records were delivered ({len(received)} messages); "
+        assert received_msgs == [], (
+            f"Pre-join records were delivered ({len(received_msgs)} messages); "
             f"share consumers must only see records produced after join"
         )
     finally:
@@ -441,8 +443,8 @@ def test_three_consumers_no_overlap(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers(consumers, n, poll_timeout_s=0.2)
-        offset_sets = [{(m.topic(), m.partition(), m.offset()) for m in r} for r in received]
+        received_msgs = drain_share_consumers(consumers, n, poll_timeout_s=0.2)
+        offset_sets = [{(msg.topic(), msg.partition(), msg.offset()) for msg in r} for r in received_msgs]
 
         for i in range(len(offset_sets)):
             for j in range(i + 1, len(offset_sets)):
@@ -475,9 +477,9 @@ def test_independent_share_groups(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received_a, received_b = drain_share_consumers([sc_a, sc_b], 2 * n)
-        offsets_a = {(m.topic(), m.partition(), m.offset()) for m in received_a}
-        offsets_b = {(m.topic(), m.partition(), m.offset()) for m in received_b}
+        received_msgs_a, received_msgs_b = drain_share_consumers([sc_a, sc_b], 2 * n)
+        offsets_a = {(msg.topic(), msg.partition(), msg.offset()) for msg in received_msgs_a}
+        offsets_b = {(msg.topic(), msg.partition(), msg.offset()) for msg in received_msgs_b}
 
         assert len(offsets_a) == n, f"Group A got {len(offsets_a)} unique records, expected {n}"
         assert len(offsets_b) == n, f"Group B got {len(offsets_b)} unique records, expected {n}"
@@ -504,9 +506,9 @@ def test_implicit_ack_no_redelivery(kafka_cluster):
         seen = set()
         deadline = time.time() + 20.0
         while time.time() < deadline and len(seen) < n:
-            for m in sc.poll(timeout=0.5):
-                if m.error() is None:
-                    seen.add((m.partition(), m.offset()))
+            for msg in sc.poll(timeout=0.5):
+                if msg.error() is None:
+                    seen.add((msg.partition(), msg.offset()))
 
         assert len(seen) == n, f"Failed to consume all {n} records (got {len(seen)})"
 
@@ -514,9 +516,9 @@ def test_implicit_ack_no_redelivery(kafka_cluster):
         # records, so no redelivery should occur.
         extras = []
         for _ in range(8):
-            for m in sc.poll(timeout=0.5):
-                if m.error() is None:
-                    extras.append((m.partition(), m.offset()))
+            for msg in sc.poll(timeout=0.5):
+                if msg.error() is None:
+                    extras.append((msg.partition(), msg.offset()))
 
         assert extras == [], f"Records were redelivered after implicit ack: {extras}"
     finally:
@@ -559,9 +561,9 @@ def test_records_redelivered_after_lock_timeout(kafka_cluster):
         sc1_received = set()
         deadline = time.time() + 5.0
         while time.time() < deadline and not sc1_received:
-            for m in sc1.poll(timeout=0.5):
-                if m.error() is None:
-                    sc1_received.add((m.partition(), m.offset()))
+            for msg in sc1.poll(timeout=0.5):
+                if msg.error() is None:
+                    sc1_received.add((msg.partition(), msg.offset()))
             if sc1_received:
                 break
 
@@ -576,9 +578,9 @@ def test_records_redelivered_after_lock_timeout(kafka_cluster):
         sc2_received = set()
         deadline = time.time() + 10.0
         while time.time() < deadline and len(sc2_received) < n:
-            for m in sc2.poll(timeout=0.5):
-                if m.error() is None:
-                    sc2_received.add((m.partition(), m.offset()))
+            for msg in sc2.poll(timeout=0.5):
+                if msg.error() is None:
+                    sc2_received.add((msg.partition(), msg.offset()))
 
         redelivered = sc1_received & sc2_received
         assert redelivered, (
@@ -617,9 +619,9 @@ def test_poll_with_zero_timeout(kafka_cluster):
         collected = []
         deadline = time.time() + 20.0
         while time.time() < deadline and len(collected) < n:
-            for m in sc.poll(timeout=0):
-                if m.error() is None:
-                    collected.append((m.partition(), m.offset()))
+            for msg in sc.poll(timeout=0):
+                if msg.error() is None:
+                    collected.append((msg.partition(), msg.offset()))
 
         assert len(collected) == n, (
             f"poll(timeout=0) tight-loop should deliver all {n} records, " f"got {len(collected)}"
@@ -679,11 +681,11 @@ def test_resubscribe_to_different_topic(kafka_cluster):
             producer.produce(topic_a, value=f'a-pre-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        first = drain_share_consumers([sc], 3)[0]
-        assert len(first) == 3, f"Failed to consume from topic_a (got {len(first)}/3)"
+        first_msgs = drain_share_consumers([sc], 3)[0]
+        assert len(first_msgs) == 3, f"Failed to consume from topic_a (got {len(first_msgs)}/3)"
         assert all(
-            m.topic() == topic_a for m in first
-        ), f"Expected only topic_a records, got {[m.topic() for m in first]}"
+            msg.topic() == topic_a for msg in first_msgs
+        ), f"Expected only topic_a records, got {[msg.topic() for msg in first_msgs]}"
 
         # Phase 2: switch subscription. Records to topic_a must no longer
         # be delivered; only topic_b records should arrive.
@@ -700,10 +702,10 @@ def test_resubscribe_to_different_topic(kafka_cluster):
             producer.produce(topic_b, value=f'b-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], 5)[0]
-        topics = {m.topic() for m in received}
+        received_msgs = drain_share_consumers([sc], 5)[0]
+        topics = {msg.topic() for msg in received_msgs}
         assert topics == {topic_b}, f"Resubscribe should drop topic_a; got topics {topics}"
-        assert len(received) == 5, f"Expected 5 topic_b records, got {len(received)}"
+        assert len(received_msgs) == 5, f"Expected 5 topic_b records, got {len(received_msgs)}"
     finally:
         sc.close()
 
@@ -726,9 +728,9 @@ def test_messages_in_offset_order_single_consumer(kafka_cluster):
         total = 0
         deadline = time.time() + 20.0
         while time.time() < deadline and total < n:
-            for m in sc.poll(timeout=0.5):
-                if m.error() is None:
-                    per_partition.setdefault(m.partition(), []).append(m.offset())
+            for msg in sc.poll(timeout=0.5):
+                if msg.error() is None:
+                    per_partition.setdefault(msg.partition(), []).append(msg.offset())
                     total += 1
 
         assert total == n, f"Expected {n} records, got {total}"
@@ -767,12 +769,12 @@ def test_open_transaction_stalls_share_group(kafka_cluster):
 
         # Open txn must stall delivery.
         stalled = drain_share_consumers([sc], 1, timeout_s=5.0)[0]
-        assert stalled == [], f'open txn did not stall delivery: {[m.value() for m in stalled]}'
+        assert stalled == [], f'open txn did not stall delivery: {[msg.value() for msg in stalled]}'
 
         txn_producer.commit_transaction(10)
 
-        msgs = drain_share_consumers([sc], 3, ack_type=AcknowledgeType.ACCEPT)[0]
-        assert len(msgs) == 3, f'expected 3 msgs after commit, got {len(msgs)}'
+        received_msgs = drain_share_consumers([sc], 3, ack_type=AcknowledgeType.ACCEPT)[0]
+        assert len(received_msgs) == 3, f'expected 3 msgs after commit, got {len(received_msgs)}'
     finally:
         sc.close()
 
@@ -801,7 +803,7 @@ def test_subscribe_before_topic_exists(kafka_cluster):
         sc.subscribe([topic])
         pre = []
         for _ in range(5):
-            pre.extend(m for m in sc.poll(timeout=0.2) if m.error() is None)
+            pre.extend(msg for msg in sc.poll(timeout=0.2) if msg.error() is None)
         assert pre == [], f'no records should arrive before the topic exists, got {len(pre)}'
 
         # Create the topic, then produce to it.
@@ -814,8 +816,8 @@ def test_subscribe_before_topic_exists(kafka_cluster):
             producer.produce(topic, value=f'msg-{i}'.encode())
         producer.flush(timeout=10.0)
 
-        received = drain_share_consumers([sc], n, timeout_s=30.0)[0]
-        assert sorted(m.value() for m in received) == sorted(
+        received_msgs = drain_share_consumers([sc], n, timeout_s=30.0)[0]
+        assert sorted(msg.value() for msg in received_msgs) == sorted(
             f'msg-{i}'.encode() for i in range(n)
         ), 'expected exactly the records produced after the topic was created'
     finally:
@@ -837,8 +839,10 @@ def test_resubscribe_same_topic_keeps_delivering(kafka_cluster):
         for i in range(5):
             producer.produce(topic, value=f'first-{i}'.encode())
         producer.flush(timeout=10.0)
-        first = drain_share_consumers([sc], 5)[0]
-        assert sorted(m.value() for m in first) == [f'first-{i}'.encode() for i in range(5)], 'phase 1 records mismatch'
+        first_msgs = drain_share_consumers([sc], 5)[0]
+        assert sorted(msg.value() for msg in first_msgs) == [
+            f'first-{i}'.encode() for i in range(5)
+        ], 'phase 1 records mismatch'
 
         # Redundant re-subscribe to the same topic; drive heartbeats so the
         # (unchanged) subscription settles before producing more.
@@ -849,12 +853,12 @@ def test_resubscribe_same_topic_keeps_delivering(kafka_cluster):
         for i in range(5):
             producer.produce(topic, value=f'second-{i}'.encode())
         producer.flush(timeout=10.0)
-        second = drain_share_consumers([sc], 5)[0]
+        second_msgs = drain_share_consumers([sc], 5)[0]
         # Exactly the new records — and only those, proving the redundant
         # re-subscribe didn't redeliver phase 1's already-consumed records.
-        assert sorted(m.value() for m in second) == [
+        assert sorted(msg.value() for msg in second_msgs) == [
             f'second-{i}'.encode() for i in range(5)
         ], 're-subscribe to the same topic should deliver the new records and only those'
-        assert all(m.topic() == topic for m in second)
+        assert all(msg.topic() == topic for msg in second_msgs)
     finally:
         sc.close()
