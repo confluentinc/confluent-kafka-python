@@ -724,9 +724,9 @@ blocks:
   # suite's 1s share-lock timing and run for hours, so we keep it to the fast
   # tests. It catches the one class ASAN can't: reads of uninitialized memory in
   # cimpl's own C. Valgrind and ASAN can't co-run, hence the separate non-ASAN
-  # LIBRDKAFKA_DEBUG build. Strict gate: any Memcheck error or a definite/possible
-  # leak fails the job (grep the report — Valgrind's own --error-exitcode is
-  # reliable here too, since it's the parent process, not LD_PRELOADed).
+  # LIBRDKAFKA_DEBUG build. Gate is uninit/invalid-access only (ERROR SUMMARY);
+  # leaks stay with LSAN in the ASAN block — CPython leaves thousands of
+  # "possibly lost"/"still reachable" blocks at exit that aren't ours to chase.
   - name: "Share consumer binding layer (Valgrind)"
     dependencies: []
     task:
@@ -760,25 +760,28 @@ blocks:
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
             - uv pip install -e .
             # PYTHONMALLOC=malloc lets Memcheck see individual allocations instead
-            # of pymalloc arenas. librdkafka.suppressions (vendored) silences the
-            # glibc-TLS/getaddrinfo/OpenSSL false positives; grow
-            # valgrind-confluent.supp from the --gen-suppressions output on the
-            # first runs (expect some CPython interpreter noise to suppress).
+            # of pymalloc arenas. Suppressions: librdkafka.suppressions silences
+            # glibc-TLS/getaddrinfo/OpenSSL; valgrind-python.supp silences CPython's
+            # own uninit-value noise (eval loop, GC, PyLong). leak-check=summary
+            # keeps the per-run leak tally visible without dumping ~15k interpreter
+            # records (that overflowed Semaphore's 16MB log cap) or failing on them.
             - |
               set -o pipefail
               SUPP="--suppressions=${PWD}/.semaphore/librdkafka.suppressions"
+              SUPP="$SUPP --suppressions=${PWD}/.semaphore/valgrind-python.supp"
               [[ -f .semaphore/valgrind-confluent.supp ]] && SUPP="$SUPP --suppressions=${PWD}/.semaphore/valgrind-confluent.supp"
               PYTHONMALLOC=malloc valgrind \
                 --error-exitcode=42 --exit-on-first-error=no \
-                --leak-check=full --show-leak-kinds=all \
-                --errors-for-leak-kinds=definite,possible \
-                --track-origins=yes --num-callers=40 --gen-suppressions=all \
+                --leak-check=summary \
+                --track-origins=yes --num-callers=40 \
                 $SUPP \
                 python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log
               rc=$?
-              # Strict: fail on any Memcheck error or a definite/possible leak.
-              if grep -Eq 'ERROR SUMMARY: [1-9]|(definitely|possibly) lost: [1-9]' valgrind-share-tests.log; then
-                echo "Valgrind reported errors/leaks above — failing the job."
+              # Gate on Memcheck errors only — uninit reads / invalid access, the
+              # class ASAN misses. Leaks are LSAN's job. To harvest a new CPython
+              # suppression locally, re-run with --gen-suppressions=all.
+              if grep -Eq 'ERROR SUMMARY: [1-9]' valgrind-share-tests.log; then
+                echo "Valgrind reported Memcheck errors above — failing the job."
                 rc=1
               fi
               exit $rc
