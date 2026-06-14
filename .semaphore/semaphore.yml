@@ -607,7 +607,7 @@ blocks:
         always:
           commands:
             - cp asan-share-tests.log artifacts/ || true
-            - artifact push workflow artifacts/ --destination artifacts/asan/
+            - artifact push workflow artifacts/ --destination artifacts/asan/ || true
       jobs:
         - name: "ShareConsumer binding layer (ASAN + LSAN)"
           commands:
@@ -689,7 +689,7 @@ blocks:
         always:
           commands:
             - cp asan-share-integration-tests.log artifacts/ || true
-            - artifact push workflow artifacts/ --destination artifacts/asan-integration/
+            - artifact push workflow artifacts/ --destination artifacts/asan-integration/ || true
       jobs:
         - name: "ShareConsumer integration (ASAN + LSAN)"
           commands:
@@ -772,7 +772,7 @@ blocks:
         always:
           commands:
             - cp valgrind-share-tests.log artifacts/ || true
-            - artifact push workflow artifacts/ --destination artifacts/valgrind/
+            - artifact push workflow artifacts/ --destination artifacts/valgrind/ || true
       jobs:
         - name: "ShareConsumer binding layer (Valgrind memcheck)"
           commands:
