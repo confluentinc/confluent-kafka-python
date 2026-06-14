@@ -657,12 +657,25 @@ blocks:
                 ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
                 LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
                 python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log
-              rc=$?
-              # exitcode=1 does NOT propagate when libasan is LD_PRELOADed into a
-              # non-instrumented python: LSAN prints the leak report but the
-              # process still exits 0. Gate on the report text, not the code.
+              # Don't trust $?: libasan LD_PRELOADed into a non-instrumented python
+              # doesn't propagate its exitcode, and python itself exits 1 at
+              # interpreter shutdown (cimpl/librdkafka finalization) even on a fully
+              # green run. Decide from the printed reports, not the exit code.
+              rc=0
               if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-tests.log; then
                 echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' sanitizer report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' asan-share-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means a
+              # crash/timeout before pytest could report.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' asan-share-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
               exit $rc
@@ -731,11 +744,24 @@ blocks:
                 --conf '["transaction.state.log.replication.factor=1","transaction.state.log.min.isr=1","offsets.topic.replication.factor=1","offsets.topic.min.isr=1","share.coordinator.state.topic.replication.factor=1","share.coordinator.state.topic.min.isr=1","group.share.record.lock.duration.ms=1000","group.share.min.record.lock.duration.ms=1000"]' \
                 --cmd 'LD_PRELOAD="$(gcc -print-file-name=libasan.so)" python -m pytest -v --timeout=300 tests/integration/share_consumer/' \
                 2>&1 | tee asan-share-integration-tests.log
-              rc=$?
-              # Same LD_PRELOAD exit-code caveat as the binding-layer job: a leak
-              # with otherwise-passing tests still exits 0, so gate on the text.
+              # Don't trust $?: trivup runs --cmd via /bin/sh (no pipefail) and
+              # python exits 1 at interpreter shutdown (cimpl/librdkafka
+              # finalization) even on a green run. Decide from the printed reports.
+              rc=0
               if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-integration-tests.log; then
                 echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' sanitizer report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' asan-share-integration-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means the
+              # cluster never came up or pytest crashed/timed out.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' asan-share-integration-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
               exit $rc
@@ -796,12 +822,28 @@ blocks:
                 --track-origins=yes --num-callers=40 \
                 $SUPP \
                 python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log
-              rc=$?
-              # Gate on Memcheck errors only — uninit reads / invalid access, the
-              # class ASAN misses. Leaks are LSAN's job. To harvest a new CPython
-              # suppression locally, re-run with --gen-suppressions=all.
+              # Don't trust $?: python exits 1 at interpreter shutdown
+              # (cimpl/librdkafka finalization) even on a fully green run, and with
+              # --error-exitcode=42 + 0 errors valgrind just forwards that. Decide
+              # from Memcheck's report and pytest's printed summary instead.
+              rc=0
+              # Memcheck findings — uninit reads / invalid access, the class ASAN
+              # misses. (To harvest a new CPython suppression locally, re-run with
+              # --gen-suppressions=all.) Leaks are LSAN's job.
               if grep -Eq 'ERROR SUMMARY: [1-9]' valgrind-share-tests.log; then
                 echo "Valgrind reported Memcheck errors above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' Memcheck report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' valgrind-share-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means a
+              # crash/timeout before pytest could report.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' valgrind-share-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
               exit $rc
