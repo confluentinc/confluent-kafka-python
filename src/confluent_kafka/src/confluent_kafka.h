@@ -524,6 +524,12 @@ typedef struct {
         int16_t delivery_count; /**< Share consumer: number of times this
                                  *   record has been delivered. 1 on first
                                  *   delivery. -1 if unavailable. */
+        PyObject *topic_id;     /**< Share consumer: base64 topic_id (str)
+                                 *   snapshot taken at message-build time,
+                                 *   or NULL/None if unavailable. Lets
+                                 *   callers distinguish topic generations
+                                 *   after a delete+recreate (same name,
+                                 *   new id). */
 } Message;
 
 extern PyTypeObject MessageType;

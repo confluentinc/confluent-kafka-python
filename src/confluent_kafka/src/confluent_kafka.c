@@ -539,6 +539,13 @@ static PyObject *Message_delivery_count(Message *self, PyObject *ignore) {
         return cfl_PyInt_FromInt(self->delivery_count);
 }
 
+static PyObject *Message_topic_id(Message *self, PyObject *ignore) {
+        if (!self->topic_id)
+                Py_RETURN_NONE;
+        Py_INCREF(self->topic_id);
+        return self->topic_id;
+}
+
 static PyObject *Message_headers(Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
         if (self->headers) {
@@ -716,6 +723,15 @@ static PyMethodDef Message_methods[] = {
      "or None if not available (e.g. standard consumer or producer).\n"
      "  :rtype: int or None\n"
      "\n"},
+    {"topic_id", (PyCFunction)Message_topic_id, METH_NOARGS,
+     "Retrieve the base64-encoded topic_id snapshot for this message.\n"
+     "Captured at message-build time from the topic handle. Lets callers "
+     "distinguish topic generations after a delete+recreate (same name, "
+     "new id).\n"
+     "\n"
+     "  :returns: base64 topic_id string, or None if not available.\n"
+     "  :rtype: str or None\n"
+     "\n"},
     {"headers", (PyCFunction)Message_headers, METH_NOARGS,
      "  Retrieve the headers set on a message. Each header is a key value"
      "pair. Please note that header keys are ordered and can repeat.\n"
@@ -782,6 +798,10 @@ static int Message_clear(Message *self) {
         if (self->headers) {
                 Py_DECREF(self->headers);
                 self->headers = NULL;
+        }
+        if (self->topic_id) {
+                Py_DECREF(self->topic_id);
+                self->topic_id = NULL;
         }
 #ifdef RD_KAFKA_V_HEADERS
         if (self->c_headers) {
@@ -1082,9 +1102,22 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
                           ? rd_kafka_message_errstr(rkm)
                           : NULL);
 
-        if (rkm->rkt)
+        if (rkm->rkt) {
                 self->topic =
                     cfl_PyUnistr(_FromString(rd_kafka_topic_name(rkm->rkt)));
+                /* Snapshot the topic_id (base64) so callers can tell
+                 * topic generations apart after a delete+recreate. The
+                 * base64 string is owned by the Uuid, so build the
+                 * Python str before destroying it. */
+                rd_kafka_Uuid_t *topic_id = rd_kafka_topic_id(rkm->rkt);
+                if (topic_id) {
+                        const char *b64 = rd_kafka_Uuid_base64str(topic_id);
+                        if (b64)
+                                self->topic_id =
+                                    cfl_PyUnistr(_FromString(b64));
+                        rd_kafka_Uuid_destroy(topic_id);
+                }
+        }
         if (rkm->payload)
                 self->value =
                     cfl_PyBin(_FromStringAndSize(rkm->payload, rkm->len));
