@@ -656,8 +656,10 @@ blocks:
                 PYTHONMALLOC=malloc \
                 ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
                 LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
-                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log
-              # Don't trust $?: libasan LD_PRELOADed into a non-instrumented python
+                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log || true
+              # The `|| true` keeps set -e from aborting the block on python's
+              # shutdown exit-1 (pipefail forwards it) — without it the gate below
+              # never runs. Don't trust $?: libasan LD_PRELOADed into a non-instrumented python
               # doesn't propagate its exitcode, and python itself exits 1 at
               # interpreter shutdown (cimpl/librdkafka finalization) even on a fully
               # green run. Decide from the printed reports, not the exit code.
@@ -743,7 +745,9 @@ blocks:
                 --version 4.2.0 \
                 --conf '["transaction.state.log.replication.factor=1","transaction.state.log.min.isr=1","offsets.topic.replication.factor=1","offsets.topic.min.isr=1","share.coordinator.state.topic.replication.factor=1","share.coordinator.state.topic.min.isr=1","group.share.record.lock.duration.ms=1000","group.share.min.record.lock.duration.ms=1000"]' \
                 --cmd 'LD_PRELOAD="$(gcc -print-file-name=libasan.so)" python -m pytest -v --timeout=300 tests/integration/share_consumer/' \
-                2>&1 | tee asan-share-integration-tests.log
+                2>&1 | tee asan-share-integration-tests.log || true
+              # The `|| true` keeps set -e from aborting on python's shutdown exit-1
+              # so the gate below actually runs.
               # Don't trust $?: trivup runs --cmd via /bin/sh (no pipefail) and
               # python exits 1 at interpreter shutdown (cimpl/librdkafka
               # finalization) even on a green run. Decide from the printed reports.
@@ -821,7 +825,9 @@ blocks:
                 --leak-check=summary \
                 --track-origins=yes --num-callers=40 \
                 $SUPP \
-                python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log
+                python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log || true
+              # The `|| true` keeps set -e from aborting the block on python's
+              # shutdown exit-1 (pipefail forwards it) so the gate below runs.
               # Don't trust $?: python exits 1 at interpreter shutdown
               # (cimpl/librdkafka finalization) even on a fully green run, and with
               # --error-exitcode=42 + 0 errors valgrind just forwards that. Decide
