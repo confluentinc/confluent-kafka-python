@@ -77,10 +77,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
         if (self->rkshare) {
                 CallState cs;
                 CallState_begin(&self->base, &cs);
-                /* TODO KIP-932: Use rd_kafka_share_destroy_flags() once
-                 * available in the librdkafka public API. */
-                rd_kafka_error_t *destroy_error =
-                    rd_kafka_share_destroy(self->rkshare);
+                rd_kafka_error_t *destroy_error = rd_kafka_share_destroy_flags(
+                    self->rkshare, RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
                 if (destroy_error)
                         rd_kafka_error_destroy(destroy_error);
                 self->rkshare = NULL;
@@ -716,6 +714,53 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
 
 
 /**
+ * @brief Set or reset the SASL username/password at runtime.
+ *
+ * The new credentials are used the next time a connection is opened; a
+ * connection that is already up keeps its current login until it reconnects.
+ * Only applies to the PLAIN and SCRAM mechanisms.
+ *
+ * Don't call this from inside the acknowledgement-commit callback: re-entering
+ * the consumer there corrupts the in-flight callback's saved state.
+ */
+static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
+                                                    PyObject *args,
+                                                    PyObject *kwargs) {
+        const char *username = NULL;
+        const char *password = NULL;
+        rd_kafka_error_t *error;
+        CallState cs;
+        static char *kws[] = {"username", "password", NULL};
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws, &username,
+                                         &password))
+                return NULL;
+
+        CallState_begin(&self->base, &cs);
+        error = rd_kafka_share_sasl_set_credentials(self->rkshare, username,
+                                                    password);
+        if (!CallState_end(&self->base, &cs)) {
+                if (error) /* Ignore error in favour of callstate exception */
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/**
  * @brief Close the share consumer.
  */
 static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
@@ -982,9 +1027,22 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KafkaException: on error\n"
      "\n"},
 
-    /* TODO KIP-932: Add set_sasl_credentials once librdkafka exposes
-     * rd_kafka_sasl_set_credentials() (or the underlying rd_kafka_t *)
-     * for rd_kafka_share_t handles. */
+    {"set_sasl_credentials", (PyCFunction)ShareConsumer_set_sasl_credentials,
+     METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: set_sasl_credentials(username, password)\n"
+     "\n"
+     "  Set or reset the SASL credentials used by this share consumer.\n"
+     "  The new credentials overwrite the previous ones and take effect the\n"
+     "  next time the consumer (re)authenticates to a broker; existing broker\n"
+     "  connections are not disconnected. Applicable only to the SASL PLAIN\n"
+     "  and SCRAM mechanisms.\n"
+     "\n"
+     "  :param str username: New SASL username.\n"
+     "  :param str password: New SASL password.\n"
+     "  :raises TypeError: if username or password is not a str.\n"
+     "  :raises KafkaException: on error.\n"
+     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "\n"},
 
     {"__enter__", (PyCFunction)ShareConsumer_enter, METH_NOARGS,
      "Context manager entry."},
