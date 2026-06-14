@@ -603,6 +603,256 @@ blocks:
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
+  # KIP-932: runs on every workflow (incl. PRs). An unsuppressed leak (or any
+  # ASAN error) now fails the job, so the LSAN baseline in lsan-suppressions.txt
+  # is load-bearing — keep it tight and scoped to interpreter internals or it'll
+  # hide real leaks. Consider a manual promotion if the per-PR build cost bites.
+  - name: "Share consumer tests under ASAN+LSAN"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      prologue:
+        commands:
+          # Ubuntu 24.04's high-entropy ASLR collides with the sanitizer shadow
+          # mapping; lower it or libasan aborts before main().
+          - sudo sysctl -w vm.mmap_rnd_bits=28
+      epilogue:
+        always:
+          commands:
+            - cp asan-share-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/asan/
+      jobs:
+        - name: "ShareConsumer binding layer (ASAN + LSAN)"
+          commands:
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - uv pip install -r requirements/requirements-tests.txt
+            # Build an ASAN-instrumented librdkafka from the share consumer
+            # branch, then build the cimpl extension against it with the same
+            # instrumentation so binding-layer leaks show real source frames.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_SANITIZE=address tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-fsanitize=address -g -fno-omit-frame-pointer -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-fsanitize=address -L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # python3 isn't an ASAN build, so libasan has to be preloaded to come
+            # first; PYTHONMALLOC=malloc lets LSAN see allocations pymalloc would
+            # otherwise hide. exitcode=1 makes an unsuppressed leak (or any ASAN
+            # error) fail the job; the build has no -fsanitize-recover so errors
+            # halt and exit non-zero, and pipefail carries that through the tee.
+            # Both files are broker-free.
+            - |
+              set -o pipefail
+              LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
+                PYTHONMALLOC=malloc \
+                ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1" \
+                LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0" \
+                python -m pytest -v tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee asan-share-tests.log || true
+              # The `|| true` keeps set -e from aborting the block on python's
+              # shutdown exit-1 (pipefail forwards it) — without it the gate below
+              # never runs. Don't trust $?: libasan LD_PRELOADed into a non-instrumented python
+              # doesn't propagate its exitcode, and python itself exits 1 at
+              # interpreter shutdown (cimpl/librdkafka finalization) even on a fully
+              # green run. Decide from the printed reports, not the exit code.
+              rc=0
+              if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-tests.log; then
+                echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' sanitizer report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' asan-share-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means a
+              # crash/timeout before pytest could report.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' asan-share-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
+                rc=1
+              fi
+              exit $rc
+  # KIP-932: share-consumer INTEGRATION tests under ASAN+LSAN, gated per-PR
+  # (companion to the broker-free job above). The broker is a JVM, so it must
+  # never inherit LD_PRELOAD=libasan: trivup starts the cluster in a clean env
+  # and exports BROKERS, the kafka_cluster fixture connects via ByoFixture, and
+  # LD_PRELOAD is injected only inside --cmd (the pytest process). ASAN/LSAN
+  # options are exported outside trivup — inert for the JVM (it never loads
+  # libasan), but they ride into --cmd via trivup's env.update(). The `| tee`
+  # sits on the outer trivup call, not inside --cmd: trivup runs --cmd via
+  # /bin/sh (no pipefail), which would mask a pytest/LSAN failure behind tee.
+  - name: "Share consumer integration tests under ASAN+LSAN"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      prologue:
+        commands:
+          # Same Ubuntu 24.04 ASLR vs sanitizer-shadow fix as the binding-layer job.
+          - sudo sysctl -w vm.mmap_rnd_bits=28
+      epilogue:
+        always:
+          commands:
+            - cp asan-share-integration-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/asan-integration/
+      jobs:
+        - name: "ShareConsumer integration (ASAN + LSAN)"
+          commands:
+            - sem-version python 3.11
+            - sem-version java 17
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            # requirements-tests-install.txt pulls pytest, the schema-registry
+            # client deps (authlib/cryptography — cluster_fixture imports the SR
+            # client at module load, even though the share tests don't use SR),
+            # and the vendored trivup 0.14.0 (PyPI 0.12.2 breaks on Kafka 4.2.0's
+            # 0.0.0.0 quorum voters).
+            - uv pip install -r requirements/requirements-tests-install.txt
+            # ASAN-instrumented librdkafka + cimpl, same build as the binding-layer job.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_SANITIZE=address tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-fsanitize=address -g -fno-omit-frame-pointer -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-fsanitize=address -L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # --conf mirrors tests/common TestUtils.broker_conf(): single-broker
+            # RF/ISR=1 for the share-coordinator + offsets/txn topics, plus the 1s
+            # share lock duration the redelivery tests need. BYO mode means the
+            # fixture doesn't apply broker_conf, so it has to be set here.
+            - |
+              set -o pipefail
+              export PYTHONMALLOC=malloc
+              export ASAN_OPTIONS="detect_leaks=1:halt_on_error=0:abort_on_error=0:exitcode=1:print_stacktrace=1:symbolize=1"
+              export LSAN_OPTIONS="suppressions=${PWD}/.semaphore/lsan-suppressions.txt:print_suppressions=0"
+              export PYTHONPATH="${PWD}"
+              python -m trivup.clusters.KafkaCluster \
+                --kraft \
+                --version 4.2.0 \
+                --conf '["transaction.state.log.replication.factor=1","transaction.state.log.min.isr=1","offsets.topic.replication.factor=1","offsets.topic.min.isr=1","share.coordinator.state.topic.replication.factor=1","share.coordinator.state.topic.min.isr=1","group.share.record.lock.duration.ms=1000","group.share.min.record.lock.duration.ms=1000"]' \
+                --cmd 'LD_PRELOAD="$(gcc -print-file-name=libasan.so)" python -m pytest -v --timeout=300 tests/integration/share_consumer/' \
+                2>&1 | tee asan-share-integration-tests.log || true
+              # The `|| true` keeps set -e from aborting on python's shutdown exit-1
+              # so the gate below actually runs.
+              # Don't trust $?: trivup runs --cmd via /bin/sh (no pipefail) and
+              # python exits 1 at interpreter shutdown (cimpl/librdkafka
+              # finalization) even on a green run. Decide from the printed reports.
+              rc=0
+              if grep -Eq 'ERROR: (Address|Leak)Sanitizer|SUMMARY: AddressSanitizer' asan-share-integration-tests.log; then
+                echo "ASAN/LSAN reported findings above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' sanitizer report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' asan-share-integration-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means the
+              # cluster never came up or pytest crashed/timed out.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' asan-share-integration-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
+                rc=1
+              fi
+              exit $rc
+  # KIP-932: share-consumer binding layer under Valgrind memcheck, gated per-PR.
+  # Broker-free only — Memcheck's ~20-50x slowdown would blow the integration
+  # suite's 1s share-lock timing and run for hours, so we keep it to the fast
+  # tests. It catches the one class ASAN can't: reads of uninitialized memory in
+  # cimpl's own C. Valgrind and ASAN can't co-run, hence the separate non-ASAN
+  # LIBRDKAFKA_DEBUG build. Gate is uninit/invalid-access only (ERROR SUMMARY);
+  # leaks stay with LSAN in the ASAN block — CPython leaves thousands of
+  # "possibly lost"/"still reachable" blocks at exit that aren't ours to chase.
+  - name: "Share consumer binding layer (Valgrind)"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      epilogue:
+        always:
+          commands:
+            - cp valgrind-share-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/valgrind/
+      jobs:
+        - name: "ShareConsumer binding layer (Valgrind memcheck)"
+          commands:
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - uv pip install -r requirements/requirements-tests.txt
+            - sudo apt-get update -qq && sudo apt-get install -y -qq valgrind
+            # Non-ASAN debug build (-g, -O0) so Memcheck stacks are real and the
+            # optimizer doesn't fake uninitialized-read reports.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_DEBUG=1 tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-g -O0 -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # PYTHONMALLOC=malloc lets Memcheck see individual allocations instead
+            # of pymalloc arenas. Suppressions: librdkafka.suppressions silences
+            # glibc-TLS/getaddrinfo/OpenSSL; valgrind-python.supp silences CPython's
+            # own uninit-value noise (eval loop, GC, PyLong). leak-check=summary
+            # keeps the per-run leak tally visible without dumping ~15k interpreter
+            # records (that overflowed Semaphore's 16MB log cap) or failing on them.
+            - |
+              set -o pipefail
+              SUPP="--suppressions=${PWD}/.semaphore/librdkafka.suppressions"
+              SUPP="$SUPP --suppressions=${PWD}/.semaphore/valgrind-python.supp"
+              [[ -f .semaphore/valgrind-confluent.supp ]] && SUPP="$SUPP --suppressions=${PWD}/.semaphore/valgrind-confluent.supp"
+              PYTHONMALLOC=malloc valgrind \
+                --error-exitcode=42 --exit-on-first-error=no \
+                --leak-check=summary \
+                --track-origins=yes --num-callers=40 \
+                $SUPP \
+                python -m pytest -v --timeout=1200 tests/test_ShareConsumer.py tests/test_ShareConsumer_callbacks.py 2>&1 | tee valgrind-share-tests.log || true
+              # The `|| true` keeps set -e from aborting the block on python's
+              # shutdown exit-1 (pipefail forwards it) so the gate below runs.
+              # Don't trust $?: python exits 1 at interpreter shutdown
+              # (cimpl/librdkafka finalization) even on a fully green run, and with
+              # --error-exitcode=42 + 0 errors valgrind just forwards that. Decide
+              # from Memcheck's report and pytest's printed summary instead.
+              rc=0
+              # Memcheck findings — uninit reads / invalid access, the class ASAN
+              # misses. (To harvest a new CPython suppression locally, re-run with
+              # --gen-suppressions=all.) Leaks are LSAN's job.
+              if grep -Eq 'ERROR SUMMARY: [1-9]' valgrind-share-tests.log; then
+                echo "Valgrind reported Memcheck errors above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' Memcheck report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' valgrind-share-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means a
+              # crash/timeout before pytest could report.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' valgrind-share-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
+                rc=1
+              fi
+              exit $rc
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml

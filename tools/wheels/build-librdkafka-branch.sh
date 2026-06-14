@@ -62,9 +62,24 @@ pushd "$SRC"
 # loud configure error if a future regression breaks dep installation —
 # otherwise we ship a wheel where sasl.oauthbearer.config etc. fail at
 # runtime with _INVALID_ARG -186.
-CONFIGURE_OPTS="--prefix=$INSTALL --disable-debug-symbols --enable-ssl --enable-lz4-ext --enable-zstd"
+CONFIGURE_OPTS="--prefix=$INSTALL --enable-ssl --enable-lz4-ext --enable-zstd"
 if [[ $OSTYPE == linux* ]]; then
     CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-gssapi"
+fi
+
+# LIBRDKAFKA_SANITIZE=address builds an instrumented lib for the share-consumer
+# ASAN pipeline. Keep the debug symbols mklove would otherwise strip so leak
+# reports land on real source lines; normal wheel builds still strip them.
+if [[ -n $LIBRDKAFKA_SANITIZE ]]; then
+    export CFLAGS="-fsanitize=${LIBRDKAFKA_SANITIZE} -g -fno-omit-frame-pointer ${CFLAGS}"
+    export LDFLAGS="-fsanitize=${LIBRDKAFKA_SANITIZE} ${LDFLAGS}"
+elif [[ -n $LIBRDKAFKA_DEBUG ]]; then
+    # Valgrind build: keep debug symbols and drop optimization so Memcheck
+    # stacks are real and the optimizer doesn't synthesize false uninitialized
+    # reads. Same config librdkafka's own Valgrind CI uses.
+    CONFIGURE_OPTS="$CONFIGURE_OPTS --enable-devel --disable-optimization"
+else
+    CONFIGURE_OPTS="$CONFIGURE_OPTS --disable-debug-symbols"
 fi
 
 ./configure $CONFIGURE_OPTS
