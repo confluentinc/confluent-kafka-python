@@ -63,7 +63,7 @@ def test_throttle_cb_fires_under_quota(kafka_cluster):
     Produces a large volume of data, then consumes it through a share
     consumer whose client.id has a low consumer_byte_rate quota. The
     broker's fetch responses carry a Throttle_Time that librdkafka delivers
-    to throttle_cb from the rd_kafka_share_consume_batch drain.
+    to throttle_cb from the rd_kafka_share_poll drain.
 
     The test checks that throttle_cb fires at least once, that each
     ThrottleEvent has the expected fields (broker_name, broker_id,
