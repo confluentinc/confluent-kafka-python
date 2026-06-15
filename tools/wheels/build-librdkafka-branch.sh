@@ -8,7 +8,7 @@
 #
 # Usage: build-librdkafka-branch.sh <branch> <destdir>
 #
-#   branch   - git branch name, e.g. dev_kip-932_queues-for-kafka
+#   branch   - git branch, tag, or commit SHA, e.g. dev_kip-932_queues-for-kafka
 #   destdir  - destination directory, e.g. dest
 #
 # Resulting layout (mirrors NuGet redist package):
@@ -39,8 +39,13 @@ INSTALL=$SRC/install
 [[ -d "$DEST" ]] || mkdir -p "$DEST"
 rm -rf "$SRC"
 
-git clone --depth 1 --branch "$BRANCH" \
-    https://github.com/confluentinc/librdkafka.git "$SRC"
+# $BRANCH may be a branch, tag, or commit SHA. `git clone --branch` rejects a
+# bare SHA, so fetch the ref explicitly (GitHub allows fetching a commit by SHA).
+mkdir -p "$SRC"
+git -C "$SRC" init
+git -C "$SRC" remote add origin https://github.com/confluentinc/librdkafka.git
+git -C "$SRC" fetch --depth 1 origin "$BRANCH"
+git -C "$SRC" checkout FETCH_HEAD
 
 if [[ $OSTYPE == linux* ]]; then
     sudo apt-get update -qq && sudo apt-get install -y -qq libssl-dev libsasl2-dev liblz4-dev libzstd-dev

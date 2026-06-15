@@ -9,6 +9,10 @@ global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v2.15.0-RC1
+    # TODO KIP-932: Remove LIBRDKAFKA_BRANCH once LIBRDKAFKA_VERSION includes share consumer support
+    # Pinned to a specific librdkafka commit; build-librdkafka-branch.sh fetches it by SHA.
+    - name: LIBRDKAFKA_BRANCH
+      value: 49345336e8258b0615ab3b1bc42099a208770ad4
   prologue:
     commands:
       - checkout
