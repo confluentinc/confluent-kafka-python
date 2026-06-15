@@ -660,7 +660,10 @@ blocks:
                 echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
-              exit $rc
+              # Not `exit $rc`: an explicit exit (even 0) kills Semaphore's command
+              # shell before the agent captures status, so green runs get recorded
+              # as failed and the epilogue's artifact push never runs.
+              [ "$rc" -eq 0 ]
   # KIP-932: share-consumer INTEGRATION tests under ASAN+LSAN, gated per-PR
   # (companion to the broker-free job above). The broker is a JVM, so it must
   # never inherit LD_PRELOAD=libasan: trivup starts the cluster in a clean env
@@ -748,7 +751,10 @@ blocks:
                 echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
-              exit $rc
+              # Not `exit $rc`: an explicit exit (even 0) kills Semaphore's command
+              # shell before the agent captures status, so green runs get recorded
+              # as failed and the epilogue's artifact push never runs.
+              [ "$rc" -eq 0 ]
   # KIP-932: share-consumer binding layer under Valgrind memcheck, gated per-PR.
   # Broker-free only — Memcheck's ~20-50x slowdown would blow the integration
   # suite's 1s share-lock timing and run for hours, so we keep it to the fast
@@ -832,7 +838,10 @@ blocks:
                 echo "No passing pytest summary found — the run did not complete."
                 rc=1
               fi
-              exit $rc
+              # Not `exit $rc`: an explicit exit (even 0) kills Semaphore's command
+              # shell before the agent captures status, so green runs get recorded
+              # as failed and the epilogue's artifact push never runs.
+              [ "$rc" -eq 0 ]
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
