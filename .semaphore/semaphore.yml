@@ -846,6 +846,88 @@ blocks:
               # shell before the agent captures status, so green runs get recorded
               # as failed and the epilogue's artifact push never runs.
               [ "$rc" -eq 0 ]
+  # KIP-932: share-consumer integration tests under Valgrind, full-suite per-PR.
+  # The binding block above keeps Valgrind broker-free on purpose (Memcheck's
+  # slowdown vs the 1s share lock) — this runs the whole integration suite anyway
+  # as a per-PR experiment. Expect timing tests (lock expiry/redelivery/throttle)
+  # to flake and the job to be slow against the 3h cap; curate or promote later.
+  - name: "Share consumer integration tests under Valgrind"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      epilogue:
+        always:
+          commands:
+            - cp valgrind-share-integration-tests.log artifacts/ || true
+            - artifact push workflow artifacts/ --destination artifacts/valgrind-integration/ || true
+      jobs:
+        - name: "ShareConsumer integration (Valgrind memcheck)"
+          commands:
+            - sem-version python 3.11
+            - sem-version java 17
+            - pip install uv
+            - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
+            - uv pip install -r requirements/requirements-tests-install.txt
+            - sudo apt-get update -qq && sudo apt-get install -y -qq valgrind
+            # Non-ASAN debug build (-g, -O0) so Memcheck stacks are real and the
+            # optimizer doesn't fake uninitialized-read reports. Same build as the
+            # binding-layer Valgrind job.
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - LIBRDKAFKA_DEBUG=1 tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+            - export CFLAGS="-g -O0 -I${PWD}/dest/build/native/include $CFLAGS"
+            - export LDFLAGS="-L${PWD}/${lib_dir} $LDFLAGS"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - uv pip install -e .
+            # Valgrind wraps the pytest process inside trivup's --cmd; the broker is
+            # a separate JVM trivup starts outside --cmd, so it never runs under
+            # Memcheck. Suppression and test paths are relative to the checkout —
+            # trivup runs --cmd from the repo root (same as the ASAN job's relative
+            # pytest path) — and the inner 2>&1 routes valgrind's stderr report into
+            # the tee'd log, not just pytest's stdout. --conf matches the ASAN
+            # integration job (1s share lock, single-broker RF/ISR=1); --timeout is
+            # large because Memcheck's slowdown stacks on the broker round-trips.
+            - |
+              set -o pipefail
+              export PYTHONPATH="${PWD}"
+              python -m trivup.clusters.KafkaCluster \
+                --kraft \
+                --version 4.2.0 \
+                --conf '["transaction.state.log.replication.factor=1","transaction.state.log.min.isr=1","offsets.topic.replication.factor=1","offsets.topic.min.isr=1","share.coordinator.state.topic.replication.factor=1","share.coordinator.state.topic.min.isr=1","group.share.record.lock.duration.ms=1000","group.share.min.record.lock.duration.ms=1000"]' \
+                --cmd 'PYTHONMALLOC=malloc valgrind --error-exitcode=42 --exit-on-first-error=no --leak-check=summary --track-origins=yes --num-callers=40 --suppressions=.semaphore/librdkafka.suppressions --suppressions=.semaphore/valgrind-python.supp python -m pytest -v --timeout=1800 tests/integration/share_consumer/ 2>&1' \
+                2>&1 | tee valgrind-share-integration-tests.log || true
+              # The `|| true` keeps set -e from aborting on python's shutdown exit-1
+              # so the gate runs. Don't trust $?: trivup runs --cmd via /bin/sh (no
+              # pipefail) and python exits 1 at interpreter shutdown even on a green
+              # run; with --error-exitcode=42 valgrind just forwards that.
+              rc=0
+              # Memcheck findings — uninit reads / invalid access, the class ASAN misses.
+              if grep -Eq 'ERROR SUMMARY: [1-9]' valgrind-share-integration-tests.log; then
+                echo "Valgrind reported Memcheck errors above — failing the job."
+                rc=1
+              fi
+              # Real pytest failures/errors. Anchored on '^= ' so it matches pytest's
+              # summary banner and not the '==PID==' Memcheck report lines.
+              if grep -Eq '^=+ .*[0-9]+ (failed|error)' valgrind-share-integration-tests.log; then
+                echo "pytest reported test failures above — failing the job."
+                rc=1
+              fi
+              # A clean run ends with a green pytest summary; its absence means the
+              # cluster never came up or pytest crashed/timed out.
+              if ! grep -Eq '^=+ .*[0-9]+ passed' valgrind-share-integration-tests.log; then
+                echo "No passing pytest summary found — the run did not complete."
+                rc=1
+              fi
+              # Not `exit $rc`: an explicit exit (even 0) kills Semaphore's command
+              # shell before the agent captures status, so green runs get recorded
+              # as failed and the epilogue's artifact push never runs.
+              [ "$rc" -eq 0 ]
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
