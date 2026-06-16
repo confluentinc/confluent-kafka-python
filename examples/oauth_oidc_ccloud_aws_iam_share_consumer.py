@@ -40,13 +40,17 @@ sts:GetWebIdentityToken.
 Config comes from env vars (mirrors the example's ConfigMap); bootstrap may
 also be passed as argv[1]:
 
-    BOOTSTRAP_SERVERS   Confluent Cloud bootstrap (host:9092)   [required]
-    LOGICAL_CLUSTER     CC logical cluster id (lkc-xxxxx)       [required]
-    AWS_ACCOUNT_ID      12-digit account id; the STS audience   [required]
-    AWS_DEFAULT_REGION  STS region                              [default us-west-2]
-    KAFKA_TOPIC         topic name                              [default share_aws_iam_demo]
-    GROUP_ID            share group id                          [default share-aws-iam-<rand>]
-    MESSAGE_COUNT       messages to round-trip                  [default 20]
+    BOOTSTRAP_SERVERS     Confluent Cloud bootstrap (host:9092)  [required; or argv[1]]
+    KAFKA_LOGICAL_CLUSTER CC logical cluster id (lkc-xxxxx)      [required]
+    IDENTITY_POOL_ID      CC identity pool id (pool-xxxxx)       [required]
+    OIDC_AUDIENCE         STS token audience / JWT aud claim     [default https://confluent.cloud/oidc]
+    AWS_STS_REGION        STS region                             [default us-east-2]
+    KAFKA_TOPIC           topic name                             [default share_aws_iam_demo]
+    GROUP_ID              share group id                         [default share-aws-iam-<rand>]
+    MESSAGE_COUNT         messages to round-trip                 [default 20]
+
+These env var names match the autowire harness (opt_in_success.py), so the
+same exported values work for both.
 
 Acknowledgement is implicit: each poll() auto-acknowledges the previous
 batch, and close() flushes the final one.
@@ -72,12 +76,15 @@ def _ts():
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_aws_iam_token(client_id, aws_region):
+def get_aws_iam_token(audience, aws_region):
     """Mint a JWT via AWS STS GetWebIdentityToken.
 
-    Lifted from AWS-IAM-Examples/producer.py. boto3 resolves the AWS
-    credentials from the ambient role (EKS Pod Identity, EC2 instance
-    profile, etc.); the role needs only sts:GetWebIdentityToken.
+    boto3 resolves the AWS credentials from the ambient role (EC2 instance
+    profile, EKS Pod Identity, etc.); the role needs only
+    sts:GetWebIdentityToken. The `audience` becomes the JWT's `aud` claim and
+    must match what the Confluent Cloud identity provider expects (the same
+    value the autowire scenario passes as `audience=` in
+    sasl.oauthbearer.config, e.g. https://confluent.cloud/oidc).
 
     :returns: (token_string, lifetime_seconds)
     """
@@ -88,7 +95,7 @@ def get_aws_iam_token(client_id, aws_region):
     for duration in (3600, 1800, 900):
         try:
             response = sts_client.get_web_identity_token(
-                Audience=[client_id],
+                Audience=[audience],
                 SigningAlgorithm='ES384',
                 DurationSeconds=duration,
             )
@@ -106,18 +113,21 @@ def make_oauth_cb(oauth_config):
 
     The callback returns the 4-tuple confluent-kafka expects:
     (token, absolute_expiry_epoch_seconds, principal, extensions_dict).
-    The logicalCluster SASL extension routes the token to the right CC
-    cluster. The same callback is used by the producer, consumer, and admin
-    client; for a ShareConsumer it flows through the binding's oauth_cb
-    handler, which sets the token on the share consumer's underlying client.
+    The logicalCluster + identityPoolId SASL extensions route the token to the
+    right CC cluster and identity pool — these mirror the
+    sasl.oauthbearer.extensions the autowire scenario sends. The same callback
+    is used by the producer, consumer, and admin client; for a ShareConsumer it
+    flows through the binding's oauth_cb handler, which sets the token on the
+    share consumer's underlying client.
     """
     def oauth_cb(_config_str):
         token, lifetime = get_aws_iam_token(
-            oauth_config['aws_account_id'], oauth_config['aws_region'])
+            oauth_config['audience'], oauth_config['aws_region'])
         return (token,
                 time.time() + lifetime,
                 "",
-                {"logicalCluster": oauth_config['logical_cluster']})
+                {"logicalCluster": oauth_config['logical_cluster'],
+                 "identityPoolId": oauth_config['identity_pool_id']})
 
     return oauth_cb
 
@@ -175,30 +185,35 @@ def produce_messages(producer, topic, count):
 
 
 def main():
+    # Env var names mirror the autowire harness (opt_in_success.py) so this
+    # scenario can run with the same environment/values.
     bootstrap = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('BOOTSTRAP_SERVERS')
-    logical_cluster = os.environ.get('LOGICAL_CLUSTER')
-    aws_account_id = os.environ.get('AWS_ACCOUNT_ID')
-    aws_region = os.environ.get('AWS_DEFAULT_REGION', 'us-west-2')
+    logical_cluster = os.environ.get('KAFKA_LOGICAL_CLUSTER')
+    identity_pool_id = os.environ.get('IDENTITY_POOL_ID')
+    audience = os.environ.get('OIDC_AUDIENCE', 'https://confluent.cloud/oidc')
+    aws_region = os.environ.get('AWS_STS_REGION', 'us-east-2')
     topic = os.environ.get('KAFKA_TOPIC', 'share_aws_iam_demo')
     group = os.environ.get('GROUP_ID', f'share-aws-iam-{uuid.uuid4().hex[:8]}')
     message_count = int(os.environ.get('MESSAGE_COUNT', '20'))
 
     missing = [k for k, v in (('BOOTSTRAP_SERVERS', bootstrap),
-                              ('LOGICAL_CLUSTER', logical_cluster),
-                              ('AWS_ACCOUNT_ID', aws_account_id)) if not v]
+                              ('KAFKA_LOGICAL_CLUSTER', logical_cluster),
+                              ('IDENTITY_POOL_ID', identity_pool_id)) if not v]
     if missing:
         sys.stderr.write(f"Missing required config: {', '.join(missing)}\n")
         return 2
 
     print("=" * 70)
     print("Confluent Cloud ShareConsumer round-trip with AWS IAM auth")
-    print(f"  bootstrap={bootstrap}  cluster={logical_cluster}  region={aws_region}")
+    print(f"  bootstrap={bootstrap}  cluster={logical_cluster}  pool={identity_pool_id}")
+    print(f"  region={aws_region}  audience={audience}")
     print(f"  topic={topic}  group={group}  messages={message_count}")
     print("=" * 70)
 
     oauth_config = {
         'logical_cluster': logical_cluster,
-        'aws_account_id': aws_account_id,
+        'identity_pool_id': identity_pool_id,
+        'audience': audience,
         'aws_region': aws_region,
     }
     oauth_cb = make_oauth_cb(oauth_config)
