@@ -76,6 +76,9 @@ def _ts():
     return datetime.now(timezone.utc).isoformat()
 
 
+TOKEN_LIFETIME_SECONDS = 300
+
+
 def get_aws_iam_token(audience, aws_region):
     """Mint a JWT via AWS STS GetWebIdentityToken.
 
@@ -86,26 +89,29 @@ def get_aws_iam_token(audience, aws_region):
     value the autowire scenario passes as `audience=` in
     sasl.oauthbearer.config, e.g. https://confluent.cloud/oidc).
 
+    The lifetime is fixed at 300s on purpose: Confluent's identity-pool roles
+    cap the web-identity-token duration (the official autowire extra also
+    requests 300s), and longer values are rejected by IAM with AccessDenied —
+    not the SessionDurationEscalation error — so there is nothing to fall back
+    from. librdkafka simply refreshes the short-lived token as needed.
+
     :returns: (token_string, lifetime_seconds)
     """
     print(f"[{_ts()}] Requesting AWS IAM token...")
     sts_client = boto3.client('sts', region_name=aws_region)
 
-    # Some accounts cap the session duration; fall back to shorter ones.
-    for duration in (3600, 1800, 900):
-        try:
-            response = sts_client.get_web_identity_token(
-                Audience=[audience],
-                SigningAlgorithm='ES384',
-                DurationSeconds=duration,
-            )
-            print(f"[{_ts()}] Got token (expires in {duration}s)")
-            return response['WebIdentityToken'], duration
-        except sts_client.exceptions.SessionDurationEscalationException:
-            print(f"[{_ts()}] {duration}s duration not allowed, trying shorter...")
-            continue
+    try:
+        response = sts_client.get_web_identity_token(
+            Audience=[audience],
+            SigningAlgorithm='ES384',
+            DurationSeconds=TOKEN_LIFETIME_SECONDS,
+        )
+    except Exception as exc: 
+        sys.stderr.write(f"[{_ts()}] STS GetWebIdentityToken failed: {exc}\n")
+        raise
 
-    raise RuntimeError("Could not get AWS IAM token with any duration")
+    print(f"[{_ts()}] Got token (expires in {TOKEN_LIFETIME_SECONDS}s)")
+    return response['WebIdentityToken'], TOKEN_LIFETIME_SECONDS
 
 
 def make_oauth_cb(oauth_config):
