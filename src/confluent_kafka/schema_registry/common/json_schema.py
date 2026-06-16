@@ -57,8 +57,7 @@ except Exception as _orjson_exc:
         # Absence (ImportError) is the normal optional-dependency case and is
         # silent; a present-but-broken orjson is unexpected, so surface it.
         logging.getLogger(__name__).warning(
-            "orjson is installed but failed to import; falling back to the "
-            "stdlib json module",
+            "orjson is installed but failed to import; falling back to the " "stdlib json module",
             exc_info=True,
         )
 
