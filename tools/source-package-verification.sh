@@ -6,6 +6,12 @@
 set -e
 
 uv pip install -r requirements/requirements-tests-install.txt
+# Install orjson (CI-only) so the test suite exercises the orjson fast-path of
+# the JSON codec. It is intentionally NOT in requirements-tests-install.txt:
+# orjson has no free-threaded wheels yet, and keeping it out lets contributors
+# on such interpreters still install the default test deps. The stdlib fallback
+# is covered by tests/schema_registry/test_json_codec.py regardless.
+uv pip install -r requirements/requirements-json-fast.txt
 uv pip install -U build
 
 # Cache trivup Apache Kafka versions
