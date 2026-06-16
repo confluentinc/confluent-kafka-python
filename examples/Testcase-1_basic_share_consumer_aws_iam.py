@@ -45,11 +45,10 @@ also be passed as argv[1]:
     KAFKA_LOGICAL_CLUSTER CC logical cluster id (lkc-xxxxx)      [required]
     IDENTITY_POOL_ID      CC identity pool id (pool-xxxxx)       [required]
     OIDC_AUDIENCE         STS token audience / JWT aud claim     [default https://confluent.cloud/oidc]
-    AWS_STS_REGION        STS region                             [default us-east-2]
-    KAFKA_TOPIC           topic name                             [default share_aws_iam_demo]
+    AWS_STS_REGION        STS region                             [default eu-north-1]
+    KAFKA_TOPIC           topic name                             [default share_aws_iam_<rand>]
     GROUP_ID              share group id                         [default share-aws-iam-<rand>]
     MESSAGE_COUNT         messages to round-trip                 [default 20]
-    CONSUMER_KIND         share | regular                        [default share]
 
 These env var names match the autowire harness (opt_in_success.py), so the
 same exported values work for both.
@@ -58,7 +57,7 @@ Acknowledgement is implicit: each poll() auto-acknowledges the previous
 batch, and close() flushes the final one.
 
 Usage:
-    python oauth_oidc_ccloud_aws_iam_share_consumer.py [bootstrap.servers]
+    python Testcase-1_basic_share_consumer_aws_iam.py [bootstrap.servers]
 """
 
 import json
@@ -70,7 +69,7 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
-from confluent_kafka import Consumer, KafkaException, Producer, ShareConsumer
+from confluent_kafka import KafkaException, Producer, ShareConsumer
 from confluent_kafka.admin import (
     AdminClient,
     AlterConfigOpType,
@@ -189,9 +188,7 @@ def set_share_group_offset_reset(admin, group, reset):
         for fut in admin.incremental_alter_configs([res]).values():
             fut.result()
         print(f"[{_ts()}] Set share.auto.offset.reset={reset} on group {group}")
-    except Exception as exc:  # noqa: BLE001
-        # Most likely the identity pool lacks ALTER on the group. Without this
-        # the group defaults to "latest" and will consume 0.
+    except Exception as exc:
         sys.stderr.write(
             f"[{_ts()}] WARNING: could not set share.auto.offset.reset={reset} "
             f"on group {group}: {exc}\n"
@@ -226,21 +223,14 @@ def produce_messages(producer, topic, count):
 
 
 def main():
-    # Env var names mirror the autowire harness (opt_in_success.py) so this
-    # scenario can run with the same environment/values.
     bootstrap = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('BOOTSTRAP_SERVERS')
     logical_cluster = os.environ.get('KAFKA_LOGICAL_CLUSTER')
     identity_pool_id = os.environ.get('IDENTITY_POOL_ID')
     audience = os.environ.get('OIDC_AUDIENCE', 'https://confluent.cloud/oidc')
-    aws_region = os.environ.get('AWS_STS_REGION', 'us-east-2')
-    topic = os.environ.get('KAFKA_TOPIC', 'share_aws_iam_demo')
+    aws_region = os.environ.get('AWS_STS_REGION', 'eu-north-1')
+    topic = os.environ.get('KAFKA_TOPIC', f'share_aws_iam_{uuid.uuid4().hex[:8]}')
     group = os.environ.get('GROUP_ID', f'share-aws-iam-{uuid.uuid4().hex[:8]}')
     message_count = int(os.environ.get('MESSAGE_COUNT', '20'))
-    # 'share' (default) uses a KIP-932 ShareConsumer; 'regular' uses a classic
-    # Consumer, whose start offset is a client-side config (auto.offset.reset),
-    # so it needs no group-level ALTER — useful when the identity pool can't set
-    # share.auto.offset.reset on the group.
-    consumer_kind = os.environ.get('CONSUMER_KIND', 'share').lower()
 
     missing = [k for k, v in (('BOOTSTRAP_SERVERS', bootstrap),
                               ('KAFKA_LOGICAL_CLUSTER', logical_cluster),
@@ -250,7 +240,7 @@ def main():
         return 2
 
     print("=" * 70)
-    print(f"Confluent Cloud round-trip with AWS IAM auth (consumer={consumer_kind})")
+    print("Confluent Cloud ShareConsumer round-trip with AWS IAM auth")
     print(f"  bootstrap={bootstrap}  cluster={logical_cluster}  pool={identity_pool_id}")
     print(f"  region={aws_region}  audience={audience}")
     print(f"  topic={topic}  group={group}  messages={message_count}")
@@ -264,68 +254,34 @@ def main():
     }
     oauth_cb = make_oauth_cb(oauth_config)
     base = common_config(bootstrap, oauth_cb)
-
-    # 1. Ensure the topic exists.
     admin = AdminClient(dict(base))
     ensure_topic(admin, topic)
+    set_share_group_offset_reset(admin, group, 'earliest')
 
-    # 2. For a share group, pin its broker-side start offset to earliest before
-    #    the consumer joins. (A regular consumer controls this client-side via
-    #    auto.offset.reset, so it needs no group ALTER.)
-    if consumer_kind == 'share':
-        set_share_group_offset_reset(admin, group, 'earliest')
-
-    # 3. Produce.
     producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
     produced = produce_messages(producer, topic, message_count)
 
-    # 4. Consume from the start.
+    # Consume from the start via the share group.
     consumed = 0
-    if consumer_kind == 'share':
-        sc = ShareConsumer(dict(base, **{'group.id': group,
-                                         'client.id': 'aws-iam-share-consumer'}))
-        try:
-            sc.subscribe([topic])
-            print(f"[{_ts()}] Consuming via ShareConsumer "
-                  f"(share.auto.offset.reset=earliest)...")
-            deadline = time.time() + 60
-            while consumed < produced and time.time() < deadline:
-                for msg in sc.poll(timeout=1.0):
-                    if msg.error() is not None:
-                        sys.stderr.write(f"%% per-message error: {msg.error()}\n")
-                        continue
-                    consumed += 1
-                    print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
-                          f"@{msg.offset()}: {msg.value().decode()}")
-        except KafkaException as exc:
-            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
-        finally:
-            sc.close()
-    else:
-        # Regular consumer: start offset is a client-side config, so no group
-        # ALTER is needed.
-        c = Consumer(dict(base, **{'group.id': group,
-                                   'client.id': 'aws-iam-consumer',
-                                   'auto.offset.reset': 'earliest'}))
-        try:
-            c.subscribe([topic])
-            print(f"[{_ts()}] Consuming via regular Consumer "
-                  f"(auto.offset.reset=earliest)...")
-            deadline = time.time() + 60
-            while consumed < produced and time.time() < deadline:
-                msg = c.poll(timeout=1.0)
-                if msg is None:
-                    continue
+    sc = ShareConsumer(dict(base, **{'group.id': group,
+                                     'client.id': 'aws-iam-share-consumer'}))
+    try:
+        sc.subscribe([topic])
+        print(f"[{_ts()}] Consuming via ShareConsumer "
+              f"(share.auto.offset.reset=earliest)...")
+        deadline = time.time() + 60
+        while consumed < produced and time.time() < deadline:
+            for msg in sc.poll(timeout=1.0):
                 if msg.error() is not None:
                     sys.stderr.write(f"%% per-message error: {msg.error()}\n")
                     continue
                 consumed += 1
                 print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
                       f"@{msg.offset()}: {msg.value().decode()}")
-        except KafkaException as exc:
-            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
-        finally:
-            c.close()
+    except KafkaException as exc:
+        sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
+    finally:
+        sc.close()
 
     ok = consumed >= message_count
     print("=" * 70)
