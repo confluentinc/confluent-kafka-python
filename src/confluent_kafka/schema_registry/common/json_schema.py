@@ -38,7 +38,7 @@ try:
 
     _HAS_ORJSON = True
 
-    def _json_loads(data: Union[str, bytes]) -> Any:
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
         return orjson.loads(data)
 
     def _json_dumps(obj: Any) -> str:
@@ -49,7 +49,7 @@ except ImportError:
 
     _HAS_ORJSON = False
 
-    def _json_loads(data: Union[str, bytes]) -> Any:
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
         # json.loads accepts bytes/bytearray (auto-detecting the encoding)
         # since Python 3.6, matching orjson.loads.
         return _stdlib_json.loads(data)
