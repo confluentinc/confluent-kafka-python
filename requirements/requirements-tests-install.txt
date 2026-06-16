@@ -1,7 +1,10 @@
--r requirements-tests.txt  
--r requirements-schemaregistry.txt  
+-r requirements-tests.txt
+-r requirements-schemaregistry.txt
 -r requirements-rules.txt
 -r requirements-avro.txt
--r requirements-protobuf.txt  
+-r requirements-protobuf.txt
 -r requirements-json.txt
+# Install orjson so CI exercises the orjson fast-path of the JSON codec (the
+# stdlib fallback is covered separately by tests/schema_registry/test_json_codec.py).
+-r requirements-json-fast.txt
 tests/trivup/trivup-0.14.0.tar.gz
