@@ -105,6 +105,7 @@ optional-dependencies.schema_registry = { file = ["requirements/requirements-sch
 optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.json-fast = { file = ["requirements/requirements-json.txt", "requirements/requirements-json-fast.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.dev = { file = [
     "requirements/requirements-docs.txt",
@@ -114,6 +115,7 @@ optional-dependencies.dev = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
+    "requirements/requirements-json-fast.txt",
     "requirements/requirements-protobuf.txt"] }
 optional-dependencies.docs = { file = [
     "requirements/requirements-docs.txt",
@@ -121,6 +123,7 @@ optional-dependencies.docs = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
+    "requirements/requirements-json-fast.txt",
     "requirements/requirements-protobuf.txt"] }
 optional-dependencies.tests = { file = [
     "requirements/requirements-tests.txt",
@@ -128,6 +131,7 @@ optional-dependencies.tests = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
+    "requirements/requirements-json-fast.txt",
     "requirements/requirements-protobuf.txt"] }
 optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
 optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
@@ -140,6 +144,7 @@ optional-dependencies.all = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
+    "requirements/requirements-json-fast.txt",
     "requirements/requirements-protobuf.txt"] }
 
 [tool.pytest.ini_options]
