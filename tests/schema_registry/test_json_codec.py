@@ -23,37 +23,52 @@ is unavailable (e.g. on free-threaded CPython builds without orjson wheels).
 The fallback branch is otherwise never exercised in environments that ship
 orjson, so these tests force it explicitly.
 """
+import contextlib
 import importlib
-import importlib.util
 import sys
 
 import pytest
 
 from confluent_kafka.schema_registry.common import json_schema
 
-_MOD = "confluent_kafka.schema_registry.common.json_schema"
+
+def _orjson_importable() -> bool:
+    # Mirror the codec module's own logic: availability is driven by whether
+    # `import orjson` actually succeeds, not merely whether a spec is findable
+    # (a compiled extension can have a spec yet fail to import/initialize).
+    try:
+        import orjson  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+_ORJSON_AVAILABLE = _orjson_importable()
 
 # A representative payload: nested structures, every JSON scalar type, key
 # ordering to verify it is preserved, and a non-ASCII character.
 _SAMPLE = {"b": 1, "a": "é", "n": None, "f": 1.5, "t": True, "list": [1, "x", None]}
 
 
-@pytest.fixture
-def stdlib_codec():
+@contextlib.contextmanager
+def _orjson_disabled():
     """Reload the codec module with orjson forced unavailable.
 
     Setting ``sys.modules['orjson'] = None`` makes ``import orjson`` raise
     ImportError, so reloading the module rebinds ``_json_loads``/``_json_dumps``
-    to the stdlib fallback. The original orjson-backed module is restored on
-    teardown so the rest of the suite is unaffected.
+    to the stdlib fallback. Note that ``importlib.reload`` mutates the module
+    object in place, so the module-level ``json_schema`` reference is also
+    switched to the fallback for the duration of this context. The original
+    orjson-backed codec is restored on exit so the rest of the suite is
+    unaffected.
     """
     sentinel = object()
     saved = sys.modules.get("orjson", sentinel)
     sys.modules["orjson"] = None  # type: ignore[assignment]  # => ImportError on import
     try:
-        mod = importlib.reload(json_schema)
-        assert mod._HAS_ORJSON is False
-        yield mod
+        importlib.reload(json_schema)
+        assert json_schema._HAS_ORJSON is False
+        yield json_schema
     finally:
         if saved is sentinel:
             sys.modules.pop("orjson", None)
@@ -62,9 +77,14 @@ def stdlib_codec():
         importlib.reload(json_schema)  # restore the orjson-backed codec
 
 
+@pytest.fixture
+def stdlib_codec():
+    with _orjson_disabled() as mod:
+        yield mod
+
+
 def test_has_orjson_reflects_availability():
-    orjson_installed = importlib.util.find_spec("orjson") is not None
-    assert json_schema._HAS_ORJSON is orjson_installed
+    assert json_schema._HAS_ORJSON is _ORJSON_AVAILABLE
 
 
 def test_stdlib_fallback_is_active(stdlib_codec):
@@ -93,12 +113,18 @@ def test_stdlib_fallback_output_is_compact_and_unicode_preserving(stdlib_codec):
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("orjson") is None,
+    not _ORJSON_AVAILABLE,
     reason="orjson not installed; cannot compare backends",
 )
-def test_stdlib_and_orjson_produce_identical_output(stdlib_codec):
-    # stdlib_codec is the fallback module; the orjson path is the import at the
-    # top of this file (restored on fixture teardown but still bound here).
-    stdlib_out = stdlib_codec._json_dumps(_SAMPLE)
+def test_stdlib_and_orjson_produce_identical_output():
+    # Capture the orjson output FIRST, while the module is still orjson-backed.
+    # importlib.reload (used by _orjson_disabled) mutates json_schema in place,
+    # so once the fallback is active there is no live orjson codec to compare
+    # against -- the orjson value must be taken before entering the context.
+    assert json_schema._HAS_ORJSON is True
     orjson_out = json_schema._json_dumps(_SAMPLE)
+
+    with _orjson_disabled() as stdlib_codec:
+        stdlib_out = stdlib_codec._json_dumps(_SAMPLE)
+
     assert stdlib_out == orjson_out
