@@ -105,6 +105,7 @@ optional-dependencies.schema_registry = { file = ["requirements/requirements-sch
 optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.json-fast = { file = ["requirements/requirements-json.txt", "requirements/requirements-json-fast.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.dev = { file = [
     "requirements/requirements-docs.txt",
