@@ -222,7 +222,7 @@ def main():
         print(f"[{_ts()}] Consuming via ShareConsumer...")
         deadline = time.time() + 60
         while consumed < produced and time.time() < deadline:
-            messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+            messages = sc.poll(timeout=1.0)  
             for msg in messages:
                 if msg.error() is not None:
                     sys.stderr.write(f"%% per-message error: {msg.error()}\n")
