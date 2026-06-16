@@ -23,10 +23,11 @@ GetWebIdentityToken (boto3) and hand it to librdkafka — but instead of only
 producing, it does a full round-trip:
 
     1. (AdminClient) ensure the topic exists
-    2. (ShareConsumer) subscribe + warm up so the share group's start offset
-       is pinned to "latest" before we produce
+    2. (AdminClient) set share.auto.offset.reset=earliest on the share group —
+       a per-group, broker-side config (default "latest") — so it reads from the
+       start. The consumer's own auto.offset.reset does NOT control this.
     3. (Producer) produce N messages
-    4. (ShareConsumer) poll the batch until all N are consumed or a deadline
+    4. (ShareConsumer) subscribe and poll until all N are consumed or a deadline
        passes (implicit acknowledgement — each poll auto-acks the previous batch)
 
 All three clients authenticate the same way: SASL_SSL / OAUTHBEARER with the
@@ -69,7 +70,14 @@ from datetime import datetime, timezone
 
 import boto3
 from confluent_kafka import KafkaException, Producer, ShareConsumer
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import (
+    AdminClient,
+    AlterConfigOpType,
+    ConfigEntry,
+    ConfigResource,
+    NewTopic,
+    ResourceType,
+)
 
 
 def _ts():
@@ -164,6 +172,32 @@ def ensure_topic(admin, topic):
                 raise
 
 
+def set_share_group_offset_reset(admin, group, reset):
+    """
+    Set share.auto.offset.reset on the share group (KIP-932).
+    """
+    res = ConfigResource(
+        ResourceType.GROUP,
+        group,
+        incremental_configs=[
+            ConfigEntry('share.auto.offset.reset', reset,
+                        incremental_operation=AlterConfigOpType.SET),
+        ],
+    )
+    try:
+        for fut in admin.incremental_alter_configs([res]).values():
+            fut.result()
+        print(f"[{_ts()}] Set share.auto.offset.reset={reset} on group {group}")
+    except Exception as exc:  # noqa: BLE001
+        # Most likely the identity pool lacks ALTER on the group. Without this
+        # the group defaults to "latest" and will consume 0.
+        sys.stderr.write(
+            f"[{_ts()}] WARNING: could not set share.auto.offset.reset={reset} "
+            f"on group {group}: {exc}\n"
+            f"  Grant ALTER on the group to the identity pool, or set the broker "
+            f"default group.share.auto.offset.reset=earliest.\n")
+
+
 def produce_messages(producer, topic, count):
     """Produce `count` JSON messages; return the number confirmed delivered."""
     delivered = [0]
@@ -228,22 +262,26 @@ def main():
     # 1. Ensure the topic exists.
     admin = AdminClient(dict(base))
     ensure_topic(admin, topic)
-    sc_conf = dict(base, **{'group.id': group, 'client.id': 'aws-iam-share-consumer'})
 
+    # 2. Pin the share group's start offset to the beginning, before the
+    #    consumer joins, so it reads the whole batch regardless of timing.
+    set_share_group_offset_reset(admin, group, 'earliest')
+
+    # 3. Produce.
+    producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
+    produced = produce_messages(producer, topic, message_count)
+
+    # 4. Consume from the start via the share group.
+    sc_conf = dict(base, **{'group.id': group, 'client.id': 'aws-iam-share-consumer'})
     sc = ShareConsumer(sc_conf)
     consumed = 0
     try:
         sc.subscribe([topic])
-        print(f"[{_ts()}] Warming up share consumer (joining group)...")
-        warmup_deadline = time.time() + 8
-        while time.time() < warmup_deadline:
-            sc.poll(timeout=1.0) 
-        producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
-        produced = produce_messages(producer, topic, message_count)
-        print(f"[{_ts()}] Consuming via ShareConsumer...")
+        print(f"[{_ts()}] Consuming via ShareConsumer "
+              f"(share.auto.offset.reset=earliest)...")
         deadline = time.time() + 60
         while consumed < produced and time.time() < deadline:
-            messages = sc.poll(timeout=1.0)  
+            messages = sc.poll(timeout=1.0)
             for msg in messages:
                 if msg.error() is not None:
                     sys.stderr.write(f"%% per-message error: {msg.error()}\n")
