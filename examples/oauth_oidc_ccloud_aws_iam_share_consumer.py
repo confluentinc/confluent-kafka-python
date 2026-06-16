@@ -26,9 +26,9 @@ producing, it does a full round-trip:
     2. (AdminClient) set share.auto.offset.reset=earliest on the share group —
        a per-group, broker-side config (default "latest") — so it reads from the
        start. The consumer's own auto.offset.reset does NOT control this.
-    3. (Producer) produce N messages
-    4. (ShareConsumer) subscribe and poll until all N are consumed or a deadline
-       passes (implicit acknowledgement — each poll auto-acks the previous batch)
+    3 & 4. Run a producer and a consumer concurrently on two threads: the
+       consumer joins and goes live first, then the producer sends N messages,
+       so even a "latest" share group sees the batch (implicit acknowledgement).
 
 All three clients authenticate the same way: SASL_SSL / OAUTHBEARER with the
 AWS-IAM oauth_cb. No Kafka API keys are involved.
@@ -47,7 +47,7 @@ also be passed as argv[1]:
     OIDC_AUDIENCE         STS token audience / JWT aud claim     [default https://confluent.cloud/oidc]
     AWS_STS_REGION        STS region                             [default us-east-2]
     KAFKA_TOPIC           topic name                             [default share_aws_iam_demo]
-    GROUP_ID              share group id                         [default share-aws-iam-<rand>]
+    GROUP_ID              share group id                         [default ankith_test_1]
     MESSAGE_COUNT         messages to round-trip                 [default 20]
     CONSUMER_KIND         share | regular                        [default share]
 
@@ -65,8 +65,8 @@ import json
 import os
 import random
 import sys
+import threading
 import time
-import uuid
 from datetime import datetime, timezone
 
 import boto3
@@ -199,6 +199,18 @@ def set_share_group_offset_reset(admin, group, reset):
             f"default group.share.auto.offset.reset=earliest.\n")
 
 
+def _poll(consumer, kind, timeout=1.0):
+    """Normalize poll() to a list of messages across consumer kinds.
+
+    ShareConsumer.poll returns a batch (list); a regular Consumer.poll returns a
+    single message or None.
+    """
+    if kind == 'share':
+        return consumer.poll(timeout=timeout)
+    msg = consumer.poll(timeout=timeout)
+    return [msg] if msg is not None else []
+
+
 def produce_messages(producer, topic, count):
     """Produce `count` JSON messages; return the number confirmed delivered."""
     delivered = [0]
@@ -234,7 +246,7 @@ def main():
     audience = os.environ.get('OIDC_AUDIENCE', 'https://confluent.cloud/oidc')
     aws_region = os.environ.get('AWS_STS_REGION', 'us-east-2')
     topic = os.environ.get('KAFKA_TOPIC', 'share_aws_iam_demo')
-    group = os.environ.get('GROUP_ID', f'share-aws-iam-{uuid.uuid4().hex[:8]}')
+    group = os.environ.get('GROUP_ID', 'ankith_test_1')
     message_count = int(os.environ.get('MESSAGE_COUNT', '20'))
     # 'share' (default) uses a KIP-932 ShareConsumer; 'regular' uses a classic
     # Consumer, whose start offset is a client-side config (auto.offset.reset),
@@ -269,28 +281,39 @@ def main():
     admin = AdminClient(dict(base))
     ensure_topic(admin, topic)
 
-    # 2. For a share group, pin its broker-side start offset to earliest before
-    #    the consumer joins. (A regular consumer controls this client-side via
-    #    auto.offset.reset, so it needs no group ALTER.)
+    # 2. For a share group, best-effort pin its start offset to earliest. With
+    #    the consumer running concurrently (below), a "latest" group also picks
+    #    up everything produced after it joins, so this is not strictly required.
     if consumer_kind == 'share':
         set_share_group_offset_reset(admin, group, 'earliest')
 
-    # 3. Produce.
-    producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
-    produced = produce_messages(producer, topic, message_count)
+    # 3 & 4. Run producer and consumer concurrently on two threads. The consumer
+    #    joins and goes live first (signals consumer_ready), then the producer
+    #    sends, so even a "latest" share group sees the batch.
+    result = {'produced': 0, 'consumed': 0}
+    consumer_ready = threading.Event()
 
-    # 4. Consume from the start.
-    consumed = 0
-    if consumer_kind == 'share':
-        sc = ShareConsumer(dict(base, **{'group.id': group,
-                                         'client.id': 'aws-iam-share-consumer'}))
+    def consume_worker():
+        consumed = 0
+        if consumer_kind == 'share':
+            consumer = ShareConsumer(dict(base, **{'group.id': group,
+                                                   'client.id': 'aws-iam-share-consumer'}))
+        else:
+            consumer = Consumer(dict(base, **{'group.id': group,
+                                              'client.id': 'aws-iam-consumer',
+                                              'auto.offset.reset': 'earliest'}))
         try:
-            sc.subscribe([topic])
-            print(f"[{_ts()}] Consuming via ShareConsumer "
-                  f"(share.auto.offset.reset=earliest)...")
+            consumer.subscribe([topic])
+            print(f"[{_ts()}] Consumer ({consumer_kind}) joining group {group}...")
+            # Let the group join and pin its start offset before we produce.
+            join_deadline = time.time() + 15
+            while time.time() < join_deadline:
+                _poll(consumer, consumer_kind)
+            consumer_ready.set()
+            print(f"[{_ts()}] Consumer live; consuming...")
             deadline = time.time() + 60
-            while consumed < produced and time.time() < deadline:
-                for msg in sc.poll(timeout=1.0):
+            while consumed < message_count and time.time() < deadline:
+                for msg in _poll(consumer, consumer_kind):
                     if msg.error() is not None:
                         sys.stderr.write(f"%% per-message error: {msg.error()}\n")
                         continue
@@ -298,39 +321,31 @@ def main():
                     print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
                           f"@{msg.offset()}: {msg.value().decode()}")
         except KafkaException as exc:
-            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
+            sys.stderr.write(f"%% consumer Kafka error: {exc}\n")
         finally:
-            sc.close()
-    else:
-        # Regular consumer: start offset is a client-side config, so no group
-        # ALTER is needed. This validates the AWS IAM produce->consume round-trip
-        # even when the pool can't set share.auto.offset.reset.
-        c = Consumer(dict(base, **{'group.id': group,
-                                   'client.id': 'aws-iam-consumer',
-                                   'auto.offset.reset': 'earliest'}))
-        try:
-            c.subscribe([topic])
-            print(f"[{_ts()}] Consuming via regular Consumer "
-                  f"(auto.offset.reset=earliest)...")
-            deadline = time.time() + 60
-            while consumed < produced and time.time() < deadline:
-                msg = c.poll(timeout=1.0)
-                if msg is None:
-                    continue
-                if msg.error() is not None:
-                    sys.stderr.write(f"%% per-message error: {msg.error()}\n")
-                    continue
-                consumed += 1
-                print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
-                      f"@{msg.offset()}: {msg.value().decode()}")
-        except KafkaException as exc:
-            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
-        finally:
-            c.close()
+            consumer.close()
+        result['consumed'] = consumed
+
+    def produce_worker():
+        # Wait until the consumer is live so a "latest" group doesn't miss the
+        # batch; fall back after a timeout so we never hang.
+        consumer_ready.wait(timeout=30)
+        producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
+        result['produced'] = produce_messages(producer, topic, message_count)
+
+    ct = threading.Thread(target=consume_worker, name='consumer')
+    pt = threading.Thread(target=produce_worker, name='producer')
+    ct.start()
+    pt.start()
+    pt.join()
+    ct.join()
+
+    produced = result['produced']
+    consumed = result['consumed']
 
     ok = consumed >= message_count
     print("=" * 70)
-    print(f"{'PASS' if ok else 'FAIL'} — produced={message_count} consumed={consumed} "
+    print(f"{'PASS' if ok else 'FAIL'} — produced={produced} consumed={consumed} "
           f"(round-trip via AWS STS GetWebIdentityToken)")
     print("=" * 70)
     return 0 if ok else 1
