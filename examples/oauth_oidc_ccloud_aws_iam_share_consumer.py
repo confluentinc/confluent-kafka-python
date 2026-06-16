@@ -47,7 +47,7 @@ also be passed as argv[1]:
     OIDC_AUDIENCE         STS token audience / JWT aud claim     [default https://confluent.cloud/oidc]
     AWS_STS_REGION        STS region                             [default us-east-2]
     KAFKA_TOPIC           topic name                             [default share_aws_iam_demo]
-    GROUP_ID              share group id                         [default ankith_test_1]
+    GROUP_ID              share group id                         [default share-aws-iam-<rand>]
     MESSAGE_COUNT         messages to round-trip                 [default 20]
     CONSUMER_KIND         share | regular                        [default share]
 
@@ -67,6 +67,7 @@ import random
 import sys
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 
 import boto3
@@ -246,7 +247,7 @@ def main():
     audience = os.environ.get('OIDC_AUDIENCE', 'https://confluent.cloud/oidc')
     aws_region = os.environ.get('AWS_STS_REGION', 'us-east-2')
     topic = os.environ.get('KAFKA_TOPIC', 'share_aws_iam_demo')
-    group = os.environ.get('GROUP_ID', 'ankith_test_1')
+    group = os.environ.get('GROUP_ID', f'share-aws-iam-{uuid.uuid4().hex[:8]}')
     message_count = int(os.environ.get('MESSAGE_COUNT', '20'))
     # 'share' (default) uses a KIP-932 ShareConsumer; 'regular' uses a classic
     # Consumer, whose start offset is a client-side config (auto.offset.reset),
