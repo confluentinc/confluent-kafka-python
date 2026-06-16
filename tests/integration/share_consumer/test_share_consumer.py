@@ -35,9 +35,10 @@ def test_concurrent_consumers(kafka_cluster):
     and their union must cover every produced record exactly once.
 
     Per-consumer distribution is intentionally NOT asserted: with a single
-    partition, serial round-robin polling, and batch_size=10005, a single
-    ShareFetch from whichever consumer polls first can drain all records
-    before the other gets a chance. KIP-932 share groups don't guarantee
+    partition, serial round-robin polling, and the default max.poll.records
+    (500) far exceeding the produced record count, a single ShareFetch from
+    whichever consumer polls first can drain all records before the other
+    gets a chance. KIP-932 share groups don't guarantee
     even distribution under those conditions, and librdkafka's analogous
     test (tests/0171-share_consumer_consume.c::test_multiple_consumers_*)
     likewise asserts only total-count and not per-consumer counts.
@@ -98,6 +99,63 @@ def test_basic_consume_records(kafka_cluster):
         received_msgs = drain_share_consumers([sc], n)[0]
         values = sorted(msg.value() for msg in received_msgs)
         assert values == sorted(expected), f"Value mismatch: expected {sorted(expected)}, got {values}"
+    finally:
+        sc.close()
+
+
+def test_set_sasl_credentials_during_active_consumption(kafka_cluster):
+    """Changing credentials on a consumer that's already subscribed and
+    consuming shouldn't disrupt it: records produced after the change still
+    arrive."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-sasl-creds')
+    n = 20
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        sc.subscribe([topic])
+        # let the consumer settle in before changing anything
+        for _ in range(5):
+            sc.poll(timeout=0.2)
+
+        # change credentials mid-stream
+        assert sc.set_sasl_credentials('rotated-user', 'rotated-secret') is None
+
+        producer = kafka_cluster.cimpl_producer()
+        expected = [f'msg-{i}'.encode() for i in range(n)]
+        for v in expected:
+            producer.produce(topic, value=v)
+        producer.flush(timeout=10.0)
+
+        received = drain_share_consumers([sc], n)[0]
+        values = sorted(m.value() for m in received)
+        assert values == sorted(expected), f"Records lost after credential rotation: got {len(received)}/{n}"
+    finally:
+        sc.close()
+
+
+def test_set_sasl_credentials_before_subscribe_and_repeated(kafka_cluster):
+    """Setting credentials before subscribing, and more than once, still leaves
+    a working consumer."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-sasl-creds-presub')
+    n = 10
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        # Before subscribing, and more than once.
+        assert sc.set_sasl_credentials('user-1', 'pass-1') is None
+        assert sc.set_sasl_credentials('user-2', 'pass-2') is None
+
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        expected = [f'msg-{i}'.encode() for i in range(n)]
+        for v in expected:
+            producer.produce(topic, value=v)
+        producer.flush(timeout=10.0)
+
+        received = drain_share_consumers([sc], n)[0]
+        values = sorted(m.value() for m in received)
+        assert values == sorted(expected), f"Consume failed after pre-subscribe credential set: got {len(received)}/{n}"
     finally:
         sc.close()
 
@@ -251,16 +309,19 @@ def test_single_consumer_multi_partition_full_coverage(kafka_cluster):
 
 
 def test_max_poll_records_caps_batch(kafka_cluster):
-    """max.poll.records bounds the records returned by a single poll().
+    """max.poll.records caps how many records a single poll() returns.
 
-    The cap applies at batch boundaries — a poll never splits a single broker
-    batch, it just stops accumulating once the cap is reached. So each record
-    has to land in its own batch for the cap to be observable: linger.ms=0 plus
-    a flush per produce gives one batch per record. With 10 single-record
-    batches and cap=5, no poll() returns more than 5 and draining all 10 takes
-    at least 2 polls.
+    The cap can be hidden in two ways: the broker never splits a record batch,
+    so one oversized batch overshoots it, and the broker can merge several
+    partitions into one response, which may also exceed it. To make the cap
+    observable we use a single-partition topic and put each record in its own
+    batch (linger.ms=0 + a flush after every produce). With cap=5 and 10 such
+    records, no poll() returns more than 5 and draining all 10 takes at least
+    2 polls.
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-maxpoll')
+    # Single partition: with more, the broker could merge them into one
+    # response that exceeds the cap.
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-maxpoll', {'num_partitions': 1})
     cap = 5
     n = 10
 

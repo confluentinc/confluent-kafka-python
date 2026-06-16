@@ -232,7 +232,7 @@ def test_log_cb():
     debug=msg is enough to produce a synchronous INIT record on
     construction. ShareConsumer_init forwards the share consumer's log
     queue onto rk_rep via rd_kafka_share_set_log_queue(), so log records
-    flow through the same drain that share_consume_batch performs on the
+    flow through the same drain that share_poll performs on the
     poll thread.
     """
     log_records = []
