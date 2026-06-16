@@ -1,7 +1,7 @@
 import decimal
 import logging
 from io import BytesIO
-from typing import List, Optional, Set, Union
+from typing import Any, List, Optional, Set, Union
 
 import httpx
 import referencing
@@ -23,7 +23,40 @@ __all__ = [
     'get_type',
     '_disjoint',
     'get_inline_tags',
+    '_json_loads',
+    '_json_dumps',
+    '_HAS_ORJSON',
 ]
+
+# JSON codec: prefer orjson for speed, but fall back to the stdlib json module
+# when orjson is unavailable (e.g. on free-threaded CPython builds that do not
+# yet have orjson wheels). Both implementations accept str or bytes for loads
+# and return a str from dumps. The stdlib fallback mirrors orjson's wire output
+# (compact separators, non-ASCII preserved) so serialized bytes stay consistent.
+try:
+    import orjson
+
+    _HAS_ORJSON = True
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        return orjson.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return orjson.dumps(obj).decode("utf-8")
+
+except ImportError:
+    import json as _stdlib_json
+
+    _HAS_ORJSON = False
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        # json.loads accepts bytes/bytearray (auto-detecting the encoding)
+        # since Python 3.6, matching orjson.loads.
+        return _stdlib_json.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return _stdlib_json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
 
 JSON_TYPE = "JSON"
 
