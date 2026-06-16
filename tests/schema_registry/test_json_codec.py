@@ -23,6 +23,7 @@ is unavailable (e.g. on free-threaded CPython builds without orjson wheels).
 The fallback branch is otherwise never exercised in environments that ship
 orjson, so these tests force it explicitly.
 """
+
 import contextlib
 import importlib
 import sys

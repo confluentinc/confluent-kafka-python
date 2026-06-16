@@ -57,6 +57,7 @@ except ImportError:
     def _json_dumps(obj: Any) -> str:
         return _stdlib_json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
 
+
 JSON_TYPE = "JSON"
 
 JsonMessage = Union[
