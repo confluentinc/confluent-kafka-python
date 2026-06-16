@@ -19,7 +19,6 @@ import logging
 import threading as _locks
 from typing import Any, Callable, Optional, Tuple, Union, cast
 
-import orjson
 from cachetools import LRUCache
 from jsonschema import ValidationError
 from jsonschema.protocols import Validator
@@ -38,6 +37,8 @@ from confluent_kafka.schema_registry.common.json_schema import (
     JSON_TYPE,
     JsonSchema,
     _ContextStringIO,
+    _json_dumps,
+    _json_loads,
     _retrieve_via_httpx,
     transform,
 )
@@ -78,7 +79,7 @@ def _resolve_named_schema(
             if referenced_schema.schema.schema_str is None:
                 raise TypeError("Schema string cannot be None")
 
-            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
+            referenced_schema_dict = _json_loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(referenced_schema_dict, default_specification=DEFAULT_SPEC)
             if ref.name is None:
                 raise TypeError("Name cannot be None")
@@ -263,7 +264,7 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
-        self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
+        self._json_encode = json_encode or _json_dumps
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
@@ -455,7 +456,7 @@ class JSONSerializer(BaseSerializer):
         ref_registry = _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
             raise TypeError("Schema string cannot be None")
-        parsed_schema = orjson.loads(schema.schema_str)
+        parsed_schema = _json_loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
@@ -600,7 +601,7 @@ class JSONDeserializer(BaseDeserializer):
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
         self._validators_lock = _locks.Lock()
-        self._json_decode = json_decode or orjson.loads
+        self._json_decode = json_decode or _json_loads
         self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
@@ -783,7 +784,7 @@ class JSONDeserializer(BaseDeserializer):
         ref_registry = _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
             raise TypeError("Schema string cannot be None")
-        parsed_schema = orjson.loads(schema.schema_str)
+        parsed_schema = _json_loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
