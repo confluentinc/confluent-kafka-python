@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2026 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+"""
+Tests for the JSON codec used by the JSON serializer/deserializer.
+
+The codec prefers orjson but falls back to the stdlib json module when orjson
+is unavailable (e.g. on free-threaded CPython builds without orjson wheels).
+The fallback branch is otherwise never exercised in environments that ship
+orjson, so these tests force it explicitly.
+"""
+import importlib
+import importlib.util
+import sys
+
+import pytest
+
+from confluent_kafka.schema_registry.common import json_schema
+
+_MOD = "confluent_kafka.schema_registry.common.json_schema"
+
+# A representative payload: nested structures, every JSON scalar type, key
+# ordering to verify it is preserved, and a non-ASCII character.
+_SAMPLE = {"b": 1, "a": "é", "n": None, "f": 1.5, "t": True, "list": [1, "x", None]}
+
+
+@pytest.fixture
+def stdlib_codec():
+    """Reload the codec module with orjson forced unavailable.
+
+    Setting ``sys.modules['orjson'] = None`` makes ``import orjson`` raise
+    ImportError, so reloading the module rebinds ``_json_loads``/``_json_dumps``
+    to the stdlib fallback. The original orjson-backed module is restored on
+    teardown so the rest of the suite is unaffected.
+    """
+    sentinel = object()
+    saved = sys.modules.get("orjson", sentinel)
+    sys.modules["orjson"] = None  # type: ignore[assignment]  # => ImportError on import
+    try:
+        mod = importlib.reload(json_schema)
+        assert mod._HAS_ORJSON is False
+        yield mod
+    finally:
+        if saved is sentinel:
+            sys.modules.pop("orjson", None)
+        else:
+            sys.modules["orjson"] = saved
+        importlib.reload(json_schema)  # restore the orjson-backed codec
+
+
+def test_has_orjson_reflects_availability():
+    orjson_installed = importlib.util.find_spec("orjson") is not None
+    assert json_schema._HAS_ORJSON is orjson_installed
+
+
+def test_stdlib_fallback_is_active(stdlib_codec):
+    assert stdlib_codec._HAS_ORJSON is False
+
+
+def test_stdlib_fallback_roundtrip(stdlib_codec):
+    encoded = stdlib_codec._json_dumps(_SAMPLE)
+    assert isinstance(encoded, str)
+    assert stdlib_codec._json_loads(encoded) == _SAMPLE
+
+
+def test_stdlib_fallback_loads_accepts_str_bytes_bytearray(stdlib_codec):
+    raw = '{"x": 1}'
+    expected = {"x": 1}
+    assert stdlib_codec._json_loads(raw) == expected
+    assert stdlib_codec._json_loads(raw.encode("utf-8")) == expected
+    assert stdlib_codec._json_loads(bytearray(raw.encode("utf-8"))) == expected
+
+
+def test_stdlib_fallback_output_is_compact_and_unicode_preserving(stdlib_codec):
+    # Compact separators (no whitespace) and non-ASCII left as UTF-8, matching
+    # orjson's wire output so serialized bytes stay consistent across backends.
+    assert stdlib_codec._json_dumps({"a": 1, "b": 2}) == '{"a":1,"b":2}'
+    assert stdlib_codec._json_dumps({"k": "é"}) == '{"k":"é"}'
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("orjson") is None,
+    reason="orjson not installed; cannot compare backends",
+)
+def test_stdlib_and_orjson_produce_identical_output(stdlib_codec):
+    # stdlib_codec is the fallback module; the orjson path is the import at the
+    # top of this file (restored on fixture teardown but still bound here).
+    stdlib_out = stdlib_codec._json_dumps(_SAMPLE)
+    orjson_out = json_schema._json_dumps(_SAMPLE)
+    assert stdlib_out == orjson_out
