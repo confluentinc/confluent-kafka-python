@@ -49,6 +49,7 @@ also be passed as argv[1]:
     KAFKA_TOPIC           topic name                             [default share_aws_iam_demo]
     GROUP_ID              share group id                         [default share-aws-iam-<rand>]
     MESSAGE_COUNT         messages to round-trip                 [default 20]
+    CONSUMER_KIND         share | regular                        [default share]
 
 These env var names match the autowire harness (opt_in_success.py), so the
 same exported values work for both.
@@ -69,7 +70,7 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
-from confluent_kafka import KafkaException, Producer, ShareConsumer
+from confluent_kafka import Consumer, KafkaException, Producer, ShareConsumer
 from confluent_kafka.admin import (
     AdminClient,
     AlterConfigOpType,
@@ -235,6 +236,11 @@ def main():
     topic = os.environ.get('KAFKA_TOPIC', 'share_aws_iam_demo')
     group = os.environ.get('GROUP_ID', f'share-aws-iam-{uuid.uuid4().hex[:8]}')
     message_count = int(os.environ.get('MESSAGE_COUNT', '20'))
+    # 'share' (default) uses a KIP-932 ShareConsumer; 'regular' uses a classic
+    # Consumer, whose start offset is a client-side config (auto.offset.reset),
+    # so it needs no group-level ALTER — useful when the identity pool can't set
+    # share.auto.offset.reset on the group.
+    consumer_kind = os.environ.get('CONSUMER_KIND', 'share').lower()
 
     missing = [k for k, v in (('BOOTSTRAP_SERVERS', bootstrap),
                               ('KAFKA_LOGICAL_CLUSTER', logical_cluster),
@@ -244,7 +250,7 @@ def main():
         return 2
 
     print("=" * 70)
-    print("Confluent Cloud ShareConsumer round-trip with AWS IAM auth")
+    print(f"Confluent Cloud round-trip with AWS IAM auth (consumer={consumer_kind})")
     print(f"  bootstrap={bootstrap}  cluster={logical_cluster}  pool={identity_pool_id}")
     print(f"  region={aws_region}  audience={audience}")
     print(f"  topic={topic}  group={group}  messages={message_count}")
@@ -263,36 +269,64 @@ def main():
     admin = AdminClient(dict(base))
     ensure_topic(admin, topic)
 
-    # 2. Pin the share group's start offset to the beginning, before the
-    #    consumer joins, so it reads the whole batch regardless of timing.
-    set_share_group_offset_reset(admin, group, 'earliest')
+    # 2. For a share group, pin its broker-side start offset to earliest before
+    #    the consumer joins. (A regular consumer controls this client-side via
+    #    auto.offset.reset, so it needs no group ALTER.)
+    if consumer_kind == 'share':
+        set_share_group_offset_reset(admin, group, 'earliest')
 
     # 3. Produce.
     producer = Producer(dict(base, **{'client.id': 'aws-iam-producer', 'acks': 'all'}))
     produced = produce_messages(producer, topic, message_count)
 
-    # 4. Consume from the start via the share group.
-    sc_conf = dict(base, **{'group.id': group, 'client.id': 'aws-iam-share-consumer'})
-    sc = ShareConsumer(sc_conf)
+    # 4. Consume from the start.
     consumed = 0
-    try:
-        sc.subscribe([topic])
-        print(f"[{_ts()}] Consuming via ShareConsumer "
-              f"(share.auto.offset.reset=earliest)...")
-        deadline = time.time() + 60
-        while consumed < produced and time.time() < deadline:
-            messages = sc.poll(timeout=1.0)
-            for msg in messages:
+    if consumer_kind == 'share':
+        sc = ShareConsumer(dict(base, **{'group.id': group,
+                                         'client.id': 'aws-iam-share-consumer'}))
+        try:
+            sc.subscribe([topic])
+            print(f"[{_ts()}] Consuming via ShareConsumer "
+                  f"(share.auto.offset.reset=earliest)...")
+            deadline = time.time() + 60
+            while consumed < produced and time.time() < deadline:
+                for msg in sc.poll(timeout=1.0):
+                    if msg.error() is not None:
+                        sys.stderr.write(f"%% per-message error: {msg.error()}\n")
+                        continue
+                    consumed += 1
+                    print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
+                          f"@{msg.offset()}: {msg.value().decode()}")
+        except KafkaException as exc:
+            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
+        finally:
+            sc.close()
+    else:
+        # Regular consumer: start offset is a client-side config, so no group
+        # ALTER is needed. This validates the AWS IAM produce->consume round-trip
+        # even when the pool can't set share.auto.offset.reset.
+        c = Consumer(dict(base, **{'group.id': group,
+                                   'client.id': 'aws-iam-consumer',
+                                   'auto.offset.reset': 'earliest'}))
+        try:
+            c.subscribe([topic])
+            print(f"[{_ts()}] Consuming via regular Consumer "
+                  f"(auto.offset.reset=earliest)...")
+            deadline = time.time() + 60
+            while consumed < produced and time.time() < deadline:
+                msg = c.poll(timeout=1.0)
+                if msg is None:
+                    continue
                 if msg.error() is not None:
                     sys.stderr.write(f"%% per-message error: {msg.error()}\n")
                     continue
                 consumed += 1
                 print(f"[{_ts()}] consumed {msg.topic()}[{msg.partition()}]"
                       f"@{msg.offset()}: {msg.value().decode()}")
-    except KafkaException as exc:
-        sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
-    finally:
-        sc.close()
+        except KafkaException as exc:
+            sys.stderr.write(f"%% Kafka error (auth or connectivity?): {exc}\n")
+        finally:
+            c.close()
 
     ok = consumed >= message_count
     print("=" * 70)
