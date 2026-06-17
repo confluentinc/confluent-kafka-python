@@ -52,7 +52,7 @@ class KafkaClusterFixture(object):
 
     @classmethod
     def _topic_conf(cls, conf=None):
-        topic_conf = {'num_partitions': 1, 'replication_factor': 1}
+        topic_conf = {'num_partitions': 1, 'replication_factor': -1}
 
         if conf is not None:
             topic_conf.update(conf)
@@ -164,6 +164,13 @@ class KafkaClusterFixture(object):
         # Re-issuing the alter on every consumer construction for the same
         # group.id is unnecessary. Lift this to a per-group setup step.
         reset = share_conf.pop('auto.offset.reset', 'earliest')
+        # KIP-932: shorten the acquisition-lock duration per group so the
+        # lock-expiry / redelivery tests don't wait on the 30s broker default.
+        # Set per-group via AlterConfigs (mirrors librdkafka's
+        # set_group_lock_duration) so it works against clusters where the
+        # broker-static group.share.record.lock.duration.ms can't be set
+        # (e.g. Confluent Cloud).
+        lock_duration_ms = str(share_conf.pop('share.record.lock.duration.ms', 1000))
         res = ConfigResource(
             ResourceType.GROUP,
             share_conf['group.id'],
@@ -171,6 +178,11 @@ class KafkaClusterFixture(object):
                 ConfigEntry(
                     'share.auto.offset.reset',
                     reset,
+                    incremental_operation=AlterConfigOpType.SET,
+                ),
+                ConfigEntry(
+                    'share.record.lock.duration.ms',
+                    lock_duration_ms,
                     incremental_operation=AlterConfigOpType.SET,
                 ),
             ],

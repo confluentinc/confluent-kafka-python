@@ -61,18 +61,108 @@ def create_byo_cluster(conf):
     return ByoFixture(conf)
 
 
+def _aws_iam_oauth_cb():
+    """OAUTHBEARER DEFAULT-mode callback: mint a token via AWS STS
+    GetWebIdentityToken (KIP-932 / Confluent Cloud AWS IAM).
+
+    boto3 picks up the ambient (EC2/role) credentials; the returned tuple is
+    what confluent-kafka expects: (token, expiry_epoch, principal, {extensions}).
+    The logicalCluster + identityPoolId extensions route the token to the right
+    CC cluster + identity pool.
+    """
+    import time
+
+    import boto3
+
+    audience = os.environ.get("OIDC_AUDIENCE", "https://confluent.cloud/oidc")
+    region = os.environ.get("AWS_STS_REGION", "eu-north-1")
+    logical_cluster = os.environ["KAFKA_LOGICAL_CLUSTER"]
+    identity_pool_id = os.environ["IDENTITY_POOL_ID"]
+
+    def oauth_cb(_config_str):
+        token = boto3.client("sts", region_name=region).get_web_identity_token(
+            Audience=[audience], SigningAlgorithm="ES384",
+            DurationSeconds=300)["WebIdentityToken"]
+        return (token, time.time() + 300, "",
+                {"logicalCluster": logical_cluster,
+                 "identityPoolId": identity_pool_id})
+
+    return oauth_cb
+
+
+def oauthbearer_aws_conf(brokers_env="BROKERS"):
+    """Full OAUTHBEARER (AWS IAM) client config for Confluent Cloud, or None.
+
+    Auto-enabled when KAFKA_LOGICAL_CLUSTER and IDENTITY_POOL_ID are set (i.e.
+    we're targeting a CC identity pool). The bootstrap comes from
+    BOOTSTRAP_SERVERS (falling back to the brokers_env / BROKERS var). The
+    oauth_cb callback can't live in a properties file, so it's attached here
+    and flows to every client via ByoFixture.client_conf().
+    """
+    if not (os.environ.get("KAFKA_LOGICAL_CLUSTER")
+            and os.environ.get("IDENTITY_POOL_ID")):
+        return None
+    bootstrap = os.environ.get("BOOTSTRAP_SERVERS") or os.environ.get(brokers_env, "")
+    if not bootstrap:
+        raise ValueError(
+            "BOOTSTRAP_SERVERS (or BROKERS) must be set for OAUTHBEARER tests")
+    return {
+        "bootstrap.servers": bootstrap,
+        "security.protocol": "SASL_SSL",
+        "sasl.mechanisms": "OAUTHBEARER",
+        "oauth_cb": _aws_iam_oauth_cb(),
+    }
+
+
+def parse_test_conf(path):
+    """
+    Parse a librdkafka-style properties file (key=value, '#' comments)
+    into a config dict. Used for the TEST_CONF env var so an existing
+    cluster's full client config (incl. SASL credentials) can be supplied
+    without baking it into env variables.
+    """
+    conf = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                raise ValueError(f"Malformed line in {path!r}: {line!r}")
+            key, value = line.split("=", 1)
+            conf[key.strip()] = value.strip()
+    return conf
+
+
 def kafka_cluster_fixture(brokers_env="BROKERS", sr_url_env="SR_URL", trivup_cluster_conf={}):
     """
-    If BROKERS environment variable is set to a CSV list of bootstrap servers
-    an existing cluster is used.
-    Additionally, if SR_URL environment variable is set the Schema-Registry
-    client will use the given URL.
+    If the TEST_CONF environment variable points at a librdkafka-style
+    properties file, its full client config (bootstrap.servers, SASL
+    credentials, etc.) is used against an existing cluster.
 
-    If BROKERS is not set a TrivUp cluster is created and used.
+    Otherwise, if BROKERS is set to a CSV list of bootstrap servers an
+    existing cluster is used; additionally, if SR_URL is set the
+    Schema-Registry client will use the given URL.
+
+    If neither is set a TrivUp cluster is created and used.
     """
 
+    test_conf_path = os.environ.get("TEST_CONF", "")
     bootstraps = os.environ.get(brokers_env, "")
-    if bootstraps != "":
+    oauthbearer_conf = oauthbearer_aws_conf(brokers_env)
+    if oauthbearer_conf is not None:
+        sr_url = os.environ.get(sr_url_env, "")
+        if sr_url != "":
+            oauthbearer_conf["schema.registry.url"] = sr_url
+        print("Using ByoFixture with OAUTHBEARER (AWS IAM) config for Confluent Cloud")
+        cluster = create_byo_cluster(oauthbearer_conf)
+    elif test_conf_path != "":
+        conf = parse_test_conf(test_conf_path)
+        if conf.get("bootstrap.servers", "") == "":
+            raise ValueError(f"'bootstrap.servers' must be set in {test_conf_path!r}")
+        print(f"Using ByoFixture with config from TEST_CONF={test_conf_path}")
+        cluster = create_byo_cluster(conf)
+    elif bootstraps != "":
         conf = {"bootstrap.servers": bootstraps}
         sr_url = os.environ.get(sr_url_env, "")
         if sr_url != "":

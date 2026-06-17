@@ -17,9 +17,20 @@
 
 """Integration tests for ShareConsumer"""
 
+import os
 import time
 
 import pytest
+
+# These tests rotate to deliberately-bogus SASL credentials and assert that
+# consumption continues. That only holds on the trivup cluster's permissive
+# SASL; a real cluster (TEST_CONF/BROKERS) validates the credentials and the
+# connection fails. Skip them when running against a bring-your-own cluster.
+_skip_on_byo_cluster = pytest.mark.skipif(
+    bool(os.environ.get('TEST_CONF') or os.environ.get('BROKERS')),
+    reason="SASL credential rotation can't be exercised against a real "
+           "(credential-validating) cluster; trivup-only test",
+)
 
 from confluent_kafka import TIMESTAMP_CREATE_TIME, AcknowledgeType, KafkaError, KafkaException, Producer
 from confluent_kafka.admin import NewTopic
@@ -103,6 +114,7 @@ def test_basic_consume_records(kafka_cluster):
         sc.close()
 
 
+@_skip_on_byo_cluster
 def test_set_sasl_credentials_during_active_consumption(kafka_cluster):
     """Changing credentials on a consumer that's already subscribed and
     consuming shouldn't disrupt it: records produced after the change still
@@ -133,6 +145,7 @@ def test_set_sasl_credentials_during_active_consumption(kafka_cluster):
         sc.close()
 
 
+@_skip_on_byo_cluster
 def test_set_sasl_credentials_before_subscribe_and_repeated(kafka_cluster):
     """Setting credentials before subscribing, and more than once, still leaves
     a working consumer."""
@@ -868,7 +881,7 @@ def test_subscribe_before_topic_exists(kafka_cluster):
         assert pre == [], f'no records should arrive before the topic exists, got {len(pre)}'
 
         # Create the topic, then produce to it.
-        create_futures = kafka_cluster.admin().create_topics([NewTopic(topic, num_partitions=1, replication_factor=1)])
+        create_futures = kafka_cluster.admin().create_topics([NewTopic(topic, num_partitions=1, replication_factor=-1)])
         create_futures[topic].result()
         time.sleep(1)  # propagation across brokers
 

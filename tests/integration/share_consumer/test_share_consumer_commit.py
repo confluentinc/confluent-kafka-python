@@ -23,7 +23,6 @@ import time
 import pytest
 
 from confluent_kafka import AcknowledgeType, KafkaError, KafkaException
-from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from tests.common import drain_share_consumers, poll_ack_commit_loop, poll_first_batch, unique_id
 
 # --- happy path -----------------------------------------------------------
@@ -181,7 +180,12 @@ def test_commit_with_large_batch(kafka_cluster):
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-large-batch')
     num_messages = 10000
 
-    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'implicit'})
+    # Long acquisition lock: a 10k drain takes many seconds, so the
+    # fixture's short default would let early-acked records' locks expire
+    # before commit, surfacing INVALID_RECORD_STATE.
+    sc = kafka_cluster.share_consumer(
+        {'share.acknowledgement.mode': 'implicit', 'share.record.lock.duration.ms': 30000}
+    )
     try:
         sc.subscribe([topic])
 
@@ -307,7 +311,9 @@ def test_commit_with_mixed_ack_types(kafka_cluster):
         ]
         released_offsets = set()
         acked_count = 0
-        deadline = time.time() + 10.0
+        # 20s, not 10s: the first ShareFetch on a cold share group can be
+        # slow against a remote cluster; matches poll_first_batch's default.
+        deadline = time.time() + 25.0
         while acked_count < num_messages and time.time() < deadline:
             for msg in sc.poll(timeout=2.0):
                 if msg.error() is None:
@@ -443,7 +449,9 @@ def test_partial_ack_commit_then_unacked_blocks_poll(kafka_cluster):
         producer.flush(timeout=10.0)
 
         gathered_msgs = []
-        deadline = time.time() + 10.0
+        # 20s, not 10s: the first ShareFetch on a cold share group can be
+        # slow against a remote cluster; matches poll_first_batch's default.
+        deadline = time.time() + 20.0
         while not gathered_msgs and time.time() < deadline:
             for msg in sc.poll(timeout=2.0):
                 if msg.error() is None:
@@ -680,12 +688,7 @@ def test_per_partition_commit_results_with_lock_expiry(kafka_cluster):
         producer.flush(timeout=10.0)
 
         # Single poll only — must not poll again before acking.
-        msgs = []
-        deadline = time.time() + 10.0
-        while not msgs and time.time() < deadline:
-            for msg in sc.poll(timeout=2.0):
-                if msg.error() is None:
-                    msgs.append(msg)
+        msgs = poll_first_batch(sc)
         assert msgs
 
         time.sleep(1.5)
@@ -1271,7 +1274,9 @@ def test_commit_async_with_mixed_ack_types(kafka_cluster):
         ]
         released_offsets = set()
         acked_count = 0
-        deadline = time.time() + 10.0
+        # 20s, not 10s: the first ShareFetch on a cold share group can be
+        # slow against a remote cluster; matches poll_first_batch's default.
+        deadline = time.time() + 20.0
         while acked_count < num_messages and time.time() < deadline:
             for msg in sc.poll(timeout=2.0):
                 if msg.error() is None:
@@ -1557,20 +1562,6 @@ def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
     """
     group_id = unique_id('test-share-consumer-commit-high-volume')
 
-    res = ConfigResource(
-        ResourceType.GROUP,
-        group_id,
-        incremental_configs=[
-            ConfigEntry(
-                'share.record.lock.duration.ms',
-                '30000',
-                incremental_operation=AlterConfigOpType.SET,
-            ),
-        ],
-    )
-    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
-        f.result()
-
     topic = kafka_cluster.create_topic_and_wait_propogation(
         'test-share-consumer-commit-high-volume',
         conf={'num_partitions': 6},
@@ -1582,8 +1573,11 @@ def test_commit_handles_high_volume_across_two_consumers(kafka_cluster):
         producer.produce(topic, value=f'msg-{i}'.encode())
     producer.flush(timeout=30.0)
 
-    sc1 = kafka_cluster.share_consumer({'group.id': group_id})
-    sc2 = kafka_cluster.share_consumer({'group.id': group_id})
+    # Long acquisition lock so records don't expire mid-drain across the
+    # two-consumer 60s loop (set via the fixture; a separate AlterConfigs
+    # would be clobbered by the fixture's per-group default).
+    sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.record.lock.duration.ms': 30000})
+    sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.record.lock.duration.ms': 30000})
     try:
         sc1.subscribe([topic])
         sc2.subscribe([topic])
@@ -1627,24 +1621,17 @@ def test_redelivery_increments_delivery_count_and_commits(kafka_cluster):
     """
     group_id = unique_id('test-share-consumer-commit-delivery-count')
 
-    res = ConfigResource(
-        ResourceType.GROUP,
-        group_id,
-        incremental_configs=[
-            ConfigEntry(
-                'share.record.lock.duration.ms',
-                '5000',
-                incremental_operation=AlterConfigOpType.SET,
-            ),
-        ],
-    )
-    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
-        f.result()
-
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-commit-delivery-count')
 
-    sc_a = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
-    sc_b = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    # 5s acquisition lock (set via the fixture so it isn't clobbered by the
+    # per-group default): long enough that sc_b can't steal before the
+    # test's 5.5s sleep, short enough that it expires by then.
+    sc_a = kafka_cluster.share_consumer(
+        {'group.id': group_id, 'share.acknowledgement.mode': 'explicit', 'share.record.lock.duration.ms': 5000}
+    )
+    sc_b = kafka_cluster.share_consumer(
+        {'group.id': group_id, 'share.acknowledgement.mode': 'explicit', 'share.record.lock.duration.ms': 5000}
+    )
     try:
         # Subscribe only A first so the single record lands unambiguously
         # on sc_a — no race with sc_b for the first delivery.
