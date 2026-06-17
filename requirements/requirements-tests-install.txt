@@ -4,4 +4,5 @@
 -r requirements-avro.txt
 -r requirements-protobuf.txt  
 -r requirements-json.txt
+-r requirements-oauthbearer-aws.txt
 tests/trivup/trivup-0.14.0.tar.gz
