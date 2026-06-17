@@ -630,6 +630,97 @@ def test_out_of_order_acks_within_batch(kafka_cluster):
         sc.close()
 
 
+def test_reack_overwrite_accept_then_release_redelivers(kafka_cluster):
+    """Re-acknowledging an offset overwrites the pending ack type before it is
+    flushed — last write wins. ACCEPT then RELEASE on the same record commits
+    as RELEASE, so the record comes back with delivery_count == 2.
+
+    Distinct from test_double_ack_same_record_is_lenient, which only re-acks
+    with the *same* type."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-reack-release')
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        producer.produce(topic, value=b'msg-0')
+        producer.flush(timeout=10.0)
+
+        first_batch = poll_first_batch(sc)
+        assert first_batch
+        first_msg = first_batch[0]
+        assert (
+            first_msg.delivery_count() == 1
+        ), f'first delivery should have delivery_count=1, got {first_msg.delivery_count()}'
+        released_coords = (first_msg.topic(), first_msg.partition(), first_msg.offset())
+
+        # Overwrite the ACCEPT with a RELEASE before anything is flushed; the
+        # RELEASE must win, so commit_sync sends RELEASE, not ACCEPT.
+        sc.acknowledge(first_msg, AcknowledgeType.ACCEPT)
+        sc.acknowledge(first_msg, AcknowledgeType.RELEASE)
+        result = sc.commit_sync(timeout=10.0)
+        for tp, err in result.items():
+            assert err is None
+
+        deadline = time.time() + 15.0
+        redelivered = None
+        while redelivered is None and time.time() < deadline:
+            for msg in sc.poll(timeout=2.0):
+                if msg.error() is None:
+                    if (msg.topic(), msg.partition(), msg.offset()) == released_coords and msg.delivery_count() >= 2:
+                        redelivered = msg
+                    sc.acknowledge(msg, AcknowledgeType.ACCEPT)
+                    if redelivered is not None:
+                        break
+        assert redelivered is not None, 'ACCEPT→RELEASE overwrite did not redeliver as RELEASE'
+        assert (
+            redelivered.delivery_count() == 2
+        ), f'redelivery should have delivery_count=2, got {redelivered.delivery_count()}'
+    finally:
+        sc.close()
+
+
+def test_reack_overwrite_accept_then_reject_archives(kafka_cluster):
+    """ACCEPT then REJECT on the same record before flush commits as REJECT
+    (last write wins), so the record is archived and a second consumer in the
+    group never sees it."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-reack-reject')
+    group_id = unique_id('test-share-consumer-ack-reack-reject')
+
+    sc1 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc1.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        producer.produce(topic, value=b'msg-0')
+        producer.flush(timeout=10.0)
+
+        first_batch = poll_first_batch(sc1)
+        assert first_batch
+        first_msg = first_batch[0]
+
+        # ACCEPT then REJECT: REJECT is the last write and must win.
+        sc1.acknowledge(first_msg, AcknowledgeType.ACCEPT)
+        sc1.acknowledge(first_msg, AcknowledgeType.REJECT)
+        result = sc1.commit_sync(timeout=10.0)
+        for tp, err in result.items():
+            assert err is None
+    finally:
+        sc1.close()
+
+    sc2 = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc2.subscribe([topic])
+        leftovers = drain_share_consumers([sc2], 1, timeout_s=5.0, ack_type=AcknowledgeType.ACCEPT)[0]
+        assert leftovers == [], (
+            f'ACCEPT→REJECT overwrite should archive (REJECT wins); sc2 '
+            f'unexpectedly received {[m.value() for m in leftovers]}'
+        )
+    finally:
+        sc2.close()
+
+
 # --- lifecycle and contract edges -----------------------------------------
 
 
@@ -728,6 +819,44 @@ def test_partial_ack_still_blocks_next_poll(kafka_cluster):
         for m in batch[3:]:
             sc.acknowledge(m, AcknowledgeType.ACCEPT)
         sc.poll(timeout=2.0)
+    finally:
+        sc.close()
+
+
+def test_acknowledge_foreign_message_rejected(kafka_cluster):
+    """A Message this consumer never acquired isn't in its inflight map, so
+    acknowledging it fails with _STATE. The binding validates against its own
+    acquired records — it does not trust the Message object it is handed. Here
+    the Message comes from a separate, regular (non-share) consumer."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-foreign')
+
+    producer = kafka_cluster.cimpl_producer()
+    producer.produce(topic, value=b'msg-0')
+    producer.flush(timeout=10.0)
+
+    # Read the record with a regular consumer to obtain a genuine, well-formed
+    # Message the share consumer never acquired.
+    regular = kafka_cluster.cimpl_consumer()
+    foreign = None
+    try:
+        regular.subscribe([topic])
+        deadline = time.time() + 20.0
+        while foreign is None and time.time() < deadline:
+            m = regular.poll(timeout=1.0)
+            if m is not None and m.error() is None:
+                foreign = m
+        assert foreign is not None, 'regular consumer never read the record'
+    finally:
+        regular.close()
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc.subscribe([topic])
+        # sc has not polled, so its inflight map is empty and the foreign
+        # offset cannot be acknowledged.
+        with pytest.raises(KafkaException) as ex:
+            sc.acknowledge(foreign, AcknowledgeType.ACCEPT)
+        assert ex.value.args[0].code() == KafkaError._STATE
     finally:
         sc.close()
 
@@ -1497,3 +1626,64 @@ def test_callback_reports_error_during_close(kafka_cluster):
         assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
         tp = next(iter(offsets))
         assert tp.topic == topic
+
+
+# --- acknowledgement-commit callback: in-flight callback swap -------------
+
+
+def test_callback_swap_between_async_commit_and_response(kafka_cluster):
+    """librdkafka dispatches whichever ack-commit callback is registered when
+    the broker response is processed — not the one set when commit_async() was
+    called. Swapping the callback after commit_async() but before the serving
+    poll() routes the in-flight commit's result to the NEW callback.
+
+    Distinct from test_callback_replacement_only_new_fires, which swaps between
+    two fully completed commit cycles."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-cb-swap-inflight')
+    num_messages = 3
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    try:
+        cb1_calls = []
+        cb2_calls = []
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: cb1_calls.append((offsets, exc)))
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        acked_offsets = set()
+        batch = []
+        deadline = time.time() + 20.0
+        while time.time() < deadline and len(batch) < num_messages:
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    batch.append(m)
+                    sc.acknowledge(m, AcknowledgeType.ACCEPT)
+                    acked_offsets.add(m.offset())
+        assert len(batch) == num_messages, f'received {len(batch)} of {num_messages}'
+
+        # Fire the async commit, then swap the callback BEFORE draining the
+        # response. commit_async() doesn't serve the reply queue and neither
+        # does the setter, so no dispatch happens until the poll() below.
+        sc.commit_async()
+        sc.set_acknowledgement_commit_callback(lambda offsets, exc: cb2_calls.append((offsets, exc)))
+
+        deadline = time.time() + 10.0
+        while time.time() < deadline and not cb2_calls:
+            sc.poll(timeout=0.5)
+
+        assert cb2_calls, 'the newly registered callback never received the in-flight commit result'
+        assert cb1_calls == [], f'the replaced callback fired for an in-flight commit it should not own: {cb1_calls!r}'
+        cb_offsets = set()
+        for offsets, exc in cb2_calls:
+            assert exc is None, f'unexpected exception in cb: {exc!r}'
+            assert len(offsets) == 1, f'expected 1 partition key, got {list(offsets)}'
+            tp = next(iter(offsets))
+            cb_offsets |= offsets[tp]
+        assert cb_offsets == acked_offsets, f'cb2 saw {cb_offsets}, acked {acked_offsets}'
+    finally:
+        sc.set_acknowledgement_commit_callback(None)
+        sc.close()
