@@ -783,6 +783,179 @@ def test_open_transaction_stalls_share_group(kafka_cluster):
         sc.close()
 
 
+def test_read_committed_skips_aborted_transaction(kafka_cluster):
+    """read_committed: records from an aborted transaction are never delivered,
+    while a committed record on the same topic is. The complement of
+    test_open_transaction_stalls_share_group, which covers the open (not yet
+    resolved) transaction case."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-txn-abort')
+    group_id = unique_id('test-share-consumer-txn-abort')
+
+    txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
+    try:
+        txn_producer.init_transactions(10)
+    except KafkaException as e:
+        pytest.skip(f'broker does not support transactions: {e}')
+
+    try:
+        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
+    except KafkaException as e:
+        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+
+    sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc.subscribe([topic])
+
+        # Produce inside a transaction, then ABORT — these must never surface.
+        txn_producer.begin_transaction()
+        for i in range(3):
+            txn_producer.produce(topic, value=f'aborted-{i}'.encode())
+        txn_producer.flush(5)
+        txn_producer.abort_transaction(10)
+
+        # A committed record gives us a positive signal to wait for: if the
+        # consumer is healthy and only the aborted records were filtered, this
+        # is the one and only record it should deliver.
+        txn_producer.begin_transaction()
+        txn_producer.produce(topic, value=b'committed-0')
+        txn_producer.flush(5)
+        txn_producer.commit_transaction(10)
+
+        received = drain_share_consumers([sc], 1, timeout_s=20.0, ack_type=AcknowledgeType.ACCEPT)[0]
+        assert [m.value() for m in received] == [b'committed-0'], (
+            f'read_committed should deliver only the committed record; '
+            f'got {[m.value() for m in received]}'
+        )
+
+        # No aborted record should arrive afterward either.
+        stragglers = []
+        deadline = time.time() + 3.0
+        while time.time() < deadline:
+            for m in sc.poll(timeout=0.5):
+                if m.error() is None:
+                    stragglers.append(m.value())
+                    sc.acknowledge(m, AcknowledgeType.ACCEPT)
+        assert stragglers == [], f'aborted/extra records leaked after commit: {stragglers}'
+    finally:
+        sc.close()
+
+
+def test_read_committed_delivers_committed_transactions_with_marker_gap(kafka_cluster):
+    """read_committed: committed transactional records are delivered, and the
+    commit-marker control records (which occupy log offsets but are never
+    delivered) leave a gap in the delivered offsets."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-txn-commit')
+    group_id = unique_id('test-share-consumer-txn-commit')
+
+    txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
+    try:
+        txn_producer.init_transactions(10)
+    except KafkaException as e:
+        pytest.skip(f'broker does not support transactions: {e}')
+
+    try:
+        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
+    except KafkaException as e:
+        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+
+    records_per_txn = 3
+    total = 2 * records_per_txn
+    sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
+    try:
+        sc.subscribe([topic])
+
+        # Two committed transactions. The commit marker that ends the first
+        # transaction sits at an offset between the two data runs and is never
+        # delivered to a read_committed consumer.
+        produced = []
+        for txn in range(2):
+            txn_producer.begin_transaction()
+            for i in range(records_per_txn):
+                value = f'txn{txn}-msg-{i}'.encode()
+                produced.append(value)
+                txn_producer.produce(topic, value=value)
+            txn_producer.flush(5)
+            txn_producer.commit_transaction(10)
+
+        received = drain_share_consumers([sc], total, timeout_s=30.0, ack_type=AcknowledgeType.ACCEPT)[0]
+        if len(received) < total:
+            pytest.skip(f'broker delivered {len(received)}/{total} committed records; cannot assess marker gap')
+
+        assert {m.value() for m in received} == set(produced), 'all committed records should be delivered'
+
+        # Single-partition topic, so all records share a partition. The commit
+        # marker occupies an offset that is never delivered, so the delivered
+        # offsets span a wider range than the record count.
+        offsets = sorted(m.offset() for m in received)
+        assert (offsets[-1] - offsets[0] + 1) > total, (
+            f'expected a control-record gap in delivered offsets {offsets}; '
+            f'committed transactions should leave commit-marker gaps'
+        )
+    finally:
+        sc.close()
+
+
+def test_partition_max_record_locks_caps_in_flight(kafka_cluster):
+    """share.partition.max.record.locks caps how many records can be acquired
+    (in-flight, unacknowledged) per partition at once. With the cap set low, no
+    single poll() acquires more than the cap, yet every record is eventually
+    delivered once earlier ones are acknowledged and their locks released."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-lock-cap')
+    group_id = unique_id('test-share-consumer-lock-cap')
+
+    lock_cap = 100  # broker minimum for share.partition.max.record.locks
+    num_messages = 2 * lock_cap
+
+    try:
+        set_group_config(kafka_cluster, group_id, 'share.partition.max.record.locks', lock_cap)
+    except KafkaException as e:
+        # share.partition.max.record.locks was added to the per-group config
+        # allow-list after Kafka 4.2.0; older brokers reject it. Skip (rather
+        # than fail) so the test self-enables once the broker supports it.
+        pytest.skip(f'broker does not allow per-group share.partition.max.record.locks: {e}')
+
+    # max.poll.records above the lock cap so the cap — not the poll batch size
+    # — is what limits each acquisition.
+    sc = kafka_cluster.share_consumer(
+        {
+            'group.id': group_id,
+            'share.acknowledgement.mode': 'explicit',
+            'max.poll.records': num_messages,
+        }
+    )
+    try:
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer({'linger.ms': 0})
+        for i in range(num_messages):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        received = 0
+        max_batch = 0
+        deadline = time.time() + 60.0
+        while received < num_messages and time.time() < deadline:
+            # Generous per-poll timeout so the broker can fill up to the cap;
+            # otherwise a small batch wouldn't show the cap binding.
+            batch = [m for m in sc.poll(timeout=2.0) if m.error() is None]
+            if not batch:
+                continue
+            max_batch = max(max_batch, len(batch))
+            # Explicit mode: ack the whole batch before the next poll, which
+            # releases the locks and lets the next batch be acquired.
+            for m in batch:
+                sc.acknowledge(m, AcknowledgeType.ACCEPT)
+            received += len(batch)
+
+        assert received == num_messages, f'received {received} of {num_messages}'
+        assert max_batch <= lock_cap, (
+            f'a single poll acquired {max_batch} records, exceeding the '
+            f'partition lock cap of {lock_cap}'
+        )
+    finally:
+        sc.close()
+
+
 def test_double_close_is_idempotent(kafka_cluster):
     """close() twice must be a no-op (__exit__ relies on this)."""
     sc = kafka_cluster.share_consumer()
