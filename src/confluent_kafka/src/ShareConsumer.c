@@ -72,13 +72,29 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
 
         if (self->rkshare) {
                 CallState cs;
+                rd_kafka_error_t *destroy_error;
                 CallState_begin(&self->base, &cs);
-                rd_kafka_error_t *destroy_error = rd_kafka_share_destroy_flags(
+                destroy_error = rd_kafka_share_destroy_flags(
                     self->rkshare, RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
-                if (destroy_error)
-                        rd_kafka_error_destroy(destroy_error);
-                self->rkshare = NULL;
                 CallState_end(&self->base, &cs);
+                /* If destroy failed the consumer is still alive, but this is
+                 * the last reference to it, so it leaks and there is nothing
+                 * left to retry with. We can't raise from dealloc, so report
+                 * it as an unraisable exception, taking care not to clobber
+                 * one that may already be in flight. */
+                if (destroy_error) {
+                        PyObject *pending_exc;
+                        cfl_exception_fetch(&pending_exc);
+                        PyErr_Format(PyExc_RuntimeError,
+                                     "Failed to destroy share consumer; the "
+                                     "handle has been leaked: %s",
+                                     rd_kafka_error_string(destroy_error));
+                        PyErr_WriteUnraisable((PyObject *)self);
+                        if (pending_exc)
+                                cfl_exception_restore(pending_exc);
+                        rd_kafka_error_destroy(destroy_error);
+                }
+                self->rkshare = NULL;
         }
 
         /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual
@@ -751,7 +767,8 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
         CallState_begin(&self->base, &cs);
         error         = rd_kafka_share_consumer_close(self->rkshare);
         destroy_error = rd_kafka_share_destroy(self->rkshare);
-        self->rkshare = NULL;
+        if (!destroy_error)
+                self->rkshare = NULL;
         if (!CallState_end(&self->base, &cs)) {
                 if (error)
                         rd_kafka_error_destroy(error);
