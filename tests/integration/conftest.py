@@ -78,12 +78,19 @@ def _aws_iam_oauth_cb():
     region = os.environ.get("AWS_STS_REGION", "eu-north-1")
     logical_cluster = os.environ["KAFKA_LOGICAL_CLUSTER"]
     identity_pool_id = os.environ["IDENTITY_POOL_ID"]
+    # Reported token lifetime: librdkafka refreshes/reauths at ~80% of this, so
+    # 60s -> a refresh roughly every ~48s, exercising reauth during the run.
+    # (The STS token itself is valid 300s; we just report shorter to force it.)
+    lifetime = int(os.environ.get("OAUTH_TOKEN_LIFETIME", "60"))
 
     def oauth_cb(_config_str):
         token = boto3.client("sts", region_name=region).get_web_identity_token(
             Audience=[audience], SigningAlgorithm="ES384",
             DurationSeconds=300)["WebIdentityToken"]
-        return (token, time.time() + 300, "",
+        if os.environ.get("OAUTH_CB_DEBUG"):
+            print(f"[oauth_cb] minted AWS STS token (len={len(token)}, "
+                  f"pool={identity_pool_id}, lifetime={lifetime}s)", flush=True)
+        return (token, time.time() + lifetime, "",
                 {"logicalCluster": logical_cluster,
                  "identityPoolId": identity_pool_id})
 
