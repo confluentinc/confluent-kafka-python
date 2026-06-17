@@ -118,6 +118,9 @@ def oauthbearer_aws_conf(brokers_env="BROKERS"):
         "security.protocol": "SASL_SSL",
         "sasl.mechanisms": "OAUTHBEARER",
         "oauth_cb": _aws_iam_oauth_cb(),
+        # Quiet the KIP-714 client-telemetry INFO logs ("GETSUBSCRIPTIONS ...
+        # Telemetry client instance id changed"); not needed for tests.
+        "enable.metrics.push": False,
     }
 
 
