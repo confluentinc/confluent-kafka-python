@@ -14,7 +14,7 @@
 
 """Internal: parser for the ``sasl.oauthbearer.extensions`` config property.
 
-The ``sasl.oauthbearer.extensions`` config carries RFC 7628 §3.1 SASL
+The ``sasl.oauthbearer.extensions`` config carries RFC 7628 SASL
 extensions as a comma-separated ``key=value`` list.
 """
 

@@ -17,8 +17,9 @@
 
 """End-to-end example for AWS IAM OAUTHBEARER authentication.
 
-Activation is config-only: setting
-``sasl.oauthbearer.metadata.authentication.type=aws_iam`` is enough.
+Activation is config-only: Set `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=... audience=..."`.
 
 Install:
     pip install 'confluent-kafka[oauthbearer-aws]'
@@ -29,7 +30,7 @@ attached — boto3's default credential chain resolves it, no static keys.
 To run:
     python oauth_oidc_ccloud_aws_iam.py \\
         -b pkc-xxxx.aws.confluent.cloud:9092 \\
-        --region us-east-1 \\
+        --region eu-north-1 \\
         --audience https://confluent.cloud/oidc \\
         --extensions logicalCluster=lkc-abc,identityPoolId=pool-xyz
 """

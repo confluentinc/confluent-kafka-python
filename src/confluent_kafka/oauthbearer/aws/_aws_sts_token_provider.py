@@ -99,9 +99,6 @@ class AwsStsTokenProvider:
             # Fail fast with a clear message if boto3 is present but too old for
             # the STS GetWebIdentityToken operation.
             _require_boto3_version()
-            # boto3.Session() with explicit region_name short-circuits the
-            # AWS_DEFAULT_REGION env lookup; client() still re-asserts the
-            # region for STS endpoint resolution.
             session = boto3.Session(region_name=config.region)
             client_kwargs: Dict[str, Any] = {"region_name": config.region}
             if config.sts_endpoint:

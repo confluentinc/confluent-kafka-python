@@ -2580,12 +2580,6 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 
 
 /**
- * Common config setup for Kafka client handles.
- *
- * Returns a conf object on success or NULL on failure in which case
- * an exception has been raised.
- */
-/**
  * @brief Detect the aws_iam OAUTHBEARER autowire marker in the user's config
  *        dict and translate it, before the librdkafka handle is created, into
  *        the canonical OAUTHBEARER pattern: an oauth_cb (sourced from the
@@ -2600,10 +2594,6 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  * Plus optional:
  *   sasl.oauthbearer.extensions = "key=val,key=val"
  *
- * IMPORTANT: These literals MUST match
- * src/confluent_kafka/oauthbearer/aws/_aws_iam_marker.py.
- * tests/oauthbearer/aws/test_aws_iam_marker.py guards against drift.
- *
  * Two-layer rationale: the user declares intent with method=oidc (uniform
  * across all clients: "managed, OIDC-family auth, I supply only config"); this
  * binding mints the token itself via the AWS SDK and hands it to librdkafka
@@ -2611,37 +2601,6 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  * method=default ("a token is supplied to me from outside"). We accept oidc
  * from the user and rewrite it to default internally.
  *
- * Flow:
- *   1. Skip if the marker key is absent or its value is not "aws_iam".
- *      (Other values like "azure_imds" flow through to librdkafka unchanged.)
- *   2. If oauth_cb is already set, skip autowire and jump to strip+rewrite
- *      (steps 8-9) — the explicit handler wins (precedence rule).
- *   3. Require sasl.oauthbearer.method == "oidc" (the uniform user-facing
- *      opt-in; rewritten to "default" internally at step 9). Any other value
- *      is rejected by design.
- *   4. Require non-empty sasl.oauthbearer.config (carries region, audience,
- *      duration_seconds, etc.).
- *   5. sasl.oauthbearer.extensions is optional.
- *   6. Lazy-import confluent_kafka.oauthbearer.aws.aws_autowire. If the
- *      optional 'oauthbearer-aws' extra isn't installed, the import chain
- *      bottoms out in a missing boto3; rewrite that ModuleNotFoundError
- *      into a friendly install hint while preserving the original via
- *      __cause__ (Python exception-chaining).
- *   7. Call aws_autowire.create_handler(config_str, extensions_str_or_None).
- *      The returned Python callable replaces oauth_cb in confdict; the
- *      existing config-iteration loop below picks it up and registers the
- *      librdkafka refresh callback.
- *   8. Strip the marker key. librdkafka must never see "aws_iam": this keeps
- *      the binding off librdkafka's native aws_iam path and removes any
- *      dependency on an AWS-IAM-aware librdkafka (works on stock librdkafka).
- *   9. Rewrite sasl.oauthbearer.method oidc -> default. Once method is
- *      default, librdkafka's OIDC config-finalize returns immediately
- *      (rdkafka_conf.c:4121-4123) and demands NONE of the OIDC mandatory
- *      fields (token.endpoint.url / client.id / client.secret) — so no
- *      sentinel/dummy values are needed. The token is supplied from outside
- *      via the oauth_cb (autowired in step 7, or user-supplied per step 2):
- *      classic OAUTHBEARER method=default + token-refresh callback, the
- *      original well-tested pattern.
  *
  * @returns 0 on success (no-op or autowire complete), -1 on error
  *          (PyErr_* is set; caller goto outer_err).
@@ -2659,8 +2618,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         static const char AUTOWIRE_MODULE[] =
             "confluent_kafka.oauthbearer.aws.aws_autowire";
         static const char CREATE_HANDLER[] = "create_handler";
-        /* Format string (one %s) — substitutes the offending method value
-         * (e.g. "'default'") or "<unset>". Use only with PyErr_Format. */
         static const char METHOD_REQUIREMENT_ERR[] =
             "'sasl.oauthbearer.metadata.authentication.type=aws_iam' requires "
             "'sasl.oauthbearer.method=oidc'. Current value: %s. method=oidc is "
@@ -2687,7 +2644,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         const char *marker_c;
         const char *method_c;
 
-        /* 1. Marker present and equals "aws_iam"? */
         marker = PyDict_GetItemString(confdict, MARKER_KEY);
         if (!marker || !PyUnicode_Check(marker)) {
                 return 0;
@@ -2702,20 +2658,12 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return 0;
         }
 
-        /* 2. Explicit oauth_cb wins. Skip ahead to strip+rewrite: the user's
-         * oauth_cb takes over the token-refresh path, so we don't build our
-         * own. We still strip the marker and rewrite method=oidc -> default
-         * (librdkafka must never see the aws_iam marker, and method=default is
-         * the correct mechanism for an app-supplied token). No sentinels are
-         * needed once method=default. */
+        /* Explicit oauth_cb wins. Skip ahead to strip+rewrite */
         cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
         if (cb && cb != Py_None) {
                 goto strip_and_rewrite;
         }
 
-        /* 3. Require sasl.oauthbearer.method = "oidc". This is the uniform
-         * user-facing config across all clients; we rewrite it to "default"
-         * internally at strip_and_rewrite below. */
         method = PyDict_GetItemString(confdict, METHOD_KEY);
         method_c = (method && PyUnicode_Check(method))
                        ? PyUnicode_AsUTF8(method)
@@ -2726,9 +2674,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 if (!method) {
                         actual = "<unset>";
                 } else if (!method_c) {
-                        /* Present but not a usable string (non-str value or
-                         * bad unicode) — clear any decode error PyUnicode_AsUTF8
-                         * may have set, and report it generically. */
                         PyErr_Clear();
                         actual = "<non-string>";
                 } else {
@@ -2740,7 +2685,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return -1;
         }
 
-        /* 4. Require non-empty sasl.oauthbearer.config. */
         cfg_str = PyDict_GetItemString(confdict, CONFIG_KEY);
         if (!cfg_str || !PyUnicode_Check(cfg_str) ||
             PyUnicode_GET_LENGTH(cfg_str) == 0) {
@@ -2748,10 +2692,8 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return -1;
         }
 
-        /* 5. sasl.oauthbearer.extensions is optional. */
         ext_str = PyDict_GetItemString(confdict, EXTENSIONS_KEY);
 
-        /* 6. Lazy import; rewrite ImportError friendly. */
         mod = PyImport_ImportModule(AUTOWIRE_MODULE);
         if (!mod) {
                 PyObject *cause_type = NULL;
@@ -2778,7 +2720,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return -1;
         }
 
-        /* 7. create_handler(cfg_str, ext_str or None) -> Callable */
         func = PyObject_GetAttrString(mod, CREATE_HANDLER);
         Py_DECREF(mod);
         if (!func) {
@@ -2797,16 +2738,13 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         Py_DECREF(callback);
 
 strip_and_rewrite:
-        /* 8. Strip the marker. UNCONDITIONAL. Reached from both the
-         * autowire-fires path AND the explicit-oauth_cb-wins path (goto from
-         * step 2). librdkafka must never see the aws_iam marker — that keeps
-         * us off any AWS-IAM-aware-librdkafka dependency (works on stock
-         * librdkafka). */
+        /* Strip the marker. UNCONDITIONAL. Reached from both the
+         * autowire-fires path AND the explicit-oauth_cb-wins path */
         if (PyDict_DelItemString(confdict, MARKER_KEY) == -1) {
                 return -1;
         }
 
-        /* 9. Rewrite sasl.oauthbearer.method oidc -> default. Once method is
+        /* Rewrite sasl.oauthbearer.method oidc -> default. Once method is
          * default, librdkafka's OIDC config-finalize returns immediately and
          * demands none of the OIDC mandatory fields
          * (token.endpoint.url / client.id / client.secret) — so NO

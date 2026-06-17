@@ -165,7 +165,7 @@ class AwsOAuthBearerConfig:
         Whitespace-separated ``key=value`` tokens; the union of recognised
         keys plus ``tag_<NAME>`` entries. Anything else raises
         :class:`ValueError`. Empty values for required-non-empty keys raise
-        the same. Duplicate keys → last-wins (mirrors .NET).
+        the same. Duplicate keys → last-wins.
 
         :param raw: The verbatim ``sasl.oauthbearer.config`` string.
         :param sasl_extensions: Pre-parsed dict from the sibling
