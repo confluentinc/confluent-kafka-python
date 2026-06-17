@@ -54,15 +54,16 @@ def main():
     print("=" * 70)
 
     errors = []
-    admin = AdminClient({
+    conf = {
         'bootstrap.servers': bootstrap,
         'security.protocol': 'SASL_SSL',
         'sasl.mechanisms': 'OAUTHBEARER',
         'oauth_cb': oauth_cb,
         'error_cb': lambda err: errors.append(str(err)),
-    })
+    }
 
     try:
+        admin = AdminClient(conf)
         md = admin.list_topics(timeout=timeout)
         ok, detail = False, f"auth unexpectedly SUCCEEDED (saw {len(md.topics)} topics)"
     except KafkaException as exc:
