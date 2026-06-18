@@ -409,6 +409,14 @@ class TrivupFixture(KafkaClusterFixture):
         self._admin = None
         self._producer = None
         self._cluster.wait_operational()
+        # GSSAPI: trivup generates a krb5.conf + ccache and exposes them in
+        # cluster.env, but the client (librdkafka) runs `kinit` and the GSSAPI
+        # handshake in THIS process — so the KRB5_* vars must be in os.environ
+        # or kinit can't resolve the realm and GSSAPI finds no credentials.
+        # (No-op for non-Kerberos mechanisms, which set no KRB5_* env.)
+        for key, value in self._cluster.env.items():
+            if key.startswith('KRB5'):
+                os.environ[key] = value
 
     def schema_registry(self, conf=None):
         if not hasattr(self._cluster, 'sr'):
