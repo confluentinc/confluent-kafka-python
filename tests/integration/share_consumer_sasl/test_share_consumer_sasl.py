@@ -23,6 +23,7 @@ on a plaintext broker set_sasl_credentials is a no-op.
 
 import pytest
 
+from confluent_kafka import KafkaError
 from tests.common import drain_share_consumers
 
 
@@ -82,5 +83,41 @@ def test_set_sasl_credentials_before_subscribe_and_repeated(sasl_cluster):
         received = drain_share_consumers([sc], n)[0]
         values = sorted(m.value() for m in received)
         assert values == sorted(expected), f"Consume failed after pre-subscribe credential set: got {len(received)}/{n}"
+    finally:
+        sc.close()
+
+
+@pytest.mark.parametrize('sasl_cluster', [{'broker_cnt': 1}], indirect=True)
+def test_set_sasl_credentials_invalid_blocks_consumption(sasl_cluster):
+    """Negative case: setting *invalid* credentials before the first connection
+    must stop the consumer from authenticating, so nothing is consumed.
+    """
+    topic = sasl_cluster.create_topic_and_wait_propogation('test-share-consumer-sasl-creds-invalid')
+    n = 10
+
+    # Put real records in the topic with a valid producer, so the only reason
+    # the consumer can come up empty is the bad credentials we set below.
+    producer = sasl_cluster.cimpl_producer()
+    for i in range(n):
+        producer.produce(topic, value=f'msg-{i}'.encode())
+    producer.flush(timeout=10.0)
+
+    auth_codes = {KafkaError._AUTHENTICATION, KafkaError.SASL_AUTHENTICATION_FAILED}
+    seen_errors = []
+
+    sc = sasl_cluster.share_consumer({'error_cb': lambda e: seen_errors.append(e)})
+    try:
+        # Override the valid creds with garbage *before* the first connection.
+        assert sc.set_sasl_credentials('wrong-user', 'wrong-secret') is None
+        sc.subscribe([topic])
+
+        received = drain_share_consumers([sc], n, timeout_s=15.0)[0]
+        assert received == [], f"invalid credentials should block consumption, but got {len(received)} records"
+
+        # And confirm it failed for the right reason — an auth failure, not some
+        # unrelated timeout. Without this, a no-op set + any other hiccup would
+        # masquerade as a pass.
+        seen_codes = {e.code() for e in seen_errors}
+        assert seen_codes & auth_codes, f"expected an authentication error, saw: {[str(e) for e in seen_errors]}"
     finally:
         sc.close()
