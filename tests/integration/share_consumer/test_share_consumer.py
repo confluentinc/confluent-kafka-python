@@ -17,6 +17,8 @@
 
 """Integration tests for ShareConsumer"""
 
+import gc
+import sys
 import time
 
 import pytest
@@ -866,3 +868,42 @@ def test_resubscribe_same_topic_keeps_delivering(kafka_cluster):
         assert all(msg.topic() == topic for msg in second_msgs)
     finally:
         sc.close()
+
+
+def test_dealloc_without_close_on_live_consumer(kafka_cluster):
+    """Dropping a joined, actively-fetching share consumer without close() must
+    tear down cleanly through dealloc.
+
+    Every other test here closes in a finally; this covers the fallback where
+    the handle is destroyed from dealloc instead, without a graceful group
+    leave. By now the consumer has live broker state and running background
+    threads, so a teardown bug shows up as a crash or hang, and a milder error
+    surfaces as an unraisable exception, which we assert against.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-dealloc')
+    n = 10
+
+    sc = kafka_cluster.share_consumer()
+    sc.subscribe([topic])
+
+    producer = kafka_cluster.cimpl_producer()
+    for i in range(n):
+        producer.produce(topic, value=f'msg-{i}'.encode())
+    producer.flush(timeout=10.0)
+
+    # Drive a real join and at least one fetch so the handle holds live state
+    # when it's dropped.
+    received = drain_share_consumers([sc], n)[0]
+    assert len(received) == n, f"setup: expected {n} records, got {len(received)}"
+
+    unraisables = []
+    prev_hook = sys.unraisablehook
+    sys.unraisablehook = lambda args: unraisables.append(args)
+    try:
+        # No close(): let dealloc destroy the live handle.
+        del sc
+        gc.collect()
+    finally:
+        sys.unraisablehook = prev_hook
+
+    assert unraisables == [], f"dealloc raised: {[u.exc_value for u in unraisables]}"
