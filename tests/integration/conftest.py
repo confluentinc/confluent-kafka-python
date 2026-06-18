@@ -35,6 +35,35 @@ def create_trivup_cluster(conf={}):
         'version': TestUtils.broker_version(),
         'broker_conf': TestUtils.broker_conf(),
     }
+
+    # Opt-in local SASL for trivup runs (e.g. validating the share consumer
+    # against SCRAM/GSSAPI). Off by default, so ordinary plaintext / BYO runs
+    # are unaffected. Trivup provisions SCRAM users via kafka-configs and
+    # stands up a Kerberos KDC for GSSAPI automatically.
+    mechanism = os.environ.get('TRIVUP_SASL_MECHANISM')
+    if mechanism:
+        trivup_fixture_conf['sasl_mechanism'] = mechanism
+        # Schema-Registry-over-SASL needs extra wiring we don't need here.
+        trivup_fixture_conf['with_sr'] = False
+        # Trivup only passes -Djava.security.debug=all to the broker when the
+        # cluster debug flag is on, which floods the console with JVM
+        # provider/HMAC spam under SASL. We want client-side SASL logs (set
+        # RDK_DEBUG=security), not broker JVM logs, so keep this off.
+        trivup_fixture_conf['debug'] = False
+        if mechanism == 'PLAIN' or 'SCRAM' in mechanism:
+            trivup_fixture_conf['sasl_users'] = os.environ.get(
+                'TRIVUP_SASL_USERS', 'sasl_user=sasl_user')
+
+    # Use a local Kafka build if KAFKA_HOME points at one, avoiding a download
+    # of the pinned broker version (which may not be published yet). A built
+    # tree + version='trunk' makes trivup's deploy.sh symlink instead of
+    # downloading (see share_consumer_oauth/conftest.py for the same trick).
+    kafka_home = os.environ.get('KAFKA_HOME')
+    if kafka_home and os.path.exists(
+            os.path.join(kafka_home, 'bin', 'kafka-server-start.sh')):
+        trivup_fixture_conf['kafka_path'] = kafka_home
+        trivup_fixture_conf['version'] = 'trunk'
+
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 

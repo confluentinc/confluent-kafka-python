@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import os
 import time
 from uuid import uuid1
 
@@ -36,6 +37,18 @@ from tests.common import TestConsumer, TestShareConsumer
 from tests.common._async.consumer import TestAsyncDeserializingConsumer
 from tests.common._async.producer import TestAsyncSerializingProducer
 from tests.common.schema_registry import TestDeserializingConsumer
+
+
+def _apply_rdk_debug(client_conf):
+    """Opt-in librdkafka client-side debug via the RDK_DEBUG env var.
+
+    e.g. RDK_DEBUG=security surfaces the SASL/SCRAM handshake in the client
+    log (vs. the broker's JVM logs). Honored by both the trivup and BYO
+    fixtures. A 'debug' passed explicitly in a client conf still wins.
+    """
+    rdk_debug = os.environ.get('RDK_DEBUG')
+    if rdk_debug:
+        client_conf['debug'] = rdk_debug
 
 
 class KafkaClusterFixture(object):
@@ -423,6 +436,7 @@ class TrivupFixture(KafkaClusterFixture):
         :returns: client configuration
         """
         client_conf = self._cluster.client_conf()
+        _apply_rdk_debug(client_conf)
 
         if conf is not None:
             client_conf.update(conf)
@@ -457,6 +471,7 @@ class ByoFixture(KafkaClusterFixture):
         The client configuration
         """
         client_conf = self._conf.copy()
+        _apply_rdk_debug(client_conf)
         if conf is not None:
             client_conf.update(conf)
 
