@@ -64,6 +64,13 @@ def create_trivup_cluster(conf={}):
         trivup_fixture_conf['kafka_path'] = kafka_home
         trivup_fixture_conf['version'] = 'trunk'
 
+    # On RAM-constrained hosts (e.g. a t3.small with 2 GB) the default 3-broker
+    # cluster can exhaust memory during startup and hang. TRIVUP_BROKER_CNT
+    # pins the count (e.g. =1) without changing the default elsewhere.
+    broker_cnt = os.environ.get('TRIVUP_BROKER_CNT')
+    if broker_cnt:
+        trivup_fixture_conf['broker_cnt'] = int(broker_cnt)
+
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
