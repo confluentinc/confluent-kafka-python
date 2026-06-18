@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
-version = "2.14.2"
+version = "2.14.2.dev3"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -107,6 +107,7 @@ optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "re
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json-fast = { file = ["requirements/requirements-json.txt", "requirements/requirements-json-fast.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.oauthbearer-aws = { file = ["requirements/requirements-oauthbearer-aws.txt"] }
 optional-dependencies.dev = { file = [
     "requirements/requirements-docs.txt",
     "requirements/requirements-examples.txt",
@@ -115,7 +116,8 @@ optional-dependencies.dev = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
-    "requirements/requirements-protobuf.txt"] }
+    "requirements/requirements-protobuf.txt",
+    "requirements/requirements-oauthbearer-aws.txt"] }
 optional-dependencies.docs = { file = [
     "requirements/requirements-docs.txt",
     "requirements/requirements-schemaregistry.txt",
@@ -129,7 +131,8 @@ optional-dependencies.tests = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
-    "requirements/requirements-protobuf.txt"] }
+    "requirements/requirements-protobuf.txt",
+    "requirements/requirements-oauthbearer-aws.txt"] }
 optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
 optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
 optional-dependencies.all = { file = [
@@ -141,7 +144,8 @@ optional-dependencies.all = { file = [
     "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
-    "requirements/requirements-protobuf.txt"] }
+    "requirements/requirements-protobuf.txt",
+    "requirements/requirements-oauthbearer-aws.txt"] }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
