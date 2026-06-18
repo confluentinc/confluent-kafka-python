@@ -77,6 +77,9 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                 destroy_error = rd_kafka_share_destroy_flags(
                     self->rkshare, RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
                 CallState_end(&self->base, &cs);
+                /* Destroy frees the handle (or leaks it on failure), so either
+                 * way we're done with this pointer. */
+                self->rkshare = NULL;
                 /* If destroy failed the consumer is still alive, but this is
                  * the last reference to it, so it leaks and there is nothing
                  * left to retry with. We can't raise from dealloc, so report
@@ -89,12 +92,12 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                                      "Failed to destroy share consumer; the "
                                      "handle has been leaked: %s",
                                      rd_kafka_error_string(destroy_error));
-                        PyErr_WriteUnraisable((PyObject *)self);
+                        /* Pass the type, not self: self is at refcount 0, so WriteUnraisable would re-enter dealloc. */
+                        PyErr_WriteUnraisable((PyObject *)Py_TYPE(self));
                         if (pending_exc)
                                 cfl_exception_restore(pending_exc);
                         rd_kafka_error_destroy(destroy_error);
                 }
-                self->rkshare = NULL;
         }
 
         /* TODO KIP-932: once ShareConsumer_clear0 is gone, drop the manual

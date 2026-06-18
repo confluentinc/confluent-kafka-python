@@ -1,9 +1,26 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+#
+# Copyright 2026 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Unit tests for ShareConsumer class.
 """
 
+import gc
+import sys
 import threading
 import time
 
@@ -627,3 +644,35 @@ def test_concurrent_thread_access_raises_conflict():
     assert conflicts, "second-thread access during poll() should have raised _CONFLICT"
     assert all(err.code() == KafkaError._CONFLICT for err in conflicts)
     assert not other_errors, f"unexpected errors from second thread: {[str(e) for e in other_errors]}"
+
+
+def test_dealloc_without_close_destroys_handle():
+    """Dropping a ShareConsumer without close() must let dealloc destroy the
+    handle cleanly.
+
+    close() destroys the handle and NULLs it, so a consumer that gets closed
+    leaves dealloc nothing to do. Not closing is the only way to reach
+    dealloc's destroy path. A regression there (use-after-free / double-free)
+    crashes the interpreter; a milder error surfaces as an unraisable exception
+    from the destructor, which we capture and assert against.
+    """
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-dealloc-no-close'),
+            'bootstrap.servers': 'localhost:9092',
+        }
+    )
+    sc.subscribe(['test-topic'])
+
+    unraisables = []
+    prev_hook = sys.unraisablehook
+    sys.unraisablehook = lambda args: unraisables.append(args)
+    try:
+        # Drop the last reference: refcounting runs dealloc right here. The
+        # collect() is a safety net in case a callback ever forms a cycle.
+        del sc
+        gc.collect()
+    finally:
+        sys.unraisablehook = prev_hook
+
+    assert unraisables == [], f"dealloc raised: {[u.exc_value for u in unraisables]}"
