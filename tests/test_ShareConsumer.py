@@ -23,6 +23,7 @@ import gc
 import sys
 import threading
 import time
+import weakref
 
 import pytest
 
@@ -676,3 +677,182 @@ def test_dealloc_without_close_destroys_handle():
         sys.unraisablehook = prev_hook
 
     assert unraisables == [], f"dealloc raised: {[u.exc_value for u in unraisables]}"
+
+
+def test_gc_of_never_closed_consumer_is_clean():
+    """Dropping a consumer that was never close()d should tear down cleanly.
+
+    Garbage collection has to close it for us, so point it at a dead broker
+    with a short socket.timeout.ms to keep teardown from blocking.
+    """
+    sc = TestShareConsumer(
+        {
+            'bootstrap.servers': '127.0.0.1:1',
+            'group.id': unique_id('test-share-gc-noclose'),
+            'socket.timeout.ms': 100,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    ref = weakref.ref(sc)
+
+    start = time.monotonic()
+    del sc
+    gc.collect()
+    elapsed = time.monotonic() - start
+
+    assert ref() is None, 'consumer was not collected'
+    assert elapsed < 5.0, f'GC teardown took {elapsed:.2f}s (possible hang)'
+
+
+def test_gc_after_close_does_not_double_free():
+    """Garbage collection after close() must not double-free.
+
+    close() already tore the consumer down, so collection has to notice it's
+    gone and not free it a second time. A regression here usually crashes the
+    interpreter rather than raising.
+    """
+    sc = TestShareConsumer(
+        {
+            'bootstrap.servers': '127.0.0.1:1',
+            'group.id': unique_id('test-share-gc-afterclose'),
+            'socket.timeout.ms': 100,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    sc.close()
+    ref = weakref.ref(sc)
+
+    del sc
+    gc.collect()
+
+    assert ref() is None, 'consumer was not finalized after close()'
+
+
+def test_gc_after_failed_construction_is_clean():
+    """Collecting a consumer whose __init__ raised must not crash.
+
+    Both configs fail before the consumer is fully built, leaving a half-made
+    object that cleanup still has to handle.
+    """
+    failing_configs = [
+        # group.id is required.
+        {'bootstrap.servers': 'localhost:9092'},
+        # on_commit isn't supported on a share consumer.
+        {'group.id': unique_id('test-share-gc-init'), 'on_commit': lambda *a: None},
+    ]
+    for conf in failing_configs:
+        with pytest.raises(ValueError):
+            ShareConsumer(conf)
+
+    gc.collect()  # cleaning up the failed objects shouldn't crash
+
+
+def test_with_block_closes_on_exception_and_propagates():
+    """An exception inside a `with` block still closes the consumer, and the
+    original exception propagates (__exit__ doesn't swallow it).
+    """
+    with pytest.raises(ValueError, match='boom'):
+        with ShareConsumer(
+            {
+                'group.id': unique_id('test-share-ctx-raise'),
+                'bootstrap.servers': 'localhost:9092',
+                'socket.timeout.ms': 100,
+            }
+        ) as sc:
+            sc.subscribe(['test-topic'])
+            raise ValueError('boom')
+
+    # `sc` is still bound out here, and __exit__ already closed it.
+    with pytest.raises(RuntimeError) as ex:
+        sc.subscribe(['test-topic'])
+    assert ex.match('Share consumer closed')
+
+
+def test_explicit_close_inside_with_block_is_noop_on_exit():
+    """Closing inside a `with` block shouldn't trip up the close() that runs on
+    the way out — the second one is a no-op.
+    """
+    with ShareConsumer(
+        {
+            'group.id': unique_id('test-share-ctx-close'),
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    ) as sc:
+        sc.subscribe(['test-topic'])
+        sc.close()  # __exit__ will see it's already closed and skip
+
+    with pytest.raises(RuntimeError) as ex:
+        sc.subscribe(['test-topic'])
+    assert ex.match('Share consumer closed')
+
+
+def test_close_does_not_hang_on_unreachable_broker():
+    """close() against a dead broker should return quickly, not hang.
+
+    It blocks for roughly socket.timeout.ms while trying to leave the group, so
+    a short timeout keeps the whole teardown bounded.
+    """
+    sc = ShareConsumer(
+        {
+            'bootstrap.servers': '127.0.0.1:1',
+            'group.id': unique_id('test-share-close-unreachable'),
+            'socket.timeout.ms': 1000,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    # Poll once so the group is actually joined and close() has to leave it.
+    sc.poll(timeout=0.2)
+
+    start = time.monotonic()
+    sc.close()
+    elapsed = time.monotonic() - start
+
+    assert elapsed < 10.0, f'close() hung for {elapsed:.2f}s on an unreachable broker'
+
+
+def test_construction_failure_raises_cleanly():
+    """A config that passes the early checks but fails while the consumer is
+    being built should raise KafkaException, not crash or leak.
+
+    A bad ssl.ca.location is accepted up front but fails when the SSL context
+    is loaded during construction.
+    """
+    with pytest.raises(KafkaException) as ex:
+        ShareConsumer(
+            {
+                'group.id': unique_id('test-share-new-fail'),
+                'bootstrap.servers': 'localhost:9092',
+                'security.protocol': 'ssl',
+                'ssl.ca.location': '/nonexistent/path/ca.pem',
+                'socket.timeout.ms': 100,
+            }
+        )
+    assert ex.match('Failed to create share consumer')
+
+    gc.collect()  # cleaning up the failed object shouldn't crash
+
+
+def test_double_init_raises():
+    """Calling __init__ twice should raise rather than overwrite (and leak)
+    the existing handle.
+    """
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-double-init'),
+            'bootstrap.servers': 'localhost:9092',
+            'socket.timeout.ms': 100,
+        }
+    )
+    try:
+        with pytest.raises(RuntimeError) as ex:
+            sc.__init__(
+                {
+                    'group.id': unique_id('test-share-double-init-2'),
+                    'bootstrap.servers': 'localhost:9092',
+                    'socket.timeout.ms': 100,
+                }
+            )
+        assert ex.match('already initialized')
+    finally:
+        sc.close()
