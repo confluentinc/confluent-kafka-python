@@ -24,7 +24,7 @@ import sys
 # in the same share group can read the same partition, and each record is
 # acknowledged implicitly.
 #
-from confluent_kafka import ShareConsumer
+from confluent_kafka import KafkaException, ShareConsumer
 
 
 def print_usage_and_exit(program_name):
@@ -52,12 +52,25 @@ if __name__ == '__main__':
 
     try:
         while True:
-            messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+            try:
+                messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+            except KafkaException as e:
+                # Poll-level error. Check err.fatal(): re-raise fatal errors,
+                # otherwise treat the error as retriable and keep polling
+                # (regardless of err.retriable()).
+                if e.args[0].fatal():
+                    raise
+                sys.stderr.write('%% Consumer error: %s\n' % e)
+                continue
             for msg in messages:
                 if msg.error():
-                    # Per-message errors are informational; log and keep
-                    # polling. Truly fatal errors are raised out of poll()
-                    # itself via the error_cb path.
+                    # Message-level error. In implicit mode you can't ACCEPT,
+                    # RELEASE or REJECT a record by hand (acknowledge() is only
+                    # valid in explicit mode), so just log it; the record is
+                    # auto-accepted on the next poll() and the loop keeps making
+                    # progress. Use explicit mode (see
+                    # share_consumer_commit_sync.py) to RELEASE or REJECT a bad
+                    # record.
                     sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
                 sys.stderr.write(
