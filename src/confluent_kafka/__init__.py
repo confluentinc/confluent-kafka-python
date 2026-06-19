@@ -20,6 +20,7 @@ import os
 
 from ._model import Node  # noqa: F401
 from ._model import (
+    AcknowledgeType,
     ConsumerGroupState,
     ConsumerGroupTopicPartitions,
     ConsumerGroupType,
@@ -39,6 +40,7 @@ from .cimpl import (
     Consumer,
     Message,
     Producer,
+    ShareConsumer,
     TopicPartition,
     Uuid,
     consistent,
@@ -48,12 +50,14 @@ from .cimpl import (
     version,
 )
 from .deserializing_consumer import DeserializingConsumer
+from .deserializing_share_consumer import DeserializingShareConsumer
 from .error import KafkaError, KafkaException
 from .serializing_producer import SerializingProducer
 
 __all__ = [
     "admin",
     "Consumer",
+    "ShareConsumer",
     "aio",
     "KafkaError",
     "KafkaException",
@@ -70,6 +74,7 @@ __all__ = [
     "OFFSET_STORED",
     "Producer",
     "DeserializingConsumer",
+    "DeserializingShareConsumer",
     "SerializingProducer",
     "TIMESTAMP_CREATE_TIME",
     "TIMESTAMP_LOG_APPEND_TIME",
@@ -84,6 +89,7 @@ __all__ = [
     "TopicCollection",
     "TopicPartitionInfo",
     "ElectionType",
+    "AcknowledgeType",
 ]
 
 
