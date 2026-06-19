@@ -105,13 +105,9 @@ class SoakClient(object):
 
         else:
             self.dr_cnt += 1
-            # perf: batch OTEL counter updates every 1000 messages to avoid
-            # per-msg SDK overhead (~20-50us/call). Grafana rate calcs are
-            # unaffected since window >>0.5s.
-            if self.dr_cnt % 1000 == 0:
-                self.incr_counter("producer.drok", 1000)
-            # perf: per-message gauge disabled to reach high throughput.
-            # self.set_gauge("producer.latency", msg.latency(), tags={"partition": "{}".format(msg.partition())})
+            self.incr_counter("producer.drok", 1)
+            self.set_gauge("producer.latency", msg.latency(),
+                           tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
                 self.logger.debug(
                     "producer: delivered message to {} [{}] at offset {} in {}s".format(
@@ -132,11 +128,12 @@ class SoakClient(object):
                 self.producer.produce(
                     self.topic,
                     value=record.serialize(),
-                    # perf: "time" header dropped — it only fed the per-message
-                    # e2e latency gauge, which is now disabled. str(time.time())
-                    # was a syscall + float->str on every produced message.
-                    headers={"msgid": str(record.msgid), "txcnt": str(txcnt)},
-                    # on_delivery=self.dr_cb,
+                    headers={
+                        "msgid": str(record.msgid),
+                        "txcnt": str(txcnt),
+                        "time": str(time.time()),
+                    },
+                    on_delivery=self.dr_cb,
                 )
                 break
 
@@ -145,9 +142,7 @@ class SoakClient(object):
                 continue
 
         self.producer_msgid += 1
-        # perf: batch OTEL counter updates every 1000 messages.
-        if self.producer_msgid % 1000 == 0:
-            self.incr_counter("producer.send", 1000)
+        self.incr_counter("producer.send", 1)
 
     def producer_status(self):
         """Print producer status"""
@@ -276,20 +271,16 @@ class SoakClient(object):
                 self.incr_counter("consumer.msgerr", 1)
 
             self.msg_cnt += 1
-            # perf: batch OTEL counter updates every 1000 messages.
-            if self.msg_cnt % 1000 == 0:
-                self.incr_counter("consumer.msg", 1000)
+            self.incr_counter("consumer.msg", 1)
 
-            # perf: per-message end-to-end latency gauge disabled to reach
-            # high throughput (rebuilt a dict + gauge per message).
-            # headers = dict(msg.headers())
-            # txtime = headers.get('time', None)
-            # if txtime is not None:
-            #     latency = time.time() - float(txtime)
-            #     self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
-            # else:
-            #     latency = None
-            latency = None
+            headers = dict(msg.headers())
+            txtime = headers.get('time', None)
+            if txtime is not None:
+                latency = time.time() - float(txtime)
+                self.set_gauge("consumer.e2e_latency", latency,
+                               tags={"partition": "{}".format(msg.partition())})
+            else:
+                latency = None
 
             if (self.msg_cnt % self.disprate) == 0:
                 # Show a sample message every #disprate messages
@@ -441,20 +432,16 @@ class SoakClient(object):
                     self.incr_counter("consumer.msgerr", 1)
 
                 self.share_msg_cnt += 1
-                # perf: batch OTEL counter updates every 1000 messages.
-                if self.share_msg_cnt % 1000 == 0:
-                    self.incr_counter("consumer.msg", 1000)
+                self.incr_counter("consumer.msg", 1)
 
-                # perf: per-message end-to-end latency gauge disabled to reach
-                # high throughput (rebuilt a dict + gauge per message).
-                # headers = dict(msg.headers())
-                # txtime = headers.get('time', None)
-                # if txtime is not None:
-                #     latency = time.time() - float(txtime)
-                #     self.set_gauge(
-                #         "consumer.e2e_latency", latency,
-                #         tags={"partition": "{}".format(msg.partition())}
-                #     )
+                headers = dict(msg.headers())
+                txtime = headers.get('time', None)
+                if txtime is not None:
+                    latency = time.time() - float(txtime)
+                    self.set_gauge(
+                        "consumer.e2e_latency", latency,
+                        tags={"partition": "{}".format(msg.partition())}
+                    )
 
                 if (self.share_msg_cnt % self.disprate) == 0:
                     self.logger.info(
