@@ -26,7 +26,15 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Message, ShareConsumer
+from confluent_kafka import (
+    AcknowledgeType,
+    ConcurrentModificationException,
+    IllegalStateException,
+    KafkaError,
+    KafkaException,
+    Message,
+    ShareConsumer,
+)
 from tests.common import (
     TestShareConsumer,
     TestUtils,
@@ -207,13 +215,13 @@ def test_poll_no_broker(share_consumer):
 
 
 def test_poll_without_subscription_raises_state(share_consumer):
-    """poll() before any subscribe() raises KafkaException(_STATE).
+    """poll() before any subscribe() raises IllegalStateException(_STATE).
 
     The "not subscribed" check fires before any broker I/O, so this returns
     immediately without a broker. We assert only the error code, not the
     message: depending on timing it can be either "not subscribed" or
     "consumer group not initialized", both of which are _STATE."""
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         share_consumer.poll(timeout=0.1)
     assert ex.value.args[0].code() == KafkaError._STATE
 
@@ -369,7 +377,7 @@ def test_subscribe_with_empty_list_unsubscribes(share_consumer):
     assert share_consumer.subscribe([]) is None
     assert share_consumer.subscription() == []
 
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         share_consumer.poll(timeout=0.1)
     assert ex.value.args[0].code() == KafkaError._STATE
 
@@ -377,11 +385,11 @@ def test_subscribe_with_empty_list_unsubscribes(share_consumer):
 def test_subscribe_rejects_empty_and_duplicate_topic_names(share_consumer):
     """An empty topic name and duplicate topic names are rejected with
     _INVALID_ARG. (An empty *list* is a different case — it unsubscribes.)"""
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         share_consumer.subscribe([''])
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         share_consumer.subscribe(['dup-topic', 'dup-topic'])
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
@@ -428,7 +436,7 @@ def test_acknowledge_none_topic_message_rejected(share_consumer):
     would instead return _STATE (an explicit ack in implicit mode)."""
     msg = Message(partition=0, offset=0)
     assert msg.topic() is None
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         share_consumer.acknowledge(msg, AcknowledgeType.ACCEPT)
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
@@ -476,14 +484,14 @@ def test_acknowledge_offset_rejects_non_int_offset(share_consumer):
 
 def test_acknowledge_offset_rejects_negative_partition(share_consumer):
     """librdkafka rejects negative partition with _INVALID_ARG."""
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         share_consumer.acknowledge_offset('topic', -1, 0, AcknowledgeType.ACCEPT)
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
 
 def test_acknowledge_offset_rejects_negative_offset(share_consumer):
     """librdkafka rejects negative offset with _INVALID_ARG."""
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         share_consumer.acknowledge_offset('topic', 0, -1, AcknowledgeType.ACCEPT)
     assert ex.value.args[0].code() == KafkaError._INVALID_ARG
 
@@ -508,7 +516,7 @@ def test_acknowledge_offset_rejects_out_of_range_ack_type():
     try:
         # 0 sits just below ACCEPT(1), 4 just above REJECT(3); 999 is far out.
         for bad_ack_type in (0, 4, 999):
-            with pytest.raises(KafkaException) as ex:
+            with pytest.raises(ValueError) as ex:
                 sc.acknowledge_offset('test-topic', 0, 0, bad_ack_type)
             assert (
                 ex.value.args[0].code() == KafkaError._INVALID_ARG
@@ -593,7 +601,7 @@ def test_poll_interruptible_by_signal():
 def test_concurrent_thread_access_raises_conflict():
     """A ShareConsumer is not safe for concurrent use: touching it from a
     second thread while another thread is inside poll() raises
-    KafkaException(_CONFLICT).
+    ConcurrentModificationException(_CONFLICT).
 
     Ownership is held by whichever thread is currently in a call, for the whole
     duration of that call (including poll()'s blocking wait), so a second
@@ -617,7 +625,7 @@ def test_concurrent_thread_access_raises_conflict():
         while not stop.is_set():
             try:
                 sc.commit_async()
-            except KafkaException as exc:
+            except ConcurrentModificationException as exc:
                 err = exc.args[0]
                 (conflicts if err.code() == KafkaError._CONFLICT else other_errors).append(err)
             except Exception as exc:  # noqa: BLE001 - record anything unexpected
@@ -634,7 +642,7 @@ def test_concurrent_thread_access_raises_conflict():
         while not conflicts and time.monotonic() < deadline:
             try:
                 sc.poll(timeout=0.2)
-            except KafkaException:
+            except ConcurrentModificationException:
                 pass
     finally:
         stop.set()
@@ -676,3 +684,60 @@ def test_dealloc_without_close_destroys_handle():
         sys.unraisablehook = prev_hook
 
     assert unraisables == [], f"dealloc raised: {[u.exc_value for u in unraisables]}"
+
+
+def test_share_exceptions_exported():
+    """Both new types are defined in cimpl, re-exported from the package, and
+    listed in __all__."""
+    import confluent_kafka
+    from confluent_kafka import cimpl
+
+    assert confluent_kafka.IllegalStateException is cimpl.IllegalStateException is IllegalStateException
+    assert (
+        confluent_kafka.ConcurrentModificationException
+        is cimpl.ConcurrentModificationException
+        is ConcurrentModificationException
+    )
+    assert 'IllegalStateException' in confluent_kafka.__all__
+    assert 'ConcurrentModificationException' in confluent_kafka.__all__
+
+
+@pytest.mark.parametrize('exc_type', [IllegalStateException, ConcurrentModificationException])
+def test_share_exception_subclass_contract(exc_type):
+    """Subclass RuntimeError (so pre-KIP-932 `except RuntimeError` still
+    catches them) but deliberately NOT KafkaException (so `except
+    KafkaException` won't silently swallow them)."""
+    assert issubclass(exc_type, RuntimeError)
+    assert not issubclass(exc_type, KafkaException)
+
+
+@pytest.mark.parametrize(
+    'trigger, exc_type, code',
+    [
+        (lambda sc: sc.poll(timeout=0.1), IllegalStateException, KafkaError._STATE),
+        (lambda sc: sc.subscribe(['']), ValueError, KafkaError._INVALID_ARG),
+    ],
+    ids=['_STATE->IllegalStateException', '_INVALID_ARG->ValueError'],
+)
+def test_error_code_maps_to_python_exception(share_consumer, trigger, exc_type, code):
+    """Each reachable code surfaces as its mapped Python type while args[0]
+    stays a KafkaError carrying the original code and message.
+
+    _CONFLICT -> ConcurrentModificationException needs two threads, so it has
+    its own test (test_concurrent_thread_access_raises_conflict)."""
+    with pytest.raises(exc_type) as ex:
+        trigger(share_consumer)
+    err = ex.value.args[0]
+    assert isinstance(err, KafkaError)
+    assert err.code() == code
+    assert err.str()  # original message preserved, not blanked
+
+
+def test_state_error_is_catchable_as_runtimeerror(share_consumer):
+    """Compat bridge: because IllegalStateException is a RuntimeError, code
+    written against the pre-KIP-932 closed-consumer RuntimeError keeps working
+    without having to catch KafkaException."""
+    with pytest.raises(RuntimeError) as ex:
+        share_consumer.poll(timeout=0.1)
+    assert isinstance(ex.value, IllegalStateException)
+    assert ex.value.args[0].code() == KafkaError._STATE
