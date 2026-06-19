@@ -18,28 +18,18 @@
 import sys
 
 #
-# Example KIP-932 ShareConsumer using explicit acknowledgement and
-# asynchronous commits.
+# Example KIP-932 ShareConsumer: explicit ack mode with asynchronous commits.
 #
-# As in the commit_sync example, in explicit mode every record returned by
-# poll() must be acknowledged before the next poll(), as one of:
-#   ACCEPT  - processed successfully; the broker never redelivers it.
-#   RELEASE - return it to the share group so it can be retried, possibly by
-#             another consumer.
-#   REJECT  - give up on it; the broker archives it (and, once available, it
-#             can be routed to a dead-letter queue).
-#
-# commit_async() flushes the buffered acks without blocking. The broker's
-# response is delivered later — on a subsequent poll() / commit_sync() /
-# close() — through the acknowledgement-commit callback registered below.
+# Same ACCEPT / RELEASE / REJECT acking as share_consumer_commit_sync.py, but
+# commit_async() doesn't block — the broker's reply shows up later in the
+# acknowledgement-commit callback below.
 #
 from confluent_kafka import AcknowledgeType, KafkaException, ShareConsumer
 
 
 def acknowledgement_commit_callback(offsets, exception):
-    # commit_async() surfaces broker-side outcomes only through this callback.
-    # offsets is a {TopicPartition: set(offsets)} of the acknowledged records;
-    # exception is a KafkaException on failure or None on success.
+    # commit_async() reports its result only here. offsets maps each
+    # TopicPartition to the set of acked offsets; exception is set on failure.
     if exception is not None:
         sys.stderr.write('%% Acknowledgement commit failed: %s\n' % exception)
         return
@@ -77,11 +67,9 @@ if __name__ == '__main__':
     try:
         while True:
             try:
-                messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+                messages = sc.poll(timeout=1.0)  # a list, possibly empty
             except KafkaException as e:
-                # Poll-level error. Check err.fatal(): re-raise fatal errors,
-                # otherwise treat the error as retriable and keep polling
-                # (regardless of err.retriable()).
+                # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
@@ -89,33 +77,28 @@ if __name__ == '__main__':
 
             for msg in messages:
                 if msg.error():
-                    # A record that arrived with an error carries no payload to
-                    # process. RELEASE lets the share group retry it; switch to
-                    # REJECT for a record you never want redelivered.
+                    # Nothing to process. RELEASE to retry it (REJECT to drop it).
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
                 try:
-                    # Replace this with your real processing.
+                    # Your processing goes here.
                     print(msg.value())
                 except Exception as e:
-                    # Couldn't process it now. RELEASE so it can be retried
-                    # (use REJECT for a record you know is bad).
+                    # Couldn't process it — RELEASE so it can be retried.
                     sys.stderr.write('%% Processing failed: %s\n' % e)
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
-                # Processed cleanly: ACCEPT so the broker never redelivers it.
+                # Processed OK — ACCEPT it.
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
 
-            # Explicit mode requires every record from the batch above to be
-            # acknowledged before the next poll(). commit_async() flushes those
-            # acks without blocking; outcomes arrive via the callback.
+            # Flush the acks before the next poll(). commit_async() doesn't
+            # block; results land in the callback.
             sc.commit_async()
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
-        # close() leaves the share group and frees the handle, but does NOT
-        # flush pending acks. Async acks still in flight may be redelivered;
-        # call commit_sync() before close() if you need them to persist.
+        # close() doesn't flush in-flight async acks — commit_sync() first if
+        # you need them to stick.
         sc.close()
