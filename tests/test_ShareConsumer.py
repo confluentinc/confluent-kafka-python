@@ -26,7 +26,7 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Message, ShareConsumer
+from confluent_kafka import AcknowledgeType, ConsumerRecords, KafkaError, KafkaException, Message, ShareConsumer
 from tests.common import (
     TestShareConsumer,
     TestUtils,
@@ -204,6 +204,16 @@ def test_poll_no_broker(share_consumer):
 
     messages = share_consumer.poll(timeout=0.1)
     assert messages == []
+
+
+def test_poll_returns_consumer_records(share_consumer):
+    """poll() returns a ConsumerRecords, not a bare list."""
+    share_consumer.subscribe(['test-topic'])
+
+    out = share_consumer.poll(timeout=0.1)
+    assert isinstance(out, ConsumerRecords)
+    assert out.is_empty()
+    assert out.count() == 0
 
 
 def test_poll_without_subscription_raises_state(share_consumer):
