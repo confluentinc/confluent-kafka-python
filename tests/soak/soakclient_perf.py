@@ -55,9 +55,9 @@ class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
     # Static padding built once at class load. Repeats a JSON-safe base label
-    # (letters, digits, spaces, '#') so the final value lands at ~1KB without
+    # (letters, digits, spaces, '#') so the final value lands at ~4KB without
     # rebuilding the string on every produce_record() call.
-    _PAD = (" SoakRecord nr #0" * 60)[:1000]
+    _PAD = (" SoakRecord nr #0" * 240)[:4050]
 
     def __init__(self, msgid, name=None):
         self.msgid = msgid
