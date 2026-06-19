@@ -263,6 +263,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         size_t rkmessages_size          = 0;
         rd_kafka_error_t *error         = NULL;
         PyObject *msglist;
+        PyObject *records;
+        PyObject *ConsumerRecords_type = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
@@ -368,7 +370,23 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         rd_kafka_messages_destroy(rkmessages);
 
-        return msglist;
+        /* Wrap the plain list in ConsumerRecords so callers get records() /
+         * count() / is_empty(). */
+        ConsumerRecords_type =
+            cfl_PyObject_lookup("confluent_kafka", "ConsumerRecords");
+        if (!ConsumerRecords_type) {
+                Py_DECREF(msglist);
+                return NULL;
+        }
+
+        /* ConsumerRecords(msglist): the list subclass has no __init__, so this
+         * just copies the elements in. */
+        records = PyObject_CallFunctionObjArgs(ConsumerRecords_type, msglist,
+                                               NULL);
+        Py_DECREF(ConsumerRecords_type);
+        Py_DECREF(msglist);
+
+        return records;
 }
 
 
@@ -480,7 +498,7 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
  * ACCEPT inside librdkafka before sending. Blocks until all broker replies
  * arrive or the timeout expires.
  *
- * @returns dict mapping TopicPartition -> None on success or KafkaError on
+ * @returns dict mapping TopicPartition -> None on success or KafkaException on
  *          per-partition failure. Empty dict when no acknowledgements are
  *          pending.
  */
@@ -522,7 +540,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         if (!c_parts)
                 return PyDict_New();
 
-        result = c_parts_to_dict_topic_partition_to_error(c_parts);
+        result = c_parts_to_dict_topic_partition_to_exception(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
         return result;
 
@@ -880,30 +898,22 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param float timeout: Maximum time to block waiting for messages "
      "(seconds).\n"
      "                        Default: -1 (infinite)\n"
-     "  :returns: List of Message objects (possibly empty on timeout)\n"
-     "  :rtype: list(Message)\n"
+     "  :returns: ConsumerRecords (a list subclass) of Message objects. "
+     "Returns an empty ConsumerRecords if no messages are available within "
+     "the timeout.\n"
+     "  :rtype: ConsumerRecords\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
-    /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today the share consumer translates every librdkafka
-     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
-     * want each code to map to the Python exception a user porting from
-     * Java would expect, e.g.
-     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
-     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
-     * Open question: per-partition broker errors in commit_sync's result
-     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
-     * KafkaError, or translate as well?
-     *
-     * Revisit holistically once:
-     *   - librdkafka's share-consumer error surface is stable (some codes
-     *     may be redefined as work progresses), and
-     *   - the equivalent translation lands on commit_sync / commit_async /
-     *     ack-callback paths (currently TODO'd separately).
-     */
+    /* TODO: the error-code -> Python-exception mapping is still provisional.
+     * Every error code currently surfaces as KafkaException via
+     * cfl_PyErr_Format(), including the per-partition values in commit_sync's
+     * result dict. Eventually specific codes should map to the obvious
+     * exception type (_INVALID_ARG -> ValueError, _STATE -> RuntimeError).
+     * Revisit once the error surface settles and the same mapping lands on
+     * commit_sync / commit_async / the ack callback. */
     {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: acknowledge(message, "
@@ -965,10 +975,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param float timeout: Maximum time to block (seconds). Default: 60.\n"
      "                        Pass -1 for infinite.\n"
      "  :returns: Dict mapping TopicPartition to None on success or "
-     "KafkaError\n"
+     "KafkaException\n"
      "           on per-partition failure. Empty dict when no\n"
      "           acknowledgements are pending.\n"
-     "  :rtype: dict(TopicPartition, KafkaError | None)\n"
+     "  :rtype: dict(TopicPartition, KafkaException | None)\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises TypeError: if timeout is not a float\n"
