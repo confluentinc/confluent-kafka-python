@@ -68,8 +68,10 @@ if __name__ == '__main__':
 
             for msg in batch:
                 if msg.error():
-                    # Nothing to process. RELEASE to retry it (REJECT to drop it).
-                    sc.acknowledge(msg, AcknowledgeType.RELEASE)
+                    # No need to acknowledge a flagged record — the library
+                    # already handles it. Acking it yourself is redundant and
+                    # can override a permanent discard with a retry. Just log it.
+                    sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
 
                 try:

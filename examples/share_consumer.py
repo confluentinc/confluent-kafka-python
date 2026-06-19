@@ -61,8 +61,10 @@ if __name__ == '__main__':
                 continue
             for msg in messages:
                 if msg.error():
-                    # A bad record. In implicit mode you can't ack it by hand,
-                    # so just log it — it's accepted on the next poll() anyway.
+                    # A bad record. In implicit mode you can't ack it by hand
+                    # (acknowledge() is rejected); the library automatically
+                    # retries it (temporary errors) or discards it (permanent
+                    # errors) on the next poll — it is never accepted. Just log it.
                     sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
                 sys.stderr.write(
