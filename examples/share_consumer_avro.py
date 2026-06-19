@@ -111,11 +111,15 @@ def main(args):
                 err = msg.error()
                 if err is not None:
                     if err.code() in (KafkaError._KEY_DESERIALIZATION, KafkaError._VALUE_DESERIALIZATION):
-                        # Can't decode it — REJECT so it isn't redelivered.
+                        # A record we received but can't decode. In explicit
+                        # mode we still have to ack it — REJECT it as poison so
+                        # it isn't redelivered.
                         sc.acknowledge(msg, AcknowledgeType.REJECT)
                     else:
-                        # Transient error — RELEASE to retry.
-                        sc.acknowledge(msg, AcknowledgeType.RELEASE)
+                        # Any other flagged record: the library already handles
+                        # it. Acking it yourself is redundant and can turn a
+                        # permanent discard into a retry. Just log it.
+                        sys.stderr.write('%% Error: %s\n' % err)
                     continue
 
                 # value is already deserialized.
