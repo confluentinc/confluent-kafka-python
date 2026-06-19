@@ -49,6 +49,10 @@
 
 
 PyObject *KafkaException;
+/* Share consumer error types. These subclass RuntimeError, not
+ * KafkaException. */
+PyObject *IllegalStateException;
+PyObject *ConcurrentModificationException;
 
 
 /****************************************************************************
@@ -3791,6 +3795,34 @@ static PyObject *_init_cimpl(void) {
 #endif
         Py_INCREF(KafkaException);
         PyModule_AddObject(m, "KafkaException", KafkaException);
+
+        /* Subclass RuntimeError, not KafkaException, but still carry a
+         * KafkaError as args[0]. Only the share consumer raises these today. */
+        IllegalStateException = PyErr_NewExceptionWithDoc(
+            "cimpl.IllegalStateException",
+            "Raised by ShareConsumer when an operation is attempted in an "
+            "invalid state, e.g. on a consumer that has already been "
+            "closed.\n"
+            "\n"
+            "Subclass of RuntimeError. ``exception.args[0]`` is a "
+            ":py:class:`KafkaError`.\n"
+            "\n",
+            PyExc_RuntimeError, NULL);
+        Py_INCREF(IllegalStateException);
+        PyModule_AddObject(m, "IllegalStateException", IllegalStateException);
+
+        ConcurrentModificationException = PyErr_NewExceptionWithDoc(
+            "cimpl.ConcurrentModificationException",
+            "Raised by ShareConsumer when it is accessed concurrently from "
+            "more than one thread.\n"
+            "\n"
+            "Subclass of RuntimeError. ``exception.args[0]`` is a "
+            ":py:class:`KafkaError`.\n"
+            "\n",
+            PyExc_RuntimeError, NULL);
+        Py_INCREF(ConcurrentModificationException);
+        PyModule_AddObject(m, "ConcurrentModificationException",
+                           ConcurrentModificationException);
 
         PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE",
                                 RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
