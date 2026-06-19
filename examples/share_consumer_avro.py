@@ -16,15 +16,12 @@
 # limitations under the License.
 
 
-# Example KIP-932 DeserializingShareConsumer reading Avro data via Schema
-# Registry.
+# Example KIP-932 DeserializingShareConsumer reading Avro via Schema Registry.
 #
-# DeserializingShareConsumer takes the key/value deserializers in its config
-# dict and applies them to every record inside poll() — there is no
-# SerializationContext to build by hand. A record that fails to deserialize is
-# not raised: it stays in the returned batch with its raw bytes and a
-# _KEY/_VALUE_DESERIALIZATION error set, so the rest of the batch keeps
-# flowing and the application can REJECT the poison record.
+# The key/value deserializers go in the config dict and run inside poll(). A
+# record that can't be deserialized isn't raised — it comes back with its raw
+# bytes and a _KEY/_VALUE_DESERIALIZATION error, so you can REJECT it and move
+# on.
 
 import argparse
 import sys
@@ -87,8 +84,7 @@ def main(args):
     schema_registry_client = SchemaRegistryClient({'url': args.schema_registry})
     avro_deserializer = AvroDeserializer(schema_registry_client, schema_str, dict_to_user)
 
-    # The deserializers live in the config dict and are applied to every
-    # record inside poll().
+    # Deserializers go in the config dict.
     conf = {
         'bootstrap.servers': args.bootstrap_servers,
         'group.id': args.group,
@@ -103,11 +99,9 @@ def main(args):
     try:
         while True:
             try:
-                messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+                messages = sc.poll(timeout=1.0)  # a list, possibly empty
             except KafkaException as e:
-                # Poll-level error. Check err.fatal(): re-raise fatal errors,
-                # otherwise treat the error as retriable and keep polling
-                # (regardless of err.retriable()).
+                # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
@@ -117,15 +111,14 @@ def main(args):
                 err = msg.error()
                 if err is not None:
                     if err.code() in (KafkaError._KEY_DESERIALIZATION, KafkaError._VALUE_DESERIALIZATION):
-                        # Poison record: it will never decode. REJECT so the
-                        # broker archives it instead of redelivering.
+                        # Can't decode it — REJECT so it isn't redelivered.
                         sc.acknowledge(msg, AcknowledgeType.REJECT)
                     else:
-                        # Broker/transport error: RELEASE so it can be retried.
+                        # Transient error — RELEASE to retry.
                         sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
-                # key and value are already deserialized objects, not bytes.
+                # value is already deserialized.
                 user = msg.value()
                 if user is not None:
                     print(
@@ -135,8 +128,7 @@ def main(args):
                     )
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
 
-            # Flush the batch's acks before the next poll() (required in
-            # explicit mode).
+            # Flush the acks before the next poll().
             sc.commit_async()
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')

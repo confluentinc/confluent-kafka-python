@@ -18,20 +18,15 @@
 import sys
 
 #
-# Example KIP-932 ShareConsumer using explicit acknowledgement and synchronous
-# commits.
+# Example KIP-932 ShareConsumer: explicit ack mode with synchronous commits.
 #
-# In explicit mode the application must acknowledge every record returned by
-# poll() before the next poll(). Each record is acked as one of:
-#   ACCEPT  - processed successfully; the broker never redelivers it.
-#   RELEASE - return it to the share group so it can be retried, possibly by
-#             another consumer.
-#   REJECT  - give up on it; the broker archives it (and, once available, it
-#             can be routed to a dead-letter queue).
+# In explicit mode you must acknowledge every record before the next poll():
+#   ACCEPT  - done; never redeliver it.
+#   RELEASE - put it back so it can be retried, maybe by another consumer.
+#   REJECT  - give up on it; the broker archives it.
 #
-# commit_sync() blocks until the broker replies and returns a
-# {TopicPartition: KafkaError-or-None} dict, so the application can inspect
-# each partition's outcome — a commit can partially succeed.
+# commit_sync() blocks for the broker reply and returns a per-partition
+# {TopicPartition: error-or-None} dict, so you can see what succeeded.
 #
 from confluent_kafka import AcknowledgeType, KafkaException, ShareConsumer
 
@@ -63,11 +58,9 @@ if __name__ == '__main__':
     try:
         while True:
             try:
-                batch = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+                batch = sc.poll(timeout=1.0)  # a list, possibly empty
             except KafkaException as e:
-                # Poll-level error. Check err.fatal(): re-raise fatal errors,
-                # otherwise treat the error as retriable and keep polling
-                # (regardless of err.retriable()).
+                # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
@@ -75,30 +68,26 @@ if __name__ == '__main__':
 
             for msg in batch:
                 if msg.error():
-                    # A record that arrived with an error carries no payload to
-                    # process. RELEASE lets the share group retry it; switch to
-                    # REJECT for a record you never want redelivered.
+                    # Nothing to process. RELEASE to retry it (REJECT to drop it).
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
                 try:
-                    # Replace this with your real processing.
+                    # Your processing goes here.
                     print(msg.value())
                 except Exception as e:
-                    # Couldn't process it now. RELEASE so it can be retried
-                    # (use REJECT for a record you know is bad).
+                    # Couldn't process it — RELEASE so it can be retried.
                     sys.stderr.write('%% Processing failed: %s\n' % e)
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
-                # Processed cleanly: ACCEPT so the broker never redelivers it.
+                # Processed OK — ACCEPT it.
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
 
             if not batch:
                 continue
 
-            # Block until the broker replies (or 10s elapse), then inspect each
-            # partition's outcome.
+            # Flush the acks and check each partition's result.
             results = sc.commit_sync(timeout=10.0)
             for topic_partition, err in results.items():
                 if err is not None:
@@ -108,6 +97,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
-        # commit_sync() above already flushed each batch, so close() has
-        # nothing pending to lose here.
         sc.close()

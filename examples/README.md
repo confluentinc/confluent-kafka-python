@@ -12,7 +12,7 @@ The scripts in this directory provide various examples of using the Confluent Py
 
 ## Share Consumer Examples (KIP-932)
 
-Queues for Kafka (KIP-932) lets many consumers in the same share group read from the same partitions, acknowledging individual records like a queue rather than committing partition offsets.
+Queues for Kafka (KIP-932) lets many consumers in the same share group read from the same partitions, acknowledging individual records like a queue.
 
 - [share_consumer.py](share_consumer.py): Read messages with a ShareConsumer using implicit acknowledgement (the default mode).
 - [share_consumer_commit_sync.py](share_consumer_commit_sync.py): Explicit acknowledgement with per-record ACCEPT/RELEASE/REJECT, committed synchronously with per-partition results.
