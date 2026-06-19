@@ -10,6 +10,15 @@ The scripts in this directory provide various examples of using the Confluent Py
 - [consumer.py](consumer.py): Read messages from a Kafka topic.
 - [context_manager_example.py](context_manager_example.py): **Demonstrates context manager (`with` statement) usage for Producer, Consumer, and AdminClient** - shows automatic resource cleanup when exiting the `with` block.
 
+## Share Consumer Examples (KIP-932)
+
+Queues for Kafka (KIP-932) lets many consumers in the same share group read from the same partitions, acknowledging individual records like a queue.
+
+- [share_consumer.py](share_consumer.py): Read messages with a ShareConsumer using implicit acknowledgement (the default mode).
+- [share_consumer_commit_sync.py](share_consumer_commit_sync.py): Explicit acknowledgement with per-record ACCEPT/RELEASE/REJECT, committed synchronously with per-partition results.
+- [share_consumer_commit_async.py](share_consumer_commit_async.py): Explicit acknowledgement committed asynchronously, with broker outcomes delivered via an acknowledgement-commit callback.
+- [share_consumer_avro.py](share_consumer_avro.py): DeserializingShareConsumer reading Avro data via Schema Registry, with poison-record handling.
+
 ## AsyncIO Examples
 
 - [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
