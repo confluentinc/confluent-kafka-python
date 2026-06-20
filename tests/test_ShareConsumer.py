@@ -107,16 +107,15 @@ def test_constructor_kwargs_only():
 
 
 def test_constructor_rejects_on_commit():
-    """Share consumers have no offset-commit concept. Setting on_commit
-    in the positional config dict OR as a kwarg must be rejected at
-    construction time so the misconfiguration is visible to callers
-    instead of being silently held by librdkafka.
+    """Share consumers acknowledge records instead of committing offsets,
+    so on_commit has nothing to fire on. Setting it in the positional
+    config dict OR as a kwarg must be rejected at construction time so the
+    misconfiguration is visible to callers instead of being silently held
+    as a callback that never runs.
 
     Wired via ShareConsumer_init's pre-filter pass over args[0] + kwargs
-    (ShareConsumer.c), which scans for share-incompatible keys before
-    handing off to common_conf_setup. Same mechanism as stats_cb /
-    statistics.interval.ms rejection in
-    test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
+    (ShareConsumer.c), which scans for inapplicable keys before handing
+    off to common_conf_setup.
     """
     config = {
         'group.id': unique_id('test-share-no-commit'),
