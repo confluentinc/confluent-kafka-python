@@ -46,11 +46,11 @@ typedef struct {
 
 static void ShareConsumer_clear0(ShareConsumerHandle *self) {
         /* Release the acknowledgement-commit callback registered at runtime
-         * via ShareConsumer.set_acknowledgement_commit_callback(). Other
-         * consumer-only callbacks (on_commit, stats_cb) are rejected at config
-         * time for share consumers (see
-         * ShareConsumer_reject_incompatible_config), so nothing else needs
-         * releasing here. */
+         * via ShareConsumer.set_acknowledgement_commit_callback(). The base
+         * Handle callbacks (error_cb, stats_cb, ...) are owned by base and
+         * freed by Handle_clear, and on_commit is rejected at config time
+         * (see ShareConsumer_reject_incompatible_config), so nothing else
+         * needs releasing here. */
         if (self->base.u.ShareConsumer.on_share_acknowledgement_commit) {
                 Py_DECREF(
                     self->base.u.ShareConsumer.on_share_acknowledgement_commit);
@@ -1059,27 +1059,26 @@ static PyMethodDef ShareConsumer_methods[] = {
 
 
 /**
- * @brief Reject share-incompatible config keys before common_conf_setup
- *        sees them. Scans both the positional config dict (args[0]) and
- *        kwargs; common_conf_setup merges them later with kwargs winning,
- *        so checking presence in either source matches the eventual
- *        resolved view. Keeps confluent_kafka.c ignorant of share
- *        consumers — no flag on Handle, no share-specific branches in
- *        the shared config setup path.
+ * @brief Reject config keys that don't apply to share consumers before
+ *        common_conf_setup sees them. Scans both the positional config
+ *        dict (args[0]) and kwargs; common_conf_setup merges them later
+ *        with kwargs winning, so checking presence in either source
+ *        matches the eventual resolved view. Keeps confluent_kafka.c
+ *        ignorant of share consumers — no flag on Handle, no
+ *        share-specific branches in the shared config setup path.
  *
- * TODO KIP-932: This is a stopgap. Rejecting share-incompatible config is
- *        really librdkafka's responsibility — it should refuse these keys
- *        for a share consumer at conf-set time. Once librdkafka implements
- *        that, remove this function and its call in ShareConsumer_init and
- *        depend on librdkafka's rejection instead.
+ *        Only on_commit lands here. It's a binding-level offset-commit
+ *        callback rather than a conf property, so it can't be caught
+ *        further down; share consumers acknowledge records instead of
+ *        committing offsets, so the callback would never fire. Reject it
+ *        outright rather than hold a callback that does nothing.
  *
  * @returns 0 if no rejected keys are present, -1 on rejection (a Python
  *          ValueError is set).
  */
 static int ShareConsumer_reject_incompatible_config(PyObject *args,
                                                     PyObject *kwargs) {
-        static const char *const share_rejected_keys[] = {
-            "stats_cb", "statistics.interval.ms", "on_commit", NULL};
+        static const char *const share_rejected_keys[] = {"on_commit", NULL};
         PyObject *positional_dict = NULL;
         int i;
 
@@ -1124,8 +1123,7 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         self->base.type = RD_KAFKA_CONSUMER;
         /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from
          * Consumer.c: it makes common_conf_setup enforce "group.id must be
-         * set", which share consumers also need. Share-incompatible knobs
-         * (stats_cb / statistics.interval.ms / on_commit) are filtered
+         * set", which share consumers also need. on_commit is filtered
          * above before reaching common_conf_setup. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
