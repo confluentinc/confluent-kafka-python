@@ -544,9 +544,11 @@ def test_commit_after_lock_expiry(kafka_cluster):
 
         # Broker rejects the stale ack with INVALID_RECORD_STATE.
         result = sc.commit_sync(timeout=10.0)
-        assert any(
-            err is not None and err.code() == KafkaError.INVALID_RECORD_STATE for err in result.values()
-        ), f'expected INVALID_RECORD_STATE in {result}'
+        errored = [err for err in result.values() if err is not None]
+        assert errored, f'expected INVALID_RECORD_STATE in {result}'
+        for err in errored:
+            assert isinstance(err, KafkaException)
+            assert err.args[0].code() == KafkaError.INVALID_RECORD_STATE
     finally:
         sc.close()
 
@@ -700,7 +702,8 @@ def test_per_partition_commit_results_with_lock_expiry(kafka_cluster):
         assert isinstance(result, dict)
         for tp, err in result.items():
             if err is not None:
-                assert err.code() in (KafkaError._STATE, KafkaError.INVALID_RECORD_STATE)
+                assert isinstance(err, KafkaException)
+                assert err.args[0].code() in (KafkaError._STATE, KafkaError.INVALID_RECORD_STATE)
     finally:
         sc.close()
 
