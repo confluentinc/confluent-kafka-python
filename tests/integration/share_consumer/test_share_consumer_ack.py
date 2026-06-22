@@ -24,7 +24,14 @@ import weakref
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, IllegalStateException, KafkaError, KafkaException, TopicPartition
+from confluent_kafka import (
+    AcknowledgeType,
+    ConcurrentModificationException,
+    IllegalStateException,
+    KafkaError,
+    KafkaException,
+    TopicPartition,
+)
 from tests.common import drain_share_consumers, poll_first_batch, unique_id
 
 # TODO KIP-932: add unit tests (alongside integration tests) that exercise
@@ -294,7 +301,7 @@ def test_delivery_attempt_limit_archives_record(kafka_cluster):
         # Flush the final RELEASE.
         try:
             sc.poll(timeout=2.0)
-        except KafkaException:
+        except (KafkaException, IllegalStateException):
             pass
 
         # The acquisition lock (group.share.record.lock.duration.ms=1000 in
@@ -654,7 +661,7 @@ def test_ack_after_unsubscribe_does_not_crash(kafka_cluster):
         # KafkaException or no-op both acceptable; segfault is not.
         try:
             sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
-        except KafkaException:
+        except (KafkaException, IllegalStateException, ValueError):
             pass
 
         sc.subscribe([topic2])
@@ -1155,11 +1162,11 @@ def test_callback_reentrancy_guard(kafka_cluster):
         def reentrant_cb(offsets, exc):
             try:
                 sc.set_acknowledgement_commit_callback(lambda o, e: None)
-            except KafkaException as ex:
+            except IllegalStateException as ex:
                 captured_setter_err.append(ex)
             try:
                 sc.commit_async()
-            except KafkaException as ex:
+            except IllegalStateException as ex:
                 captured_commit_err.append(ex)
 
         sc.set_acknowledgement_commit_callback(reentrant_cb)
@@ -1226,7 +1233,7 @@ def test_share_consumer_methods_rejected_from_other_thread(kafka_cluster):
             while conflict is None and time.time() < deadline:
                 try:
                     sc.commit_async()
-                except KafkaException as ex:
+                except ConcurrentModificationException as ex:
                     if ex.args[0].code() == KafkaError._CONFLICT:
                         conflict = ex
                 time.sleep(0.02)
@@ -1386,7 +1393,7 @@ def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
         while time.time() < deadline and not any(exc is not None for _, exc in invocations):
             try:
                 sc.poll(timeout=0.5)
-            except KafkaException:
+            except (KafkaException, IllegalStateException):
                 pass
 
         errored = [(offsets, exc) for offsets, exc in invocations if exc is not None]
