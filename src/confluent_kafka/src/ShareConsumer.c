@@ -950,12 +950,11 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises TypeError: if message is not a Message instance or ack_type "
      "is not an integer.\n"
      "  :raises IllegalStateException: if the consumer is not in explicit\n"
-     "                          acknowledgement mode or the message is no "
+     "                          acknowledgement mode, the message is no "
      "longer\n"
-     "                          in-flight.\n"
-     "  :raises ValueError: if ack_type is invalid or message.topic() is "
-     "None.\n"
-     "  :raises IllegalStateException: if called on a closed share consumer.\n"
+     "                          in-flight, or the consumer is closed.\n"
+     "  :raises ValueError: if ack_type is invalid, message.topic() is "
+     "None, or the partition or offset is negative.\n"
      "\n"},
 
     {"acknowledge_offset", (PyCFunction)ShareConsumer_acknowledge_offset,
@@ -974,9 +973,11 @@ static PyMethodDef ShareConsumer_methods[] = {
      "integers, or ack_type is not an integer.\n"
      "  :raises IllegalStateException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the offset is not\n"
-     "                          in-flight, or the offset is a GAP record.\n"
-     "  :raises ValueError: if ack_type is invalid.\n"
-     "  :raises IllegalStateException: if called on a closed share consumer.\n"
+     "                          in-flight, the offset is a GAP record, or "
+     "the\n"
+     "                          consumer is closed.\n"
+     "  :raises ValueError: if ack_type is invalid or the partition or "
+     "offset is negative.\n"
      "\n"},
 
     {"commit_sync", (PyCFunction)ShareConsumer_commit_sync,
