@@ -776,8 +776,8 @@ static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
         static char *kws[] = {"username", "password", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -795,7 +795,7 @@ static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
         }
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -1070,7 +1070,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param str password: New SASL password.\n"
      "  :raises TypeError: if username or password is not a str.\n"
      "  :raises KafkaException: on error.\n"
-     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "  :raises IllegalStateException: if called on a closed share consumer.\n"
      "\n"},
 
     {"__enter__", (PyCFunction)ShareConsumer_enter, METH_NOARGS,

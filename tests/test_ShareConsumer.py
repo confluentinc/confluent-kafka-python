@@ -292,7 +292,8 @@ def test_close_idempotent():
 
 
 def test_any_method_after_close_throws_exception():
-    """Test that all operations on a closed consumer raise RuntimeError."""
+    """All operations on a closed consumer raise IllegalStateException — a
+    RuntimeError subclass whose args[0] is a _STATE KafkaError."""
     sc = ShareConsumer(
         {
             'group.id': unique_id('test-share-after-close'),
@@ -304,43 +305,52 @@ def test_any_method_after_close_throws_exception():
     sc.subscribe(['test-topic'])
     sc.close()
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.subscribe(['test'])
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.unsubscribe()
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.subscription()
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.poll(timeout=0.1)
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
     # The closed-state check happens before argument parsing, so acknowledge(None)
-    # raises the closed-consumer RuntimeError rather than a TypeError about the
-    # non-Message argument.
-    with pytest.raises(RuntimeError) as ex:
+    # raises the closed-consumer IllegalStateException rather than a TypeError about
+    # the non-Message argument.
+    with pytest.raises(IllegalStateException) as ex:
         sc.acknowledge(None, AcknowledgeType.ACCEPT)
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.acknowledge_offset('test-topic', 0, 0, AcknowledgeType.ACCEPT)
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.commit_sync(timeout=0.1)
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.commit_async()
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
-    with pytest.raises(RuntimeError) as ex:
+    with pytest.raises(IllegalStateException) as ex:
         sc.set_sasl_credentials('user', 'pass')
+    assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.match('Share consumer closed')
 
 
