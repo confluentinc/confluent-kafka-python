@@ -35,7 +35,7 @@ acknowledgeable.
 
 import pytest
 
-from confluent_kafka import ConsumerRecords, KafkaError, ShareConsumer
+from confluent_kafka import KafkaError, Messages, ShareConsumer
 from confluent_kafka.cimpl import Message
 from confluent_kafka.serialization import MessageField, StringDeserializer
 from tests.common import TestDeserializingShareConsumer, unique_id
@@ -298,28 +298,27 @@ def test_value_failure_short_circuits_key(make_dsc, explicit):
 # --------------------------------------------------------------------------- #
 
 
-def test_poll_returns_empty_list_on_timeout(make_dsc):
-    """With no broker, poll returns an empty ConsumerRecords (not None)."""
+def test_poll_returns_empty_messages_on_timeout(make_dsc):
+    """With no broker, poll returns an empty Messages (not None)."""
     dsc = make_dsc(value_deserializer=StringDeserializer())
     dsc.subscribe(['nonexistent-topic'])
     out = dsc.poll(timeout=0.1)
-    assert out == []
-    assert isinstance(out, list)
-    assert isinstance(out, ConsumerRecords)
+    assert isinstance(out, Messages)
     assert out.is_empty()
+    assert out.count() == 0
 
 
-def test_consumer_records_batch_survives_deserialize(make_dsc):
+def test_messages_batch_survives_deserialize(make_dsc):
     """poll() deserializes each record in place and returns the base batch
     untouched (it just `return messages`). The C base poll can't be stubbed
     offline, so drive the same per-record deserialize step poll() applies and
-    confirm the ConsumerRecords container and its accessors come out intact."""
+    confirm the Messages container and its accessors come out intact."""
     dsc = make_dsc(value_deserializer=StringDeserializer())
-    batch = ConsumerRecords([_make_message(value=b'one'), _make_message(value=b'two')])
+    batch = Messages([_make_message(value=b'one'), _make_message(value=b'two')])
 
     for msg in batch:
         dsc._deserialize(msg)
 
-    assert isinstance(batch, ConsumerRecords)
+    assert isinstance(batch, Messages)
     assert batch.count() == 2
     assert [m.value() for m in batch.records()] == ['one', 'two']

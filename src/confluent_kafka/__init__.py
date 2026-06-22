@@ -18,7 +18,7 @@
 
 import os
 
-from ._consumer_records import ConsumerRecords
+from ._messages import Messages
 from ._model import Node  # noqa: F401
 from ._model import (
     AcknowledgeType,
@@ -61,7 +61,7 @@ __all__ = [
     "admin",
     "Consumer",
     "ShareConsumer",
-    "ConsumerRecords",
+    "Messages",
     "aio",
     "KafkaError",
     "KafkaException",

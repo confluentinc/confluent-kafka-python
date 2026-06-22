@@ -338,7 +338,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         rd_kafka_error_t *error         = NULL;
         PyObject *msglist;
         PyObject *records;
-        PyObject *ConsumerRecords_type = NULL;
+        /* Cached for the process lifetime; see the lazy lookup below. */
+        static PyObject *Messages_type = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
@@ -444,20 +445,26 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         rd_kafka_messages_destroy(rkmessages);
 
-        /* Wrap the plain list in ConsumerRecords so callers get records() /
-         * count() / is_empty(). */
-        ConsumerRecords_type =
-            cfl_PyObject_lookup("confluent_kafka", "ConsumerRecords");
-        if (!ConsumerRecords_type) {
-                Py_DECREF(msglist);
-                return NULL;
+        /* Wrap the plain list in Messages so callers get records() /
+         * count() / is_empty(). The class object is the same for the whole
+         * process, so look it up on the first poll and hold that reference
+         * forever -- this is on the hot path and the per-call import+attr
+         * lookup isn't free. The GIL serializes this first init. */
+        if (!Messages_type) {
+                Messages_type = cfl_PyObject_lookup("confluent_kafka._messages",
+                                                    "Messages");
+                if (!Messages_type) {
+                        Py_DECREF(msglist);
+                        return NULL;
+                }
+                /* Kept for the process lifetime, so it's intentionally never
+                 * DECREF'd. */
         }
 
-        /* ConsumerRecords(msglist): the list subclass has no __init__, so this
-         * just copies the elements in. */
-        records = PyObject_CallFunctionObjArgs(ConsumerRecords_type, msglist,
-                                               NULL);
-        Py_DECREF(ConsumerRecords_type);
+        /* _from_list takes over msglist as-is (no copy) -- we built it for
+         * this and don't touch it again. */
+        records =
+            PyObject_CallMethod(Messages_type, "_from_list", "O", msglist);
         Py_DECREF(msglist);
 
         return records;
@@ -469,7 +476,7 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
  *
  * Internally delegates to rd_kafka_share_acknowledge_offset() because the
  * Python Message object does not retain the underlying rd_kafka_message_t
- * pointer (Message_new0 copies fields out and destroys the rkm)
+ * pointer (Message_new0 copies the fields out into Python objects).
  *
  * TODO KIP-932: Java splits ack APIs by message kind — successful records
  * go through acknowledge(message), error/GAP records through
@@ -611,8 +618,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                 goto err;
         }
 
-        /* TODO KIP-932: c_parts shouldn't be NULL here, drop once librdkafka
-         * guarantees it */
+        /* NULL c_parts just means nothing was pending -- empty dict. */
         if (!c_parts)
                 return PyDict_New();
 
@@ -975,10 +981,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param float timeout: Maximum time to block waiting for messages "
      "(seconds).\n"
      "                        Default: -1 (infinite)\n"
-     "  :returns: ConsumerRecords (a list subclass) of Message objects. "
-     "Returns an empty ConsumerRecords if no messages are available within "
+     "  :returns: Messages, a container of Message objects. "
+     "Returns an empty Messages if no messages are available within "
      "the timeout.\n"
-     "  :rtype: ConsumerRecords\n"
+     "  :rtype: Messages\n"
      "  :raises KafkaException: on error\n"
      "  :raises IllegalStateException: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"

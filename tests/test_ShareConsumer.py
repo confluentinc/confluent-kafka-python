@@ -29,11 +29,11 @@ import pytest
 from confluent_kafka import (
     AcknowledgeType,
     ConcurrentModificationException,
-    ConsumerRecords,
     IllegalStateException,
     KafkaError,
     KafkaException,
     Message,
+    Messages,
     ShareConsumer,
 )
 from tests.common import (
@@ -207,19 +207,19 @@ def test_unsubscribe_without_subscription_is_noop(share_consumer):
 
 
 def test_poll_no_broker(share_consumer):
-    """Test poll() returns empty list when no broker available."""
+    """Test poll() returns an empty batch when no broker available."""
     share_consumer.subscribe(['test-topic'])
 
     messages = share_consumer.poll(timeout=0.1)
-    assert messages == []
+    assert messages.is_empty()
 
 
-def test_poll_returns_consumer_records(share_consumer):
-    """poll() returns a ConsumerRecords, not a bare list."""
+def test_poll_returns_messages(share_consumer):
+    """poll() returns a Messages, not a bare list."""
     share_consumer.subscribe(['test-topic'])
 
     out = share_consumer.poll(timeout=0.1)
-    assert isinstance(out, ConsumerRecords)
+    assert isinstance(out, Messages)
     assert out.is_empty()
     assert out.count() == 0
 
