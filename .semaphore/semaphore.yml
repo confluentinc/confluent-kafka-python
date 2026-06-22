@@ -9,9 +9,14 @@ global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v2.14.2
-    # TODO KIP-932: Remove LIBRDKAFKA_BRANCH once LIBRDKAFKA_VERSION includes share consumer support
+    # TODO KIP-932: temporary — build librdkafka from master instead of the
+    # pinned LIBRDKAFKA_VERSION (v2.14.2). The share consumer changes are merged
+    # to librdkafka master but not in any released version yet, so CI would fail
+    # against v2.14.2. This blocks merging this branch to master.
+    # Fix: release librdkafka v2.15.0-RC1, bump LIBRDKAFKA_VERSION to it (same
+    # release flow as PR #2257), then remove this LIBRDKAFKA_BRANCH override.
     - name: LIBRDKAFKA_BRANCH
-      value: dev_kip-932_queues-for-kafka
+      value: master
   prologue:
     commands:
       - checkout

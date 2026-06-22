@@ -275,6 +275,15 @@ class KafkaException(Exception):
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     args: Tuple[Any, ...]
 
+# These subclass RuntimeError; str(exc) is the error message (not a KafkaError).
+class IllegalStateException(RuntimeError):
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    args: Tuple[Any, ...]
+
+class ConcurrentModificationException(RuntimeError):
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    args: Tuple[Any, ...]
+
 class Message:
     def __init__(
         self,
