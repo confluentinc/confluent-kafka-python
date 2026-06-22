@@ -46,11 +46,11 @@ typedef struct {
 
 static void ShareConsumer_clear0(ShareConsumerHandle *self) {
         /* Release the acknowledgement-commit callback registered at runtime
-         * via ShareConsumer.set_acknowledgement_commit_callback(). Other
-         * consumer-only callbacks (on_commit, stats_cb) are rejected at config
-         * time for share consumers (see
-         * ShareConsumer_reject_incompatible_config), so nothing else needs
-         * releasing here. */
+         * via ShareConsumer.set_acknowledgement_commit_callback(). The base
+         * Handle callbacks (error_cb, stats_cb, ...) are owned by base and
+         * freed by Handle_clear, and on_commit is rejected at config time
+         * (see ShareConsumer_reject_incompatible_config), so nothing else
+         * needs releasing here. */
         if (self->base.u.ShareConsumer.on_share_acknowledgement_commit) {
                 Py_DECREF(
                     self->base.u.ShareConsumer.on_share_acknowledgement_commit);
@@ -263,6 +263,9 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         size_t rkmessages_size          = 0;
         rd_kafka_error_t *error         = NULL;
         PyObject *msglist;
+        PyObject *records;
+        /* Cached for the process lifetime; see the lazy lookup below. */
+        static PyObject *Messages_type = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
@@ -368,7 +371,29 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         rd_kafka_messages_destroy(rkmessages);
 
-        return msglist;
+        /* Wrap the plain list in Messages so callers get records() /
+         * count() / is_empty(). The class object is the same for the whole
+         * process, so look it up on the first poll and hold that reference
+         * forever -- this is on the hot path and the per-call import+attr
+         * lookup isn't free. The GIL serializes this first init. */
+        if (!Messages_type) {
+                Messages_type = cfl_PyObject_lookup("confluent_kafka._messages",
+                                                    "Messages");
+                if (!Messages_type) {
+                        Py_DECREF(msglist);
+                        return NULL;
+                }
+                /* Kept for the process lifetime, so it's intentionally never
+                 * DECREF'd. */
+        }
+
+        /* _from_list takes over msglist as-is (no copy) -- we built it for
+         * this and don't touch it again. */
+        records =
+            PyObject_CallMethod(Messages_type, "_from_list", "O", msglist);
+        Py_DECREF(msglist);
+
+        return records;
 }
 
 
@@ -377,7 +402,7 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
  *
  * Internally delegates to rd_kafka_share_acknowledge_offset() because the
  * Python Message object does not retain the underlying rd_kafka_message_t
- * pointer (Message_new0 copies fields out and destroys the rkm)
+ * pointer (Message_new0 copies the fields out into Python objects).
  *
  * TODO KIP-932: Java splits ack APIs by message kind — successful records
  * go through acknowledge(message), error/GAP records through
@@ -480,7 +505,7 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
  * ACCEPT inside librdkafka before sending. Blocks until all broker replies
  * arrive or the timeout expires.
  *
- * @returns dict mapping TopicPartition -> None on success or KafkaError on
+ * @returns dict mapping TopicPartition -> None on success or KafkaException on
  *          per-partition failure. Empty dict when no acknowledgements are
  *          pending.
  */
@@ -517,12 +542,11 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                 goto err;
         }
 
-        /* TODO KIP-932: c_parts shouldn't be NULL here, drop once librdkafka
-         * guarantees it */
+        /* NULL c_parts just means nothing was pending -- empty dict. */
         if (!c_parts)
                 return PyDict_New();
 
-        result = c_parts_to_dict_topic_partition_to_error(c_parts);
+        result = c_parts_to_dict_topic_partition_to_exception(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
         return result;
 
@@ -880,30 +904,22 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param float timeout: Maximum time to block waiting for messages "
      "(seconds).\n"
      "                        Default: -1 (infinite)\n"
-     "  :returns: List of Message objects (possibly empty on timeout)\n"
-     "  :rtype: list(Message)\n"
+     "  :returns: Messages, a container of Message objects. "
+     "Returns an empty Messages if no messages are available within "
+     "the timeout.\n"
+     "  :rtype: Messages\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
-    /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today the share consumer translates every librdkafka
-     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
-     * want each code to map to the Python exception a user porting from
-     * Java would expect, e.g.
-     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
-     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
-     * Open question: per-partition broker errors in commit_sync's result
-     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
-     * KafkaError, or translate as well?
-     *
-     * Revisit holistically once:
-     *   - librdkafka's share-consumer error surface is stable (some codes
-     *     may be redefined as work progresses), and
-     *   - the equivalent translation lands on commit_sync / commit_async /
-     *     ack-callback paths (currently TODO'd separately).
-     */
+    /* TODO: the error-code -> Python-exception mapping is still provisional.
+     * Every error code currently surfaces as KafkaException via
+     * cfl_PyErr_Format(), including the per-partition values in commit_sync's
+     * result dict. Eventually specific codes should map to the obvious
+     * exception type (_INVALID_ARG -> ValueError, _STATE -> RuntimeError).
+     * Revisit once the error surface settles and the same mapping lands on
+     * commit_sync / commit_async / the ack callback. */
     {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: acknowledge(message, "
@@ -965,10 +981,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param float timeout: Maximum time to block (seconds). Default: 60.\n"
      "                        Pass -1 for infinite.\n"
      "  :returns: Dict mapping TopicPartition to None on success or "
-     "KafkaError\n"
+     "KafkaException\n"
      "           on per-partition failure. Empty dict when no\n"
      "           acknowledgements are pending.\n"
-     "  :rtype: dict(TopicPartition, KafkaError | None)\n"
+     "  :rtype: dict(TopicPartition, KafkaException | None)\n"
      "  :raises KafkaException: on error\n"
      "  :raises RuntimeError: if called on a closed share consumer\n"
      "  :raises TypeError: if timeout is not a float\n"
@@ -1049,27 +1065,26 @@ static PyMethodDef ShareConsumer_methods[] = {
 
 
 /**
- * @brief Reject share-incompatible config keys before common_conf_setup
- *        sees them. Scans both the positional config dict (args[0]) and
- *        kwargs; common_conf_setup merges them later with kwargs winning,
- *        so checking presence in either source matches the eventual
- *        resolved view. Keeps confluent_kafka.c ignorant of share
- *        consumers — no flag on Handle, no share-specific branches in
- *        the shared config setup path.
+ * @brief Reject config keys that don't apply to share consumers before
+ *        common_conf_setup sees them. Scans both the positional config
+ *        dict (args[0]) and kwargs; common_conf_setup merges them later
+ *        with kwargs winning, so checking presence in either source
+ *        matches the eventual resolved view. Keeps confluent_kafka.c
+ *        ignorant of share consumers — no flag on Handle, no
+ *        share-specific branches in the shared config setup path.
  *
- * TODO KIP-932: This is a stopgap. Rejecting share-incompatible config is
- *        really librdkafka's responsibility — it should refuse these keys
- *        for a share consumer at conf-set time. Once librdkafka implements
- *        that, remove this function and its call in ShareConsumer_init and
- *        depend on librdkafka's rejection instead.
+ *        Only on_commit lands here. It's a binding-level offset-commit
+ *        callback rather than a conf property, so it can't be caught
+ *        further down; share consumers acknowledge records instead of
+ *        committing offsets, so the callback would never fire. Reject it
+ *        outright rather than hold a callback that does nothing.
  *
  * @returns 0 if no rejected keys are present, -1 on rejection (a Python
  *          ValueError is set).
  */
 static int ShareConsumer_reject_incompatible_config(PyObject *args,
                                                     PyObject *kwargs) {
-        static const char *const share_rejected_keys[] = {
-            "stats_cb", "statistics.interval.ms", "on_commit", NULL};
+        static const char *const share_rejected_keys[] = {"on_commit", NULL};
         PyObject *positional_dict = NULL;
         int i;
 
@@ -1114,8 +1129,7 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         self->base.type = RD_KAFKA_CONSUMER;
         /* RD_KAFKA_CONSUMER is intentional, not a copy-paste from
          * Consumer.c: it makes common_conf_setup enforce "group.id must be
-         * set", which share consumers also need. Share-incompatible knobs
-         * (stats_cb / statistics.interval.ms / on_commit) are filtered
+         * set", which share consumers also need. on_commit is filtered
          * above before reaching common_conf_setup. */
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, &self->base, args,
                                        kwargs)))
