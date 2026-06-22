@@ -437,9 +437,15 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error) {
         kerr = (KafkaError *)KafkaError_new0(rd_kafka_error_code(error), "%s",
                                              rd_kafka_error_string(error));
 
-        kerr->fatal              = rd_kafka_error_is_fatal(error);
-        kerr->retriable          = rd_kafka_error_is_retriable(error);
-        kerr->txn_requires_abort = rd_kafka_error_txn_requires_abort(error);
+        /* On allocation failure KafkaError_new0 returns NULL with a Python
+         * exception already set. Still destroy the error to honor this
+         * function's contract, and let the NULL propagate to the caller. */
+        if (kerr) {
+                kerr->fatal     = rd_kafka_error_is_fatal(error);
+                kerr->retriable = rd_kafka_error_is_retriable(error);
+                kerr->txn_requires_abort =
+                    rd_kafka_error_txn_requires_abort(error);
+        }
         rd_kafka_error_destroy(error);
 
         return (PyObject *)kerr;
@@ -3796,16 +3802,17 @@ static PyObject *_init_cimpl(void) {
         Py_INCREF(KafkaException);
         PyModule_AddObject(m, "KafkaException", KafkaException);
 
-        /* Subclass RuntimeError, not KafkaException, but still carry a
-         * KafkaError as args[0]. Only the share consumer raises these today. */
+        /* Subclass RuntimeError, not KafkaException. These carry a plain
+         * message string (str(exc)), not a KafkaError — the type conveys the
+         * code. Only the share consumer raises these today. */
         IllegalStateException = PyErr_NewExceptionWithDoc(
             "cimpl.IllegalStateException",
             "Raised by ShareConsumer when an operation is attempted in an "
             "invalid state, e.g. on a consumer that has already been "
             "closed.\n"
             "\n"
-            "Subclass of RuntimeError. ``exception.args[0]`` is a "
-            ":py:class:`KafkaError`.\n"
+            "Subclass of RuntimeError; ``str(exception)`` is the error "
+            "message.\n"
             "\n",
             PyExc_RuntimeError, NULL);
         Py_INCREF(IllegalStateException);
@@ -3816,8 +3823,8 @@ static PyObject *_init_cimpl(void) {
             "Raised by ShareConsumer when it is accessed concurrently from "
             "more than one thread.\n"
             "\n"
-            "Subclass of RuntimeError. ``exception.args[0]`` is a "
-            ":py:class:`KafkaError`.\n"
+            "Subclass of RuntimeError; ``str(exception)`` is the error "
+            "message.\n"
             "\n",
             PyExc_RuntimeError, NULL);
         Py_INCREF(ConcurrentModificationException);

@@ -275,7 +275,7 @@ class KafkaException(Exception):
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     args: Tuple[Any, ...]
 
-# These subclass RuntimeError but still carry a KafkaError as args[0].
+# These subclass RuntimeError; str(exc) is the error message (not a KafkaError).
 class IllegalStateException(RuntimeError):
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     args: Tuple[Any, ...]

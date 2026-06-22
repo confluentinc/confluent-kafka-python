@@ -92,7 +92,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                                      "Failed to destroy share consumer; the "
                                      "handle has been leaked: %s",
                                      rd_kafka_error_string(destroy_error));
-                        /* Pass the type, not self: self is at refcount 0, so WriteUnraisable would re-enter dealloc. */
+                        /* Pass the type, not self: self is at refcount 0, so
+                         * WriteUnraisable would re-enter dealloc. */
                         PyErr_WriteUnraisable((PyObject *)Py_TYPE(self));
                         if (pending_exc)
                                 cfl_exception_restore(pending_exc);
@@ -116,8 +117,12 @@ ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
 }
 
 
-/* Pick the Python exception type to raise for an error code; defaults
- * to KafkaException. */
+/* Maps a librdkafka error code to the Python exception type to raise, kept in
+ * one place so the two raise helpers below can't drift apart. A code that has
+ * a natural Python counterpart is raised as that type so callers can catch it
+ * idiomatically: a bad argument as ValueError, invalid-state and
+ * concurrent-access misuse as their dedicated types. Anything else stays a
+ * generic KafkaException. */
 static PyObject *ShareConsumer_translate_error(rd_kafka_resp_err_t code) {
         switch (code) {
         case RD_KAFKA_RESP_ERR__STATE:
@@ -131,33 +136,52 @@ static PyObject *ShareConsumer_translate_error(rd_kafka_resp_err_t code) {
         }
 }
 
-/* Raise the translated exception type for a bare error code. */
+/* Raise the translated exception type for a bare error code. KafkaException
+ * carries a KafkaError in args[0]; the non-KafkaException types
+ * (IllegalStateException / ConcurrentModificationException / ValueError) carry
+ * a plain message string — the Python type already conveys the code, and these
+ * local errors have no retriable/fatal/abort flags worth preserving. */
 static void
 ShareConsumer_PyErr_Format(rd_kafka_resp_err_t code, const char *fmt, ...) {
         char buf[512];
         va_list ap;
-        PyObject *eo;
+        PyObject *etype;
 
         va_start(ap, fmt);
         vsnprintf(buf, sizeof(buf), fmt, ap);
         va_end(ap);
 
-        eo = KafkaError_new0(code, "%s", buf);
-        if (!eo)
-                return;
-        PyErr_SetObject(ShareConsumer_translate_error(code), eo);
-        Py_DECREF(eo);
+        etype = ShareConsumer_translate_error(code);
+        if (etype == KafkaException) {
+                PyObject *eo = KafkaError_new0(code, "%s", buf);
+                if (!eo)
+                        return;
+                PyErr_SetObject(KafkaException, eo);
+                Py_DECREF(eo);
+        } else {
+                PyErr_SetString(etype, buf);
+        }
 }
 
-/* Raise the translated exception type for an rd_kafka_error_t. Keeps its
- * flags and frees it. */
+/* Raise the translated exception type for an rd_kafka_error_t, then free it.
+ * KafkaException keeps the full KafkaError (code + retriable/fatal/abort
+ * flags); the non-KafkaException types keep only librdkafka's error string as
+ * the message (the type conveys the code; these errors carry no flags). */
 static void ShareConsumer_PyErr_from_error_destroy(rd_kafka_error_t *error) {
         rd_kafka_resp_err_t code = rd_kafka_error_code(error);
-        PyObject *eo             = KafkaError_new_from_error_destroy(error);
-        if (!eo)
-                return;
-        PyErr_SetObject(ShareConsumer_translate_error(code), eo);
-        Py_DECREF(eo);
+        PyObject *etype          = ShareConsumer_translate_error(code);
+        if (etype == KafkaException) {
+                PyObject *eo = KafkaError_new_from_error_destroy(error);
+                if (!eo)
+                        return;
+                PyErr_SetObject(KafkaException, eo);
+                Py_DECREF(eo);
+        } else {
+                const char *estr = rd_kafka_error_string(error);
+                PyErr_SetString(
+                    etype, (estr && *estr) ? estr : rd_kafka_err2str(code));
+                rd_kafka_error_destroy(error);
+        }
 }
 
 
