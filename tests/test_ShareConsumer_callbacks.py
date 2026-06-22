@@ -216,9 +216,7 @@ def test_stats_cb_accepted():
     sc = ShareConsumer(config, stats_cb=my_stats_cb)
     sc.close()
 
-    # statistics.interval.ms is a passthrough now: construction either
-    # succeeds or is refused further down, but the binding's ValueError
-    # pre-filter is gone.
+    # statistics.interval.ms passes through to librdkafka unfiltered.
     try:
         sc = ShareConsumer({**config, 'statistics.interval.ms': 200})
         sc.close()

@@ -1598,8 +1598,8 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
  * @brief Convert per-partition commit results to a Python
  *        dict(TopicPartition -> KafkaException | None).
  *
- * None on success, KafkaException on per-partition failure. Mirrors Java's
- * Map<TopicIdPartition, Optional<KafkaException>> and keeps the carried type
+ * None on success, KafkaException on per-partition failure. Carrying a
+ * KafkaException (rather than a raw error code) keeps the value type
  * consistent with the async ack-commit callback, which also hands back a
  * KafkaException.
  *
