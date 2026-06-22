@@ -445,6 +445,13 @@ class TrivupFixture(KafkaClusterFixture):
         """
         client_conf = self._cluster.client_conf()
         _apply_rdk_debug(client_conf)
+        # trivup derives a ~1s Kerberos relogin interval from its short
+        # krb_renew_lifetime, so GSSAPI runs re-kinit (and log) every second.
+        # Stretch it (default 60s, < the 120s ticket lifetime) to keep logs
+        # readable; RDK_KERBEROS_RELOGIN_MS overrides.
+        if 'sasl.kerberos.min.time.before.relogin' in client_conf:
+            client_conf['sasl.kerberos.min.time.before.relogin'] = \
+                int(os.environ.get('RDK_KERBEROS_RELOGIN_MS', '60000'))
 
         if conf is not None:
             client_conf.update(conf)
