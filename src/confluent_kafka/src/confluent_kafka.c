@@ -1596,11 +1596,16 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 
 /**
  * @brief Convert per-partition commit results to a Python
- *        dict(TopicPartition -> KafkaError | None).
+ *        dict(TopicPartition -> KafkaException | None).
+ *
+ * None on success, KafkaException on per-partition failure. Carrying a
+ * KafkaException (rather than a raw error code) keeps the value type
+ * consistent with the async ack-commit callback, which also hands back a
+ * KafkaException.
  *
  * @returns The new Python dict, or NULL on allocation failure.
  */
-PyObject *c_parts_to_dict_topic_partition_to_error(
+PyObject *c_parts_to_dict_topic_partition_to_exception(
     const rd_kafka_topic_partition_list_t *c_parts) {
         PyObject *result = NULL;
         PyObject *key    = NULL;
@@ -1614,7 +1619,20 @@ PyObject *c_parts_to_dict_topic_partition_to_error(
         for (i = 0; i < (size_t)c_parts->cnt; i++) {
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
                 key                                      = c_part_to_py(rktpar);
-                val = KafkaError_new_or_None(rktpar->err, NULL);
+
+                /* Failure value needs an extra transformation to KafkaException. */
+                if (rktpar->err) {
+                        PyObject *kafka_error =
+                            KafkaError_new_or_None(rktpar->err, NULL);
+                        if (!kafka_error)
+                                goto err;
+                        val = PyObject_CallFunctionObjArgs(KafkaException,
+                                                           kafka_error, NULL);
+                        Py_DECREF(kafka_error);
+                } else {
+                        Py_INCREF(Py_None);
+                        val = Py_None;
+                }
 
                 if (!key || !val || PyDict_SetItem(result, key, val) == -1)
                         goto err;

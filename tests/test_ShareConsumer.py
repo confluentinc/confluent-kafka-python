@@ -26,7 +26,7 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Message, ShareConsumer
+from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, Message, Messages, ShareConsumer
 from tests.common import (
     TestShareConsumer,
     TestUtils,
@@ -98,16 +98,15 @@ def test_constructor_kwargs_only():
 
 
 def test_constructor_rejects_on_commit():
-    """Share consumers have no offset-commit concept. Setting on_commit
-    in the positional config dict OR as a kwarg must be rejected at
-    construction time so the misconfiguration is visible to callers
-    instead of being silently held by librdkafka.
+    """Share consumers acknowledge records instead of committing offsets,
+    so on_commit has nothing to fire on. Setting it in the positional
+    config dict OR as a kwarg must be rejected at construction time so the
+    misconfiguration is visible to callers instead of being silently held
+    as a callback that never runs.
 
     Wired via ShareConsumer_init's pre-filter pass over args[0] + kwargs
-    (ShareConsumer.c), which scans for share-incompatible keys before
-    handing off to common_conf_setup. Same mechanism as stats_cb /
-    statistics.interval.ms rejection in
-    test_ShareConsumer_callbacks.py::test_stats_cb_rejected.
+    (ShareConsumer.c), which scans for inapplicable keys before handing
+    off to common_conf_setup.
     """
     config = {
         'group.id': unique_id('test-share-no-commit'),
@@ -199,11 +198,21 @@ def test_unsubscribe_without_subscription_is_noop(share_consumer):
 
 
 def test_poll_no_broker(share_consumer):
-    """Test poll() returns empty list when no broker available."""
+    """Test poll() returns an empty batch when no broker available."""
     share_consumer.subscribe(['test-topic'])
 
     messages = share_consumer.poll(timeout=0.1)
-    assert messages == []
+    assert messages.is_empty()
+
+
+def test_poll_returns_messages(share_consumer):
+    """poll() returns a Messages, not a bare list."""
+    share_consumer.subscribe(['test-topic'])
+
+    out = share_consumer.poll(timeout=0.1)
+    assert isinstance(out, Messages)
+    assert out.is_empty()
+    assert out.count() == 0
 
 
 def test_poll_without_subscription_raises_state(share_consumer):

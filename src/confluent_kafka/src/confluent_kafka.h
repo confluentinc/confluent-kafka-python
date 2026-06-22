@@ -463,7 +463,7 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    PyObject *kwargs);
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
-PyObject *c_parts_to_dict_topic_partition_to_error(
+PyObject *c_parts_to_dict_topic_partition_to_exception(
     const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_share_partition_offsets_list_to_py_dict(
     const rd_kafka_share_partition_offsets_list_t *partition_offsets_list);

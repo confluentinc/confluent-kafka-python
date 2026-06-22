@@ -16,8 +16,9 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
+from confluent_kafka._messages import Messages
 from confluent_kafka.cimpl import KafkaError, Message
 from confluent_kafka.cimpl import ShareConsumer as _ShareConsumerImpl
 
@@ -89,7 +90,7 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
 
         super(DeserializingShareConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout: float = -1) -> List[Message]:
+    def poll(self, timeout: float = -1) -> Messages:
         """
         Consume messages and deserialize their keys and values in place.
 
@@ -97,8 +98,9 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
             timeout (float): Maximum time to block waiting for messages (Seconds).
 
         Returns:
-            list(:py:class:`Message`): A list of messages (possibly empty on
-            timeout). Each message is the same object returned by the underlying
+            Messages: The polled messages. An empty Messages is
+            returned if no messages are available within the timeout. Each
+            message is the same object returned by the underlying
             :py:class:`ShareConsumer`, with its key and value replaced by the
             deserialized objects.
 
