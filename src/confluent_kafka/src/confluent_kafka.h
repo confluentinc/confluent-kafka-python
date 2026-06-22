@@ -185,6 +185,8 @@ static __inline const char *cfl_PyUnistr_AsUTF8(PyObject *o, PyObject **uobjp) {
  *
  ****************************************************************************/
 extern PyObject *KafkaException;
+extern PyObject *IllegalStateException;
+extern PyObject *ConcurrentModificationException;
 
 PyObject *KafkaError_new0(rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None(rd_kafka_resp_err_t err, const char *str);
