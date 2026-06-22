@@ -145,21 +145,25 @@ static void
 ShareConsumer_PyErr_Format(rd_kafka_resp_err_t code, const char *fmt, ...) {
         char buf[512];
         va_list ap;
+        const char *msg;
         PyObject *etype;
 
-        va_start(ap, fmt);
-        vsnprintf(buf, sizeof(buf), fmt, ap);
-        va_end(ap);
-
+        if (fmt) {
+                va_start(ap, fmt);
+                vsnprintf(buf, sizeof(buf), fmt, ap);
+                va_end(ap);
+        }
+        msg   = fmt ? buf : rd_kafka_err2str(code);
         etype = ShareConsumer_translate_error(code);
+
         if (etype == KafkaException) {
-                PyObject *eo = KafkaError_new0(code, "%s", buf);
+                PyObject *eo = KafkaError_new0(code, "%s", msg);
                 if (!eo)
                         return;
                 PyErr_SetObject(KafkaException, eo);
                 Py_DECREF(eo);
         } else {
-                PyErr_SetString(etype, buf);
+                PyErr_SetString(etype, msg);
         }
 }
 
@@ -198,8 +202,8 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
         Py_ssize_t i;
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -256,8 +260,8 @@ static PyObject *ShareConsumer_unsubscribe(ShareConsumerHandle *self,
         rd_kafka_resp_err_t err;
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -284,8 +288,8 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
         int i;
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -341,8 +345,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         size_t i;
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -466,8 +470,8 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
         static char *kws[] = {"message", "ack_type", NULL};
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -518,8 +522,8 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
         static char *kws[] = {"topic", "partition", "offset", "ack_type", NULL};
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -569,8 +573,8 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         static char *kws[] = {"timeout", NULL};
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 goto err;
         }
 
@@ -619,8 +623,8 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
         CallState cs;
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -735,8 +739,8 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
         static char *kws[] = {"callback", NULL};
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -800,8 +804,8 @@ static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
         static char *kws[] = {"username", "password", NULL};
 
         if (!self->rkshare) {
-                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
-                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
+                PyErr_SetString(IllegalStateException,
+                                ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
