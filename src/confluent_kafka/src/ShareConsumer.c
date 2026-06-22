@@ -116,6 +116,51 @@ ShareConsumer_traverse(ShareConsumerHandle *self, visitproc visit, void *arg) {
 }
 
 
+/* Pick the Python exception type to raise for an error code; defaults
+ * to KafkaException. */
+static PyObject *ShareConsumer_translate_error(rd_kafka_resp_err_t code) {
+        switch (code) {
+        case RD_KAFKA_RESP_ERR__STATE:
+                return IllegalStateException;
+        case RD_KAFKA_RESP_ERR__CONFLICT:
+                return ConcurrentModificationException;
+        case RD_KAFKA_RESP_ERR__INVALID_ARG:
+                return PyExc_ValueError;
+        default:
+                return KafkaException;
+        }
+}
+
+/* Raise the translated exception type for a bare error code. */
+static void
+ShareConsumer_PyErr_Format(rd_kafka_resp_err_t code, const char *fmt, ...) {
+        char buf[512];
+        va_list ap;
+        PyObject *eo;
+
+        va_start(ap, fmt);
+        vsnprintf(buf, sizeof(buf), fmt, ap);
+        va_end(ap);
+
+        eo = KafkaError_new0(code, "%s", buf);
+        if (!eo)
+                return;
+        PyErr_SetObject(ShareConsumer_translate_error(code), eo);
+        Py_DECREF(eo);
+}
+
+/* Raise the translated exception type for an rd_kafka_error_t. Keeps its
+ * flags and frees it. */
+static void ShareConsumer_PyErr_from_error_destroy(rd_kafka_error_t *error) {
+        rd_kafka_resp_err_t code = rd_kafka_error_code(error);
+        PyObject *eo             = KafkaError_new_from_error_destroy(error);
+        if (!eo)
+                return;
+        PyErr_SetObject(ShareConsumer_translate_error(code), eo);
+        Py_DECREF(eo);
+}
+
+
 /**
  * @brief Subscribe to topics.
  */
@@ -129,8 +174,8 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
         Py_ssize_t i;
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -170,8 +215,8 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
         rd_kafka_topic_partition_list_destroy(c_topics);
 
         if (err) {
-                cfl_PyErr_Format(err, "Failed to subscribe: %s",
-                                 rd_kafka_err2str(err));
+                ShareConsumer_PyErr_Format(err, "Failed to subscribe: %s",
+                                           rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -187,16 +232,16 @@ static PyObject *ShareConsumer_unsubscribe(ShareConsumerHandle *self,
         rd_kafka_resp_err_t err;
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
         err = rd_kafka_share_unsubscribe(self->rkshare);
 
         if (err) {
-                cfl_PyErr_Format(err, "Failed to unsubscribe: %s",
-                                 rd_kafka_err2str(err));
+                ShareConsumer_PyErr_Format(err, "Failed to unsubscribe: %s",
+                                           rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -215,16 +260,17 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
         int i;
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
         err = rd_kafka_share_subscription(self->rkshare, &c_topics);
 
         if (err) {
-                cfl_PyErr_Format(err, "Failed to get subscription: %s",
-                                 rd_kafka_err2str(err));
+                ShareConsumer_PyErr_Format(err,
+                                           "Failed to get subscription: %s",
+                                           rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -271,8 +317,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         size_t i;
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -330,7 +376,7 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         /* Handle error from rd_kafka_share_poll() */
         if (error) {
                 rd_kafka_messages_destroy(rkmessages);
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -396,8 +442,8 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
         static char *kws[] = {"message", "ack_type", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -424,8 +470,9 @@ static PyObject *ShareConsumer_acknowledge(ShareConsumerHandle *self,
         Py_XDECREF(uo8);
 
         if (err) {
-                cfl_PyErr_Format(err, "Failed to acknowledge message: %s",
-                                 rd_kafka_err2str(err));
+                ShareConsumer_PyErr_Format(err,
+                                           "Failed to acknowledge message: %s",
+                                           rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -447,8 +494,8 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
         static char *kws[] = {"topic", "partition", "offset", "ack_type", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -464,8 +511,9 @@ static PyObject *ShareConsumer_acknowledge_offset(ShareConsumerHandle *self,
             (rd_kafka_share_AcknowledgeType_t)ack_type);
 
         if (err) {
-                cfl_PyErr_Format(err, "Failed to acknowledge offset: %s",
-                                 rd_kafka_err2str(err));
+                ShareConsumer_PyErr_Format(err,
+                                           "Failed to acknowledge offset: %s",
+                                           rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -497,8 +545,8 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
         static char *kws[] = {"timeout", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 goto err;
         }
 
@@ -512,7 +560,7 @@ static PyObject *ShareConsumer_commit_sync(ShareConsumerHandle *self,
                 goto err;
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 error = NULL;
                 goto err;
         }
@@ -547,8 +595,8 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
         CallState cs;
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -561,7 +609,7 @@ static PyObject *ShareConsumer_commit_async(ShareConsumerHandle *self,
         }
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -617,8 +665,8 @@ static void ShareConsumer_acknowledgement_commit_cb(
 
         args = Py_BuildValue("(OO)", offsets, exception);
         if (!args) {
-                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
-                                 "Unable to build callback args");
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                           "Unable to build callback args");
                 goto crash;
         }
 
@@ -663,8 +711,8 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
         static char *kws[] = {"callback", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -684,7 +732,7 @@ ShareConsumer_set_acknowledgement_commit_callback(ShareConsumerHandle *self,
             self);
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -728,8 +776,8 @@ static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
         static char *kws[] = {"username", "password", NULL};
 
         if (!self->rkshare) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_SHARE_CONSUMER_CLOSED);
+                ShareConsumer_PyErr_Format(RD_KAFKA_RESP_ERR__STATE, "%s",
+                                           ERR_MSG_SHARE_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -747,7 +795,7 @@ static PyObject *ShareConsumer_set_sasl_credentials(ShareConsumerHandle *self,
         }
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -788,7 +836,7 @@ static PyObject *ShareConsumer_close(ShareConsumerHandle *self,
                 rd_kafka_error_destroy(destroy_error);
 
         if (error) {
-                cfl_PyErr_from_error_destroy(error);
+                ShareConsumer_PyErr_from_error_destroy(error);
                 return NULL;
         }
 
@@ -844,8 +892,9 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  Set subscription to supplied list of topics\n"
      "\n"
      "  :param list(str) topics: List of topics to subscribe to.\n"
-     "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises ValueError: if topics contains empty or duplicate names\n"
+     "  :raises KafkaException: on other errors\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "\n"},
 
     {"unsubscribe", (PyCFunction)ShareConsumer_unsubscribe, METH_NOARGS,
@@ -854,7 +903,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  Unsubscribe from the current topic subscription.\n"
      "\n"
      "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "\n"},
 
     {"subscription", (PyCFunction)ShareConsumer_subscription, METH_NOARGS,
@@ -865,7 +914,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :returns: List of subscribed topics\n"
      "  :rtype: list(str)\n"
      "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "\n"},
 
     {"poll", (PyCFunction)ShareConsumer_poll, METH_VARARGS | METH_KEYWORDS,
@@ -883,27 +932,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :returns: List of Message objects (possibly empty on timeout)\n"
      "  :rtype: list(Message)\n"
      "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
-    /* TODO KIP-932: librdkafka error code → Python exception mapping is
-     * provisional. Today the share consumer translates every librdkafka
-     * error code into KafkaException via cfl_PyErr_Format(). Longer term we
-     * want each code to map to the Python exception a user porting from
-     * Java would expect, e.g.
-     *   _INVALID_ARG → ValueError    (matches Java IllegalArgumentException)
-     *   _STATE       → RuntimeError  (matches Java IllegalStateException)
-     * Open question: per-partition broker errors in commit_sync's result
-     * dict (mirrors Java's Map<TopicIdPartition, Optional<...>>) — keep as
-     * KafkaError, or translate as well?
-     *
-     * Revisit holistically once:
-     *   - librdkafka's share-consumer error surface is stable (some codes
-     *     may be redefined as work progresses), and
-     *   - the equivalent translation lands on commit_sync / commit_async /
-     *     ack-callback paths (currently TODO'd separately).
-     */
     {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: acknowledge(message, "
@@ -917,12 +949,12 @@ static PyMethodDef ShareConsumer_methods[] = {
      "REJECT.\n"
      "  :raises TypeError: if message is not a Message instance or ack_type "
      "is not an integer.\n"
-     "  :raises KafkaException: if the consumer is not in explicit\n"
+     "  :raises IllegalStateException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the message is no "
      "longer\n"
-     "                          in-flight, ack_type is invalid, or "
-     "message.topic() is None.\n"
-     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "                          in-flight, or the consumer is closed.\n"
+     "  :raises ValueError: if ack_type is invalid, message.topic() is "
+     "None, or the partition or offset is negative.\n"
      "\n"},
 
     {"acknowledge_offset", (PyCFunction)ShareConsumer_acknowledge_offset,
@@ -939,11 +971,13 @@ static PyMethodDef ShareConsumer_methods[] = {
      "REJECT.\n"
      "  :raises TypeError: if topic is not a str, partition/offset are not "
      "integers, or ack_type is not an integer.\n"
-     "  :raises KafkaException: if the consumer is not in explicit\n"
+     "  :raises IllegalStateException: if the consumer is not in explicit\n"
      "                          acknowledgement mode, the offset is not\n"
-     "                          in-flight, the offset is a GAP record,\n"
-     "                          or ack_type is invalid.\n"
-     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "                          in-flight, the offset is a GAP record, or "
+     "the\n"
+     "                          consumer is closed.\n"
+     "  :raises ValueError: if ack_type is invalid or the partition or "
+     "offset is negative.\n"
      "\n"},
 
     {"commit_sync", (PyCFunction)ShareConsumer_commit_sync,
@@ -970,7 +1004,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "           acknowledgements are pending.\n"
      "  :rtype: dict(TopicPartition, KafkaError | None)\n"
      "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "  :raises TypeError: if timeout is not a float\n"
      "\n"},
 
@@ -983,7 +1017,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "\n"
      "  :returns: None\n"
      "  :raises KafkaException: on error\n"
-     "  :raises RuntimeError: if called on a closed share consumer\n"
+     "  :raises IllegalStateException: if called on a closed share consumer\n"
      "  :raises TypeError: if any arguments are passed\n"
      "\n"},
 
@@ -1006,10 +1040,10 @@ static PyMethodDef ShareConsumer_methods[] = {
      "      on failure or ``None`` on success. Pass ``None`` to clear the\n"
      "      currently registered callback.\n"
      "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
-     "  :raises KafkaException: with ``_STATE`` if called from within the\n"
+     "  :raises IllegalStateException: if called from within the\n"
      "      acknowledgement-commit callback. This applies to every\n"
      "      ShareConsumer method.\n"
-     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "  :raises IllegalStateException: if called on a closed share consumer.\n"
      "\n"},
 
     {"close", (PyCFunction)ShareConsumer_close, METH_NOARGS,
@@ -1037,7 +1071,7 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :param str password: New SASL password.\n"
      "  :raises TypeError: if username or password is not a str.\n"
      "  :raises KafkaException: on error.\n"
-     "  :raises RuntimeError: if called on a closed share consumer.\n"
+     "  :raises IllegalStateException: if called on a closed share consumer.\n"
      "\n"},
 
     {"__enter__", (PyCFunction)ShareConsumer_enter, METH_NOARGS,
@@ -1124,8 +1158,9 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
         if (!self->rkshare) {
-                cfl_PyErr_Format(rd_kafka_last_error(),
-                                 "Failed to create share consumer: %s", errstr);
+                ShareConsumer_PyErr_Format(
+                    rd_kafka_last_error(),
+                    "Failed to create share consumer: %s", errstr);
                 rd_kafka_conf_destroy(conf);
                 return -1;
         }
@@ -1139,9 +1174,10 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 rd_kafka_error_t *error =
                     rd_kafka_share_set_log_queue(self->rkshare, NULL);
                 if (error) {
-                        cfl_PyErr_Format(rd_kafka_error_code(error),
-                                         "Failed to set share log queue: %s",
-                                         rd_kafka_error_string(error));
+                        ShareConsumer_PyErr_Format(
+                            rd_kafka_error_code(error),
+                            "Failed to set share log queue: %s",
+                            rd_kafka_error_string(error));
                         rd_kafka_error_destroy(error);
                         CallState cs;
                         CallState_begin(&self->base, &cs);
@@ -1166,7 +1202,7 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                     rd_kafka_share_sasl_background_callbacks_enable(
                         self->rkshare);
                 if (oauth_err) {
-                        cfl_PyErr_from_error_destroy(oauth_err);
+                        ShareConsumer_PyErr_from_error_destroy(oauth_err);
                         CallState cs;
                         CallState_begin(&self->base, &cs);
                         rd_kafka_error_t *destroy_error =

@@ -22,7 +22,7 @@ import time
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException
+from confluent_kafka import AcknowledgeType, IllegalStateException, KafkaError, KafkaException
 from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from tests.common import drain_share_consumers, poll_ack_commit_loop, poll_first_batch, unique_id
 
@@ -417,7 +417,7 @@ def test_implicit_acknowledge_raises_commit_still_works(kafka_cluster):
         msgs = drain_share_consumers([sc], 1)[0]
         assert msgs
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
         assert ex.value.args[0].code() == KafkaError._STATE
 
@@ -456,7 +456,7 @@ def test_partial_ack_commit_then_unacked_blocks_poll(kafka_cluster):
         sc.acknowledge(gathered_msgs[0], AcknowledgeType.ACCEPT)
         sc.commit_sync(timeout=10.0)
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.poll(timeout=2.0)
         assert ex.value.args[0].code() == KafkaError._STATE
 
@@ -610,7 +610,7 @@ def test_commit_after_acknowledge_unknown_offset(kafka_cluster):
     try:
         sc.subscribe([topic])
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge_offset(topic, 0, 99999, AcknowledgeType.ACCEPT)
         assert ex.value.args[0].code() == KafkaError._STATE
 
