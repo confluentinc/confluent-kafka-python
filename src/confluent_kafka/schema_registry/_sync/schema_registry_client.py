@@ -541,13 +541,15 @@ class _RestClient(_BaseRestClient):
         query: Optional[dict] = None,
     ) -> Response:
         """
-        Sends HTTP request to the SchemaRegistry.
+        Sends a single HTTP request to the Schema Registry, retrying transient
+        failures.
 
-        All unsuccessful attempts will raise a SchemaRegistryError with the
-        response contents. In most cases this will be accompanied by a
-        Schema Registry supplied error code.
-
-        In the event the response is malformed an error_code of -1 will be used.
+        Retries (up to max.retries, with exponential backoff) are attempted on
+        retriable HTTP status codes and on network-level errors
+        (httpx.TransportError: DNS failures, connection refused/reset, timeouts,
+        etc.). The HTTP response is returned as-is, including error responses;
+        converting an unsuccessful status into a SchemaRegistryError is done by
+        the caller (send_request).
 
         Args:
             base_url (str): Schema Registry base URL
@@ -563,7 +565,11 @@ class _RestClient(_BaseRestClient):
             query (dict): Query params to attach to the URL
 
         Returns:
-            Response: Schema Registry response content.
+            Response: The HTTP response, which may represent an error status.
+
+        Raises:
+            httpx.TransportError: If a network-level error persists after all
+                retries are exhausted.
         """
         response = None
         for i in range(self.max_retries + 1):
