@@ -18,7 +18,6 @@
 
 import os
 
-from ._messages import Messages
 from ._model import Node  # noqa: F401
 from ._model import (
     AcknowledgeType,
@@ -27,6 +26,7 @@ from ._model import (
     ConsumerGroupType,
     ElectionType,
     IsolationLevel,
+    Messages,
     TopicCollection,
     TopicPartitionInfo,
 )

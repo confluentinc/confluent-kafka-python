@@ -92,7 +92,8 @@ static void ShareConsumer_dealloc(ShareConsumerHandle *self) {
                                      "Failed to destroy share consumer; the "
                                      "handle has been leaked: %s",
                                      rd_kafka_error_string(destroy_error));
-                        /* Pass the type, not self: self is at refcount 0, so WriteUnraisable would re-enter dealloc. */
+                        /* Pass the type, not self: self is at refcount 0, so
+                         * WriteUnraisable would re-enter dealloc. */
                         PyErr_WriteUnraisable((PyObject *)Py_TYPE(self));
                         if (pending_exc)
                                 cfl_exception_restore(pending_exc);
@@ -377,8 +378,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
          * forever -- this is on the hot path and the per-call import+attr
          * lookup isn't free. The GIL serializes this first init. */
         if (!Messages_type) {
-                Messages_type = cfl_PyObject_lookup("confluent_kafka._messages",
-                                                    "Messages");
+                Messages_type =
+                    cfl_PyObject_lookup("confluent_kafka._model", "Messages");
                 if (!Messages_type) {
                         Py_DECREF(msglist);
                         return NULL;
@@ -913,13 +914,6 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  :raises KeyboardInterrupt: if Ctrl+C pressed during consumption\n"
      "\n"},
 
-    /* TODO: the error-code -> Python-exception mapping is still provisional.
-     * Every error code currently surfaces as KafkaException via
-     * cfl_PyErr_Format(), including the per-partition values in commit_sync's
-     * result dict. Eventually specific codes should map to the obvious
-     * exception type (_INVALID_ARG -> ValueError, _STATE -> RuntimeError).
-     * Revisit once the error surface settles and the same mapping lands on
-     * commit_sync / commit_async / the ack callback. */
     {"acknowledge", (PyCFunction)ShareConsumer_acknowledge,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: acknowledge(message, "
@@ -1085,7 +1079,7 @@ static PyMethodDef ShareConsumer_methods[] = {
 static int ShareConsumer_reject_incompatible_config(PyObject *args,
                                                     PyObject *kwargs) {
         static const char *const share_rejected_keys[] = {"on_commit", NULL};
-        PyObject *positional_dict = NULL;
+        PyObject *positional_dict                      = NULL;
         int i;
 
         if (args && PyTuple_Check(args) && PyTuple_Size(args) >= 1) {

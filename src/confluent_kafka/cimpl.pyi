@@ -45,8 +45,7 @@ except ImportError:
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
-from ._messages import Messages
-from ._model import AcknowledgeType
+from ._model import AcknowledgeType, Messages
 from ._types import HeadersType
 
 # Callback types with proper class references (defined locally to avoid circular imports)
