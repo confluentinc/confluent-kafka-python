@@ -1630,7 +1630,8 @@ PyObject *c_parts_to_dict_topic_partition_to_exception(
                 const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
                 key                                      = c_part_to_py(rktpar);
 
-                /* Failure value needs an extra transformation to KafkaException. */
+                /* Failure value needs an extra transformation to
+                 * KafkaException. */
                 if (rktpar->err) {
                         PyObject *kafka_error =
                             KafkaError_new_or_None(rktpar->err, NULL);

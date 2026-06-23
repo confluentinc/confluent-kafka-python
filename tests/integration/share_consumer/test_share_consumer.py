@@ -27,7 +27,6 @@ from confluent_kafka import (
     TIMESTAMP_CREATE_TIME,
     AcknowledgeType,
     IllegalStateException,
-    KafkaError,
     KafkaException,
     Messages,
     Producer,
