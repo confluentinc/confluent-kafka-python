@@ -558,11 +558,12 @@ async def test_delete_mode(mock_schema_registry):
     assert result == 'READWRITE'
 
 
-async def test_send_http_request_retries_on_network_error():
+async def test_send_request_retries_on_network_error():
     """Network-level errors (no HTTP response received) should be retried,
     mirroring the Java client's retry on IOException."""
-    import httpx
     from unittest.mock import AsyncMock
+
+    import httpx
 
     from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncRestClient
 
@@ -570,11 +571,13 @@ async def test_send_http_request_retries_on_network_error():
     rest_client = _AsyncRestClient(conf)
 
     ok = httpx.Response(200, json=SUBJECTS, request=httpx.Request('GET', TEST_URL + '/subjects'))
-    mock_request = AsyncMock(side_effect=[
-        httpx.ConnectError('connection refused'),
-        httpx.ConnectError('connection refused'),
-        ok,
-    ])
+    mock_request = AsyncMock(
+        side_effect=[
+            httpx.ConnectError('connection refused'),
+            httpx.ConnectError('connection refused'),
+            ok,
+        ]
+    )
     rest_client.session.request = mock_request
 
     result = await rest_client.send_request('subjects', method='GET')
@@ -582,11 +585,12 @@ async def test_send_http_request_retries_on_network_error():
     assert mock_request.call_count == 3
 
 
-async def test_send_http_request_exhausts_retries_on_network_error():
+async def test_send_request_exhausts_retries_on_network_error():
     """A persistent network-level error should be retried max.retries + 1 times
     and then surface to the caller."""
-    import httpx
     from unittest.mock import AsyncMock
+
+    import httpx
 
     from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncRestClient
 

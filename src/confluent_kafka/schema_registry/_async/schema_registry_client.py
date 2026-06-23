@@ -578,13 +578,13 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                     content=body,
                     params=query,
                 )
-            except httpx.TransportError as e:
+            except httpx.TransportError:
                 # A TransportError means the request failed before a response
                 # was received (DNS failure, connection refused/reset, timeout,
                 # TLS error, etc.). Once retries are exhausted, re-raise so the
                 # caller can fail over to the next URL.
                 if i >= self.max_retries:
-                    raise e
+                    raise
                 await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
                 continue
 

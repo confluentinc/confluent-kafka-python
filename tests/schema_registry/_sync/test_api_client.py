@@ -556,7 +556,7 @@ def test_delete_mode(mock_schema_registry):
     assert result == 'READWRITE'
 
 
-def test_send_http_request_retries_on_network_error():
+def test_send_request_retries_on_network_error():
     """Network-level errors (no HTTP response received) should be retried,
     mirroring the Java client's retry on IOException."""
     from unittest.mock import Mock
@@ -583,7 +583,7 @@ def test_send_http_request_retries_on_network_error():
     assert mock_request.call_count == 3
 
 
-def test_send_http_request_exhausts_retries_on_network_error():
+def test_send_request_exhausts_retries_on_network_error():
     """A persistent network-level error should be retried max.retries + 1 times
     and then surface to the caller."""
     from unittest.mock import Mock
