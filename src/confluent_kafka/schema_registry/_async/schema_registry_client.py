@@ -581,7 +581,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
             except httpx.TransportError as e:
                 # A TransportError means the request failed before a response
                 # was received (DNS failure, connection refused/reset, timeout,
-                # TLS error, etc.). Once retries are exhausted, re-raise so the 
+                # TLS error, etc.). Once retries are exhausted, re-raise so the
                 # caller can fail over to the next URL.
                 if i >= self.max_retries:
                     raise e
