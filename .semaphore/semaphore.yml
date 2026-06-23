@@ -267,7 +267,6 @@ blocks:
           commands:
             - export ARCH=x64
             - sem-version python 3.11
-            - sem-version java 17
             - pip install uv
             # use a virtualenv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
@@ -287,7 +286,6 @@ blocks:
           commands:
             - export ARCH=arm64
             - sem-version python 3.11
-            - sem-version java 17
             - pip install uv
             # use a virtualenv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
