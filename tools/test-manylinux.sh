@@ -62,7 +62,7 @@ function run_single_in_docker {
     fi
 
     # Install pip and uv for package management
-    curl https://bootstrap.pypa.io/get-pip.py | python3.9
+    curl https://bootstrap.pypa.io/pip/3.9/get-pip.py | python3.9
     pip install uv
 
     /io/tools/smoketest.sh "$wheelhouse"
