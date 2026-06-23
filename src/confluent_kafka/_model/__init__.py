@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import List, Optional
 
 from .. import cimpl
@@ -193,3 +193,20 @@ class ElectionType(Enum):
         if not isinstance(other, ElectionType):
             return NotImplemented
         return self.value < other.value
+
+
+class AcknowledgeType(IntEnum):
+    """
+    Share Consumer acknowledgement type used to tell the broker how to
+    handle a polled message in explicit acknowledgement mode.
+
+    Values:
+    -------
+    """
+
+    #: Record was processed successfully — broker will not redeliver it.
+    ACCEPT = cimpl.SHARE_ACKNOWLEDGE_TYPE_ACCEPT
+    #: Could not process — Release it for another delivery attempt
+    RELEASE = cimpl.SHARE_ACKNOWLEDGE_TYPE_RELEASE
+    #: Could not process - Do not release for another delivery attempt
+    REJECT = cimpl.SHARE_ACKNOWLEDGE_TYPE_REJECT

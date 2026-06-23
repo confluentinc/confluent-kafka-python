@@ -49,6 +49,10 @@
 
 
 PyObject *KafkaException;
+/* Share consumer error types. These subclass RuntimeError, not
+ * KafkaException. */
+PyObject *IllegalStateException;
+PyObject *ConcurrentModificationException;
 
 
 /****************************************************************************
@@ -433,9 +437,15 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error) {
         kerr = (KafkaError *)KafkaError_new0(rd_kafka_error_code(error), "%s",
                                              rd_kafka_error_string(error));
 
-        kerr->fatal              = rd_kafka_error_is_fatal(error);
-        kerr->retriable          = rd_kafka_error_is_retriable(error);
-        kerr->txn_requires_abort = rd_kafka_error_txn_requires_abort(error);
+        /* On allocation failure KafkaError_new0 returns NULL with a Python
+         * exception already set. Still destroy the error to honor this
+         * function's contract, and let the NULL propagate to the caller. */
+        if (kerr) {
+                kerr->fatal     = rd_kafka_error_is_fatal(error);
+                kerr->retriable = rd_kafka_error_is_retriable(error);
+                kerr->txn_requires_abort =
+                    rd_kafka_error_txn_requires_abort(error);
+        }
         rd_kafka_error_destroy(error);
 
         return (PyObject *)kerr;
@@ -533,6 +543,12 @@ static PyObject *Message_latency(Message *self, PyObject *ignore) {
         return PyFloat_FromDouble((double)self->latency / 1000000.0);
 }
 
+static PyObject *Message_delivery_count(Message *self, PyObject *ignore) {
+        if (self->delivery_count <= 0)
+                Py_RETURN_NONE;
+        return cfl_PyInt_FromInt(self->delivery_count);
+}
+
 static PyObject *Message_headers(Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
         if (self->headers) {
@@ -622,11 +638,11 @@ static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
                 latency_obj = PyFloat_FromDouble(-1.0);
         }
         result = Py_BuildValue(
-            "O(NiLNNNNOOi)", Message_type, Message_topic(self, NULL),
+            "O(NiLNNNNOOih)", Message_type, Message_topic(self, NULL),
             self->partition, self->offset, Message_key(self, NULL),
             Message_value(self, NULL), Message_headers(self, NULL),
             Message_error(self, NULL), Message_timestamp(self, NULL),
-            latency_obj, self->leader_epoch);
+            latency_obj, self->leader_epoch, self->delivery_count);
         Py_DECREF(latency_obj);
 
 
@@ -699,6 +715,16 @@ static PyMethodDef Message_methods[] = {
      "  :returns: latency as float seconds, or None if latency "
      "information is not available (such as for errored messages).\n"
      "  :rtype: float or None\n"
+     "\n"},
+    {"delivery_count", (PyCFunction)Message_delivery_count, METH_NOARGS,
+     "Retrieve the share-consumer delivery count for this message.\n"
+     "The first time a record is acquired by a share group, delivery_count "
+     "is 1; it increments each time the record is re-acquired after a "
+     "RELEASE or acquisition-lock timeout.\n"
+     "\n"
+     "  :returns: delivery count (>= 1) for share-consumer messages, "
+     "or None if not available (e.g. standard consumer or producer).\n"
+     "  :rtype: int or None\n"
      "\n"},
     {"headers", (PyCFunction)Message_headers, METH_NOARGS,
      "  Retrieve the headers set on a message. Each header is a key value"
@@ -794,15 +820,17 @@ static int Message_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         PyObject *timestamp  = NULL;
         double latency       = -1;
         int32_t leader_epoch = -1;
+        short delivery_count = -1;
 
-        static char *kws[] = {"topic",   "partition",    "offset", "key",
-                              "value",   "headers",      "error",  "timestamp",
-                              "latency", "leader_epoch", NULL};
+        static char *kws[] = {"topic",        "partition",      "offset",
+                              "key",          "value",          "headers",
+                              "error",        "timestamp",      "latency",
+                              "leader_epoch", "delivery_count", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdi", kws,
-                                         &topic, &partition, &offset, &key,
-                                         &value, &headers, &error, &timestamp,
-                                         &latency, &leader_epoch)) {
+        if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "|OiLOOOOOdih", kws, &topic, &partition, &offset,
+                &key, &value, &headers, &error, &timestamp, &latency,
+                &leader_epoch, &delivery_count)) {
                 return -1;
         }
 
@@ -867,6 +895,7 @@ static int Message_init(PyObject *self0, PyObject *args, PyObject *kwargs) {
         self->offset       = offset < 0 ? RD_KAFKA_OFFSET_INVALID : offset;
         self->leader_epoch = leader_epoch < 0 ? -1 : leader_epoch;
         self->latency      = (int64_t)(latency < 0 ? -1 : latency * 1000000.0);
+        self->delivery_count = delivery_count <= 0 ? -1 : delivery_count;
 
         return 0;
 }
@@ -1083,6 +1112,11 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
                 self->latency = rd_kafka_message_latency(rkm);
         else
                 self->latency = -1;
+
+        /* librdkafka returns 0 when delivery count is unavailable (e.g.
+         * non-share consumers); map to -1 so Python sees None. */
+        int16_t delivery_count = rd_kafka_message_delivery_count(rkm);
+        self->delivery_count   = delivery_count > 0 ? delivery_count : -1;
 
         return (PyObject *)self;
 }
@@ -1571,6 +1605,141 @@ PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts) {
 }
 
 /**
+ * @brief Convert per-partition commit results to a Python
+ *        dict(TopicPartition -> KafkaError | None).
+ *
+ * @returns The new Python dict, or NULL on allocation failure.
+ */
+PyObject *c_parts_to_dict_topic_partition_to_error(
+    const rd_kafka_topic_partition_list_t *c_parts) {
+        PyObject *result = NULL;
+        PyObject *key    = NULL;
+        PyObject *val    = NULL;
+        size_t i;
+
+        result = PyDict_New();
+        if (!result)
+                goto err;
+
+        for (i = 0; i < (size_t)c_parts->cnt; i++) {
+                const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
+                key                                      = c_part_to_py(rktpar);
+                val = KafkaError_new_or_None(rktpar->err, NULL);
+
+                if (!key || !val || PyDict_SetItem(result, key, val) == -1)
+                        goto err;
+
+                Py_DECREF(key);
+                Py_DECREF(val);
+                key = NULL;
+                val = NULL;
+        }
+
+        return result;
+
+err:
+        Py_XDECREF(key);
+        Py_XDECREF(val);
+        Py_XDECREF(result);
+        return NULL;
+}
+
+/**
+ * @brief Convert a share-consumer per-partition acknowledged-offsets list into
+ *        a Python dict(TopicPartition -> set(int)).
+ *
+ * @returns The new Python dict, or NULL on allocation failure with an
+ *          exception set.
+ */
+PyObject *c_share_partition_offsets_list_to_py_dict(
+    const rd_kafka_share_partition_offsets_list_t *partition_offsets_list) {
+        PyObject *result        = NULL;
+        PyObject *partition_key = NULL;
+        PyObject *offset_set    = NULL;
+        size_t partition_count;
+        size_t partition_index;
+
+        result = PyDict_New();
+        if (!result)
+                goto err;
+
+        /* The only caller already rules out a NULL list, but don't rely on
+         * that here: just hand back the empty dict. */
+        if (!partition_offsets_list)
+                return result;
+
+        partition_count =
+            rd_kafka_share_partition_offsets_list_count(partition_offsets_list);
+        for (partition_index = 0; partition_index < partition_count;
+             partition_index++) {
+                const rd_kafka_share_partition_offsets_t *partition_offsets =
+                    rd_kafka_share_partition_offsets_list_get(
+                        partition_offsets_list, partition_index);
+                const rd_kafka_topic_partition_t *rktpar;
+                const int64_t *offsets;
+                size_t offsets_count;
+                size_t offset_index;
+
+                /* The accessors below and c_part_to_py() both deref their
+                 * argument without a NULL check, so skip a bad entry
+                 * instead of segfaulting on it. */
+                if (!partition_offsets)
+                        continue;
+
+                rktpar = rd_kafka_share_partition_offsets_partition(
+                    partition_offsets);
+                if (!rktpar)
+                        continue;
+
+                offsets =
+                    rd_kafka_share_partition_offsets_offsets(partition_offsets);
+                offsets_count = rd_kafka_share_partition_offsets_offsets_cnt(
+                    partition_offsets);
+                /* A NULL offsets array with a non-zero count would be a bug;
+                 * clamp to 0 so we never deref it below. */
+                if (!offsets)
+                        offsets_count = 0;
+
+                partition_key = c_part_to_py(rktpar);
+                if (!partition_key)
+                        goto err;
+
+                offset_set = PySet_New(NULL);
+                if (!offset_set)
+                        goto err;
+
+                for (offset_index = 0; offset_index < offsets_count;
+                     offset_index++) {
+                        PyObject *offset = PyLong_FromLongLong(
+                            (long long)offsets[offset_index]);
+                        if (!offset)
+                                goto err;
+                        if (PySet_Add(offset_set, offset) == -1) {
+                                Py_DECREF(offset);
+                                goto err;
+                        }
+                        Py_DECREF(offset);
+                }
+
+                if (PyDict_SetItem(result, partition_key, offset_set) == -1)
+                        goto err;
+
+                Py_DECREF(partition_key);
+                Py_DECREF(offset_set);
+                partition_key = NULL;
+                offset_set    = NULL;
+        }
+
+        return result;
+
+err:
+        Py_XDECREF(partition_key);
+        Py_XDECREF(offset_set);
+        Py_XDECREF(result);
+        return NULL;
+}
+
+/**
  * @brief Convert Python list(TopicPartition) to C
  * rd_kafka_topic_partition_list_t.
  *
@@ -1998,6 +2167,12 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         PyObject *eo, *result;
         CallState *cs;
 
+        /* error_cb only runs while a thread is draining rk_rep with
+         * callbacks, and every such drain — poll, commit, and the
+         * consumer-close inside dealloc and the constructors' failure
+         * paths — is wrapped in CallState_begin/end (see ShareConsumer.c
+         * and Consumer.c). So a CallState is always present on this thread;
+         * CallState_get() relocks the GIL via the saved thread state. */
         cs = CallState_get(h);
 
         /* If the client raised a fatal error we'll raise an exception
@@ -2024,7 +2199,8 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
                 CallState_fetch_exception(cs);
         crash:
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                /* Use the callback's rk: h->rk is NULL on a share consumer. */
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2090,7 +2266,8 @@ static void throttle_cb(rd_kafka_t *rk,
          */
 err:
         CallState_crash(cs);
-        rd_kafka_yield(h->rk);
+        /* Use callback's rk — h->rk is NULL on share consumer. */
+        rd_kafka_yield(rk);
 done:
         CallState_resume(cs);
 }
@@ -2115,7 +2292,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                rd_kafka_yield(rk);
         }
 
 done:
@@ -2150,7 +2327,9 @@ log_cb(const rd_kafka_t *rk, int level, const char *fac, const char *buf) {
         else {
                 CallState_fetch_exception(cs);
                 CallState_crash(cs);
-                rd_kafka_yield(h->rk);
+                /* log_cb's rk is const; yield needs non-const. Safe to
+                 * cast — yield is callback-safe and doesn't mutate rk. */
+                rd_kafka_yield((rd_kafka_t *)rk);
         }
 
         CallState_resume(cs);
@@ -2215,12 +2394,15 @@ static int py_extensions_to_c(char **extensions,
 
 
 /**
- * @brief Waits for OAuth callback to set the token
+ * @brief Waits for the OAuth callback to set the token during client init,
+ *        so we have a token before returning.
  *
- * Useful during client init as we want to ensure we have the token before we
- * return back
+ * @returns 0 if the token was set within the timeout (or if oauth_cb is not
+ *          configured); -1 on timeout, with a Python exception set.
  *
- * Returns 0 if token was set within the timeout period, -1 otherwise.
+ * @remark On -1 the caller owns teardown. This intentionally does NOT call
+ *         rd_kafka_destroy() / rd_kafka_share_destroy() — each client type
+ *         knows which destroy API matches what it allocated.
  */
 int wait_for_oauth_token_set(Handle *h) {
 
@@ -2243,16 +2425,13 @@ int wait_for_oauth_token_set(Handle *h) {
         }
 
         if (!h->oauth_token_set) {
-                /* Token not set within timeout */
+                /* Token timeout. Don't tear down here — each _init knows
+                 * whether to call rd_kafka_destroy() or
+                 * rd_kafka_share_destroy() for what it allocated. */
                 cfl_PyErr_Format(
                     RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
                     "OAuth token not set within %d seconds timeout",
                     max_wait_sec);
-                CallState cs;
-                CallState_begin(h, &cs);
-                rd_kafka_destroy(h->rk);
-                h->rk = NULL;
-                CallState_end(h, &cs);
                 return -1;
         }
         return 0;
@@ -2315,7 +2494,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
-            h->rk, token, (int64_t)(expiry * 1000), principal,
+            rk, token, (int64_t)(expiry * 1000), principal,
             (const char **)rd_extensions, rd_extensions_size, err_msg,
             sizeof(err_msg));
         Py_DECREF(result);
@@ -2335,8 +2514,9 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         goto done;
 
 fail:
+        /* h->rk is NULL on share consumer; use the callback's rk. */
         err_code = rd_kafka_oauthbearer_set_token_failure(
-            h->rk, "OAuth callback raised exception");
+            rk, "OAuth callback raised exception");
         if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Failed to set token failure");
@@ -2346,7 +2526,8 @@ fail:
         goto done;
 err:
         PyGILState_Release(gstate);
-        rd_kafka_yield(h->rk);
+        rd_kafka_yield(rk);
+        return;
 done:
         PyGILState_Release(gstate);
 }
@@ -2387,6 +2568,11 @@ void Handle_clear(Handle *h) {
                 h->logger = NULL;
         }
 
+        if (h->oauth_cb) {
+                Py_DECREF(h->oauth_cb);
+                h->oauth_cb = NULL;
+        }
+
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);
@@ -2408,6 +2594,12 @@ int Handle_traverse(Handle *h, visitproc visit, void *arg) {
 
         if (h->stats_cb)
                 Py_VISIT(h->stats_cb);
+
+        if (h->oauth_cb)
+                Py_VISIT(h->oauth_cb);
+
+        if (h->logger)
+                Py_VISIT(h->logger);
 
         return 0;
 }
@@ -3548,6 +3740,8 @@ static PyObject *_init_cimpl(void) {
                 return NULL;
         if (PyType_Ready(&ConsumerType) < 0)
                 return NULL;
+        if (PyType_Ready(&ShareConsumerType) < 0)
+                return NULL;
         if (PyType_Ready(&AdminType) < 0)
                 return NULL;
         if (AdminTypes_Ready() < 0)
@@ -3584,6 +3778,9 @@ static PyObject *_init_cimpl(void) {
         Py_INCREF(&ConsumerType);
         PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
+        Py_INCREF(&ShareConsumerType);
+        PyModule_AddObject(m, "ShareConsumer", (PyObject *)&ShareConsumerType);
+
         Py_INCREF(&AdminType);
         PyModule_AddObject(m, "_AdminClientImpl", (PyObject *)&AdminType);
 
@@ -3604,6 +3801,35 @@ static PyObject *_init_cimpl(void) {
 #endif
         Py_INCREF(KafkaException);
         PyModule_AddObject(m, "KafkaException", KafkaException);
+
+        /* Subclass RuntimeError, not KafkaException. These carry a plain
+         * message string (str(exc)), not a KafkaError — the type conveys the
+         * code. Only the share consumer raises these today. */
+        IllegalStateException = PyErr_NewExceptionWithDoc(
+            "cimpl.IllegalStateException",
+            "Raised by ShareConsumer when an operation is attempted in an "
+            "invalid state, e.g. on a consumer that has already been "
+            "closed.\n"
+            "\n"
+            "Subclass of :py:class:`RuntimeError`; ``str(exception)`` is "
+            "the error message.\n"
+            "\n",
+            PyExc_RuntimeError, NULL);
+        Py_INCREF(IllegalStateException);
+        PyModule_AddObject(m, "IllegalStateException", IllegalStateException);
+
+        ConcurrentModificationException = PyErr_NewExceptionWithDoc(
+            "cimpl.ConcurrentModificationException",
+            "Raised by ShareConsumer when it is accessed concurrently from "
+            "more than one thread.\n"
+            "\n"
+            "Subclass of :py:class:`RuntimeError`; ``str(exception)`` is "
+            "the error message.\n"
+            "\n",
+            PyExc_RuntimeError, NULL);
+        Py_INCREF(ConcurrentModificationException);
+        PyModule_AddObject(m, "ConcurrentModificationException",
+                           ConcurrentModificationException);
 
         PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE",
                                 RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);

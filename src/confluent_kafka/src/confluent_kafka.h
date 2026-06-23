@@ -185,6 +185,8 @@ static __inline const char *cfl_PyUnistr_AsUTF8(PyObject *o, PyObject **uobjp) {
  *
  ****************************************************************************/
 extern PyObject *KafkaException;
+extern PyObject *IllegalStateException;
+extern PyObject *ConcurrentModificationException;
 
 PyObject *KafkaError_new0(rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None(rd_kafka_resp_err_t err, const char *str);
@@ -215,7 +217,7 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 /****************************************************************************
  *
  *
- * Common instance handle for both Producer and Consumer
+ * Common instance handle for Producer, Consumer and ShareConsumer
  *
  *
  *
@@ -273,6 +275,11 @@ typedef struct {
                         rd_kafka_queue_t *rkqu; /* Consumer queue */
 
                 } Consumer;
+
+                struct {
+                        /* cb(offsets, exc) */
+                        PyObject *on_share_acknowledgement_commit;
+                } ShareConsumer;
         } u;
 } Handle;
 
@@ -440,10 +447,11 @@ extern PyTypeObject TopicPartitionType;
 /**
  * Error messages for uninitialized/closed Handle objects
  */
-#define ERR_MSG_PRODUCER_CLOSED     "Producer has been closed"
-#define ERR_MSG_ADMIN_CLIENT_CLOSED "AdminClient has been closed"
-#define ERR_MSG_CONSUMER_CLOSED     "Consumer closed"
-#define ERR_MSG_HANDLE_CLOSED       "Handle has been closed"
+#define ERR_MSG_PRODUCER_CLOSED       "Producer has been closed"
+#define ERR_MSG_ADMIN_CLIENT_CLOSED   "AdminClient has been closed"
+#define ERR_MSG_CONSUMER_CLOSED       "Consumer closed"
+#define ERR_MSG_SHARE_CONSUMER_CLOSED "Share consumer closed"
+#define ERR_MSG_HANDLE_CLOSED         "Handle has been closed"
 
 #define PY_RD_KAFKA_ADMIN                                                      \
         100 /* There is no Admin client type in librdkafka,                    \
@@ -457,6 +465,10 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    PyObject *kwargs);
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py(const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *c_parts_to_dict_topic_partition_to_error(
+    const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *c_share_partition_offsets_list_to_py_dict(
+    const rd_kafka_share_partition_offsets_list_t *partition_offsets_list);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist);
@@ -511,6 +523,9 @@ typedef struct {
         int64_t timestamp;
         rd_kafka_timestamp_type_t tstype;
         int64_t latency; /**< Producer: time it took to produce message */
+        int16_t delivery_count; /**< Share consumer: number of times this
+                                 *   record has been delivered. 1 on first
+                                 *   delivery. -1 if unavailable. */
 } Message;
 
 extern PyTypeObject MessageType;
@@ -624,6 +639,19 @@ static CFL_UNUSED CFL_INLINE int check_signals_between_chunks(Handle *self,
  ****************************************************************************/
 
 extern PyTypeObject ConsumerType;
+
+
+/****************************************************************************
+ *
+ *
+ * ShareConsumer
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+extern PyTypeObject ShareConsumerType;
 
 
 /****************************************************************************
