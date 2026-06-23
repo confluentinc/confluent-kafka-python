@@ -2,6 +2,14 @@
 
 ## v2.xx.x
 
+### Features
+
+- New optional install `confluent-kafka[oauthbearer-aws]` provides AWS IAM-based
+  OAUTHBEARER authentication via AWS STS `GetWebIdentityToken`. Activate by setting `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. See [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
+
 ### Fixes
 
 - Fix Encryption fails when expanded union types have two references to the same record (#2262)
