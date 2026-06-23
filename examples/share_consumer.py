@@ -18,13 +18,12 @@
 import sys
 
 #
-# Example KIP-932 ShareConsumer.
+# Example KIP-932 ShareConsumer in the default (implicit) ack mode.
 #
-# A share consumer reads from one or more topics like a queue: many consumers
-# in the same share group can read the same partition, and each record is
-# acknowledged implicitly.
+# Consumers in a share group share partitions like a queue. In implicit mode
+# each record is acknowledged for you on the next poll().
 #
-from confluent_kafka import ShareConsumer
+from confluent_kafka import KafkaException, ShareConsumer
 
 
 def print_usage_and_exit(program_name):
@@ -52,12 +51,20 @@ if __name__ == '__main__':
 
     try:
         while True:
-            messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
+            try:
+                messages = sc.poll(timeout=1.0)  # a list, possibly empty
+            except KafkaException as e:
+                # Re-raise fatal errors; otherwise log and keep going.
+                if e.args[0].fatal():
+                    raise
+                sys.stderr.write('%% Consumer error: %s\n' % e)
+                continue
             for msg in messages:
                 if msg.error():
-                    # Per-message errors are informational; log and keep
-                    # polling. Truly fatal errors are raised out of poll()
-                    # itself via the error_cb path.
+                    # A bad record. In implicit mode you can't ack it by hand
+                    # (acknowledge() is rejected); the library automatically
+                    # retries it (temporary errors) or discards it (permanent
+                    # errors) on the next poll — it is never accepted. Just log it.
                     sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
                 sys.stderr.write(
@@ -65,10 +72,8 @@ if __name__ == '__main__':
                     % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
                 )
                 print(msg.value())
-                # Implicit ack: the next poll() acknowledges this message.
-                # If we crash before the next poll, the broker will
-                # redeliver this record to another consumer in the share
-                # group after the acquisition lock expires.
+                # No ack needed — the next poll() accepts this record. If we
+                # crash first, another consumer picks it up later.
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
