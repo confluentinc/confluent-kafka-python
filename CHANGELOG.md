@@ -4,11 +4,11 @@
 
 ### Enhancements
 
-- [KIP-932] Add Share Consumer support (Queues for Kafka), including a deserializing share consumer and acknowledgement/commit callbacks (#2217, #2239, #2241, #2252, #2253, #2265, #2273)
+- [KIP-932] Add Share Consumer support (Queues for Kafka), including a deserializing share consumer, acknowledgement/commit callbacks, and runtime SASL credential updates (#2217, #2239, #2241, #2252, #2253, #2265, #2273, #2277, #2279)
 
 ### Fixes
 
-- Fix Encryption fails when expanded union types have two references to the same record (#2262)
+- Fix Encryption fails when expanded union types have two references to the same record (@ChristophMajcenAtXxxlutz, #2262)
 - Make orjson optional in JSON serdes with stdlib json fallback (#2281)
 
 
