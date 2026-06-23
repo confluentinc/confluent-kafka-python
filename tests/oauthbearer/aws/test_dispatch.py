@@ -272,8 +272,9 @@ async def test_happy_path_aio_consumer_constructs_with_marker(mocked_boto3):
 
 
 def test_explicit_oauth_cb_wins_over_marker():
-    """When user supplies their own oauth_cb, our dispatcher strips the marker
-    and yields. boto3 is NOT touched."""
+    """When the user supplies their own oauth_cb, the dispatcher skips autowire
+    entirely and leaves the config untouched (their callback + the marker +
+    method all pass through). boto3 is NOT touched."""
     sentinel_called = []
 
     def user_oauth_cb(config_str):
@@ -415,18 +416,25 @@ def test_friendly_import_error_on_admin_client_too(boto3_absent):
         )
 
 
-# ---- 9. Marker is stripped before native handoff ----
+# ---- 9. Marker is RETAINED and passed through to the AWS-IAM librdkafka ----
 
 
-def test_marker_stripped_after_autowire(mocked_boto3):
-    """The C dispatcher must strip the marker from confdict before the
-    config-iteration loop sees it. Today's bundled librdkafka doesn't know
-    the 'aws_iam' enum value and would reject it at rd_kafka_conf_set time.
-    If the strip stops working, this test fails with librdkafka's
-    'invalid value' error rather than Producer constructing cleanly."""
+def test_marker_retained_and_token_refresh_fires(mocked_boto3):
+    """Keep-marker contract: the dispatcher leaves
+    sasl.oauthbearer.metadata.authentication.type=aws_iam AND
+    sasl.oauthbearer.method=oidc in the config and only registers the autowired
+    oauth_cb — no marker strip, no method rewrite."""
+    import time
+
     p = confluent_kafka.Producer(_minimal_aws_iam_config())
-    # If we got here, the strip succeeded — librdkafka never saw the marker.
     assert p is not None
+    deadline = time.time() + 10
+    while mocked_boto3.get_web_identity_token.call_count == 0 and time.time() < deadline:
+        p.poll(0.5)
+    assert mocked_boto3.get_web_identity_token.call_count >= 1, (
+        "librdkafka never invoked the autowired oauth_cb — the keep-marker "
+        "refresh path did not engage (handle creation or marker pass-through failed)"
+    )
     p.flush(timeout=0.1)
 
 

@@ -2581,12 +2581,13 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 
 /**
  * @brief Detect the aws_iam OAUTHBEARER autowire marker in the user's config
- *        dict and translate it, before the librdkafka handle is created, into
- *        the canonical OAUTHBEARER pattern: an oauth_cb (sourced from the
- *        optional confluent_kafka.oauthbearer.aws subpackage) plus
- *        method=default.
+ *        dict and, before the librdkafka handle is created, register an
+ *        oauth_cb sourced from the optional confluent_kafka.oauthbearer.aws
+ *        subpackage. The aws_iam marker and method=oidc are passed through to
+ *        librdkafka UNCHANGED.
  *
- * User contract (all three keys required when marker is set):
+ * User contract (all three keys required when the marker is set and no explicit
+ * oauth_cb is supplied):
  *   sasl.oauthbearer.method                       = "oidc"
  *   sasl.oauthbearer.metadata.authentication.type = "aws_iam"
  *   sasl.oauthbearer.config                       = "region=... audience=..."
@@ -2594,13 +2595,10 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  * Plus optional:
  *   sasl.oauthbearer.extensions = "key=val,key=val"
  *
- * Two-layer rationale: the user declares intent with method=oidc (uniform
- * across all clients: "managed, OIDC-family auth, I supply only config"); this
- * binding mints the token itself via the AWS SDK and hands it to librdkafka
- * through a refresh callback, so the honest librdkafka *mechanism* is
- * method=default ("a token is supplied to me from outside"). We accept oidc
- * from the user and rewrite it to default internally.
  *
+ * If the user supplies their own oauth_cb, autowire is skipped entirely and the
+ * config is left untouched (their callback, the marker, and method all pass
+ * through to librdkafka).
  *
  * @returns 0 on success (no-op or autowire complete), -1 on error
  *          (PyErr_* is set; caller goto outer_err).
@@ -2611,7 +2609,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         static const char MARKER_VALUE[] = "aws_iam";
         static const char METHOD_KEY[] = "sasl.oauthbearer.method";
         static const char METHOD_OIDC_VALUE[] = "oidc";
-        static const char METHOD_DEFAULT_VALUE[] = "default";
         static const char CONFIG_KEY[] = "sasl.oauthbearer.config";
         static const char EXTENSIONS_KEY[] = "sasl.oauthbearer.extensions";
         static const char OAUTH_CB_KEY[] = "oauth_cb";
@@ -2644,6 +2641,12 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         const char *marker_c;
         const char *method_c;
 
+        /* Explicit oauth_cb wins: nothing to autowire, regardless of the marker. */
+        cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
+        if (cb && cb != Py_None) {
+                return 0;
+        }
+
         marker = PyDict_GetItemString(confdict, MARKER_KEY);
         if (!marker || !PyUnicode_Check(marker)) {
                 return 0;
@@ -2656,12 +2659,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         }
         if (strcmp(marker_c, MARKER_VALUE) != 0) {
                 return 0;
-        }
-
-        /* Explicit oauth_cb wins. Skip ahead to strip+rewrite */
-        cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
-        if (cb && cb != Py_None) {
-                goto strip_and_rewrite;
         }
 
         method = PyDict_GetItemString(confdict, METHOD_KEY);
@@ -2737,33 +2734,6 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         }
         Py_DECREF(callback);
 
-strip_and_rewrite:
-        /* Strip the marker. UNCONDITIONAL. Reached from both the
-         * autowire-fires path AND the explicit-oauth_cb-wins path */
-        if (PyDict_DelItemString(confdict, MARKER_KEY) == -1) {
-                return -1;
-        }
-
-        /* Rewrite sasl.oauthbearer.method oidc -> default. Once method is
-         * default, librdkafka's OIDC config-finalize returns immediately and
-         * demands none of the OIDC mandatory fields
-         * (token.endpoint.url / client.id / client.secret) — so NO
-         * sentinel/dummy values are needed. The token is supplied from
-         * outside via the oauth_cb (autowired in step 7, or user-supplied per
-         * step 2): the classic OAUTHBEARER pattern of method=default + a
-         * token-refresh callback. Set explicitly (rather than deleting the
-         * key) so a user's method=oidc is positively overridden. */
-        {
-                PyObject *def = PyUnicode_FromString(METHOD_DEFAULT_VALUE);
-                if (!def) {
-                        return -1;
-                }
-                if (PyDict_SetItemString(confdict, METHOD_KEY, def) == -1) {
-                        Py_DECREF(def);
-                        return -1;
-                }
-                Py_DECREF(def);
-        }
 
         return 0;
 }
