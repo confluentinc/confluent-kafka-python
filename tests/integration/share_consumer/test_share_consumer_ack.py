@@ -1448,7 +1448,7 @@ def test_callback_reports_invalid_record_state_on_commit_sync(kafka_cluster):
 
         # First place it shows up: the per-partition result dict.
         assert any(
-            err is not None and err.code() == KafkaError.INVALID_RECORD_STATE for err in result.values()
+            err is not None and err.args[0].code() == KafkaError.INVALID_RECORD_STATE for err in result.values()
         ), f'expected INVALID_RECORD_STATE in commit_sync result {result}'
 
         # And again via the cb, which already fired inline before commit_sync

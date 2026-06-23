@@ -26,6 +26,7 @@ from ._model import (
     ConsumerGroupType,
     ElectionType,
     IsolationLevel,
+    Messages,
     TopicCollection,
     TopicPartitionInfo,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "admin",
     "Consumer",
     "ShareConsumer",
+    "Messages",
     "aio",
     "KafkaError",
     "KafkaException",
