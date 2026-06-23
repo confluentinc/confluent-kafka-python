@@ -161,11 +161,7 @@ class AwsStsTokenProvider:
         # .timestamp() returns epoch seconds as a float.
         expiry_epoch_seconds = expiration.timestamp()
 
-        principal = (
-            self._cfg.principal_name
-            if self._cfg.principal_name is not None
-            else _aws_jwt_subject_extractor.extract_sub(jwt)
-        )
+        principal = _aws_jwt_subject_extractor.extract_sub(jwt)
 
         # Always return a dict for the extensions slot — the C oauth_cb
         # wrapper's PyArg_ParseTuple uses "O!" with PyDict_Type for that slot,

@@ -22,7 +22,6 @@ values may backslash-quote a comma, e.g. ``\\,``):
     duration_seconds=<60..3600>    (default: 300)
     signing_algorithm=ES384|RS256  (default: ES384)
     sts_endpoint=<url>             (optional, FIPS / VPC)
-    principal_name=<value>         (optional, override JWT 'sub')
     aws_debug=none|console         (default: none)
     tag_<name>=<value>             (zero or more JWT custom claims, max 50)
 
@@ -90,7 +89,6 @@ _RECOGNISED_KEYS = frozenset(
         "duration_seconds",
         "signing_algorithm",
         "sts_endpoint",
-        "principal_name",
         "aws_debug",
     }
 )
@@ -101,7 +99,6 @@ _NON_EMPTY_KEYS = frozenset(
         "audience",
         "signing_algorithm",
         "sts_endpoint",
-        "principal_name",
         "aws_debug",
     }
 )
@@ -116,7 +113,6 @@ class AwsOAuthBearerConfig:
     signing_algorithm: str = DEFAULT_SIGNING_ALGORITHM
     duration_seconds: int = DEFAULT_DURATION_SECONDS
     sts_endpoint: Optional[str] = None
-    principal_name: Optional[str] = None
     aws_debug: str = AWS_DEBUG_NONE
     tags: Optional[Dict[str, str]] = None
     sasl_extensions: Optional[Dict[str, str]] = None
@@ -143,8 +139,6 @@ class AwsOAuthBearerConfig:
             )
         if self.sts_endpoint is not None and self.sts_endpoint == "":
             raise ValueError(f"{CONFIG_KEY} 'sts_endpoint' must not be empty.")
-        if self.principal_name is not None and self.principal_name == "":
-            raise ValueError(f"{CONFIG_KEY} 'principal_name' must not be empty.")
         if self.aws_debug not in ALLOWED_AWS_DEBUG_VALUES:
             raise ValueError(f"{CONFIG_KEY} 'aws_debug' must be one of: none, console. Got {self.aws_debug!r}.")
         if self.tags is not None:
@@ -163,7 +157,7 @@ class AwsOAuthBearerConfig:
     ) -> "AwsOAuthBearerConfig":
         """Parse the verbatim ``sasl.oauthbearer.config`` value.
 
-        Whitespace-separated ``key=value`` tokens; the union of recognised
+        Comma-separated ``key=value`` tokens; the union of recognised
         keys plus ``tag_<NAME>`` entries. Anything else raises
         :class:`ValueError`. Empty values for required-non-empty keys raise
         the same. Duplicate keys → last-wins.
@@ -184,7 +178,6 @@ class AwsOAuthBearerConfig:
         signing_algorithm: str = DEFAULT_SIGNING_ALGORITHM
         duration_seconds: int = DEFAULT_DURATION_SECONDS
         sts_endpoint: Optional[str] = None
-        principal_name: Optional[str] = None
         aws_debug: str = AWS_DEBUG_NONE
         tags: Optional[Dict[str, str]] = None
 
@@ -205,8 +198,6 @@ class AwsOAuthBearerConfig:
                     raise ValueError(f"{CONFIG_KEY} 'duration_seconds' must be an integer; " f"got {value!r}.") from exc
             elif key == "sts_endpoint":
                 sts_endpoint = value
-            elif key == "principal_name":
-                principal_name = value
             elif key == "aws_debug":
                 # Normalize case so downstream comparisons against
                 # ALLOWED_AWS_DEBUG_VALUES are straightforward.
@@ -232,7 +223,6 @@ class AwsOAuthBearerConfig:
             signing_algorithm=signing_algorithm,
             duration_seconds=duration_seconds,
             sts_endpoint=sts_endpoint,
-            principal_name=principal_name,
             aws_debug=aws_debug,
             tags=tags,
             sasl_extensions=sasl_extensions,

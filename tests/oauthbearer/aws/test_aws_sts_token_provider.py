@@ -223,14 +223,6 @@ def test_token_returns_mapped_fields():
     assert extensions == {}
 
 
-def test_token_principal_name_override_wins_over_jwt_sub():
-    fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,principal_name=explicit-principal")
-    provider = AwsStsTokenProvider(cfg, sts_client=fake)
-    _, _, principal, _ = provider.token()
-    assert principal == "explicit-principal"
-
-
 def test_token_sasl_extensions_passthrough():
     fake = FakeStsClient()
     sasl_extensions = {"logicalCluster": "lkc-123", "identityPoolId": "pool-x"}

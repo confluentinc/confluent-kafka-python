@@ -60,7 +60,7 @@ def test_parse_empty_value_on_required_key_raises():
         AwsOAuthBearerConfig.parse("region=,audience=https://a")
 
 
-@pytest.mark.parametrize("key", ["signing_algorithm", "sts_endpoint", "principal_name"])
+@pytest.mark.parametrize("key", ["signing_algorithm", "sts_endpoint"])
 def test_parse_empty_value_on_optional_key_raises(key):
     with pytest.raises(ValueError, match=key):
         AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,{key}=")
@@ -82,7 +82,6 @@ def test_parse_no_duration_defaults_to_300_seconds():
 def test_parse_optional_fields_default_to_none():
     cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.sts_endpoint is None
-    assert cfg.principal_name is None
     assert cfg.sasl_extensions is None
     assert cfg.tags is None
 
@@ -170,7 +169,7 @@ def test_parse_aws_debug_empty_value_raises():
         AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,aws_debug=")
 
 
-# ---- sts_endpoint, principal_name ----
+# ---- sts_endpoint ----
 
 
 def test_parse_sts_endpoint_stored_verbatim():
@@ -180,9 +179,9 @@ def test_parse_sts_endpoint_stored_verbatim():
     assert cfg.sts_endpoint == "https://sts-fips.us-east-1.amazonaws.com"
 
 
-def test_parse_principal_name_stored_verbatim():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,principal_name=my-principal")
-    assert cfg.principal_name == "my-principal"
+def test_parse_principal_name_rejected_as_unknown_key():
+    with pytest.raises(ValueError, match="Unknown key.*principal_name"):
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,principal_name=x")
 
 
 # ---- sasl_extensions argument (typed property pass-through) ----
@@ -319,7 +318,6 @@ def test_parse_all_fields_together_all_populated_correctly():
         "duration_seconds=1800,"
         "signing_algorithm=RS256,"
         "sts_endpoint=https://sts.us-east-1.amazonaws.com,"
-        "principal_name=test-principal,"
         "aws_debug=console,"
         "tag_team=platform",
         sasl_extensions,
@@ -330,7 +328,6 @@ def test_parse_all_fields_together_all_populated_correctly():
     assert cfg.duration_seconds == 1800
     assert cfg.signing_algorithm == "RS256"
     assert cfg.sts_endpoint == "https://sts.us-east-1.amazonaws.com"
-    assert cfg.principal_name == "test-principal"
     assert cfg.aws_debug == AWS_DEBUG_CONSOLE
     assert cfg.sasl_extensions == {"logicalCluster": "lkc-abc"}
     assert cfg.tags == {"team": "platform"}

@@ -117,7 +117,6 @@ def test_create_handler_all_optional_fields_returns_handler():
         "region=us-east-1,audience=https://a,"
         "duration_seconds=900,signing_algorithm=RS256,"
         "sts_endpoint=https://sts.us-east-1.amazonaws.com,"
-        "principal_name=my-principal,"
         "aws_debug=none,"
         "tag_team=platform,tag_environment=prod",
         None,
@@ -129,14 +128,6 @@ def test_create_handler_all_optional_fields_returns_handler():
 def test_create_handler_tag_config_handler_ready():
     handler = create_handler(
         "region=us-east-1,audience=https://a,tag_team=platform,tag_environment=prod",
-        None,
-    )
-    assert callable(handler)
-
-
-def test_create_handler_principal_name_override_handler_ready():
-    handler = create_handler(
-        "region=us-east-1,audience=https://a,principal_name=explicit-principal",
         None,
     )
     assert callable(handler)

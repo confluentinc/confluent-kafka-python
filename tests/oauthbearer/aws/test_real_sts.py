@@ -225,17 +225,6 @@ def test_create_handler_honours_signing_algorithm_rs256():
     assert header_json.get("alg") == "RS256", f"header.alg expected RS256, got {header_json.get('alg')!r}"
 
 
-def test_create_handler_honours_principal_name_override():
-    """Setting principal_name=... in the wire grammar overrides the JWT 'sub'
-    extraction at the autowire layer."""
-    handler = create_handler(
-        _default_config(principal_name="custom-principal"),
-        None,
-    )
-    _, _, principal, _ = handler("")
-    assert principal == "custom-principal", f"principal_name override not honoured: got {principal!r}"
-
-
 def test_create_handler_round_trips_sasl_extensions():
     """The typed sasl.oauthbearer.extensions property is parsed separately
     (comma-separated) and surfaces in the returned extensions dict.
