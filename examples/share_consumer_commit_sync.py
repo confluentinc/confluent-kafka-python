@@ -83,13 +83,12 @@ if __name__ == '__main__':
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
-                # Processed OK — ACCEPT it.
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
 
             if not batch:
                 continue
 
-            # Flush the acks and check each partition's result.
+            # Flush the acks before the next poll().
             results = sc.commit_sync(timeout=10.0)
             for topic_partition, err in results.items():
                 if err is not None:
