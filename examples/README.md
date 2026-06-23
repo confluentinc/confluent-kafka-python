@@ -15,6 +15,7 @@ The scripts in this directory provide various examples of using the Confluent Py
 Queues for Kafka (KIP-932) lets many consumers in the same share group read from the same partitions, acknowledging individual records like a queue.
 
 - [share_consumer.py](share_consumer.py): Read messages with a ShareConsumer using implicit acknowledgement (the default mode).
+- [share_consumer_context_manager.py](share_consumer_context_manager.py): Use a ShareConsumer as a context manager (`with` statement) so `close()` runs automatically on exit.
 - [share_consumer_commit_sync.py](share_consumer_commit_sync.py): Explicit acknowledgement with per-record ACCEPT/RELEASE/REJECT, committed synchronously with per-partition results.
 - [share_consumer_commit_async.py](share_consumer_commit_async.py): Explicit acknowledgement committed asynchronously, with broker outcomes delivered via an acknowledgement-commit callback.
 - [share_consumer_avro.py](share_consumer_avro.py): DeserializingShareConsumer reading Avro data via Schema Registry, with poison-record handling.

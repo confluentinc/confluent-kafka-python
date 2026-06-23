@@ -92,7 +92,6 @@ if __name__ == '__main__':
                     sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     continue
 
-                # Processed OK — ACCEPT it.
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
 
             # Flush the acks before the next poll(). commit_async() doesn't
