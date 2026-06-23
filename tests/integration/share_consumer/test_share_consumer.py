@@ -23,7 +23,14 @@ import time
 
 import pytest
 
-from confluent_kafka import TIMESTAMP_CREATE_TIME, AcknowledgeType, KafkaError, KafkaException, Producer
+from confluent_kafka import (
+    TIMESTAMP_CREATE_TIME,
+    AcknowledgeType,
+    KafkaError,
+    KafkaException,
+    Messages,
+    Producer,
+)
 from confluent_kafka.admin import NewTopic
 from tests.common import (
     drain_share_consumers,
@@ -101,6 +108,40 @@ def test_basic_consume_records(kafka_cluster):
         received_msgs = drain_share_consumers([sc], n)[0]
         values = sorted(msg.value() for msg in received_msgs)
         assert values == sorted(expected), f"Value mismatch: expected {sorted(expected)}, got {values}"
+    finally:
+        sc.close()
+
+
+def test_poll_returns_messages(kafka_cluster):
+    """poll() hands back a Messages whose count()/is_empty()/records()
+    agree with the batch it wraps, over the real C poll -> Messages path."""
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-records')
+    n = 10
+
+    sc = kafka_cluster.share_consumer()
+    try:
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        for i in range(n):
+            producer.produce(topic, value=f'msg-{i}'.encode())
+        producer.flush(timeout=10.0)
+
+        # Grab the first non-empty batch; empty polls are valid Messages too.
+        batch = None
+        deadline = time.time() + 30.0
+        while time.time() < deadline:
+            out = sc.poll(timeout=0.5)
+            assert isinstance(out, Messages)
+            if not out.is_empty():
+                batch = out
+                break
+
+        assert batch is not None, 'no records delivered within timeout'
+        assert batch.count() == len(batch)
+        records = batch.records()
+        assert type(records) is list
+        assert records == list(batch)
     finally:
         sc.close()
 
