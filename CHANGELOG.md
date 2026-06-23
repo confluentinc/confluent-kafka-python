@@ -1,11 +1,22 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.xx.x
+## v2.15.0rc1
+
+### Enhancements
+
+- [KIP-932] Add Share Consumer support (Queues for Kafka), including a deserializing share consumer and acknowledgement/commit callbacks (#2217, #2239, #2241, #2252, #2253, #2265, #2273)
 
 ### Fixes
 
 - Fix Encryption fails when expanded union types have two references to the same record (#2262)
 - Make orjson optional in JSON serdes with stdlib json fallback (#2281)
+
+
+confluent-kafka-python v2.15.0rc1 is based on librdkafka v2.15.0-RC1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.0-RC1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 
 ## v2.14.2 - 2026-06-03
 
