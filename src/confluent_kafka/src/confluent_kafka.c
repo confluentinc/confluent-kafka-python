@@ -2859,9 +2859,10 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
 
         /* AWS IAM OAUTHBEARER autowire: when the user sets the marker
          * sasl.oauthbearer.metadata.authentication.type=aws_iam, wire an
-         * oauth_cb sourced from the optional oauthbearer-aws extra, strip the
-         * marker, and rewrite method=oidc -> default. No-op when the marker is
-         * absent. See resolve_aws_oauthbearer_marker above for the full flow. */
+         * oauth_cb sourced from the optional oauthbearer-aws extra; the aws_iam
+         * marker and method=oidc are passed through to librdkafka unchanged.
+         * No-op when the marker is absent or an explicit oauth_cb is already
+         * set. See resolve_aws_oauthbearer_marker above for the full flow. */
         if (resolve_aws_oauthbearer_marker(confdict) == -1) {
                 goto outer_err;
         }
