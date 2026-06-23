@@ -3811,8 +3811,8 @@ static PyObject *_init_cimpl(void) {
             "invalid state, e.g. on a consumer that has already been "
             "closed.\n"
             "\n"
-            "Subclass of RuntimeError; ``str(exception)`` is the error "
-            "message.\n"
+            "Subclass of :py:class:`RuntimeError`; ``str(exception)`` is "
+            "the error message.\n"
             "\n",
             PyExc_RuntimeError, NULL);
         Py_INCREF(IllegalStateException);
@@ -3823,8 +3823,8 @@ static PyObject *_init_cimpl(void) {
             "Raised by ShareConsumer when it is accessed concurrently from "
             "more than one thread.\n"
             "\n"
-            "Subclass of RuntimeError; ``str(exception)`` is the error "
-            "message.\n"
+            "Subclass of :py:class:`RuntimeError`; ``str(exception)`` is "
+            "the error message.\n"
             "\n",
             PyExc_RuntimeError, NULL);
         Py_INCREF(ConcurrentModificationException);
