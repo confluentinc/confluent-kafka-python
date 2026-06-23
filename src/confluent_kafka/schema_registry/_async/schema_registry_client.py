@@ -570,13 +570,23 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         """
         response = None
         for i in range(self.max_retries + 1):
-            response = await self.session.request(
-                method,
-                url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
-                headers=headers,
-                content=body,
-                params=query,
-            )
+            try:
+                response = await self.session.request(
+                    method,
+                    url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                    headers=headers,
+                    content=body,
+                    params=query,
+                )
+            except httpx.TransportError:
+                # A TransportError means the request failed before a response
+                # was received (DNS failure, connection refused/reset, timeout,
+                # TLS error, etc.). Once retries are exhausted, re-raise so the
+                # caller can fail over to the next URL.
+                if i >= self.max_retries:
+                    raise
+                await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+                continue
 
             if is_success(response.status_code):
                 return response
