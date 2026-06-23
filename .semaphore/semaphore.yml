@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.14.0
+      value: v2.14.2
   prologue:
     commands:
       - checkout
@@ -179,7 +179,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - sem-version python 3.11.9
+            - sem-version python 3.11
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
@@ -509,7 +509,7 @@ blocks:
       jobs:
         - name: Verify
           commands:
-            - sem-version python 3.11.9
+            - sem-version python 3.11
             - python -m pip install --upgrade pip pytest
             - python -m pip install -r requirements/requirements-tests-install.txt
             - artifact pull workflow artifacts

@@ -1231,6 +1231,138 @@ def test_avro_encryption():
     assert obj == obj2
 
 
+def test_avro_encryption_complex_schema():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {
+                'name': 'complexField1',
+                'type': {
+                    'fields': [
+                        {'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']},
+                    ],
+                    'name': 'ComplexFieldType',
+                    'type': 'record',
+                },
+            },
+            {'name': 'complexField2', 'type': 'ComplexFieldType'},
+        ],
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
+
+    obj = {
+        'complexField1': {'stringValue': 'test1'},
+        'complexField2': {'stringValue': 'test2'},
+    }
+
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    assert 'test1' not in str(obj_bytes)
+    assert 'test2' not in str(obj_bytes)
+
+    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    actual = deser(obj_bytes, ser_ctx)
+    assert actual['complexField1']['stringValue'] == 'test1'
+    assert actual['complexField2']['stringValue'] == 'test2'
+
+
+def test_avro_encryption_complex_schema_union():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {
+                'name': 'complexField1',
+                'type': {
+                    'fields': [
+                        {
+                            'name': 'complexSubType1',
+                            'type': {
+                                'fields': [{'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']}],
+                                'name': 'ComplexSubType',
+                                'type': 'record',
+                            },
+                        },
+                        {'name': 'complexSubType2', 'type': 'ComplexSubType'},
+                    ],
+                    'name': 'ComplexFieldType',
+                    'type': 'record',
+                },
+            },
+            {'name': 'complexField2', 'type': ['null', 'ComplexFieldType']},
+        ],
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
+
+    obj = {
+        'complexField1': {'complexSubType1': {'stringValue': 'test1'}, 'complexSubType2': {'stringValue': 'test2'}},
+        'complexField2': {'complexSubType1': {'stringValue': 'test3'}, 'complexSubType2': {'stringValue': 'test4'}},
+    }
+
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    assert 'test1' not in str(obj_bytes)
+    assert 'test2' not in str(obj_bytes)
+    assert 'test3' not in str(obj_bytes)
+    assert 'test4' not in str(obj_bytes)
+
+    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    actual = deser(obj_bytes, ser_ctx)
+    assert actual['complexField1']['complexSubType1']['stringValue'] == 'test1'
+    assert actual['complexField1']['complexSubType2']['stringValue'] == 'test2'
+    assert actual['complexField2']['complexSubType1']['stringValue'] == 'test3'
+    assert actual['complexField2']['complexSubType2']['stringValue'] == 'test4'
+
+
 def test_avro_payload_encryption():
     executor = EncryptionExecutor.register_with_clock(FakeClock())
 

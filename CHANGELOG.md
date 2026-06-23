@@ -4,10 +4,32 @@
 
 ### Fixes
 
+- Fix Encryption fails when expanded union types have two references to the same record (#2262)
+- Make orjson optional in JSON serdes with stdlib json fallback (#2281)
+
+## v2.14.2 - 2026-06-03
+
+v2.14.2 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
 - Fix URL joining in Python client (#2228)
 - Handle anyOf/allOf in JSON transforms (#2237)
 - Fix redefining a named Avro type in a diamond dependency pattern (#2238)
 - Fix typing_extensions import errors on Python 3.12 (#2232)
+- Fix Encryption fails when referencing self defined types (#2254)
+
+
+confluent-kafka-python v2.14.2 is based on librdkafka v2.14.2, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.14.1
+
+There was no 2.14.1 release of the Python Client.
+
 
 
 ## v2.14.0 - 2026-04-01
