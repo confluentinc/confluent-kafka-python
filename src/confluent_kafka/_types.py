@@ -36,3 +36,4 @@ Deserializer = Callable[[Optional[bytes], Any], Any]  # (Optional[bytes], Serial
 # These are defined here to avoid circular imports
 DeliveryCallback = Callable[[Optional[Any], Any], None]  # (KafkaError, Message) -> None
 RebalanceCallback = Callable[[Any, List[Any]], None]  # (Consumer, List[TopicPartition]) -> None
+AcknowledgementCommitCallback = Callable[[Dict[Any, Any], Optional[Any]], None]  # (offsets, KafkaException) -> None

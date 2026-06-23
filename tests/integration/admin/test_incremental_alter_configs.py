@@ -15,8 +15,15 @@
 
 import time
 
+import pytest
+
 from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource, ResourceType
 from tests.common import TestUtils
+
+
+def _broker_version_tuple():
+    parts = TestUtils.broker_version().split('.')
+    return tuple(int(p) for p in parts[:2])
 
 
 def assert_expected_config_entries(fs, num_fs, expected):
@@ -41,6 +48,14 @@ def assert_operation_succeeded(fs, num_fs):
         assert f.result() is None  # empty, but raises exception on failure
 
 
+@pytest.mark.skipif(
+    _broker_version_tuple() < (4, 1),
+    reason="KIP-966 ELR (Kafka 4.1+) writes a cluster-level "
+    "min.insync.replicas ConfigRecord at controller activation. "
+    "DescribeConfigs then reports it on every topic with "
+    "source=DYNAMIC_DEFAULT_BROKER_CONFIG. The expected lists below "
+    "assume that record exists; pre-4.1 brokers will see a shorter list.",
+)
 def test_incremental_alter_configs(kafka_cluster):
     """
     Incrementally change the configuration entries of two topics
@@ -88,8 +103,18 @@ def test_incremental_alter_configs(kafka_cluster):
         ],
     )
     expected = {
-        res1: ['cleanup.policy="delete,compact"', 'compression.type="gzip"', 'retention.ms="10000"'],
-        res2: ['cleanup.policy=""', 'compression.type="gzip"', 'retention.ms="5000"'],
+        res1: [
+            'cleanup.policy="delete,compact"',
+            'compression.type="gzip"',
+            'min.insync.replicas="1"',
+            'retention.ms="10000"',
+        ],
+        res2: [
+            'cleanup.policy=""',
+            'compression.type="gzip"',
+            'min.insync.replicas="1"',
+            'retention.ms="5000"',
+        ],
     }
 
     #
@@ -120,7 +145,7 @@ def test_incremental_alter_configs(kafka_cluster):
             ConfigEntry("retention.ms", "10000", incremental_operation=AlterConfigOpType.SET),
         ],
     )
-    expected[res2] = ['cleanup.policy=""', 'retention.ms="10000"']
+    expected[res2] = ['cleanup.policy=""', 'min.insync.replicas="1"', 'retention.ms="10000"']
 
     #
     # Incrementally alter some configuration values

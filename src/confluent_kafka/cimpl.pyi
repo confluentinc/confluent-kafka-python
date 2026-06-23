@@ -35,7 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union, overload
 
 try:
     from typing import Self
@@ -45,11 +45,16 @@ except ImportError:
 
 from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
+from ._model import AcknowledgeType
 from ._types import HeadersType
 
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
+# (offsets, exception) — note the order is offsets-first, opposite of on_commit.
+AcknowledgementCommitCallback = Callable[
+    [Dict['TopicPartition', Set[int]], Optional['KafkaException']], None
+]
 
 # ===== CLASSES (Manual - stubgen missed these) =====
 
@@ -103,6 +108,7 @@ class KafkaError:
     INVALID_REPLICA_ASSIGNMENT: int
     INVALID_REQUEST: int
     INVALID_REQUIRED_ACKS: int
+    INVALID_SHARE_SESSION_EPOCH: int
     INVALID_SESSION_TIMEOUT: int
     INVALID_SHARE_SESSION_EPOCH: int
     INVALID_TIMESTAMP: int
@@ -158,6 +164,7 @@ class KafkaError:
     TOPIC_AUTHORIZATION_FAILED: int
     TOPIC_DELETION_DISABLED: int
     TOPIC_EXCEPTION: int
+    TRANSACTION_ABORTABLE: int
     TRANSACTIONAL_ID_AUTHORIZATION_FAILED: int
     TRANSACTION_ABORTABLE: int
     TRANSACTION_COORDINATOR_FENCED: int
@@ -270,6 +277,15 @@ class KafkaException(Exception):
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
     args: Tuple[Any, ...]
 
+# These subclass RuntimeError; str(exc) is the error message (not a KafkaError).
+class IllegalStateException(RuntimeError):
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    args: Tuple[Any, ...]
+
+class ConcurrentModificationException(RuntimeError):
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
+    args: Tuple[Any, ...]
+
 class Message:
     def __init__(
         self,
@@ -283,6 +299,7 @@ class Message:
         timestamp: Optional[Tuple[int, int]] = ...,
         latency: Optional[float] = ...,
         leader_epoch: Optional[int] = ...,
+        delivery_count: Optional[int] = ...,
     ) -> None: ...
     def topic(self) -> Optional[str]: ...
     def partition(self) -> Optional[int]: ...
@@ -294,9 +311,11 @@ class Message:
     def timestamp(self) -> Tuple[int, int]: ...  # (timestamp_type, timestamp)
     def latency(self) -> Optional[float]: ...
     def leader_epoch(self) -> Optional[int]: ...
+    def delivery_count(self) -> Optional[int]: ...
     def set_headers(self, headers: HeadersType) -> None: ...
     def set_key(self, key: Any) -> None: ...
     def set_value(self, value: Any) -> None: ...
+    def set_error(self, error: Optional[KafkaError]) -> None: ...
     def __len__(self) -> int: ...
 
 class TopicPartition:
@@ -342,13 +361,9 @@ class Producer:
             Producer({'bootstrap.servers': 'localhost:9092'})
         """
         ...
+
     @overload
-    def __init__(
-        self,
-        config: Dict[str, Any],
-        /,
-        **kwargs: Any
-    ) -> None:
+    def __init__(self, config: Dict[str, Any], /, **kwargs: Any) -> None:
         """
         Create Producer with configuration dict and additional keyword arguments.
         Keyword arguments override values in the config dict.
@@ -362,6 +377,7 @@ class Producer:
             Producer({'bootstrap.servers': 'localhost'}, enable_idempotence=True)
         """
         ...
+
     @overload
     def __init__(self, **config: Any) -> None:
         """
@@ -375,6 +391,7 @@ class Producer:
             Producer(bootstrap_servers='localhost:9092')
         """
         ...
+
     def produce(
         self,
         topic: str,
@@ -425,13 +442,9 @@ class Consumer:
             Consumer({'bootstrap.servers': 'localhost', 'group.id': 'mygroup'})
         """
         ...
+
     @overload
-    def __init__(
-        self,
-        config: dict[str, Any],
-        /,
-        **kwargs: Any
-    ) -> None:
+    def __init__(self, config: dict[str, Any], /, **kwargs: Any) -> None:
         """
         Create Consumer with configuration dict and additional keyword arguments.
         Keyword arguments override values in the config dict.
@@ -445,6 +458,7 @@ class Consumer:
             Consumer({'bootstrap.servers': 'localhost'}, group_id='mygroup')
         """
         ...
+
     @overload
     def __init__(self, **config: Any) -> None:
         """
@@ -458,6 +472,7 @@ class Consumer:
             Consumer(bootstrap_servers='localhost', group_id='mygroup')
         """
         ...
+
     def subscribe(
         self,
         topics: List[str],
@@ -481,6 +496,7 @@ class Consumer:
         Message and offsets omitted, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -491,6 +507,7 @@ class Consumer:
         Message and offsets omitted, synchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -502,6 +519,7 @@ class Consumer:
         Message specified, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -513,17 +531,19 @@ class Consumer:
         Message specified, synchronous.
         """
         ...
+
     @overload
     def commit(
-            self,
-            *,
-            offsets: List[TopicPartition],
-            asynchronous: Literal[True] = ...,
+        self,
+        *,
+        offsets: List[TopicPartition],
+        asynchronous: Literal[True] = ...,
     ) -> None:
         """
         Offsets specified, asynchronous.
         """
         ...
+
     @overload
     def commit(
         self,
@@ -535,6 +555,7 @@ class Consumer:
         Offsets specified, synchronous
         """
         ...
+
     def get_watermark_offsets(
         self, partition: TopicPartition, timeout: float = -1, cached: bool = False
     ) -> Tuple[int, int]: ...
@@ -556,6 +577,40 @@ class Consumer:
     def consumer_group_metadata(self) -> Any: ...  # ConsumerGroupMetadata
     def memberid(self) -> str: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
+
+class ShareConsumer:
+    """Share Consumer for queue-like message consumption (KIP-932)."""
+
+    @overload
+    def __init__(self, config: Dict[str, Any]) -> None: ...
+    @overload
+    def __init__(self, config: Dict[str, Any], /, **kwargs: Any) -> None: ...
+    @overload
+    def __init__(self, **config: Any) -> None: ...
+    def subscribe(self, topics: List[str]) -> None: ...
+    def unsubscribe(self) -> None: ...
+    def subscription(self) -> List[str]: ...
+    # TODO KIP-932: poll() returns List[Message] today. Replace it with a
+    # Messages container class once we have a clear use for carrying extra
+    # metadata alongside the records.
+    def poll(self, timeout: float = -1) -> List[Message]: ...
+    def acknowledge(self, message: Message, ack_type: AcknowledgeType = ...) -> None: ...
+    def acknowledge_offset(
+        self, topic: str, partition: int, offset: int, ack_type: AcknowledgeType = ...
+    ) -> None: ...
+    # TODO KIP-932: commit_sync() is keyed by the existing TopicPartition
+    # (no UUID) for now. A future TopicIdPartition (topic name + topic UUID
+    # + partition) would carry the UUID; add that class once the interface
+    # is finalized.
+    def commit_sync(self, timeout: float = 60) -> Dict[TopicPartition, Optional[KafkaError]]: ...
+    def commit_async(self) -> None: ...
+    def set_acknowledgement_commit_callback(
+        self, callback: Optional[AcknowledgementCommitCallback]
+    ) -> None: ...
+    def set_sasl_credentials(self, username: str, password: str) -> None: ...
+    def close(self) -> None: ...
+    def __enter__(self) -> "ShareConsumer": ...
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]: ...
 
 class _AdminClientImpl:
     def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
@@ -771,6 +826,9 @@ OFFSET_SPEC_EARLIEST: int
 OFFSET_SPEC_LATEST: int
 OFFSET_SPEC_MAX_TIMESTAMP: int
 OFFSET_STORED: int
+SHARE_ACKNOWLEDGE_TYPE_ACCEPT: int
+SHARE_ACKNOWLEDGE_TYPE_RELEASE: int
+SHARE_ACKNOWLEDGE_TYPE_REJECT: int
 RESOURCE_ANY: int
 RESOURCE_BROKER: int
 RESOURCE_GROUP: int

@@ -17,7 +17,7 @@ uv pip install -U build
 # Cache trivup Apache Kafka versions
 
 BASE=$PWD
-for version in 3.9.0 4.0.0; do
+for version in 4.2.0; do
     artifact pull project kafka_2.13-$version.tgz || true
     if [[ ! -f  ./kafka_2.13-$version.tgz ]]; then
         wget -O ./kafka_2.13-$version.tgz "https://archive.apache.org/dist/kafka/$version/kafka_2.13-$version.tgz"
@@ -29,7 +29,12 @@ for version in 3.9.0 4.0.0; do
 done
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+# TODO KIP-932: Remove LIBRDKAFKA_BRANCH fallback once LIBRDKAFKA_VERSION includes share consumer support
+if [[ -n $LIBRDKAFKA_BRANCH ]]; then
+    tools/wheels/build-librdkafka-branch.sh "$LIBRDKAFKA_BRANCH" dest
+else
+    tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+fi
 export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
 export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
