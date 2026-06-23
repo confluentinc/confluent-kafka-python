@@ -23,7 +23,7 @@ import sys
 # Consumers in a share group share partitions like a queue. In implicit mode
 # each record is acknowledged for you on the next poll().
 #
-from confluent_kafka import KafkaException, ShareConsumer
+from confluent_kafka import ConcurrentModificationException, IllegalStateException, KafkaException, ShareConsumer
 
 
 def print_usage_and_exit(program_name):
@@ -54,20 +54,25 @@ if __name__ == '__main__':
             try:
                 messages = sc.poll(timeout=1.0)  # a list, possibly empty
             except KafkaException as e:
-                # Re-raise fatal errors; otherwise log and keep going.
+                # The consumer should stop consuming after fatal error.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
                 continue
+            except (IllegalStateException, ConcurrentModificationException) as e:
+                # These signal misuse (polling when not subscribed/closed, or
+                # from more than one thread), not a transient hiccup — no point
+                # looping, so bail out.
+                sys.stderr.write('%% Fatal: %s\n' % e)
+                raise
             for msg in messages:
                 if msg.error():
-                    # A bad record. In implicit mode you can't ack it by hand
-                    # (acknowledge() is rejected); the library automatically
-                    # retries it (temporary errors) or discards it (permanent
-                    # errors) on the next poll — it is never accepted. Just log it.
+                    # The records with msg.error() field set will be acknowledged
+                    # internally with RELEASE for temporary errors and REJECT for
+                    # permanent errors. Check KIP for more details.
                     sys.stderr.write('%% Error: %s\n' % msg.error())
                     continue
-                sys.stderr.write(
+                sys.stdout.write(
                     '%% %s [%d] at offset %d with key %s:\n'
                     % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
                 )

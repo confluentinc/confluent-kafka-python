@@ -112,13 +112,14 @@ def main(args):
                 if err is not None:
                     if err.code() in (KafkaError._KEY_DESERIALIZATION, KafkaError._VALUE_DESERIALIZATION):
                         # A record we received but can't decode. In explicit
-                        # mode we still have to ack it — REJECT it as poison so
-                        # it isn't redelivered.
-                        sc.acknowledge(msg, AcknowledgeType.REJECT)
+                        # mode we still have to ack it — RELEASE it so that
+                        # other consumer can pick and redeliver for processing
+                        # again. In implicit ack mode, we currently don't release
+                        # the record in the Preview internally.
+                        sc.acknowledge(msg, AcknowledgeType.RELEASE)
                     else:
-                        # Any other flagged record: the library already handles
-                        # it. Acking it yourself is redundant and can turn a
-                        # permanent discard into a retry. Just log it.
+                        # Any other flagged record is acked internally by the
+                        # library — see share_consumer.py for the error handling.
                         sys.stderr.write('%% Error: %s\n' % err)
                     continue
 
@@ -131,9 +132,6 @@ def main(args):
                         )
                     )
                 sc.acknowledge(msg, AcknowledgeType.ACCEPT)
-
-            # Flush the acks before the next poll().
-            sc.commit_async()
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:

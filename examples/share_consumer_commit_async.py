@@ -31,7 +31,8 @@ def acknowledgement_commit_callback(offsets, exception):
     # commit_async() reports its result only here. offsets maps each
     # TopicPartition to the set of acked offsets; exception is set on failure.
     if exception is not None:
-        sys.stderr.write('%% Acknowledgement commit failed: %s\n' % exception)
+        partitions = ', '.join('%s [%d]' % (tp.topic, tp.partition) for tp, _ in offsets.items())
+        sys.stderr.write('%% Acknowledgement commit failed for %s: %s\n' % (partitions, exception))
         return
     for topic_partition, acked_offsets in offsets.items():
         sys.stderr.write(
@@ -68,35 +69,28 @@ if __name__ == '__main__':
         while True:
             try:
                 messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
+                for msg in messages:
+                    if msg.error():
+                        # No need to acknowledge a flagged record — the library
+                        # already handles it. Acking it yourself is redundant and
+                        # can override a permanent discard with a retry. Just log it.
+                        sys.stderr.write('%% Error: %s\n' % msg.error())
+                        continue
+
+                    # Your processing goes here.
+                    print(msg.value())
+                    sc.acknowledge(msg, AcknowledgeType.ACCEPT)
+
+                # Flush the acks before the next poll(). commit_async() doesn't
+                # block; results land in the callback.
+                sc.commit_async()
             except KafkaException as e:
                 # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
                 continue
-
-            for msg in messages:
-                if msg.error():
-                    # No need to acknowledge a flagged record — the library
-                    # already handles it. Acking it yourself is redundant and
-                    # can override a permanent discard with a retry. Just log it.
-                    sys.stderr.write('%% Error: %s\n' % msg.error())
-                    continue
-
-                try:
-                    # Your processing goes here.
-                    print(msg.value())
-                except Exception as e:
-                    # Couldn't process it — RELEASE so it can be retried.
-                    sys.stderr.write('%% Processing failed: %s\n' % e)
-                    sc.acknowledge(msg, AcknowledgeType.RELEASE)
-                    continue
-
-                sc.acknowledge(msg, AcknowledgeType.ACCEPT)
-
-            # Flush the acks before the next poll(). commit_async() doesn't
-            # block; results land in the callback.
-            sc.commit_async()
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
