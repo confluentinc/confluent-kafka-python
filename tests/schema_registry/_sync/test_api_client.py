@@ -568,11 +568,12 @@ def test_send_request_retries_on_network_error():
     conf = {'url': TEST_URL, 'max.retries': 3, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
     rest_client = _RestClient(conf)
 
-    ok = httpx.Response(200, json=SUBJECTS, request=httpx.Request('GET', TEST_URL + '/subjects'))
+    req = httpx.Request('GET', TEST_URL + '/subjects')
+    ok = httpx.Response(200, json=SUBJECTS, request=req)
     mock_request = Mock(
         side_effect=[
-            httpx.ConnectError('connection refused'),
-            httpx.ConnectError('connection refused'),
+            httpx.ConnectError('connection refused', request=req),
+            httpx.ConnectError('connection refused', request=req),
             ok,
         ]
     )
@@ -595,7 +596,8 @@ def test_send_request_exhausts_retries_on_network_error():
     conf = {'url': TEST_URL, 'max.retries': 2, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
     rest_client = _RestClient(conf)
 
-    mock_request = Mock(side_effect=httpx.ConnectError('connection refused'))
+    req = httpx.Request('GET', TEST_URL + '/subjects')
+    mock_request = Mock(side_effect=httpx.ConnectError('connection refused', request=req))
     rest_client.session.request = mock_request
 
     with pytest.raises(httpx.ConnectError):
