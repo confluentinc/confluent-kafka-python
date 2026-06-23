@@ -6,6 +6,7 @@
 
 - Fix Encryption fails when expanded union types have two references to the same record (#2262)
 - Make orjson optional in JSON serdes with stdlib json fallback (#2281)
+- Handle non-http errors during retries (#2292)
 
 ## v2.14.2 - 2026-06-03
 
