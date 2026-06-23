@@ -686,12 +686,6 @@ class SoakClient(object):
 
             sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
             sconf['error_cb'] = self.share_error_cb
-            # Share consumer rejects `statistics.interval.ms` (librdkafka
-            # `dev_kip-932_queues-for-kafka` PR #5469). Strip the stats
-            # wiring inherited from the parent conf so ShareConsumer()
-            # doesn't crash with `_INVALID_ARG`.
-            sconf.pop('statistics.interval.ms', None)
-            sconf.pop('stats_cb', None)
             sconf['client.id'] = self.testid
 
             # In explicit mode, switch the consumer's ack policy. Default is
