@@ -18,7 +18,7 @@
 
 from typing import Any, Dict
 
-from confluent_kafka._messages import Messages
+from confluent_kafka._model import Messages
 from confluent_kafka.cimpl import KafkaError, Message
 from confluent_kafka.cimpl import ShareConsumer as _ShareConsumerImpl
 

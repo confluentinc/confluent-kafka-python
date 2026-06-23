@@ -451,8 +451,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
          * forever -- this is on the hot path and the per-call import+attr
          * lookup isn't free. The GIL serializes this first init. */
         if (!Messages_type) {
-                Messages_type = cfl_PyObject_lookup("confluent_kafka._messages",
-                                                    "Messages");
+                Messages_type =
+                    cfl_PyObject_lookup("confluent_kafka._model", "Messages");
                 if (!Messages_type) {
                         Py_DECREF(msglist);
                         return NULL;
@@ -1157,7 +1157,7 @@ static PyMethodDef ShareConsumer_methods[] = {
 static int ShareConsumer_reject_incompatible_config(PyObject *args,
                                                     PyObject *kwargs) {
         static const char *const share_rejected_keys[] = {"on_commit", NULL};
-        PyObject *positional_dict = NULL;
+        PyObject *positional_dict                      = NULL;
         int i;
 
         if (args && PyTuple_Check(args) && PyTuple_Size(args) >= 1) {
