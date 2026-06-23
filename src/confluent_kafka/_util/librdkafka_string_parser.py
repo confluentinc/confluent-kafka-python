@@ -159,7 +159,7 @@ def parse_key_values(
         # Split on the FIRST '='. eq <= 0 means no '=' or an empty key.
         eq = field.find("=")
         if eq <= 0:
-            what = f"'{context_label}'" if context_label else "key=value"
-            raise ValueError(f"Malformed {what} entry '{field}' (expected key=value).")
+            where = f" in {context_label}" if context_label else ""
+            raise ValueError(f"Malformed entry '{field}'{where} (expected key=value).")
         pairs.append((field[:eq], field[eq + 1 :]))
     return pairs
