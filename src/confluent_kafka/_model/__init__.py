@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from enum import Enum, IntEnum
-from typing import List, Optional
+from typing import Iterable, Iterator, List, Optional, Union
 
 from .. import cimpl
-from ..cimpl import TopicPartition
+from ..cimpl import Message, TopicPartition
 
 
 class Node:
@@ -219,11 +219,11 @@ class Messages:
     plus the count(), is_empty(), and records() accessors.
     """
 
-    def __init__(self, messages=()):
+    def __init__(self, messages: Iterable[Message] = ()) -> None:
         self._records = list(messages)
 
     @classmethod
-    def _from_list(cls, records):
+    def _from_list(cls, records: List[Message]) -> "Messages":
         """Wrap an already-built record list as a batch, without copying it.
 
         :param list records: messages to adopt as the batch contents
@@ -233,7 +233,7 @@ class Messages:
         obj._records = records
         return obj
 
-    def records(self):
+    def records(self) -> List[Message]:
         """Copy of the messages in this batch.
 
         :rtype: list
@@ -241,31 +241,31 @@ class Messages:
         # Hand out a copy so callers can't mutate the batch.
         return list(self._records)
 
-    def count(self):
+    def count(self) -> int:
         """Number of messages in this batch.
 
         :rtype: int
         """
         return len(self._records)
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         """Whether this batch contains no messages.
 
         :rtype: bool
         """
         return not self._records
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._records)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Message]:
         return iter(self._records)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: Union[int, slice]) -> "Union[Message, Messages]":
         # Slices stay Messages -- a bare list would quietly lose the accessors.
         if isinstance(index, slice):
             return self._from_list(self._records[index])
         return self._records[index]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Messages({self._records!r})"
