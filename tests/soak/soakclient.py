@@ -671,6 +671,10 @@ class SoakClient(object):
             sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
             sconf['error_cb'] = self.share_error_cb
             sconf['client.id'] = self.testid
+            # Share consumer rejects `enable.partition.eof` (added in librdkafka
+            # v2.15.0-RC1). The flag was set on the parent conf for the regular
+            # Consumer; strip it before creating ShareConsumer.
+            sconf.pop('enable.partition.eof', None)
 
             # In explicit mode, switch the consumer's ack policy. Default is
             # implicit (next poll auto-acks); without this flip, calls to
