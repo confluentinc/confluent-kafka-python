@@ -316,7 +316,7 @@ pip install "confluent-kafka[oauthbearer-aws]"
 
 Activation is config-only — set `sasl.oauthbearer.method=oidc`,
 `sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
-`sasl.oauthbearer.config="region=... audience=..."`. The client mints fresh
+`sasl.oauthbearer.config="region=...,audience=..."`. The client mints fresh
 JWTs via AWS STS on every token refresh — no static credentials, no Python-side
 imports. See [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
 for a worked example.

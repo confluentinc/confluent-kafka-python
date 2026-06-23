@@ -28,7 +28,7 @@ User-facing contract — four config keys::
 
     "sasl.oauthbearer.method":                        "oidc"
     "sasl.oauthbearer.metadata.authentication.type":  "aws_iam"
-    "sasl.oauthbearer.config":                        "region=... audience=..."
+    "sasl.oauthbearer.config":                        "region=...,audience=..."
     "sasl.oauthbearer.extensions":                    "key=val,..."   # optional
 
 Frozen cross-module contract of :func:`create_handler`:
@@ -84,7 +84,7 @@ def create_handler(
             f"'{AWS_IAM_MARKER_KEY}={AWS_IAM_MARKER_VALUE}' is set but "
             f"'{CONFIG_KEY}' is missing or empty. The AWS IAM autowire path "
             f"requires region and audience to be supplied via "
-            f"{CONFIG_KEY} (e.g. \"region=us-east-1 audience=https://...\")."
+            f"{CONFIG_KEY} (e.g. \"region=us-east-1,audience=https://...\")."
         )
 
     sasl_extensions = _aws_sasl_extensions_parser.parse(sasl_oauthbearer_extensions)

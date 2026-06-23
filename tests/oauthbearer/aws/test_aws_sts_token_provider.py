@@ -112,7 +112,7 @@ def test_ctor_null_config_raises():
 
 def test_ctor_valid_parsed_config_succeeds():
     """No AWS / no HTTP call at construction time (lazy credential chain)."""
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
     # Does not throw; does not call AWS (lazy credential chain).
     assert provider is not None
@@ -122,7 +122,7 @@ def test_ctor_valid_parsed_config_succeeds():
 
 
 def test_ctor_no_aws_debug_does_not_mutate_botocore_logger():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     # Capture botocore logger's level before & after construction; without
     # an explicit aws_debug=console, we must not touch boto3.set_stream_logger.
     with patch("boto3.set_stream_logger") as mock_setter:
@@ -131,14 +131,14 @@ def test_ctor_no_aws_debug_does_not_mutate_botocore_logger():
 
 
 def test_ctor_aws_debug_none_does_not_mutate_botocore_logger():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a aws_debug=none")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,aws_debug=none")
     with patch("boto3.set_stream_logger") as mock_setter:
         AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
         mock_setter.assert_not_called()
 
 
 def test_ctor_aws_debug_console_routes_botocore_logger_to_stream():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a aws_debug=console")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,aws_debug=console")
     with patch("boto3.set_stream_logger") as mock_setter:
         AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
         mock_setter.assert_called_once_with("botocore", logging.DEBUG)
@@ -149,7 +149,7 @@ def test_ctor_aws_debug_console_routes_botocore_logger_to_stream():
 
 def test_token_audience_passthrough():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://my.audience")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://my.audience")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert fake.last_request["Audience"] == ["https://my.audience"]
@@ -157,7 +157,7 @@ def test_token_audience_passthrough():
 
 def test_token_signing_algorithm_passthrough():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a signing_algorithm=RS256")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,signing_algorithm=RS256")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert fake.last_request["SigningAlgorithm"] == "RS256"
@@ -165,7 +165,7 @@ def test_token_signing_algorithm_passthrough():
 
 def test_token_duration_seconds_passthrough():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a duration_seconds=900")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,duration_seconds=900")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert fake.last_request["DurationSeconds"] == 900
@@ -173,7 +173,7 @@ def test_token_duration_seconds_passthrough():
 
 def test_token_default_duration_sends_300_seconds():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert fake.last_request["DurationSeconds"] == 300
@@ -181,7 +181,7 @@ def test_token_default_duration_sends_300_seconds():
 
 def test_token_default_signing_algorithm_sends_es384():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert fake.last_request["SigningAlgorithm"] == "ES384"
@@ -189,7 +189,7 @@ def test_token_default_signing_algorithm_sends_es384():
 
 def test_token_tags_passthrough():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a tag_team=platform tag_environment=prod")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_team=platform,tag_environment=prod")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
 
@@ -202,7 +202,7 @@ def test_token_tags_passthrough():
 def test_token_no_tags_omits_tags_field_from_request():
     """When no tags configured, omit the Tags field rather than send empty list."""
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     provider.token()
     assert "Tags" not in fake.last_request
@@ -213,7 +213,7 @@ def test_token_no_tags_omits_tags_field_from_request():
 
 def test_token_returns_mapped_fields():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     jwt, expiry, principal, extensions = provider.token()
 
@@ -225,7 +225,7 @@ def test_token_returns_mapped_fields():
 
 def test_token_principal_name_override_wins_over_jwt_sub():
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a principal_name=explicit-principal")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,principal_name=explicit-principal")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     _, _, principal, _ = provider.token()
     assert principal == "explicit-principal"
@@ -235,7 +235,7 @@ def test_token_sasl_extensions_passthrough():
     fake = FakeStsClient()
     sasl_extensions = {"logicalCluster": "lkc-123", "identityPoolId": "pool-x"}
     cfg = AwsOAuthBearerConfig.parse(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         sasl_extensions,
     )
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
@@ -249,7 +249,7 @@ def test_token_no_extensions_configured_returns_empty_dict():
     slot (rejects None). Empty dict is the Pythonic equivalent of the
     .NET null-extensions case."""
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     _, _, _, extensions = provider.token()
     assert extensions == {}
@@ -260,7 +260,7 @@ def test_token_expiry_is_epoch_seconds_float():
     """The C wrapper expects expiry as epoch seconds (float). It multiplies
     by 1000 internally to get milliseconds for librdkafka."""
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     _, expiry, _, _ = provider.token()
     assert isinstance(expiry, float)
@@ -274,7 +274,7 @@ def test_token_missing_expiration_raises():
     """STS response without Expiration → ValueError surfaced as
     rd_kafka_oauthbearer_set_token_failure by the C wrapper."""
     fake = FakeStsClient(responder=lambda kwargs: {"WebIdentityToken": _CANNED_JWT})
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     with pytest.raises(ValueError, match="Expiration"):
         provider.token()
@@ -282,7 +282,7 @@ def test_token_missing_expiration_raises():
 
 def test_token_missing_token_value_raises():
     fake = FakeStsClient(responder=lambda kwargs: {"Expiration": _CANNED_EXPIRY})
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     with pytest.raises(ValueError, match="WebIdentityToken"):
         provider.token()
@@ -295,7 +295,7 @@ def test_token_malformed_jwt_raises_value_error():
             "Expiration": _CANNED_EXPIRY,
         }
     )
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     with pytest.raises(ValueError):
         provider.token()
@@ -313,7 +313,7 @@ def test_token_sts_access_denied_propagates():
             operation_name="GetWebIdentityToken",
         ),
     )
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     with pytest.raises(ClientError) as exc_info:
         provider.token()
@@ -332,7 +332,7 @@ def test_token_outbound_federation_disabled_propagates():
             operation_name="GetWebIdentityToken",
         ),
     )
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=fake)
     with pytest.raises(ClientError) as exc_info:
         provider.token()
@@ -357,7 +357,7 @@ def test_ctor_does_not_invoke_sts():
     Verify by checking the fake client received no requests after __init__
     but before any .token() invocation."""
     fake = FakeStsClient()
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     AwsStsTokenProvider(cfg, sts_client=fake)
     assert fake.last_request is None
 
@@ -369,7 +369,7 @@ def test_ctor_sts_endpoint_plumbed_to_boto3_client():
     """When sts_endpoint is set on config, boto3.Session().client('sts', ...)
     receives an endpoint_url kwarg."""
     cfg = AwsOAuthBearerConfig.parse(
-        "region=us-east-1 audience=https://a " "sts_endpoint=https://sts-fips.us-east-1.amazonaws.com"
+        "region=us-east-1,audience=https://a,sts_endpoint=https://sts-fips.us-east-1.amazonaws.com"
     )
     with patch("boto3.Session") as mock_session_cls:
         mock_session = mock_session_cls.return_value
@@ -382,7 +382,7 @@ def test_ctor_sts_endpoint_plumbed_to_boto3_client():
 
 
 def test_ctor_no_sts_endpoint_omits_endpoint_url_kwarg():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     with patch("boto3.Session") as mock_session_cls:
         mock_session = mock_session_cls.return_value
         AwsStsTokenProvider(cfg)
@@ -435,7 +435,7 @@ def test_ctor_old_boto3_raises_before_building_client(monkeypatch):
     import boto3
 
     monkeypatch.setattr(boto3, "__version__", "1.40.0")
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     with patch("boto3.Session") as mock_session_cls:
         with pytest.raises(ImportError, match="GetWebIdentityToken"):
             AwsStsTokenProvider(cfg)  # no sts_client → real path → check runs
@@ -448,7 +448,7 @@ def test_ctor_injected_client_skips_version_check(monkeypatch):
     import boto3
 
     monkeypatch.setattr(boto3, "__version__", "1.0.0")  # ancient, but skipped
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     provider = AwsStsTokenProvider(cfg, sts_client=FakeStsClient())
     assert provider is not None
 

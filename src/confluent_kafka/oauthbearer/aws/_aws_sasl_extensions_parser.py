@@ -20,7 +20,7 @@ extensions as a comma-separated ``key=value`` list.
 
 from typing import Dict, Optional
 
-from confluent_kafka._util.kv_string_parser import parse_kv
+from confluent_kafka._util.librdkafka_string_parser import parse_key_values
 
 __all__ = ["CONFIG_KEY", "parse"]
 
@@ -43,7 +43,7 @@ def parse(raw: Optional[str]) -> Optional[Dict[str, str]]:
         return None
 
     result: Dict[str, str] = {}
-    for key, value in parse_kv(raw, separators=[","], context_label=CONFIG_KEY):
+    for key, value in parse_key_values(raw, ",", CONFIG_KEY):
         # Last-wins on duplicate keys, mirroring librdkafka.
         result[key] = value
 

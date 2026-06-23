@@ -2590,7 +2590,7 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
  * oauth_cb is supplied):
  *   sasl.oauthbearer.method                       = "oidc"
  *   sasl.oauthbearer.metadata.authentication.type = "aws_iam"
- *   sasl.oauthbearer.config                       = "region=... audience=..."
+ *   sasl.oauthbearer.config                       = "region=...,audience=..."
  *
  * Plus optional:
  *   sasl.oauthbearer.extensions = "key=val,key=val"
@@ -2624,7 +2624,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
             "but 'sasl.oauthbearer.config' is missing or empty. The AWS IAM "
             "autowire path requires region and audience to be supplied via "
             "sasl.oauthbearer.config "
-            "(e.g. \"region=us-east-1 audience=https://...\").";
+            "(e.g. \"region=us-east-1,audience=https://...\").";
         static const char FRIENDLY_IMPORT_ERR[] =
             "Config 'sasl.oauthbearer.metadata.authentication.type=aws_iam' "
             "requires the optional 'oauthbearer-aws' extra. Install with:\n"

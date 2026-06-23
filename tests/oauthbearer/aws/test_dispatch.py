@@ -87,7 +87,7 @@ def _minimal_aws_iam_config(extra: Optional[Dict[str, str]] = None) -> Dict[str,
         "sasl.mechanisms": "OAUTHBEARER",
         "sasl.oauthbearer.method": "oidc",
         "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-        "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+        "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
     }
     if extra:
         cfg.update(extra)
@@ -168,7 +168,7 @@ def test_marker_without_method_raises():
                 "bootstrap.servers": "broker.invalid:9092",
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
 
@@ -181,7 +181,7 @@ def test_marker_with_method_default_raises():
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "default",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
 
@@ -195,7 +195,7 @@ def test_marker_with_method_oidc_uppercase_raises():
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "OIDC",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
 
@@ -293,7 +293,7 @@ def test_explicit_oauth_cb_wins_over_marker():
             "sasl.mechanisms": "OAUTHBEARER",
             "sasl.oauthbearer.method": "oidc",
             "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-            "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+            "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             "oauth_cb": user_oauth_cb,
         }
     )
@@ -315,7 +315,7 @@ def test_marker_with_invalid_config_grammar_raises(mocked_boto3):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a not_a_key=foo",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a,not_a_key=foo",
             }
         )
 
@@ -328,7 +328,7 @@ def test_marker_with_invalid_signing_algorithm_raises(mocked_boto3):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a signing_algorithm=HS256",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a,signing_algorithm=HS256",
             }
         )
 
@@ -341,7 +341,7 @@ def test_marker_with_invalid_extensions_grammar_raises(mocked_boto3):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
                 "sasl.oauthbearer.extensions": "malformed-no-equals",
             }
         )
@@ -378,7 +378,7 @@ def test_marker_with_missing_extra_raises_friendly_import_error(boto3_absent):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
     msg = str(exc_info.value)
@@ -398,7 +398,7 @@ def test_friendly_import_error_on_consumer_too(boto3_absent):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
 
@@ -411,7 +411,7 @@ def test_friendly_import_error_on_admin_client_too(boto3_absent):
                 "sasl.mechanisms": "OAUTHBEARER",
                 "sasl.oauthbearer.method": "oidc",
                 "sasl.oauthbearer.metadata.authentication.type": "aws_iam",
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
             }
         )
 

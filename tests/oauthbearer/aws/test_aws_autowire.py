@@ -62,7 +62,7 @@ def test_create_handler_missing_audience_raises():
 def test_create_handler_invalid_signing_algorithm_raises():
     with pytest.raises(ValueError, match="signing_algorithm"):
         create_handler(
-            "region=us-east-1 audience=https://a signing_algorithm=HS256",
+            "region=us-east-1,audience=https://a,signing_algorithm=HS256",
             None,
         )
 
@@ -70,7 +70,7 @@ def test_create_handler_invalid_signing_algorithm_raises():
 def test_create_handler_invalid_duration_raises():
     with pytest.raises(ValueError, match="duration_seconds"):
         create_handler(
-            "region=us-east-1 audience=https://a duration_seconds=10",
+            "region=us-east-1,audience=https://a,duration_seconds=10",
             None,
         )
 
@@ -78,7 +78,7 @@ def test_create_handler_invalid_duration_raises():
 def test_create_handler_unknown_key_raises():
     with pytest.raises(ValueError, match="not_a_key"):
         create_handler(
-            "region=us-east-1 audience=https://a not_a_key=foo",
+            "region=us-east-1,audience=https://a,not_a_key=foo",
             None,
         )
 
@@ -86,7 +86,7 @@ def test_create_handler_unknown_key_raises():
 def test_create_handler_invalid_extensions_grammar_raises():
     with pytest.raises(ValueError, match="sasl.oauthbearer.extensions"):
         create_handler(
-            "region=us-east-1 audience=https://a",
+            "region=us-east-1,audience=https://a",
             "noEqualsHere",
         )
 
@@ -95,7 +95,7 @@ def test_create_handler_aws_debug_invalid_value_raises():
     """An unsupported aws_debug value is rejected — the client accepts none/console only."""
     with pytest.raises(ValueError, match="aws_debug.*none, console"):
         create_handler(
-            "region=us-east-1 audience=https://a aws_debug=log4net",
+            "region=us-east-1,audience=https://a,aws_debug=log4net",
             None,
         )
 
@@ -105,7 +105,7 @@ def test_create_handler_aws_debug_invalid_value_raises():
 
 def test_create_handler_marker_only_minimum_config_returns_handler():
     handler = create_handler(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         None,
     )
     assert handler is not None
@@ -114,12 +114,12 @@ def test_create_handler_marker_only_minimum_config_returns_handler():
 
 def test_create_handler_all_optional_fields_returns_handler():
     handler = create_handler(
-        "region=us-east-1 audience=https://a "
-        "duration_seconds=900 signing_algorithm=RS256 "
-        "sts_endpoint=https://sts.us-east-1.amazonaws.com "
-        "principal_name=my-principal "
-        "aws_debug=none "
-        "tag_team=platform tag_environment=prod",
+        "region=us-east-1,audience=https://a,"
+        "duration_seconds=900,signing_algorithm=RS256,"
+        "sts_endpoint=https://sts.us-east-1.amazonaws.com,"
+        "principal_name=my-principal,"
+        "aws_debug=none,"
+        "tag_team=platform,tag_environment=prod",
         None,
     )
     assert handler is not None
@@ -128,7 +128,7 @@ def test_create_handler_all_optional_fields_returns_handler():
 
 def test_create_handler_tag_config_handler_ready():
     handler = create_handler(
-        "region=us-east-1 audience=https://a tag_team=platform tag_environment=prod",
+        "region=us-east-1,audience=https://a,tag_team=platform,tag_environment=prod",
         None,
     )
     assert callable(handler)
@@ -136,7 +136,7 @@ def test_create_handler_tag_config_handler_ready():
 
 def test_create_handler_principal_name_override_handler_ready():
     handler = create_handler(
-        "region=us-east-1 audience=https://a principal_name=explicit-principal",
+        "region=us-east-1,audience=https://a,principal_name=explicit-principal",
         None,
     )
     assert callable(handler)
@@ -147,7 +147,7 @@ def test_create_handler_principal_name_override_handler_ready():
 
 def test_create_handler_null_extensions_treats_as_absent():
     handler = create_handler(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         None,
     )
     assert callable(handler)
@@ -155,7 +155,7 @@ def test_create_handler_null_extensions_treats_as_absent():
 
 def test_create_handler_empty_extensions_treats_as_absent():
     handler = create_handler(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         "",
     )
     assert callable(handler)
@@ -163,7 +163,7 @@ def test_create_handler_empty_extensions_treats_as_absent():
 
 def test_create_handler_single_extension_handler_ready():
     handler = create_handler(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         "logicalCluster=lkc-abc",
     )
     assert callable(handler)
@@ -171,7 +171,7 @@ def test_create_handler_single_extension_handler_ready():
 
 def test_create_handler_multiple_extensions_handler_ready():
     handler = create_handler(
-        "region=us-east-1 audience=https://a",
+        "region=us-east-1,audience=https://a",
         "logicalCluster=lkc-abc,identityPoolId=pool-x",
     )
     assert callable(handler)
@@ -194,7 +194,7 @@ def test_create_handler_does_not_call_sts_at_construction():
         mock_session = mock_session_cls.return_value
         mock_client = MagicMock()
         mock_session.client.return_value = mock_client
-        create_handler("region=us-east-1 audience=https://a", None)
+        create_handler("region=us-east-1,audience=https://a", None)
         # Session/client construction OK; get_web_identity_token must not have been called.
         mock_client.get_web_identity_token.assert_not_called()
 
@@ -214,7 +214,7 @@ def test_create_handler_returned_callable_when_invoked_calls_sts():
         mock_client.get_web_identity_token.return_value = canned_response
         mock_session.client.return_value = mock_client
 
-        handler = create_handler("region=us-east-1 audience=https://a", None)
+        handler = create_handler("region=us-east-1,audience=https://a", None)
         result = handler("ignored-passthrough-string")
 
         mock_client.get_web_identity_token.assert_called_once()
@@ -244,7 +244,7 @@ def test_create_handler_returned_callable_round_trips_extensions():
         mock_session.client.return_value = mock_client
 
         handler = create_handler(
-            "region=us-east-1 audience=https://a",
+            "region=us-east-1,audience=https://a",
             "logicalCluster=lkc-abc,identityPoolId=pool-x",
         )
         _, _, _, extensions = handler("")

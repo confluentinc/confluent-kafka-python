@@ -39,7 +39,7 @@ def test_c_dispatcher_recognises_python_authoritative_marker():
                 "bootstrap.servers": "broker.invalid:9092",
                 "sasl.mechanisms": "OAUTHBEARER",
                 AWS_IAM_MARKER_KEY: AWS_IAM_MARKER_VALUE,
-                "sasl.oauthbearer.config": "region=us-east-1 audience=https://a",
+                "sasl.oauthbearer.config": "region=us-east-1,audience=https://a",
                 # Deliberately omitting sasl.oauthbearer.method to trigger the
                 # dispatcher's precondition check. If the dispatcher's C-side
                 # marker literals differ from AWS_IAM_MARKER_KEY/VALUE, the

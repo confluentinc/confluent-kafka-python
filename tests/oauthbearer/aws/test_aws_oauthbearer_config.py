@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_oauthbearer_config."""
+"""Tests for confluent_kafka.oauthbearer.aws._aws_oauthbearer_config.
+
+The config grammar is comma-separated ``key=value`` pairs (librdkafka grammar),
+matching the Azure IMDS convention and the reviewed .NET implementation.
+"""
 
 import pytest
 
@@ -26,7 +30,7 @@ from confluent_kafka.oauthbearer.aws._aws_oauthbearer_config import (
 
 
 def test_parse_minimal_required_populates_region_and_audience():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.region == "us-east-1"
     assert cfg.audience == "https://a"
 
@@ -53,30 +57,30 @@ def test_parse_empty_input_raises_for_missing_region():
 
 def test_parse_empty_value_on_required_key_raises():
     with pytest.raises(ValueError, match="region.*must not be empty"):
-        AwsOAuthBearerConfig.parse("region= audience=https://a")
+        AwsOAuthBearerConfig.parse("region=,audience=https://a")
 
 
 @pytest.mark.parametrize("key", ["signing_algorithm", "sts_endpoint", "principal_name"])
 def test_parse_empty_value_on_optional_key_raises(key):
     with pytest.raises(ValueError, match=key):
-        AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a {key}=")
+        AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,{key}=")
 
 
 # ---- Defaults applied during parse ----
 
 
 def test_parse_no_signing_algorithm_defaults_to_es384():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.signing_algorithm == "ES384"
 
 
 def test_parse_no_duration_defaults_to_300_seconds():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.duration_seconds == 300
 
 
 def test_parse_optional_fields_default_to_none():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.sts_endpoint is None
     assert cfg.principal_name is None
     assert cfg.sasl_extensions is None
@@ -88,19 +92,19 @@ def test_parse_optional_fields_default_to_none():
 
 @pytest.mark.parametrize("seconds", [60, 300, 3600])
 def test_parse_duration_in_range_accepted(seconds):
-    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a duration_seconds={seconds}")
+    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,duration_seconds={seconds}")
     assert cfg.duration_seconds == seconds
 
 
 @pytest.mark.parametrize("seconds", [0, 59, 3601, -10])
 def test_parse_duration_out_of_range_raises(seconds):
     with pytest.raises(ValueError, match="duration_seconds.*must be between"):
-        AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a duration_seconds={seconds}")
+        AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,duration_seconds={seconds}")
 
 
 def test_parse_duration_not_integer_raises():
     with pytest.raises(ValueError, match="duration_seconds.*must be an integer"):
-        AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a duration_seconds=abc")
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,duration_seconds=abc")
 
 
 # ---- signing_algorithm ----
@@ -108,21 +112,21 @@ def test_parse_duration_not_integer_raises():
 
 @pytest.mark.parametrize("alg", ["ES384", "RS256"])
 def test_parse_allowed_signing_algorithm_accepted(alg):
-    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a signing_algorithm={alg}")
+    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,signing_algorithm={alg}")
     assert cfg.signing_algorithm == alg
 
 
 @pytest.mark.parametrize("alg", ["HS256", "es384", "RS512"])
 def test_parse_disallowed_signing_algorithm_raises(alg):
     with pytest.raises(ValueError, match="signing_algorithm.*ES384.*RS256"):
-        AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a signing_algorithm={alg}")
+        AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,signing_algorithm={alg}")
 
 
 # ---- aws_debug (none/console only) ----
 
 
 def test_parse_no_aws_debug_defaults_to_none():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a")
     assert cfg.aws_debug == AWS_DEBUG_NONE
 
 
@@ -134,7 +138,7 @@ def test_parse_no_aws_debug_defaults_to_none():
     ],
 )
 def test_parse_aws_debug_values_accepted(value, expected):
-    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a aws_debug={value}")
+    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,aws_debug={value}")
     assert cfg.aws_debug == expected
 
 
@@ -147,7 +151,7 @@ def test_parse_aws_debug_values_accepted(value, expected):
     ],
 )
 def test_parse_aws_debug_case_insensitive_accepted(value, expected):
-    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a aws_debug={value}")
+    cfg = AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,aws_debug={value}")
     assert cfg.aws_debug == expected
 
 
@@ -158,12 +162,12 @@ def test_parse_aws_debug_case_insensitive_accepted(value, expected):
 )
 def test_parse_aws_debug_invalid_value_raises(value):
     with pytest.raises(ValueError, match="aws_debug.*none, console"):
-        AwsOAuthBearerConfig.parse(f"region=us-east-1 audience=https://a aws_debug={value}")
+        AwsOAuthBearerConfig.parse(f"region=us-east-1,audience=https://a,aws_debug={value}")
 
 
 def test_parse_aws_debug_empty_value_raises():
     with pytest.raises(ValueError, match="aws_debug.*must not be empty"):
-        AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a aws_debug=")
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,aws_debug=")
 
 
 # ---- sts_endpoint, principal_name ----
@@ -171,13 +175,13 @@ def test_parse_aws_debug_empty_value_raises():
 
 def test_parse_sts_endpoint_stored_verbatim():
     cfg = AwsOAuthBearerConfig.parse(
-        "region=us-east-1 audience=https://a " "sts_endpoint=https://sts-fips.us-east-1.amazonaws.com"
+        "region=us-east-1,audience=https://a,sts_endpoint=https://sts-fips.us-east-1.amazonaws.com"
     )
     assert cfg.sts_endpoint == "https://sts-fips.us-east-1.amazonaws.com"
 
 
 def test_parse_principal_name_stored_verbatim():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a principal_name=my-principal")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,principal_name=my-principal")
     assert cfg.principal_name == "my-principal"
 
 
@@ -188,17 +192,17 @@ def test_parse_extension_prefix_in_config_rejected_as_unknown_key():
     """sasl extensions are accepted via typed sasl.oauthbearer.extensions
     property only; embedded extension_* keys are rejected."""
     with pytest.raises(ValueError, match="extension_logicalCluster"):
-        AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a extension_logicalCluster=lkc-abc")
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,extension_logicalCluster=lkc-abc")
 
 
 def test_parse_sasl_extensions_arg_stored_on_config():
     ext = {"logicalCluster": "lkc-abc", "identityPoolId": "pool-xyz"}
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a", ext)
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a", ext)
     assert cfg.sasl_extensions is ext
 
 
 def test_parse_sasl_extensions_arg_null_keeps_sasl_extensions_null():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a", None)
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a", None)
     assert cfg.sasl_extensions is None
 
 
@@ -206,35 +210,35 @@ def test_parse_sasl_extensions_arg_null_keeps_sasl_extensions_null():
 
 
 def test_parse_single_tag_collected_into_tags():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a tag_team=platform")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_team=platform")
     assert cfg.tags == {"team": "platform"}
 
 
 def test_parse_multiple_tags_all_collected():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a " "tag_team=platform " "tag_environment=prod")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_team=platform,tag_environment=prod")
     assert cfg.tags == {"team": "platform", "environment": "prod"}
 
 
 def test_parse_empty_tag_name_raises():
     with pytest.raises(ValueError, match="empty name"):
-        AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a tag_=value")
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_=value")
 
 
 def test_parse_empty_tag_value_accepted():
     # AWS allows tag values of 0 chars; mirror that.
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a tag_team=")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_team=")
     assert cfg.tags == {"team": ""}
 
 
 def test_parse_duplicate_tag_name_last_wins():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a tag_team=infra tag_team=platform")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_team=infra,tag_team=platform")
     assert cfg.tags == {"team": "platform"}
 
 
 def test_parse_exactly_max_tags_accepted():
     parts = ["region=us-east-1", "audience=https://a"]
     parts.extend(f"tag_k{i}=v{i}" for i in range(50))
-    cfg = AwsOAuthBearerConfig.parse(" ".join(parts))
+    cfg = AwsOAuthBearerConfig.parse(",".join(parts))
     assert len(cfg.tags) == 50
 
 
@@ -242,7 +246,7 @@ def test_parse_over_max_tags_raises():
     parts = ["region=us-east-1", "audience=https://a"]
     parts.extend(f"tag_k{i}=v{i}" for i in range(51))
     with pytest.raises(ValueError, match="50"):
-        AwsOAuthBearerConfig.parse(" ".join(parts))
+        AwsOAuthBearerConfig.parse(",".join(parts))
 
 
 # ---- Unknown keys ----
@@ -250,27 +254,36 @@ def test_parse_over_max_tags_raises():
 
 def test_parse_unknown_key_raises():
     with pytest.raises(ValueError, match="Unknown key.*not_a_key"):
-        AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a not_a_key=foo")
+        AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,not_a_key=foo")
 
 
-# ---- Whitespace / ordering ----
+# ---- Comma grammar: whitespace handling, quoting, ordering ----
 
 
-def test_parse_tabs_and_multiple_spaces_tolerated():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1\taudience=https://a   duration_seconds=600")
+def test_parse_whitespace_around_commas_tolerated():
+    # librdkafka strips leading (unescaped) and trailing whitespace per field,
+    # so spaces around the comma separators are tolerated.
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 , audience=https://a ,  duration_seconds=600")
     assert cfg.region == "us-east-1"
     assert cfg.audience == "https://a"
     assert cfg.duration_seconds == 600
 
 
 def test_parse_leading_and_trailing_whitespace_tolerated():
-    cfg = AwsOAuthBearerConfig.parse("  region=us-east-1 audience=https://a   ")
+    cfg = AwsOAuthBearerConfig.parse("  region=us-east-1,audience=https://a   ")
     assert cfg.region == "us-east-1"
     assert cfg.audience == "https://a"
 
 
+def test_parse_escaped_comma_in_value_kept():
+    # A backslash-quoted comma stays in the value rather than splitting the
+    # field (e.g. a tag value that is itself a comma-separated list).
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,tag_list=a\\,b\\,c")
+    assert cfg.tags == {"list": "a,b,c"}
+
+
 def test_parse_order_invariant():
-    cfg = AwsOAuthBearerConfig.parse("duration_seconds=600 audience=https://a region=us-east-1 signing_algorithm=RS256")
+    cfg = AwsOAuthBearerConfig.parse("duration_seconds=600,audience=https://a,region=us-east-1,signing_algorithm=RS256")
     assert cfg.region == "us-east-1"
     assert cfg.audience == "https://a"
     assert cfg.duration_seconds == 600
@@ -278,7 +291,7 @@ def test_parse_order_invariant():
 
 
 def test_parse_duplicate_key_last_wins():
-    cfg = AwsOAuthBearerConfig.parse("region=us-east-1 audience=https://a region=us-west-2")
+    cfg = AwsOAuthBearerConfig.parse("region=us-east-1,audience=https://a,region=us-west-2")
     assert cfg.region == "us-west-2"
 
 
@@ -287,12 +300,12 @@ def test_parse_duplicate_key_last_wins():
 
 def test_parse_no_equals_raises():
     with pytest.raises(ValueError, match="Malformed"):
-        AwsOAuthBearerConfig.parse("region us-east-1 audience=https://a")
+        AwsOAuthBearerConfig.parse("region-us-east-1,audience=https://a")
 
 
 def test_parse_leading_equals_raises():
     with pytest.raises(ValueError, match="Malformed"):
-        AwsOAuthBearerConfig.parse("=value audience=https://a region=us-east-1")
+        AwsOAuthBearerConfig.parse("=value,audience=https://a,region=us-east-1")
 
 
 # ---- Integration ----
@@ -301,13 +314,13 @@ def test_parse_leading_equals_raises():
 def test_parse_all_fields_together_all_populated_correctly():
     sasl_extensions = {"logicalCluster": "lkc-abc"}
     cfg = AwsOAuthBearerConfig.parse(
-        "region=us-east-1 "
-        "audience=https://confluent.cloud/oidc "
-        "duration_seconds=1800 "
-        "signing_algorithm=RS256 "
-        "sts_endpoint=https://sts.us-east-1.amazonaws.com "
-        "principal_name=test-principal "
-        "aws_debug=console "
+        "region=us-east-1,"
+        "audience=https://confluent.cloud/oidc,"
+        "duration_seconds=1800,"
+        "signing_algorithm=RS256,"
+        "sts_endpoint=https://sts.us-east-1.amazonaws.com,"
+        "principal_name=test-principal,"
+        "aws_debug=console,"
         "tag_team=platform",
         sasl_extensions,
     )

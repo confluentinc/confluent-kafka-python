@@ -19,7 +19,7 @@
 
 Activation is config-only: Set `sasl.oauthbearer.method=oidc`,
 `sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
-`sasl.oauthbearer.config="region=... audience=..."`.
+`sasl.oauthbearer.config="region=...,audience=..."`.
 
 Install:
     pip install 'confluent-kafka[oauthbearer-aws]'
@@ -53,8 +53,8 @@ def common_config(args):
         'sasl.mechanisms': 'OAUTHBEARER',
         'sasl.oauthbearer.method': 'oidc',
         'sasl.oauthbearer.metadata.authentication.type': 'aws_iam',
-        'sasl.oauthbearer.config': f'region={args.region} '
-        f'audience={args.audience} '
+        'sasl.oauthbearer.config': f'region={args.region},'
+        f'audience={args.audience},'
         f'duration_seconds={args.duration_seconds}',
         'debug': 'security',
     }

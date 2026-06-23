@@ -88,7 +88,7 @@ _ARN_PATTERN = re.compile(r"^arn:aws:(?:iam|sts)::\d+:[^/]+/.+$")
 
 def _config_string(**parts) -> str:
     """Render a sasl.oauthbearer.config wire string from key=value parts."""
-    return " ".join(f"{k}={v}" for k, v in parts.items())
+    return ",".join(f"{k}={v}" for k, v in parts.items())
 
 
 def _default_config(**extra) -> str:

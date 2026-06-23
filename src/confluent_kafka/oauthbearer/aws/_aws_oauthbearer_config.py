@@ -14,7 +14,8 @@
 
 """Internal: validated ``sasl.oauthbearer.config`` dataclass + parser.
 
-The full grammar (whitespace-separated ``key=value`` pairs, no quoting):
+The full grammar (comma-separated ``key=value`` pairs, librdkafka grammar —
+values may backslash-quote a comma, e.g. ``\\,``):
 
     region=<aws-region>            (required)
     audience=<oidc-audience>       (required)
@@ -34,7 +35,7 @@ shape is rejected as an unknown key.
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from confluent_kafka._util.kv_string_parser import parse_kv
+from confluent_kafka._util.librdkafka_string_parser import parse_key_values
 
 __all__ = [
     "CONFIG_KEY",
@@ -187,11 +188,7 @@ class AwsOAuthBearerConfig:
         aws_debug: str = AWS_DEBUG_NONE
         tags: Optional[Dict[str, str]] = None
 
-        for key, value in parse_kv(
-            raw,
-            separators=[" ", "\t", "\r", "\n"],
-            context_label=CONFIG_KEY,
-        ):
+        for key, value in parse_key_values(raw, ",", CONFIG_KEY):
             if key in _NON_EMPTY_KEYS and value == "":
                 raise ValueError(f"{CONFIG_KEY} {key!r} must not be empty.")
 
