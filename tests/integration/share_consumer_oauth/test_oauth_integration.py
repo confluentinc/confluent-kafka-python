@@ -64,6 +64,13 @@ def test_share_consumer_oauth_construct_and_metadata(oauth_share_consumer_conf):
         sc.close()
 
 
+@pytest.mark.skip(
+    reason="TODO KIP-932: flaky - the 4s token races the broker's 5s reauth "
+    "window (~0.8s of slack), so under CI load a delayed refresh lets the "
+    "token expire and poll() raises _AUTHENTICATION on FindCoordinator. "
+    "Re-enable with a long-lived JWT whose reported refresh expiry is short "
+    "(decouple broker validity from refresh cadence)."
+)
 def test_share_consumer_oauth_refresh_through_reauth(oauth_share_consumer_conf):
     """Short-lifetime token forces refresh inside the broker's reauth window.
 

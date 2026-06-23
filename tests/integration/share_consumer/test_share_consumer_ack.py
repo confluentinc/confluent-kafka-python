@@ -24,7 +24,14 @@ import weakref
 
 import pytest
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException, TopicPartition
+from confluent_kafka import (
+    AcknowledgeType,
+    ConcurrentModificationException,
+    IllegalStateException,
+    KafkaError,
+    KafkaException,
+    TopicPartition,
+)
 from tests.common import drain_share_consumers, poll_first_batch, unique_id
 
 # TODO KIP-932: add unit tests (alongside integration tests) that exercise
@@ -51,9 +58,9 @@ def test_implicit_mode_acknowledge_raises(kafka_cluster):
         msgs = drain_share_consumers([sc], 1)[0]
         assert msgs, 'no messages received'
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
     finally:
         sc.close()
 
@@ -249,9 +256,9 @@ def test_unacked_records_block_next_poll(kafka_cluster):
                     first_batch.append(m)
         assert first_batch, 'never received any messages'
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.poll(timeout=2.0)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
         # Recover: ack then poll.
         for m in first_batch:
@@ -294,7 +301,7 @@ def test_delivery_attempt_limit_archives_record(kafka_cluster):
         # Flush the final RELEASE.
         try:
             sc.poll(timeout=2.0)
-        except KafkaException:
+        except (KafkaException, IllegalStateException):
             pass
 
         # The acquisition lock (group.share.record.lock.duration.ms=1000 in
@@ -405,43 +412,43 @@ def test_acknowledge_offset_invalid_coords_raise(kafka_cluster):
         assert msgs, 'never received the produced record'
         m = msgs[0]
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge_offset(
                 'no-such-topic-' + unique_id(''),
                 m.partition(),
                 m.offset(),
                 AcknowledgeType.ACCEPT,
             )
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge_offset(
                 m.topic(),
                 m.partition() + 99,
                 m.offset(),
                 AcknowledgeType.ACCEPT,
             )
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge_offset(
                 m.topic(),
                 m.partition(),
                 m.offset() + 99_999,
                 AcknowledgeType.ACCEPT,
             )
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
         # Structurally invalid: negative partition hits the front-door
         # check before any inflight-map lookup, so _INVALID_ARG
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(ValueError) as ex:
             sc.acknowledge_offset(
                 m.topic(),
                 -1,
                 m.offset(),
                 AcknowledgeType.ACCEPT,
             )
-        assert ex.value.args[0].code() == KafkaError._INVALID_ARG
+        assert str(ex.value)
 
         # Real record must still be ackable.
         sc.acknowledge(m, AcknowledgeType.ACCEPT)
@@ -574,9 +581,9 @@ def test_ack_offset_from_prior_batch_raises(kafka_cluster):
                 break
         assert second_batch, 'never received second-batch record'
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge_offset(*stale_coords, AcknowledgeType.ACCEPT)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
         # Ack the live batch so close() doesn't raise on unacked records.
         for m in second_batch:
@@ -651,10 +658,10 @@ def test_ack_after_unsubscribe_does_not_crash(kafka_cluster):
 
         sc.unsubscribe()
 
-        # KafkaException or no-op both acceptable; segfault is not.
+        # Any exception, or a silent no-op, is acceptable here; segfault is not.
         try:
             sc.acknowledge(msgs[0], AcknowledgeType.ACCEPT)
-        except KafkaException:
+        except (KafkaException, IllegalStateException, ValueError):
             pass
 
         sc.subscribe([topic2])
@@ -713,9 +720,9 @@ def test_partial_ack_still_blocks_next_poll(kafka_cluster):
         for m in batch[:3]:
             sc.acknowledge(m, AcknowledgeType.ACCEPT)
 
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.poll(timeout=2.0)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
 
         # Ack the rest; poll should be clean.
         for m in batch[3:]:
@@ -1155,11 +1162,11 @@ def test_callback_reentrancy_guard(kafka_cluster):
         def reentrant_cb(offsets, exc):
             try:
                 sc.set_acknowledgement_commit_callback(lambda o, e: None)
-            except KafkaException as ex:
+            except IllegalStateException as ex:
                 captured_setter_err.append(ex)
             try:
                 sc.commit_async()
-            except KafkaException as ex:
+            except IllegalStateException as ex:
                 captured_commit_err.append(ex)
 
         sc.set_acknowledgement_commit_callback(reentrant_cb)
@@ -1180,9 +1187,9 @@ def test_callback_reentrancy_guard(kafka_cluster):
             sc.poll(timeout=0.5)
 
         assert captured_setter_err, 'cb did not raise on nested setter call'
-        assert captured_setter_err[0].args[0].code() == KafkaError._STATE
+        assert str(captured_setter_err[0])
         assert captured_commit_err, 'cb did not raise on nested commit_async'
-        assert captured_commit_err[0].args[0].code() == KafkaError._STATE
+        assert str(captured_commit_err[0])
     finally:
         # Replace the reentrant cb before close so close()'s drain doesn't
         # re-trip the guards.
@@ -1226,9 +1233,8 @@ def test_share_consumer_methods_rejected_from_other_thread(kafka_cluster):
             while conflict is None and time.time() < deadline:
                 try:
                     sc.commit_async()
-                except KafkaException as ex:
-                    if ex.args[0].code() == KafkaError._CONFLICT:
-                        conflict = ex
+                except ConcurrentModificationException as ex:
+                    conflict = ex
                 time.sleep(0.02)
 
             assert conflict is not None, 'expected _CONFLICT from cross-thread commit_async(), got none'
@@ -1331,6 +1337,9 @@ def test_rebind_releases_previous_callback(kafka_cluster):
 # other half: when the broker rejects an ack, the cb's second arg is a
 # KafkaException instead, still carrying the offsets it applies to.
 #
+# The cb always raises KafkaException, never the translated types the sync
+# methods use; the exact-type assert below pins that against a refactor.
+#
 # Lock-expiry INVALID_RECORD_STATE is the only rejection we can force without a
 # mock cluster: ack a record, let its lock lapse (1s, from tests/common
 # broker_conf), then commit the now-stale ack.
@@ -1383,7 +1392,7 @@ def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
         while time.time() < deadline and not any(exc is not None for _, exc in invocations):
             try:
                 sc.poll(timeout=0.5)
-            except KafkaException:
+            except (KafkaException, IllegalStateException):
                 pass
 
         errored = [(offsets, exc) for offsets, exc in invocations if exc is not None]
@@ -1392,6 +1401,9 @@ def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
         cb_offsets = set()
         for offsets, exc in errored:
             assert isinstance(exc, KafkaException), f'exc is not a KafkaException: {exc!r}'
+            # Exactly KafkaException, not a translated subclass — see the
+            # asymmetry note above the callback-error tests.
+            assert type(exc) is KafkaException, f'cb exc should be exactly KafkaException, got {type(exc)!r}'
             err = exc.args[0]
             assert err.code() == KafkaError.INVALID_RECORD_STATE
             assert err.name() == 'INVALID_RECORD_STATE'

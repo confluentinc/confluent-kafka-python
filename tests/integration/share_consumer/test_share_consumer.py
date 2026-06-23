@@ -23,7 +23,13 @@ import time
 
 import pytest
 
-from confluent_kafka import TIMESTAMP_CREATE_TIME, AcknowledgeType, KafkaError, KafkaException, Producer
+from confluent_kafka import (
+    TIMESTAMP_CREATE_TIME,
+    AcknowledgeType,
+    IllegalStateException,
+    KafkaException,
+    Producer,
+)
 from confluent_kafka.admin import NewTopic
 from tests.common import (
     drain_share_consumers,
@@ -661,9 +667,9 @@ def test_unsubscribe_stops_delivery(kafka_cluster):
 
         # No subscription anymore, so poll() raises _STATE instead of returning
         # an empty batch. Those 5 new records just sit on the broker.
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.poll(timeout=0.5)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
     finally:
         sc.close()
 
