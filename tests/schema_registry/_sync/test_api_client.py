@@ -554,3 +554,50 @@ def test_delete_mode(mock_schema_registry):
 
     result = sr.delete_mode('test-key')
     assert result == 'READWRITE'
+
+
+def test_send_http_request_retries_on_network_error():
+    """Network-level errors (no HTTP response received) should be retried,
+    mirroring the Java client's retry on IOException."""
+    from unittest.mock import Mock
+
+    import httpx
+
+    from confluent_kafka.schema_registry._sync.schema_registry_client import _RestClient
+
+    conf = {'url': TEST_URL, 'max.retries': 3, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
+    rest_client = _RestClient(conf)
+
+    ok = httpx.Response(200, json=SUBJECTS, request=httpx.Request('GET', TEST_URL + '/subjects'))
+    mock_request = Mock(
+        side_effect=[
+            httpx.ConnectError('connection refused'),
+            httpx.ConnectError('connection refused'),
+            ok,
+        ]
+    )
+    rest_client.session.request = mock_request
+
+    result = rest_client.send_request('subjects', method='GET')
+    assert result == SUBJECTS
+    assert mock_request.call_count == 3
+
+
+def test_send_http_request_exhausts_retries_on_network_error():
+    """A persistent network-level error should be retried max.retries + 1 times
+    and then surface to the caller."""
+    from unittest.mock import Mock
+
+    import httpx
+
+    from confluent_kafka.schema_registry._sync.schema_registry_client import _RestClient
+
+    conf = {'url': TEST_URL, 'max.retries': 2, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
+    rest_client = _RestClient(conf)
+
+    mock_request = Mock(side_effect=httpx.ConnectError('connection refused'))
+    rest_client.session.request = mock_request
+
+    with pytest.raises(httpx.ConnectError):
+        rest_client.send_request('subjects', method='GET')
+    assert mock_request.call_count == 3
