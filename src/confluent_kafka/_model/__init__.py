@@ -210,3 +210,62 @@ class AcknowledgeType(IntEnum):
     RELEASE = cimpl.SHARE_ACKNOWLEDGE_TYPE_RELEASE
     #: Could not process - Do not release for another delivery attempt
     REJECT = cimpl.SHARE_ACKNOWLEDGE_TYPE_REJECT
+
+
+class Messages:
+    """Batch of messages returned by :meth:`ShareConsumer.poll`.
+
+    Read-only sequence supporting iteration, len(), indexing, and slicing,
+    plus the count(), is_empty(), and records() accessors.
+    """
+
+    def __init__(self, messages=()):
+        self._records = list(messages)
+
+    @classmethod
+    def _from_list(cls, records):
+        """Wrap an already-built record list as a batch, without copying it.
+
+        :param list records: messages to adopt as the batch contents
+        """
+        # C poll already built the list -- take it as-is, no second copy.
+        obj = cls.__new__(cls)
+        obj._records = records
+        return obj
+
+    def records(self):
+        """Copy of the messages in this batch.
+
+        :rtype: list
+        """
+        # Hand out a copy so callers can't mutate the batch.
+        return list(self._records)
+
+    def count(self):
+        """Number of messages in this batch.
+
+        :rtype: int
+        """
+        return len(self._records)
+
+    def is_empty(self):
+        """Whether this batch contains no messages.
+
+        :rtype: bool
+        """
+        return not self._records
+
+    def __len__(self):
+        return len(self._records)
+
+    def __iter__(self):
+        return iter(self._records)
+
+    def __getitem__(self, index):
+        # Slices stay Messages -- a bare list would quietly lose the accessors.
+        if isinstance(index, slice):
+            return self._from_list(self._records[index])
+        return self._records[index]
+
+    def __repr__(self):
+        return f"Messages({self._records!r})"

@@ -189,40 +189,41 @@ def test_throttle_cb():
     sc.close()
 
 
-def test_stats_cb_rejected():
-    """stats_cb is rejected on ShareConsumer at construction time.
+def test_stats_cb_accepted():
+    """stats_cb is accepted on ShareConsumer; the binding no longer
+    pre-filters it.
 
-    The KIP-932 share-consumer JSON statistics surface isn't designed
-    yet. librdkafka's stats output references cgrp and per-partition state
-    that doesn't translate to share groups, so what users would get back
-    is incomplete and misleading. Rather than silently accept the callback
-    and feed it incomplete data, the binding rejects stats_cb at config
-    time (ShareConsumer.c, a pre-filter over args[0] and kwargs before
-    common_conf_setup is called).
+    On its own it constructs cleanly and stays inert until
+    statistics.interval.ms drives the stats timer. The interval is no
+    longer a binding-level rejection either — it's handed to the
+    underlying client, which decides whether the timer runs for a share
+    consumer, so it must not raise the old ValueError here.
 
-    Checked in both forms, dict-config and kwargs-form, for both stats_cb
-    and the matching statistics.interval.ms rejection (with no callback
-    there is no point starting the timer).
+    Checked in both dict-config and kwargs forms.
     """
     config = {
-        'group.id': unique_id('test-share-stats-cb-rejected'),
+        'group.id': unique_id('test-share-stats-cb'),
         'bootstrap.servers': 'localhost:9092',
+        'socket.timeout.ms': 100,
     }
 
     def my_stats_cb(stats_json_str):
         pass
 
-    with pytest.raises(ValueError, match='stats_cb is not supported'):
-        ShareConsumer({**config, 'stats_cb': my_stats_cb})
+    sc = ShareConsumer({**config, 'stats_cb': my_stats_cb})
+    sc.close()
 
-    with pytest.raises(ValueError, match='stats_cb is not supported'):
-        ShareConsumer(config, stats_cb=my_stats_cb)
+    sc = ShareConsumer(config, stats_cb=my_stats_cb)
+    sc.close()
 
-    with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
-        ShareConsumer({**config, 'statistics.interval.ms': 200})
-
-    with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
-        ShareConsumer(config, **{'statistics.interval.ms': 200})
+    # statistics.interval.ms passes through to librdkafka unfiltered.
+    try:
+        sc = ShareConsumer({**config, 'statistics.interval.ms': 200})
+        sc.close()
+    except ValueError:
+        pytest.fail("statistics.interval.ms must not be rejected by the binding")
+    except KafkaException:
+        pass
 
 
 def test_log_cb():
