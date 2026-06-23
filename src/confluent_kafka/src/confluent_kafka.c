@@ -2772,11 +2772,165 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 
 
 /**
- * Common config setup for Kafka client handles.
+ * @brief Detect the aws_iam OAUTHBEARER autowire marker in the user's config
+ *        dict and, before the librdkafka handle is created, register an
+ *        oauth_cb sourced from the optional confluent_kafka.oauthbearer.aws
+ *        subpackage. The aws_iam marker and method=oidc are passed through to
+ *        librdkafka UNCHANGED.
  *
- * Returns a conf object on success or NULL on failure in which case
- * an exception has been raised.
+ * User contract (all three keys required when the marker is set and no explicit
+ * oauth_cb is supplied):
+ *   sasl.oauthbearer.method                       = "oidc"
+ *   sasl.oauthbearer.metadata.authentication.type = "aws_iam"
+ *   sasl.oauthbearer.config                       = "region=...,audience=..."
+ *
+ * Plus optional:
+ *   sasl.oauthbearer.extensions = "key=val,key=val"
+ *
+ *
+ * If the user supplies their own oauth_cb, autowire is skipped entirely and the
+ * config is left untouched (their callback, the marker, and method all pass
+ * through to librdkafka).
+ *
+ * @returns 0 on success (no-op or autowire complete), -1 on error
+ *          (PyErr_* is set; caller goto outer_err).
  */
+static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
+        static const char MARKER_KEY[] =
+            "sasl.oauthbearer.metadata.authentication.type";
+        static const char MARKER_VALUE[] = "aws_iam";
+        static const char METHOD_KEY[] = "sasl.oauthbearer.method";
+        static const char METHOD_OIDC_VALUE[] = "oidc";
+        static const char CONFIG_KEY[] = "sasl.oauthbearer.config";
+        static const char EXTENSIONS_KEY[] = "sasl.oauthbearer.extensions";
+        static const char OAUTH_CB_KEY[] = "oauth_cb";
+        static const char AUTOWIRE_MODULE[] =
+            "confluent_kafka.oauthbearer.aws.aws_autowire";
+        static const char CREATE_HANDLER[] = "create_handler";
+        static const char METHOD_REQUIREMENT_ERR[] =
+            "'sasl.oauthbearer.metadata.authentication.type=aws_iam' requires "
+            "'sasl.oauthbearer.method=oidc'. Current value: %s. method=oidc is "
+            "mandatory for the AWS IAM authentication path.";
+        static const char CONFIG_REQUIREMENT_ERR[] =
+            "'sasl.oauthbearer.metadata.authentication.type=aws_iam' is set "
+            "but 'sasl.oauthbearer.config' is missing or empty. The AWS IAM "
+            "autowire path requires region and audience to be supplied via "
+            "sasl.oauthbearer.config "
+            "(e.g. \"region=us-east-1,audience=https://...\").";
+        static const char FRIENDLY_IMPORT_ERR[] =
+            "Config 'sasl.oauthbearer.metadata.authentication.type=aws_iam' "
+            "requires the optional 'oauthbearer-aws' extra. Install with:\n"
+            "    pip install 'confluent-kafka[oauthbearer-aws]'";
+
+        PyObject *marker;
+        PyObject *cb;
+        PyObject *method;
+        PyObject *cfg_str;
+        PyObject *ext_str;
+        PyObject *mod;
+        PyObject *func;
+        PyObject *callback;
+        const char *marker_c;
+        const char *method_c;
+
+        /* Explicit oauth_cb wins: nothing to autowire, regardless of the marker. */
+        cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
+        if (cb && cb != Py_None) {
+                return 0;
+        }
+
+        marker = PyDict_GetItemString(confdict, MARKER_KEY);
+        if (!marker || !PyUnicode_Check(marker)) {
+                return 0;
+        }
+        marker_c = PyUnicode_AsUTF8(marker);
+        if (!marker_c) {
+                /* Non-ASCII / malformed unicode — treat as not-our-value. */
+                PyErr_Clear();
+                return 0;
+        }
+        if (strcmp(marker_c, MARKER_VALUE) != 0) {
+                return 0;
+        }
+
+        method = PyDict_GetItemString(confdict, METHOD_KEY);
+        method_c = (method && PyUnicode_Check(method))
+                       ? PyUnicode_AsUTF8(method)
+                       : NULL;
+        if (!method_c || strcmp(method_c, METHOD_OIDC_VALUE) != 0) {
+                char actual_buf[128];
+                const char *actual;
+                if (!method) {
+                        actual = "<unset>";
+                } else if (!method_c) {
+                        PyErr_Clear();
+                        actual = "<non-string>";
+                } else {
+                        snprintf(actual_buf, sizeof(actual_buf), "'%s'",
+                                 method_c);
+                        actual = actual_buf;
+                }
+                PyErr_Format(PyExc_ValueError, METHOD_REQUIREMENT_ERR, actual);
+                return -1;
+        }
+
+        cfg_str = PyDict_GetItemString(confdict, CONFIG_KEY);
+        if (!cfg_str || !PyUnicode_Check(cfg_str) ||
+            PyUnicode_GET_LENGTH(cfg_str) == 0) {
+                PyErr_SetString(PyExc_ValueError, CONFIG_REQUIREMENT_ERR);
+                return -1;
+        }
+
+        ext_str = PyDict_GetItemString(confdict, EXTENSIONS_KEY);
+
+        mod = PyImport_ImportModule(AUTOWIRE_MODULE);
+        if (!mod) {
+                PyObject *cause_type = NULL;
+                PyObject *cause_value = NULL;
+                PyObject *cause_tb = NULL;
+                PyObject *new_exc;
+
+                PyErr_Fetch(&cause_type, &cause_value, &cause_tb);
+                PyErr_NormalizeException(&cause_type, &cause_value, &cause_tb);
+
+                new_exc = PyObject_CallFunction(
+                    PyExc_ImportError, "s", FRIENDLY_IMPORT_ERR);
+                if (new_exc) {
+                        if (cause_value) {
+                                Py_INCREF(cause_value);
+                                PyException_SetCause(new_exc, cause_value);
+                        }
+                        PyErr_SetObject(PyExc_ImportError, new_exc);
+                        Py_DECREF(new_exc);
+                }
+                Py_XDECREF(cause_type);
+                Py_XDECREF(cause_value);
+                Py_XDECREF(cause_tb);
+                return -1;
+        }
+
+        func = PyObject_GetAttrString(mod, CREATE_HANDLER);
+        Py_DECREF(mod);
+        if (!func) {
+                return -1;
+        }
+        callback = PyObject_CallFunction(
+            func, "OO", cfg_str, ext_str ? ext_str : Py_None);
+        Py_DECREF(func);
+        if (!callback) {
+                return -1;
+        }
+        if (PyDict_SetItemString(confdict, OAUTH_CB_KEY, callback) == -1) {
+                Py_DECREF(callback);
+                return -1;
+        }
+        Py_DECREF(callback);
+
+
+        return 0;
+}
+
+
 rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    Handle *h,
                                    PyObject *args,
@@ -2893,6 +3047,16 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                         goto outer_err;
                 }
                 PyDict_DelItemString(confdict, "default.topic.config");
+        }
+
+        /* AWS IAM OAUTHBEARER autowire: when the user sets the marker
+         * sasl.oauthbearer.metadata.authentication.type=aws_iam, wire an
+         * oauth_cb sourced from the optional oauthbearer-aws extra; the aws_iam
+         * marker and method=oidc are passed through to librdkafka unchanged.
+         * No-op when the marker is absent or an explicit oauth_cb is already
+         * set. See resolve_aws_oauthbearer_marker above for the full flow. */
+        if (resolve_aws_oauthbearer_marker(confdict) == -1) {
+                goto outer_err;
         }
 
         /* Convert config dict to config key-value pairs. */
