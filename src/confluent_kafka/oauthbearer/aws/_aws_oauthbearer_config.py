@@ -165,7 +165,7 @@ class AwsOAuthBearerConfig:
         :param raw: The verbatim ``sasl.oauthbearer.config`` string.
         :param sasl_extensions: Pre-parsed dict from the sibling
             ``sasl.oauthbearer.extensions`` property (see
-            :mod:`._aws_sasl_extensions_parser`). Stored on the config
+            :mod:`._sasl_extensions_parser`). Stored on the config
             unchanged.
         :raises TypeError: ``raw`` is ``None``.
         :raises ValueError: grammar, range, or enum violations.

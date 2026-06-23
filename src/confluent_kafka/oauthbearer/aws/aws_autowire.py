@@ -45,7 +45,7 @@ increment on the ``confluent-kafka`` distribution. Test-guarded by
 
 from typing import Callable, Dict, Optional, Tuple
 
-from . import _aws_sasl_extensions_parser
+from . import _sasl_extensions_parser
 from ._aws_iam_marker import AWS_IAM_MARKER_KEY, AWS_IAM_MARKER_VALUE
 from ._aws_oauthbearer_config import CONFIG_KEY, AwsOAuthBearerConfig
 from ._aws_sts_token_provider import AwsStsTokenProvider
@@ -87,7 +87,7 @@ def create_handler(
             f"{CONFIG_KEY} (e.g. \"region=us-east-1,audience=https://...\")."
         )
 
-    sasl_extensions = _aws_sasl_extensions_parser.parse(sasl_oauthbearer_extensions)
+    sasl_extensions = _sasl_extensions_parser.parse(sasl_oauthbearer_extensions)
     config = AwsOAuthBearerConfig.parse(sasl_oauthbearer_config, sasl_extensions)
     provider = AwsStsTokenProvider(config)
     return provider.token

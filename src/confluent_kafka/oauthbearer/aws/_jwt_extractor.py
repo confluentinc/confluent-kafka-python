@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Internal: extracts the ``sub`` claim from an unverified AWS-minted JWT.
+"""Internal: extracts the ``sub`` claim from an unverified JWT.
 
 No signature verification — STS signs, broker validates.
 """
