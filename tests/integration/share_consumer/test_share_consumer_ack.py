@@ -1463,7 +1463,7 @@ def test_callback_reports_invalid_record_state_on_commit_async(kafka_cluster):
             assert err.name() == 'INVALID_RECORD_STATE'
             # retriable()/fatal() are always False here — the error is built
             # from a bare code with no per-instance flags, so branch on code(),
-            # not the flags. See docs/share_consumer_error_mapping.md.
+            # not the flags.
             assert err.retriable() is False
             assert err.fatal() is False
             # The error doesn't replace the offsets — they come through too.
