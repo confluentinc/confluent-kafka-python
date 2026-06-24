@@ -8,3 +8,4 @@
 -r requirements-tests.txt
 -r requirements-docs.txt
 -r requirements-soaktest.txt
+-r requirements-oauthbearer-aws.txt
