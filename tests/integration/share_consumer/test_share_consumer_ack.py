@@ -854,9 +854,9 @@ def test_acknowledge_foreign_message_rejected(kafka_cluster):
         sc.subscribe([topic])
         # sc has not polled, so its inflight map is empty and the foreign
         # offset cannot be acknowledged.
-        with pytest.raises(KafkaException) as ex:
+        with pytest.raises(IllegalStateException) as ex:
             sc.acknowledge(foreign, AcknowledgeType.ACCEPT)
-        assert ex.value.args[0].code() == KafkaError._STATE
+        assert str(ex.value)
     finally:
         sc.close()
 

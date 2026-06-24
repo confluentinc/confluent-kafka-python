@@ -866,8 +866,7 @@ def test_read_committed_skips_aborted_transaction(kafka_cluster):
 
         received = drain_share_consumers([sc], 1, timeout_s=20.0, ack_type=AcknowledgeType.ACCEPT)[0]
         assert [m.value() for m in received] == [b'committed-0'], (
-            f'read_committed should deliver only the committed record; '
-            f'got {[m.value() for m in received]}'
+            f'read_committed should deliver only the committed record; ' f'got {[m.value() for m in received]}'
         )
 
         # No aborted record should arrive afterward either.
@@ -992,8 +991,7 @@ def test_partition_max_record_locks_caps_in_flight(kafka_cluster):
 
         assert received == num_messages, f'received {received} of {num_messages}'
         assert max_batch <= lock_cap, (
-            f'a single poll acquired {max_batch} records, exceeding the '
-            f'partition lock cap of {lock_cap}'
+            f'a single poll acquired {max_batch} records, exceeding the ' f'partition lock cap of {lock_cap}'
         )
     finally:
         sc.close()
