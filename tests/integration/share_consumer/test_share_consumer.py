@@ -794,15 +794,9 @@ def test_open_transaction_stalls_share_group(kafka_cluster):
     group_id = unique_id('test-share-consumer-txn-stall')
 
     txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
-    try:
-        txn_producer.init_transactions(10)
-    except KafkaException as e:
-        pytest.skip(f'broker does not support transactions: {e}')
+    txn_producer.init_transactions(10)
 
-    try:
-        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
-    except KafkaException as e:
-        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+    set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
 
     sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
@@ -835,15 +829,9 @@ def test_read_committed_skips_aborted_transaction(kafka_cluster):
     group_id = unique_id('test-share-consumer-txn-abort')
 
     txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
-    try:
-        txn_producer.init_transactions(10)
-    except KafkaException as e:
-        pytest.skip(f'broker does not support transactions: {e}')
+    txn_producer.init_transactions(10)
 
-    try:
-        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
-    except KafkaException as e:
-        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+    set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
 
     sc = kafka_cluster.share_consumer({'group.id': group_id, 'share.acknowledgement.mode': 'explicit'})
     try:
@@ -890,15 +878,9 @@ def test_read_committed_delivers_committed_transactions_with_marker_gap(kafka_cl
     group_id = unique_id('test-share-consumer-txn-commit')
 
     txn_producer = Producer(kafka_cluster.client_conf({'transactional.id': unique_id('txn')}))
-    try:
-        txn_producer.init_transactions(10)
-    except KafkaException as e:
-        pytest.skip(f'broker does not support transactions: {e}')
+    txn_producer.init_transactions(10)
 
-    try:
-        set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
-    except KafkaException as e:
-        pytest.skip(f'cannot set share.isolation.level on group: {e}')
+    set_group_config(kafka_cluster, group_id, 'share.isolation.level', 'read_committed')
 
     records_per_txn = 3
     total = 2 * records_per_txn
