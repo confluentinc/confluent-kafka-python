@@ -1221,7 +1221,7 @@ def test_acknowledgement_commit_cb_reentrant_call_raises_state(kafka_cluster):
             reenter[0] = False
             try:
                 sc.poll(timeout=0)
-            except KafkaException as ex:
+            except IllegalStateException as ex:
                 captured.append(ex)
 
     try:
@@ -1244,7 +1244,7 @@ def test_acknowledgement_commit_cb_reentrant_call_raises_state(kafka_cluster):
             sc.poll(timeout=0.5)
 
         assert captured, 'ack-commit cb never fired (or never re-entered)'
-        assert captured[0].args[0].code() == KafkaError._STATE
+        assert str(captured[0])
     finally:
         # drop the cb before close() so its drain doesn't trip the guard again
         sc.set_acknowledgement_commit_callback(None)
