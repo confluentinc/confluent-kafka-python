@@ -1197,6 +1197,60 @@ def test_callback_reentrancy_guard(kafka_cluster):
         sc.close()
 
 
+def test_acknowledgement_commit_cb_reentrant_call_raises_state(kafka_cluster):
+    """poll() from inside the ack-commit callback raises _STATE, no crash.
+
+    The same reentrant poll() segfaults from error_cb / log_cb / throttle_cb
+    (those tests are skipped) — the ack-commit callback is the only one
+    librdkafka guards against reentrancy, so here it comes back as a clean
+    _STATE instead.
+
+    Needs a broker, unlike the error_cb / log_cb tests: the callback only fires
+    once there are real acknowledged offsets to commit, and an empty commit
+    fires nothing.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-ack-cb-reentrant-poll')
+
+    sc = kafka_cluster.share_consumer({'share.acknowledgement.mode': 'explicit'})
+    captured = []
+    reenter = [True]
+
+    def reentrant_cb(offsets, exc):
+        # re-enter once — that's all it takes to trip the guard
+        if reenter[0]:
+            reenter[0] = False
+            try:
+                sc.poll(timeout=0)
+            except IllegalStateException as ex:
+                captured.append(ex)
+
+    try:
+        sc.set_acknowledgement_commit_callback(reentrant_cb)
+        sc.subscribe([topic])
+
+        producer = kafka_cluster.cimpl_producer()
+        producer.produce(topic, value=b'msg-0')
+        producer.flush(timeout=10.0)
+
+        msgs = poll_first_batch(sc)
+        assert msgs
+        for m in msgs:
+            sc.acknowledge(m, AcknowledgeType.ACCEPT)
+
+        # the cb fires after the commit completes, so keep polling until it does
+        sc.commit_async()
+        deadline = time.time() + 10.0
+        while time.time() < deadline and not captured:
+            sc.poll(timeout=0.5)
+
+        assert captured, 'ack-commit cb never fired (or never re-entered)'
+        assert str(captured[0])
+    finally:
+        # drop the cb before close() so its drain doesn't trip the guard again
+        sc.set_acknowledgement_commit_callback(None)
+        sc.close()
+
+
 def test_share_consumer_methods_rejected_from_other_thread(kafka_cluster):
     """A ShareConsumer is single-threaded. While one thread is parked in a
     consumer call (here poll(), which holds the access gate the whole time),
