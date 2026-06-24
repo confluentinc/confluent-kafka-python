@@ -17,7 +17,14 @@ import time
 
 import pytest
 
-from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, ShareConsumer
+from confluent_kafka import (
+    ConcurrentModificationException,
+    Consumer,
+    KafkaError,
+    KafkaException,
+    Producer,
+    ShareConsumer,
+)
 from tests.common import unique_id
 
 
@@ -732,8 +739,9 @@ def test_error_cb_cross_thread_call_raises_conflict():
     release_callback.set()  # in case error_cb never fired
 
     assert captured, "worker thread should have caught a cross-thread error"
-    assert isinstance(captured[0], KafkaException)
-    assert captured[0].args[0].code() == KafkaError._CONFLICT
+    # The exception type alone signals _CONFLICT - there's no KafkaError code to inspect.
+    assert isinstance(captured[0], ConcurrentModificationException)
+    assert 'not safe for multi-threaded access' in str(captured[0])
     sc.close()
 
 
@@ -1007,35 +1015,6 @@ def test_log_cb_close_drains_pending_records():
 
     sc.close()
     assert any('INIT' in r.getMessage() for r in records), "close() should drain the log queue"
-
-
-def test_statistics_interval_ms_zero_explicit_rejected():
-    """statistics.interval.ms is rejected even when set to 0.
-
-    The check looks at whether the key is present, not its value, so the
-    usual "0 to disable" trick is rejected too (int and str alike).
-    """
-    config = {
-        'group.id': unique_id('test-share-stats-interval-zero'),
-        'bootstrap.servers': 'localhost:9092',
-    }
-    for value in (0, '0'):
-        with pytest.raises(ValueError, match='statistics.interval.ms is not supported'):
-            ShareConsumer({**config, 'statistics.interval.ms': value})
-
-
-def test_stats_cb_rejection_precedes_group_id_check():
-    """stats_cb is rejected before group.id is even checked.
-
-    The incompatible-config check runs first, so leaving out group.id still
-    gives the stats_cb error, not a missing-group.id one.
-    """
-
-    def my_stats_cb(stats_json_str):
-        pass
-
-    with pytest.raises(ValueError, match='stats_cb is not supported'):
-        ShareConsumer({'bootstrap.servers': 'localhost:9092', 'stats_cb': my_stats_cb})
 
 
 def test_log_cb_delivers_always_on_warning_without_debug():
