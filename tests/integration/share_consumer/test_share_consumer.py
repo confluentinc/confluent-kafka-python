@@ -1026,9 +1026,9 @@ def test_blocking_poll_longer_than_max_poll_interval_does_not_falsely_trip(kafka
             sc.poll(timeout=0.2)
 
         # One blocking poll on an idle topic, longer than the interval: it must
-        # return [] without raising.
+        # return an empty batch without raising.
         batch = sc.poll(timeout=interval_ms / 1000.0 + 2.0)
-        assert batch == [], f'idle blocking poll should return [], got {len(batch)} records'
+        assert batch.is_empty(), f'idle blocking poll should return no records, got {batch.count()}'
 
         # The consumer is still a live group member: produce and consume.
         producer = kafka_cluster.cimpl_producer()
@@ -1178,11 +1178,11 @@ def test_sparse_partitions_do_not_stall(kafka_cluster):
 
 
 def test_poll_empty_existing_topic_returns_empty_then_delivers(kafka_cluster):
-    """Polling a subscribed topic that exists but is empty returns an empty list
+    """Polling a subscribed topic that exists but is empty returns an empty batch
     rather than an error, and starts delivering once records arrive.
     test_subscribe_before_topic_exists covers the topic-doesn't-exist-yet case;
     here the topic exists but has nothing in it. Also checks that poll() hands
-    back a list, empty when there's nothing to read.
+    back a Messages batch, empty when there's nothing to read.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-emptythenproduce')
     n = 10
@@ -1194,8 +1194,8 @@ def test_poll_empty_existing_topic_returns_empty_then_delivers(kafka_cluster):
         # Poll the empty topic a few times: each returns an empty list, no error.
         for _ in range(5):
             batch = sc.poll(timeout=0.5)
-            assert isinstance(batch, list), f'poll() must return a list, got {type(batch)}'
-            assert batch == [], f'empty topic should yield no records, got {len(batch)}'
+            assert isinstance(batch, Messages), f'poll() must return Messages, got {type(batch)}'
+            assert batch.is_empty(), f'empty topic should yield no records, got {batch.count()}'
 
         # Now produce; the consumer transitions to delivering.
         producer = kafka_cluster.cimpl_producer()
