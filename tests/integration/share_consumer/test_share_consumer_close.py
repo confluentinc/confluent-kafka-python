@@ -26,7 +26,7 @@ import gc
 import time
 import weakref
 
-from confluent_kafka import AcknowledgeType, KafkaError, KafkaException
+from confluent_kafka import AcknowledgeType, IllegalStateException
 from tests.common import (
     drain_share_consumers,
     poll_first_batch,
@@ -154,10 +154,12 @@ def test_gc_without_close_leaves_group_and_redelivers(kafka_cluster):
 
 
 def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
-    """Any consumer method called from inside the ack-commit callback fails
-    with _STATE and leaves the consumer usable. Extends
-    test_callback_reentrancy_guard (which only checks commit_async +
-    set_callback) to poll, the subscribe family, commit_sync, and acknowledge.
+    """Any consumer method called from inside the ack-commit callback is
+    rejected with IllegalStateException and leaves the consumer usable. The
+    reentrancy guard reports _STATE, which surfaces as IllegalStateException
+    (not a KafkaException). Extends test_callback_reentrancy_guard (which only
+    checks commit_async + set_callback) to poll, the subscribe family,
+    commit_sync, and acknowledge.
 
     close() is left out on purpose: calling it from the callback currently
     bricks the consumer even though the call is rejected (a known bug, tracked
@@ -185,10 +187,8 @@ def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
                 try:
                     fn()
                     captured[name] = 'no-exception'
-                except KafkaException as ex:
-                    captured[name] = ex.args[0].code()
                 except Exception as ex:  # noqa: BLE001 - record whatever it raised
-                    captured[name] = repr(ex)
+                    captured[name] = ex
 
         sc.set_acknowledgement_commit_callback(reentrant_cb)
         sc.subscribe([topic])
@@ -210,8 +210,10 @@ def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
             sc.poll(timeout=0.5)
 
         assert captured, 'callback never ran'
-        for name, code in captured.items():
-            assert code == KafkaError._STATE, f'{name}() from callback returned {code!r}, expected _STATE'
+        for name, result in captured.items():
+            assert isinstance(
+                result, IllegalStateException
+            ), f'{name}() from callback returned {result!r}, expected IllegalStateException'
 
         # Rejected calls shouldn't have changed anything.
         assert sc.subscription() == [topic]
