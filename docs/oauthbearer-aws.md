@@ -124,6 +124,7 @@ SASL/OAUTHBEARER extensions (for example, a Confluent Cloud logical cluster and 
 - **\`\`sasl.oauthbearer.config\`\` must be present and non-empty** — it carries the required `region` and `audience`. A missing or empty value raises a `ValueError` naming the missing keys.
 - **Install the extra, not \`\`boto3\`\` directly.** If the marker is set but the extra is not installed, client construction raises an `ImportError` pointing to `pip install 'confluent-kafka[oauthbearer-aws]'`.
 - **\`\`audience\`\` mismatches fail at STS.** If the configured `audience` does not match the IAM role's trust relationship, the `GetWebIdentityToken` call is rejected and no token is issued.
+- **\`\`botocore\[crt\]\`\` may be needed for \`\`aws login\`\` credential sessions.** Like any boto3 application, this integration uses boto3's default credential chain — so if your active AWS profile uses an `aws login` session (a `login_session` entry), boto3 raises `MissingDependencyException` asking you to `pip install "botocore[crt]"`. This does not occur when credentials come from an attached IAM role (as on AWS compute). Fix: `pip install "botocore[crt]"`, or use a credential source without a login session.
 
 # Requirements
 
