@@ -431,6 +431,14 @@ def test_poll_with_non_numeric_timeout_raises(share_consumer):
         share_consumer.poll(timeout=None)
 
 
+def test_poll_accepts_int_timeout(share_consumer):
+    """poll() takes an int timeout, not just a float; it's coerced the same way.
+    The rejection side is covered by test_poll_with_non_numeric_timeout_raises."""
+    share_consumer.subscribe(['test-topic'])
+    result = share_consumer.poll(timeout=1)
+    assert result.is_empty()
+
+
 # TODO: subscribe([123, 456]) and subscribe([None]) currently silently
 # coerce non-string items to topic names via PyObject_Str (str(123) -> "123",
 # str(None) -> "None"). This is inherited from Consumer's cfl_PyObject_Unistr
