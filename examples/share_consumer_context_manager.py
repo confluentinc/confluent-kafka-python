@@ -53,6 +53,11 @@ if __name__ == '__main__':
             while True:
                 try:
                     messages = sc.poll(timeout=1.0)  # a list, possibly empty
+                    for msg in messages:
+                        if msg.error():
+                            sys.stderr.write('%% Error: %s\n' % msg.error())
+                            continue
+                        print(msg.value())
                 except KafkaException as e:
                     # Re-raise fatal errors; otherwise log and keep going.
                     if e.args[0].fatal():
@@ -65,11 +70,6 @@ if __name__ == '__main__':
                     # looping, so bail out. The with block still closes for us.
                     sys.stderr.write('%% Fatal: %s\n' % e)
                     raise
-                for msg in messages:
-                    if msg.error():
-                        sys.stderr.write('%% Error: %s\n' % msg.error())
-                        continue
-                    print(msg.value())
         except KeyboardInterrupt:
             sys.stderr.write('%% Aborted by user\n')
     # Leaving the block closed the consumer — no finally needed.
