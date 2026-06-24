@@ -2885,27 +2885,13 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
 
         mod = PyImport_ImportModule(AUTOWIRE_MODULE);
         if (!mod) {
-                PyObject *cause_type = NULL;
-                PyObject *cause_value = NULL;
-                PyObject *cause_tb = NULL;
-                PyObject *new_exc;
-
-                PyErr_Fetch(&cause_type, &cause_value, &cause_tb);
-                PyErr_NormalizeException(&cause_type, &cause_value, &cause_tb);
-
-                new_exc = PyObject_CallFunction(
-                    PyExc_ImportError, "s", FRIENDLY_IMPORT_ERR);
-                if (new_exc) {
-                        if (cause_value) {
-                                Py_INCREF(cause_value);
-                                PyException_SetCause(new_exc, cause_value);
-                        }
-                        PyErr_SetObject(PyExc_ImportError, new_exc);
-                        Py_DECREF(new_exc);
-                }
-                Py_XDECREF(cause_type);
-                Py_XDECREF(cause_value);
-                Py_XDECREF(cause_tb);
+                /* Discard the underlying import error (e.g. "No module named
+                 * 'boto3'") so the third-party dependency is never surfaced to
+                 * the user — that would invite a manual `pip install boto3`
+                 * instead of installing the optional extra. Raise only the
+                 * friendly message naming the extra. */
+                PyErr_Clear();
+                PyErr_SetString(PyExc_ImportError, FRIENDLY_IMPORT_ERR);
                 return -1;
         }
 

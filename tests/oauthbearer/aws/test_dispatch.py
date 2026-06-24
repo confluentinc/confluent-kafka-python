@@ -368,9 +368,10 @@ def boto3_absent(monkeypatch):
 
 
 def test_marker_with_missing_extra_raises_friendly_import_error(boto3_absent):
-    """When boto3 isn't available, the dispatcher catches the
-    ModuleNotFoundError from the import chain and rewrites it into a
-    friendly install hint. __cause__ chain preserves the original."""
+    """When boto3 isn't available, the dispatcher discards the underlying
+    ModuleNotFoundError and raises only a friendly install hint. The original
+    cause is intentionally suppressed so the third-party dependency (boto3) is
+    never surfaced — users should install the optional extra, not boto3."""
     with pytest.raises(ImportError) as exc_info:
         confluent_kafka.Producer(
             {
@@ -385,8 +386,11 @@ def test_marker_with_missing_extra_raises_friendly_import_error(boto3_absent):
     assert "oauthbearer-aws" in msg
     assert "pip install" in msg
     assert "aws_iam" in msg
-    # __cause__ preserves the original failure for diagnostic tools.
-    assert exc_info.value.__cause__ is not None
+    # The third-party dependency must not leak via the message or the
+    # __cause__/__context__ chain (would invite a manual `pip install boto3`).
+    assert "boto3" not in msg
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__context__ is None
 
 
 def test_friendly_import_error_on_consumer_too(boto3_absent):
