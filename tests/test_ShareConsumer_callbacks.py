@@ -12,11 +12,19 @@ the constructor, subscribe, and lifecycle tests.
 """
 
 import logging
+import threading
 import time
 
 import pytest
 
-from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, ShareConsumer
+from confluent_kafka import (
+    ConcurrentModificationException,
+    Consumer,
+    KafkaError,
+    KafkaException,
+    Producer,
+    ShareConsumer,
+)
 from tests.common import unique_id
 
 
@@ -536,3 +544,502 @@ def test_error_cb_dispatches_during_commit_async():
 
     assert error_called, "error_cb should have fired from commit_async's drain"
     sc.close()
+
+
+def _collecting_logger(name_suffix):
+    """Return (logger, records) where records is appended to by a handler."""
+    records = []
+
+    class _CollectingHandler(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    logger = logging.getLogger(unique_id(name_suffix))
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(_CollectingHandler())
+    return logger, records
+
+
+def _share_oauth_conf(group_suffix, oauth_cb):
+    """OAUTHBEARER config for the oauth tests.
+
+    Like test_oauth_cb.get_oauth_config, minus session.timeout.ms which the
+    share consumer rejects.
+    """
+    return {
+        'group.id': unique_id(group_suffix),
+        'bootstrap.servers': 'localhost:19999',
+        'socket.timeout.ms': 100,
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+    }
+
+
+def test_error_cb_resolve_failure():
+    """A bad hostname should reach error_cb as _RESOLVE.
+
+    The .invalid TLD never resolves, so we get _RESOLVE instead of the
+    connection-refused path test_error_cb already covers.
+    """
+    codes = []
+
+    def my_error_cb(error):
+        codes.append(error.code())
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-error-resolve'),
+            'bootstrap.servers': 'no-such-host-xyz.invalid:9092',
+            'socket.timeout.ms': 200,
+            'error_cb': my_error_cb,
+        }
+    )
+    sc.subscribe(['test-topic'])
+
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and KafkaError._RESOLVE not in codes:
+        sc.poll(timeout=0.3)
+
+    assert KafkaError._RESOLVE in codes, f"expected _RESOLVE among error_cb codes, got {codes}"
+    sc.close()
+
+
+def test_error_cb_raise_propagates_from_commit_sync():
+    """If error_cb raises, the exception comes back out of commit_sync().
+
+    commit_sync drains pending errors on entry, so a raising error_cb makes
+    the commit itself re-raise rather than swallow it.
+    """
+    raising = [True]
+
+    def error_cb_that_raises(error):
+        if raising[0]:
+            raise RuntimeError("boom from error_cb in commit_sync")
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-raise-commit-sync'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'share.acknowledgement.mode': 'implicit',
+            'error_cb': error_cb_that_raises,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.3)  # let some connection-refused errors pile up first
+
+    with pytest.raises(RuntimeError, match="boom from error_cb in commit_sync"):
+        sc.commit_sync(timeout=0.5)
+
+    raising[0] = False  # stop raising so close() is clean
+    sc.close()
+
+
+def test_error_cb_raise_propagates_from_commit_async():
+    """Same as the commit_sync case, but for commit_async().
+
+    commit_async drains errors on entry too, so a raising error_cb re-raises
+    here as well.
+    """
+    raising = [True]
+
+    def error_cb_that_raises(error):
+        if raising[0]:
+            raise RuntimeError("boom from error_cb in commit_async")
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-raise-commit-async'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'share.acknowledgement.mode': 'implicit',
+            'error_cb': error_cb_that_raises,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.3)
+
+    with pytest.raises(RuntimeError, match="boom from error_cb in commit_async"):
+        sc.commit_async()
+
+    raising[0] = False
+    sc.close()
+
+
+def test_error_cb_fires_during_close_without_polling():
+    """error_cb still fires from close() even if we never poll().
+
+    Errors queue up undelivered until something drains them, and close()
+    does that drain. So a consumer closed without ever polling still reports
+    what piled up.
+    """
+    calls = []
+
+    def my_error_cb(error):
+        calls.append(error.code())
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-close-drain'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': my_error_cb,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.4)  # let errors queue up without draining them
+
+    assert not calls, "without poll(), no error_cb should fire before close()"
+    sc.close()
+    assert calls, "error_cb should fire from the close() drain"
+
+
+def test_error_cb_cross_thread_call_raises_conflict():
+    """Calling the consumer from another thread while error_cb runs -> _CONFLICT.
+
+    The poll thread holds the share lock while error_cb runs, so a second
+    thread calling commit_async() at the same time gets _CONFLICT (like
+    Java's ConcurrentModificationException).
+    """
+    captured = []
+    in_callback = threading.Event()
+    release_callback = threading.Event()
+
+    def my_error_cb(error):
+        # block here on the first call so the worker thread races us
+        if not in_callback.is_set():
+            in_callback.set()
+            release_callback.wait(timeout=3.0)
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-cross-thread'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': my_error_cb,
+        }
+    )
+
+    def worker():
+        if in_callback.wait(timeout=3.0):
+            try:
+                sc.commit_async()
+            except Exception as exc:
+                captured.append(exc)
+            finally:
+                release_callback.set()
+
+    sc.subscribe(['test-topic'])
+    thread = threading.Thread(target=worker)
+    thread.start()
+    sc.poll(timeout=1.5)  # fires error_cb here; worker races us from the other thread
+    thread.join(timeout=5.0)
+    release_callback.set()  # in case error_cb never fired
+
+    assert captured, "worker thread should have caught a cross-thread error"
+    # The exception type alone signals _CONFLICT - there's no KafkaError code to inspect.
+    assert isinstance(captured[0], ConcurrentModificationException)
+    assert 'not safe for multi-threaded access' in str(captured[0])
+    sc.close()
+
+
+@pytest.mark.skip(
+    reason="Calling the consumer from inside error_cb segfaults today: librdkafka's "
+    "reentrancy guard only covers the ack-commit callback, not error_cb/log_cb. "
+    "Un-skip and check for _STATE once that's fixed."
+)
+def test_error_cb_reentrant_call_raises_state():
+    """Calling the consumer from inside error_cb (same thread) should raise _STATE.
+
+    This is the behavior we want once the reentrancy guard is fixed (matches
+    the ack-commit callback and Java's IllegalStateException). Skipped for
+    now because it crashes.
+    """
+    captured = []
+    reenter = [True]
+    holder = {}
+
+    def my_error_cb(error):
+        sc = holder.get('sc')
+        if sc is not None and reenter[0]:
+            reenter[0] = False
+            try:
+                sc.poll(timeout=0)
+            except KafkaException as exc:
+                captured.append(exc)
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-reentrant-error'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'error_cb': my_error_cb,
+        }
+    )
+    holder['sc'] = sc
+    sc.subscribe(['test-topic'])
+
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline and not captured:
+        sc.poll(timeout=0.3)
+
+    assert captured and captured[0].args[0].code() == KafkaError._STATE
+    sc.close()
+
+
+@pytest.mark.skip(
+    reason="Same segfault as test_error_cb_reentrant_call_raises_state: the reentrancy "
+    "guard doesn't cover log_cb yet. Un-skip and check for _STATE once it does."
+)
+def test_log_cb_reentrant_call_raises_state():
+    """Same reentrancy contract as error_cb, but from inside log_cb.
+
+    log_cb runs on the polling thread too, so calling the consumer from it
+    should raise _STATE. Skipped because it crashes today.
+    """
+    captured = []
+    reenter = [True]
+    holder = {}
+
+    class _ReentrantHandler(logging.Handler):
+        def emit(self, record):
+            sc = holder.get('sc')
+            if sc is not None and reenter[0]:
+                reenter[0] = False
+                try:
+                    sc.poll(timeout=0)
+                except KafkaException as exc:
+                    captured.append(exc)
+
+    logger = logging.getLogger(unique_id('test-share-cb-reentrant-log'))
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(_ReentrantHandler())
+
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-cb-reentrant-log'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+        }
+    )
+    holder['sc'] = sc
+    sc.subscribe(['test-topic'])
+    sc.poll(timeout=0.3)
+
+    assert captured and captured[0].args[0].code() == KafkaError._STATE
+    sc.close()
+
+
+def test_oauth_cb_principal_and_sasl_extensions():
+    """oauth_cb can return the full (token, lifetime, principal, extensions) tuple.
+
+    The extra principal and SASL-extensions elements are accepted and
+    construction completes (it blocks until the first token is set).
+    """
+    seen = []
+
+    def my_oauth_cb(oauth_config):
+        seen.append(oauth_config)
+        return 'token', time.time() + 300.0, oauth_config, {'extone': 'extoneval', 'exttwo': 'exttwoval'}
+
+    sc = ShareConsumer(_share_oauth_conf('test-share-oauth-ext', my_oauth_cb))
+    assert seen and seen[0] == 'oauth_cb'
+    sc.close()
+
+
+def test_oauth_cb_token_refresh_success_multiple_calls():
+    """The background thread re-invokes oauth_cb as the token expires.
+
+    A short (3s) token lifetime triggers a refresh, so oauth_cb fires more
+    than once without any poll() call.
+    """
+    count = [0]
+
+    def my_oauth_cb(oauth_config):
+        count[0] += 1
+        return 'token', time.time() + 3.0
+
+    sc = ShareConsumer(_share_oauth_conf('test-share-oauth-refresh-ok', my_oauth_cb))
+    assert count[0] == 1, "oauth_cb should fire once during init"
+
+    deadline = time.monotonic() + 6.0
+    while count[0] == 1 and time.monotonic() < deadline:
+        time.sleep(0.5)
+
+    sc.close()
+    assert count[0] > 1, "background thread should refresh the token at least once"
+
+
+def test_oauth_cb_token_refresh_failure_and_recovery():
+    """A failed token refresh is retried and recovers.
+
+    The 2nd call raises; librdkafka retries ~10s later and the 3rd call
+    succeeds. One bad refresh shouldn't wedge the token loop.
+    """
+    count = [0]
+
+    def my_oauth_cb(oauth_config):
+        count[0] += 1
+        if count[0] == 2:
+            raise RuntimeError("intentional refresh failure")
+        return 'token', time.time() + 3.0
+
+    sc = ShareConsumer(_share_oauth_conf('test-share-oauth-refresh-fail', my_oauth_cb))
+    assert count[0] == 1
+
+    # init + failing refresh + the ~10s retry, so give it a wide window
+    deadline = time.monotonic() + 16.0
+    while count[0] <= 2 and time.monotonic() < deadline:
+        time.sleep(0.5)
+
+    sc.close()
+    assert count[0] > 2, "oauth_cb should be retried and recover after a refresh failure"
+
+
+def test_oauth_cb_malformed_return_fails_construction():
+    """A bad oauth_cb return value fails construction cleanly, no crash.
+
+    Returning a bare string instead of a (token, lifetime, ...) tuple means
+    no valid token is ever set, so construction times out and raises.
+    """
+
+    def my_oauth_cb(oauth_config):
+        return 'just-a-token-string'  # not a (token, lifetime, ...) tuple
+
+    with pytest.raises(KafkaException) as exc_info:
+        ShareConsumer(_share_oauth_conf('test-share-oauth-malformed', my_oauth_cb))
+
+    message = str(exc_info.value).lower()
+    assert 'token' in message or 'authentication' in message or 'sasl' in message
+
+
+def test_log_cb_drains_on_commit_sync():
+    """commit_sync() drains the log queue, same as poll().
+
+    There's no background log thread, so records sit queued until poll or a
+    commit runs. test_log_cb covers poll; this covers commit_sync.
+    """
+    logger, records = _collecting_logger('test-share-log-commit-sync')
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-commit-sync'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+            'share.acknowledgement.mode': 'implicit',
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.2)
+    assert not records, "no records should surface before any drain"
+
+    sc.commit_sync(timeout=0.5)
+    assert any('INIT' in r.getMessage() for r in records), "commit_sync should drain the log queue"
+    sc.close()
+
+
+def test_log_cb_drains_on_commit_async():
+    """commit_async() drains the log queue too."""
+    logger, records = _collecting_logger('test-share-log-commit-async')
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-commit-async'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+            'share.acknowledgement.mode': 'implicit',
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.2)
+    assert not records, "no records should surface before any drain"
+
+    sc.commit_async()
+    assert any('INIT' in r.getMessage() for r in records), "commit_async should drain the log queue"
+    sc.close()
+
+
+def test_log_cb_record_format_and_fields():
+    """Log records come through as proper LogRecords with the right fields.
+
+    test_log_cb just checks the message; here we also check the logger name
+    and that debug=msg gives DEBUG-level records.
+    """
+    logger, records = _collecting_logger('test-share-log-format')
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-format'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    sc.poll(timeout=0.2)
+    sc.close()
+
+    init_records = [r for r in records if 'INIT' in r.getMessage()]
+    assert init_records, "expected an INIT log record"
+    record = init_records[0]
+    assert record.name == logger.name
+    assert record.levelno == logging.DEBUG
+    assert record.levelname == 'DEBUG'
+
+
+def test_log_cb_close_drains_pending_records():
+    """close() drains queued log records even if poll() never ran.
+
+    Pairs with test_log_cb_requires_polling, which shows nothing surfaces
+    before a drain.
+    """
+    logger, records = _collecting_logger('test-share-log-close')
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-close'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,
+            'debug': 'msg',
+            'logger': logger,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    time.sleep(0.2)
+    assert not records, "no records should surface before any drain"
+
+    sc.close()
+    assert any('INIT' in r.getMessage() for r in records), "close() should drain the log queue"
+
+
+def test_log_cb_delivers_always_on_warning_without_debug():
+    """Always-on librdkafka logs reach log_cb even with no debug context set.
+
+    test_log_cb relies on debug=msg INIT records; here no 'debug' is
+    configured. A socket.timeout.ms below fetch.wait.max.ms (500) by >1s
+    triggers librdkafka's always-on CONFWARN at WARNING level, proving the
+    forwarded log queue delivers non-debug records too. (The facility is the
+    leading token of the record message.) The record drains on the first
+    poll().
+    """
+    logger, records = _collecting_logger('test-share-log-always-on')
+    sc = ShareConsumer(
+        {
+            'group.id': unique_id('test-share-log-always-on'),
+            'bootstrap.servers': 'localhost:19999',
+            'socket.timeout.ms': 100,  # < fetch.wait.max.ms (500) -> always-on CONFWARN
+            'logger': logger,
+        }
+    )
+    sc.subscribe(['test-topic'])
+    sc.poll(timeout=0.2)
+    sc.close()
+
+    warnings = [r for r in records if r.levelno >= logging.WARNING]
+    assert warnings, f"expected an always-on WARNING without debug; got {[r.getMessage() for r in records]}"
+    assert any('fetch.wait.max.ms' in r.getMessage() for r in warnings), "expected the CONFWARN about fetch.wait.max.ms"
