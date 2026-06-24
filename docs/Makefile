@@ -55,6 +55,9 @@ rst2md:
 	$(PANDOC) --wrap=none --from=rst --to=gfm --output=kip-848-migration-guide.md kip-848-migration-guide.rst
 	@echo
 	@echo "KIP-848 Migration Guide Markdown file generated: kip-848-migration-guide.md"
+	$(PANDOC) --wrap=none --from=rst --to=gfm --output=oauthbearer-aws.md oauthbearer-aws.rst
+	@echo
+	@echo "AWS IAM OAUTHBEARER guide Markdown file generated: oauthbearer-aws.md"
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html

@@ -7,6 +7,7 @@ Guides
    - :ref:`Configuration Guide <pythonclient_configuration>`
    - :ref:`Transactional API <pythonclient_transactional>`
    - :ref:`KIP-848 Migration Guide <pythonclient_migration_kip848>`
+   - :ref:`AWS IAM OAUTHBEARER <pythonclient_oauthbearer_aws>`
 
 Client API
    - :ref:`Producer <pythonclient_producer>`
@@ -1099,3 +1100,11 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 ==================================================================================================================================================
 
 .. include:: kip-848-migration-guide.rst
+
+
+.. _pythonclient_oauthbearer_aws:
+
+AWS IAM OAUTHBEARER Authentication
+==================================
+
+.. include:: oauthbearer-aws.rst
