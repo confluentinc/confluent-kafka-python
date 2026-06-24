@@ -19,8 +19,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import boto3
 
-from . import _jwt_extractor
-from ._aws_oauthbearer_config import (
+from . import jwt_extractor
+from .aws_oauthbearer_config import (
     AWS_DEBUG_CONSOLE,
     AwsOAuthBearerConfig,
 )
@@ -161,7 +161,7 @@ class AwsStsTokenProvider:
         # .timestamp() returns epoch seconds as a float.
         expiry_epoch_seconds = expiration.timestamp()
 
-        principal = _jwt_extractor.extract_sub(jwt)
+        principal = jwt_extractor.extract_sub(jwt)
 
         # Always return a dict for the extensions slot — the C oauth_cb
         # wrapper's PyArg_ParseTuple uses "O!" with PyDict_Type for that slot,

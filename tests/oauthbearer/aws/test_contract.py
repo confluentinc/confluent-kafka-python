@@ -25,8 +25,8 @@ import pytest
 
 pytest.importorskip("boto3")
 
-from confluent_kafka.oauthbearer.aws import aws_autowire  # noqa: E402
-from confluent_kafka.oauthbearer.aws.aws_autowire import OAuthBearerCallback, create_handler  # noqa: E402
+from confluent_kafka._oauthbearer.aws import aws_autowire  # noqa: E402
+from confluent_kafka._oauthbearer.aws.aws_autowire import OAuthBearerCallback, create_handler  # noqa: E402
 
 # ---- Module surface ----
 
@@ -35,7 +35,7 @@ def test_module_importable_at_canonical_path():
     """The C dispatcher does PyImport_ImportModule(...) with this exact path."""
     import importlib
 
-    mod = importlib.import_module("confluent_kafka.oauthbearer.aws.aws_autowire")
+    mod = importlib.import_module("confluent_kafka._oauthbearer.aws.aws_autowire")
     assert mod is aws_autowire
 
 

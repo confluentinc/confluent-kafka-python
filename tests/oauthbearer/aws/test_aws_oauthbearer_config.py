@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_oauthbearer_config.
+"""Tests for confluent_kafka._oauthbearer.aws.aws_oauthbearer_config.
 
 The config grammar is comma-separated ``key=value`` pairs (librdkafka grammar),
 matching the Azure IMDS convention and the reviewed .NET implementation.
@@ -20,7 +20,7 @@ matching the Azure IMDS convention and the reviewed .NET implementation.
 
 import pytest
 
-from confluent_kafka.oauthbearer.aws._aws_oauthbearer_config import (
+from confluent_kafka._oauthbearer.aws.aws_oauthbearer_config import (
     AWS_DEBUG_CONSOLE,
     AWS_DEBUG_NONE,
     AwsOAuthBearerConfig,
@@ -358,6 +358,6 @@ def test_direct_construction_with_bool_duration_rejected():
 def test_aws_oauth_bearer_config_not_exposed_via_subpackage_init():
     """Public surface stays minimal — AwsOAuthBearerConfig is private to the
     autowire layer (only `create_handler` is publicly importable)."""
-    import confluent_kafka.oauthbearer.aws as aws_pkg
+    import confluent_kafka._oauthbearer.aws as aws_pkg
 
     assert not hasattr(aws_pkg, "AwsOAuthBearerConfig")

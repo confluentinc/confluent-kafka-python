@@ -14,7 +14,7 @@
 
 """Drift-guard tests for the AWS IAM marker constants."""
 
-from confluent_kafka.oauthbearer.aws._aws_iam_marker import (
+from confluent_kafka._oauthbearer.aws.aws_iam_marker import (
     AWS_IAM_MARKER_KEY,
     AWS_IAM_MARKER_VALUE,
 )

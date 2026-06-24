@@ -122,12 +122,12 @@ def test_marker_absent_does_not_import_aws_modules():
     subpackage — boto3 import must not happen."""
     # Clear any prior imports of the AWS subpackage so we can detect a fresh import.
     for name in list(sys.modules):
-        if name.startswith("confluent_kafka.oauthbearer.aws"):
+        if name.startswith("confluent_kafka._oauthbearer.aws"):
             del sys.modules[name]
     confluent_kafka.Producer({"bootstrap.servers": "localhost:9092"})
     for name in [
-        "confluent_kafka.oauthbearer.aws.aws_autowire",
-        "confluent_kafka.oauthbearer.aws._aws_sts_token_provider",
+        "confluent_kafka._oauthbearer.aws.aws_autowire",
+        "confluent_kafka._oauthbearer.aws.aws_sts_token_provider",
     ]:
         assert name not in sys.modules, (
             f"Dispatcher imported {name} when no marker was set — " "this means the no-op short-circuit broke."
@@ -283,7 +283,7 @@ def test_explicit_oauth_cb_wins_over_marker():
 
     # Clear sys.modules so we can verify aws_autowire was NOT imported.
     for name in list(sys.modules):
-        if name.startswith("confluent_kafka.oauthbearer.aws"):
+        if name.startswith("confluent_kafka._oauthbearer.aws"):
             del sys.modules[name]
 
     p = confluent_kafka.Producer(
@@ -300,7 +300,7 @@ def test_explicit_oauth_cb_wins_over_marker():
     assert p is not None
     p.flush(timeout=0.1)
     # The autowire module must not have been imported.
-    assert "confluent_kafka.oauthbearer.aws.aws_autowire" not in sys.modules
+    assert "confluent_kafka._oauthbearer.aws.aws_autowire" not in sys.modules
 
 
 # ---- 7. Parser errors surface from the autowire path ----
@@ -361,7 +361,7 @@ def boto3_absent(monkeypatch):
     # Clear the cached aws submodules so PyImport_ImportModule re-executes
     # their top-level statements (including `import boto3`).
     for name in list(sys.modules):
-        if name.startswith("confluent_kafka.oauthbearer.aws"):
+        if name.startswith("confluent_kafka._oauthbearer.aws"):
             monkeypatch.delitem(sys.modules, name, raising=False)
     yield
     # monkeypatch reverts on teardown.

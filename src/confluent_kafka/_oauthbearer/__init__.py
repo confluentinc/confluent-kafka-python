@@ -12,4 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Namespace package for OAUTHBEARER provider integrations."""
+"""Internal namespace package for OAUTHBEARER provider integrations.
+
+Private (underscore-prefixed package): users never import from here directly.
+The C extension lazy-loads the autowire entry point on the relevant marker.
+"""

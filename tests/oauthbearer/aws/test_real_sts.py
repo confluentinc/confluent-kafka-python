@@ -64,7 +64,7 @@ pytestmark = pytest.mark.skipif(
     reason="Set RUN_AWS_STS_REAL=1 and provide AWS credentials to run.",
 )
 
-from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
+from confluent_kafka._oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
 
 # =============================================================================
 # Configuration sourced from env vars so the test can be re-pointed at a

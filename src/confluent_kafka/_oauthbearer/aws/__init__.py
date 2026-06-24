@@ -14,11 +14,12 @@
 
 """AWS IAM OAUTHBEARER autowire subpackage.
 
-The only publicly importable name in this subpackage is
-:func:`confluent_kafka.oauthbearer.aws.aws_autowire.create_handler`, loaded by
+The entry point reached by core is
+:func:`confluent_kafka._oauthbearer.aws.aws_autowire.create_handler`, loaded by
 core's C extension when the user sets
-``sasl.oauthbearer.metadata.authentication.type=aws_iam``. All other modules
-are private (underscore-prefixed) and not re-exported here.
+``sasl.oauthbearer.metadata.authentication.type=aws_iam``. The whole
+``_oauthbearer`` package is internal — users never import these modules
+directly — so nothing is re-exported here.
 
 Install with::
 

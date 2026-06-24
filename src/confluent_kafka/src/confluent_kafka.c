@@ -2774,7 +2774,7 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 /**
  * @brief Detect the aws_iam OAUTHBEARER autowire marker in the user's config
  *        dict and, before the librdkafka handle is created, register an
- *        oauth_cb sourced from the optional confluent_kafka.oauthbearer.aws
+ *        oauth_cb sourced from the optional confluent_kafka._oauthbearer.aws
  *        subpackage. The aws_iam marker and method=oidc are passed through to
  *        librdkafka UNCHANGED.
  *
@@ -2805,7 +2805,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         static const char EXTENSIONS_KEY[] = "sasl.oauthbearer.extensions";
         static const char OAUTH_CB_KEY[] = "oauth_cb";
         static const char AUTOWIRE_MODULE[] =
-            "confluent_kafka.oauthbearer.aws.aws_autowire";
+            "confluent_kafka._oauthbearer.aws.aws_autowire";
         static const char CREATE_HANDLER[] = "create_handler";
         static const char METHOD_REQUIREMENT_ERR[] =
             "'sasl.oauthbearer.metadata.authentication.type=aws_iam' requires "

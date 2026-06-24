@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._aws_sts_token_provider.
+"""Tests for confluent_kafka._oauthbearer.aws.aws_sts_token_provider.
 
 - Python uses a tuple return (not a typed record) so the "no extensions →
   null" assertion becomes "no extensions → empty dict" (the C oauth_cb
@@ -36,8 +36,8 @@ pytest.importorskip("botocore")
 
 from botocore.exceptions import ClientError  # noqa: E402
 
-from confluent_kafka.oauthbearer.aws._aws_oauthbearer_config import AwsOAuthBearerConfig  # noqa: E402
-from confluent_kafka.oauthbearer.aws._aws_sts_token_provider import (  # noqa: E402
+from confluent_kafka._oauthbearer.aws.aws_oauthbearer_config import AwsOAuthBearerConfig  # noqa: E402
+from confluent_kafka._oauthbearer.aws.aws_sts_token_provider import (  # noqa: E402
     MINIMUM_BOTO3_VERSION,
     AwsStsTokenProvider,
     _require_boto3_version,
@@ -336,7 +336,7 @@ def test_token_outbound_federation_disabled_propagates():
 
 def test_aws_sts_token_provider_not_exposed_via_subpackage_init():
     """Public surface stays minimal — AwsStsTokenProvider is private."""
-    import confluent_kafka.oauthbearer.aws as aws_pkg
+    import confluent_kafka._oauthbearer.aws as aws_pkg
 
     assert not hasattr(aws_pkg, "AwsStsTokenProvider")
 

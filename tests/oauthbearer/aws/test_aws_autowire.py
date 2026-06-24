@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws.aws_autowire.create_handler.
+"""Tests for confluent_kafka._oauthbearer.aws.aws_autowire.create_handler.
 
 End-to-end orchestration tests. The frozen-signature contract guard lives
 in test_contract.py.
@@ -22,7 +22,7 @@ import pytest
 
 pytest.importorskip("boto3")
 
-from confluent_kafka.oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
+from confluent_kafka._oauthbearer.aws.aws_autowire import create_handler  # noqa: E402
 
 # ---- Input validation (defensive checks for direct callers) ----
 

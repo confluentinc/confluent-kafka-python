@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._jwt_extractor."""
+"""Tests for confluent_kafka._oauthbearer.aws.jwt_extractor."""
 
 import base64
 
 import pytest
 
-from confluent_kafka.oauthbearer.aws._jwt_extractor import extract_sub
+from confluent_kafka._oauthbearer.aws.jwt_extractor import extract_sub
 
 # ---- Test helpers ----
 

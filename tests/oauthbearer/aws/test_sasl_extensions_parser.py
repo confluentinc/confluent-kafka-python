@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for confluent_kafka.oauthbearer.aws._sasl_extensions_parser."""
+"""Tests for confluent_kafka._oauthbearer.aws.sasl_extensions_parser."""
 
 import pytest
 
-from confluent_kafka.oauthbearer.aws._sasl_extensions_parser import parse
+from confluent_kafka._oauthbearer.aws.sasl_extensions_parser import parse
 
 # ---- Null / empty input → None ----
 

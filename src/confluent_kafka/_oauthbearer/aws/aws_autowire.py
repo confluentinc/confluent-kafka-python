@@ -18,7 +18,7 @@ This is the **only publicly importable name** in the optional subpackage.
 End users do not call :func:`create_handler` directly — the C dispatcher in
 ``src/confluent_kafka/src/confluent_kafka.c`` reaches it via::
 
-    PyImport_ImportModule("confluent_kafka.oauthbearer.aws.aws_autowire")
+    PyImport_ImportModule("confluent_kafka._oauthbearer.aws.aws_autowire")
 
 and resolves :func:`create_handler` by name. The marker-key check is
 performed in core; :func:`create_handler` is invoked only when the C
@@ -45,10 +45,10 @@ increment on the ``confluent-kafka`` distribution. Test-guarded by
 
 from typing import Callable, Dict, Optional, Tuple
 
-from . import _sasl_extensions_parser
-from ._aws_iam_marker import AWS_IAM_MARKER_KEY, AWS_IAM_MARKER_VALUE
-from ._aws_oauthbearer_config import CONFIG_KEY, AwsOAuthBearerConfig
-from ._aws_sts_token_provider import AwsStsTokenProvider
+from . import sasl_extensions_parser
+from .aws_iam_marker import AWS_IAM_MARKER_KEY, AWS_IAM_MARKER_VALUE
+from .aws_oauthbearer_config import CONFIG_KEY, AwsOAuthBearerConfig
+from .aws_sts_token_provider import AwsStsTokenProvider
 
 __all__ = ["create_handler", "OAuthBearerCallback"]
 
@@ -87,7 +87,7 @@ def create_handler(
             f"{CONFIG_KEY} (e.g. \"region=us-east-1,audience=https://...\")."
         )
 
-    sasl_extensions = _sasl_extensions_parser.parse(sasl_oauthbearer_extensions)
+    sasl_extensions = sasl_extensions_parser.parse(sasl_oauthbearer_extensions)
     config = AwsOAuthBearerConfig.parse(sasl_oauthbearer_config, sasl_extensions)
     provider = AwsStsTokenProvider(config)
     return provider.token
