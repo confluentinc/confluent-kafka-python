@@ -82,7 +82,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         python3 -c "
 import importlib.metadata, sys
 extras = set(importlib.metadata.metadata('confluent-kafka').get_all('Provides-Extra') or [])
-required = {'schema-registry', 'schemaregistry', 'avro', 'json', 'protobuf', 'rules'}
+required = {'schema-registry', 'schemaregistry', 'avro', 'json', 'protobuf', 'rules', 'oauthbearer-aws'}
 missing = required - extras
 if missing:
     print(f'Failing: package does not provide extras: {missing}', file=sys.stderr)
