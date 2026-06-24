@@ -154,16 +154,9 @@ def test_gc_without_close_leaves_group_and_redelivers(kafka_cluster):
 
 
 def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
-    """Any consumer method called from inside the ack-commit callback is
-    rejected with IllegalStateException and leaves the consumer usable. The
-    reentrancy guard reports _STATE, which surfaces as IllegalStateException
-    (not a KafkaException). Extends test_callback_reentrancy_guard (which only
-    checks commit_async + set_callback) to poll, the subscribe family,
-    commit_sync, and acknowledge.
-
-    close() is left out on purpose: calling it from the callback currently
-    bricks the consumer even though the call is rejected (a known bug, tracked
-    separately), which would wreck the rest of the test.
+    """Every consumer method called from inside the ack-commit callback is
+    rejected with IllegalStateException and leaves the consumer usable —
+    close included, since it goes through the same reentrancy gate.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-share-consumer-close-cb-reentrancy-all')
 
@@ -182,13 +175,16 @@ def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
                 'commit_sync': lambda: sc.commit_sync(timeout=1.0),
                 'acknowledge': lambda: sc.acknowledge(msg, AcknowledgeType.ACCEPT),
                 'acknowledge_offset': lambda: sc.acknowledge_offset(topic, 0, 0, AcknowledgeType.ACCEPT),
+                'close': sc.close,
             }
             for name, fn in probes.items():
                 try:
                     fn()
                     captured[name] = 'no-exception'
+                except IllegalStateException:
+                    captured[name] = 'IllegalStateException'
                 except Exception as ex:  # noqa: BLE001 - record whatever it raised
-                    captured[name] = ex
+                    captured[name] = type(ex).__name__
 
         sc.set_acknowledgement_commit_callback(reentrant_cb)
         sc.subscribe([topic])
@@ -211,11 +207,11 @@ def test_callback_reentrancy_guard_covers_all_methods(kafka_cluster):
 
         assert captured, 'callback never ran'
         for name, result in captured.items():
-            assert isinstance(
-                result, IllegalStateException
+            assert (
+                result == 'IllegalStateException'
             ), f'{name}() from callback returned {result!r}, expected IllegalStateException'
 
-        # Rejected calls shouldn't have changed anything.
+        # Rejected calls — close included — must leave the consumer intact.
         assert sc.subscription() == [topic]
     finally:
         # Clear the cb before close so its drain doesn't trip the guard again.

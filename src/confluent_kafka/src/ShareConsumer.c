@@ -1210,15 +1210,9 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         self->rkshare =
             rd_kafka_share_consumer_new(conf, errstr, sizeof(errstr));
         if (!self->rkshare) {
-                /* A failed build is reported as a plain KafkaException, not a
-                 * translated type. The error-type translation is for misuse of
-                 * a live consumer's methods; last_error() after a failed new()
-                 * is an internal detail (commonly _INVALID_ARG for any config
-                 * problem) that varies by platform, so translating it would
-                 * surface the same bad config as different Python types on
-                 * different builds. */
-                cfl_PyErr_Format(rd_kafka_last_error(),
-                                 "Failed to create share consumer: %s", errstr);
+                ShareConsumer_PyErr_Format(
+                    rd_kafka_last_error(),
+                    "Failed to create share consumer: %s", errstr);
                 rd_kafka_conf_destroy(conf);
                 return -1;
         }

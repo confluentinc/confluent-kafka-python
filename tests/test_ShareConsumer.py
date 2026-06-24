@@ -895,12 +895,12 @@ def test_close_does_not_hang_on_unreachable_broker():
 
 def test_construction_failure_raises_cleanly():
     """A config that passes the early checks but fails while the consumer is
-    being built should raise KafkaException, not crash or leak.
+    being built should raise ValueError, not crash or leak.
 
     A bad ssl.ca.location is accepted up front but fails when the SSL context
     is loaded during construction.
     """
-    with pytest.raises(KafkaException) as ex:
+    with pytest.raises(ValueError) as ex:
         ShareConsumer(
             {
                 'group.id': unique_id('test-share-new-fail'),
