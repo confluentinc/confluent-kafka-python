@@ -277,6 +277,9 @@ pip install "confluent-kafka[protobuf,schemaregistry]" # Protobuf
 
 # With Data Contract rules (includes CSFLE support)
 pip install "confluent-kafka[avro,schemaregistry,rules]"
+
+# With AWS IAM OAUTHBEARER authentication (mints JWTs via AWS STS GetWebIdentityToken)
+pip install "confluent-kafka[oauthbearer-aws]"
 ```
 
 **Note:** Pre-built Linux wheels do not include SASL Kerberos/GSSAPI support. For Kerberos, see the source installation instructions in [INSTALL.md](INSTALL.md).
@@ -303,6 +306,20 @@ When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
 ```bash
 pip install "confluent-kafka[avro,schemaregistry,rules]"
 ```
+
+To authenticate to a Kafka cluster using AWS IAM (when running on EC2, EKS, ECS,
+Fargate, or Lambda with an IAM role attached), add the `oauthbearer-aws` extra:
+
+```bash
+pip install "confluent-kafka[oauthbearer-aws]"
+```
+
+Activation is config-only — set `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. The client mints fresh
+JWTs via AWS STS on every token refresh — no static credentials, no Python-side
+imports. See [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
 
 **Install from source**
 

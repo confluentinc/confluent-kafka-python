@@ -6,6 +6,16 @@
 
 - [KIP-932] Add Share Consumer support (Queues for Kafka), including a deserializing share consumer, acknowledgement/commit callbacks, and runtime SASL credential updates (#2217, #2239, #2241, #2252, #2253, #2265, #2273, #2277, #2279)
 
+### Features
+
+- New optional install `confluent-kafka[oauthbearer-aws]` provides AWS IAM-based
+  OAUTHBEARER authentication via AWS STS `GetWebIdentityToken`. Activate by setting `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. See the
+[AWS IAM OAUTHBEARER guide](docs/oauthbearer-aws.md) for full configuration, and
+[`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
+
 ### Fixes
 
 - Fix Encryption fails when expanded union types have two references to the same record (@ChristophMajcenAtXxxlutz, #2262)
