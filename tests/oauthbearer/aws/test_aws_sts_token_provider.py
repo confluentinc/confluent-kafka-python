@@ -335,7 +335,7 @@ def test_token_outbound_federation_disabled_propagates():
 
 
 def test_aws_sts_token_provider_not_exposed_via_subpackage_init():
-    """Public surface stays minimal — AwsStsTokenProvider is private."""
+    """`AwsStsTokenProvider` is internal — not re-exported from the subpackage init."""
     import confluent_kafka._oauthbearer.aws as aws_pkg
 
     assert not hasattr(aws_pkg, "AwsStsTokenProvider")

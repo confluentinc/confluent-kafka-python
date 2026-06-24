@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Public entry-point for AWS IAM OAUTHBEARER autowire.
+"""Internal entry-point for AWS IAM OAUTHBEARER autowire.
 
-This is the **only publicly importable name** in the optional subpackage.
-End users do not call :func:`create_handler` directly — the C dispatcher in
-``src/confluent_kafka/src/confluent_kafka.c`` reaches it via::
+This module is internal to ``confluent-kafka`` and not part of the public
+API — applications never import it or call :func:`create_handler` directly.
+The C dispatcher in ``src/confluent_kafka/src/confluent_kafka.c`` reaches it
+via::
 
     PyImport_ImportModule("confluent_kafka._oauthbearer.aws.aws_autowire")
 
@@ -24,22 +25,22 @@ and resolves :func:`create_handler` by name. The marker-key check is
 performed in core; :func:`create_handler` is invoked only when the C
 dispatcher has decided to autowire the AWS path.
 
-User-facing contract — four config keys::
+Users activate this path through configuration only — four config keys::
 
     "sasl.oauthbearer.method":                        "oidc"
     "sasl.oauthbearer.metadata.authentication.type":  "aws_iam"
     "sasl.oauthbearer.config":                        "region=...,audience=..."
     "sasl.oauthbearer.extensions":                    "key=val,..."   # optional
 
-Frozen cross-module contract of :func:`create_handler`:
+:func:`create_handler` has a frozen internal contract with the C dispatcher:
 
 * arity:   2 positional parameters
 * names:   ``sasl_oauthbearer_config``, ``sasl_oauthbearer_extensions``
 * types:   ``str``, ``Optional[str]``
 * return:  :data:`OAuthBearerCallback`
 
-Bumping any of these is a breaking change requiring a major version
-increment on the ``confluent-kafka`` distribution. Test-guarded by
+The C dispatcher and this module ship together and must stay in sync; changing
+the contract would break autowiring. Guarded by
 ``tests/oauthbearer/aws/test_contract.py``.
 """
 

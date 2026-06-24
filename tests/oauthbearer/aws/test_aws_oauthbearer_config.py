@@ -356,8 +356,9 @@ def test_direct_construction_with_bool_duration_rejected():
 
 
 def test_aws_oauth_bearer_config_not_exposed_via_subpackage_init():
-    """Public surface stays minimal — AwsOAuthBearerConfig is private to the
-    autowire layer (only `create_handler` is publicly importable)."""
+    """The `_oauthbearer` package is internal — `create_handler` is its only
+    entry-point and `AwsOAuthBearerConfig` is not re-exported from the
+    subpackage init."""
     import confluent_kafka._oauthbearer.aws as aws_pkg
 
     assert not hasattr(aws_pkg, "AwsOAuthBearerConfig")

@@ -49,8 +49,8 @@ def test_oauthbearer_callback_type_alias_exported():
     assert aws_autowire.OAuthBearerCallback is OAuthBearerCallback
 
 
-def test_module_all_lists_public_surface():
-    """__all__ should advertise only the two public names."""
+def test_module_all_lists_exported_names():
+    """__all__ should list only the two exported names."""
     assert set(aws_autowire.__all__) == {"create_handler", "OAuthBearerCallback"}
 
 

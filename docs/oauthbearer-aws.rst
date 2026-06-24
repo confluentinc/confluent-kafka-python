@@ -18,8 +18,8 @@ Installation
 
     pip install 'confluent-kafka[oauthbearer-aws]'
 
-This adds ``boto3`` to the dependency graph. Without the extra, nothing AWS is
-imported or installed.
+This adds ``boto3`` and optionally other third party dependencies to the
+dependency graph. Without the extra, nothing more is imported or installed.
 
 ***********
 Quick start
@@ -190,29 +190,28 @@ Prerequisites
 Common pitfalls
 ***************
 
-* **``sasl.oauthbearer.method=oidc`` is mandatory.** When
+* ``sasl.oauthbearer.method=oidc`` **is mandatory.** When
   ``sasl.oauthbearer.metadata.authentication.type=aws_iam`` is set, omitting or
   changing the method raises a ``ValueError`` at client construction.
-* **Set ``security.protocol=SASL_SSL`` and ``sasl.mechanisms=OAUTHBEARER``.**
-  Without them the OAUTHBEARER token-refresh path never engages and
-  authentication silently does not happen.
-* **``sasl.oauthbearer.config`` must be present and non-empty** — it carries the
+* **Both SASL settings are required.** Set ``security.protocol=SASL_SSL`` and
+  ``sasl.mechanisms=OAUTHBEARER``; without them the OAUTHBEARER token-refresh
+  path never engages and authentication silently does not happen.
+* ``sasl.oauthbearer.config`` **must be present and non-empty** — it carries the
   required ``region`` and ``audience``. A missing or empty value raises a
   ``ValueError`` naming the missing keys.
-* **Install the extra, not ``boto3`` directly.** If the marker is set but the
+* **Install the extra**, not ``boto3`` directly. If the marker is set but the
   extra is not installed, client construction raises an ``ImportError`` pointing
   to ``pip install 'confluent-kafka[oauthbearer-aws]'``.
-* **``audience`` mismatches fail at STS.** If the configured ``audience`` does not
+* ``audience`` **mismatches fail at STS.** If the configured ``audience`` does not
   match the IAM role's trust relationship, the ``GetWebIdentityToken`` call is
   rejected and no token is issued.
-* **``botocore[crt]`` may be needed for ``aws login`` credential sessions.**
+* ``boto3[crt]`` **may be needed for** ``aws login`` **credential sessions.**
   Like any boto3 application, this integration uses boto3's default credential
   chain — so if your active AWS profile uses an ``aws login`` session (a
-  ``login_session`` entry), boto3 raises ``MissingDependencyException`` asking
-  you to ``pip install "botocore[crt]"``. This does not occur when credentials
-  come from an attached IAM role (as on AWS compute). Fix:
-  ``pip install "botocore[crt]"``, or use a credential source without a login
-  session.
+  ``login_session`` entry), boto3 raises a ``MissingDependencyException`` for a
+  missing CRT dependency. This does not occur when credentials come from an
+  attached IAM role (as on AWS compute). Fix: add an additional ``boto3[crt]``
+  to your requirements, or use a credential source without a login session.
 
 ************
 Requirements
