@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
 from tink import KmsClient
 
@@ -24,6 +24,9 @@ _TOKEN_ID = "token.id"
 _NAMESPACE = "namespace"
 _APPROLE_ROLE_ID = "approle.role.id"
 _APPROLE_SECRET_ID = "approle.secret.id"
+_SSL_CA_LOCATION = "ssl.ca.location"
+_SSL_CERTIFICATE_LOCATION = "ssl.certificate.location"
+_SSL_KEY_LOCATION = "ssl.key.location"
 
 
 class HcVaultKmsDriver(KmsDriver):
@@ -49,7 +52,39 @@ class HcVaultKmsDriver(KmsDriver):
         secret_id = conf.get(_APPROLE_SECRET_ID)
         if secret_id is None:
             secret_id = os.getenv("VAULT_APPROLE_SECRET_ID")
-        return HcVaultKmsClient(uri_prefix, token, namespace, role_id, secret_id)
+        verify = self._get_verify(conf)
+        cert = self._get_cert(conf)
+        return HcVaultKmsClient(uri_prefix, token, namespace, role_id, secret_id, verify, cert)
+
+    @staticmethod
+    def _get_verify(conf: Dict[str, Any]) -> Union[bool, str]:
+        # A CA bundle path enables verification against that bundle. The standard
+        # VAULT_CACERT environment variable is honored as a fallback.
+        ca_location = conf.get(_SSL_CA_LOCATION)
+        if ca_location is None:
+            ca_location = os.getenv("VAULT_CACERT")
+        if ca_location is not None:
+            return ca_location
+        # Verification is always enabled by default.
+        return True
+
+    @staticmethod
+    def _get_cert(conf: Dict[str, Any]) -> Optional[Union[str, Tuple[str, str]]]:
+        cert_location = conf.get(_SSL_CERTIFICATE_LOCATION)
+        if cert_location is None:
+            cert_location = os.getenv("VAULT_CLIENT_CERT")
+        key_location = conf.get(_SSL_KEY_LOCATION)
+        if key_location is None:
+            key_location = os.getenv("VAULT_CLIENT_KEY")
+        if key_location is not None and cert_location is None:
+            raise ValueError(
+                f"{_SSL_CERTIFICATE_LOCATION} required when configuring {_SSL_KEY_LOCATION}"
+            )
+        if cert_location is not None and key_location is not None:
+            return cert_location, key_location
+        if cert_location is not None:
+            return cert_location
+        return None
 
     @classmethod
     def register(cls) -> None:
