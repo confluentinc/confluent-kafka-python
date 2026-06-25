@@ -46,14 +46,18 @@ def test_unasync_file_check(temp_dirs):
     os.makedirs(os.path.dirname(sync_file), exist_ok=True)
 
     with open(async_file, "w") as f:
-        f.write("""async def test():
+        f.write(
+            """async def test():
     await asyncio.sleep(1)
-""")
+"""
+        )
 
     with open(sync_file, "w") as f:
-        f.write("""def test():
+        f.write(
+            """def test():
     time.sleep(1)
-""")
+"""
+        )
 
     # This should return True
     assert unasync_file_check(async_file, sync_file) is True
@@ -64,15 +68,19 @@ def test_unasync_file_check(temp_dirs):
     os.makedirs(os.path.dirname(sync_file), exist_ok=True)
 
     with open(async_file, "w") as f:
-        f.write("""async def test():
+        f.write(
+            """async def test():
     await asyncio.sleep(1)
-""")
+"""
+        )
 
     with open(sync_file, "w") as f:
-        f.write("""def test():
+        f.write(
+            """def test():
     # This is wrong
     asyncio.sleep(1)
-""")
+"""
+        )
 
     # This should return False
     assert unasync_file_check(async_file, sync_file) is False
@@ -83,15 +91,19 @@ def test_unasync_file_check(temp_dirs):
     os.makedirs(os.path.dirname(sync_file), exist_ok=True)
 
     with open(async_file, "w") as f:
-        f.write("""async def test():
+        f.write(
+            """async def test():
     await asyncio.sleep(1)
     return "test"
-""")
+"""
+        )
 
     with open(sync_file, "w") as f:
-        f.write("""def test():
+        f.write(
+            """def test():
     time.sleep(1)
-""")
+"""
+        )
 
     # This should return False
     assert unasync_file_check(async_file, sync_file) is False
@@ -108,14 +120,16 @@ def test_unasync_generation(temp_dirs):
     # Create a test async file
     test_file = os.path.join(async_dir, "test.py")
     with open(test_file, "w") as f:
-        f.write("""async def test_func():
+        f.write(
+            """async def test_func():
     await asyncio.sleep(1)
     return "test"
 
 class AsyncTest:
     async def test_method(self):
         await self.some_async()
-""")
+"""
+        )
 
     # Run unasync with test directories
     dir_pairs = [(async_dir, sync_dir)]
@@ -149,20 +163,24 @@ def test_unasync_check(temp_dirs):
     # Create a test async file
     test_file = os.path.join(async_dir, "test.py")
     with open(test_file, "w") as f:
-        f.write("""async def test_func():
+        f.write(
+            """async def test_func():
     await asyncio.sleep(1)
     return "test"
-""")
+"""
+        )
 
     # Create an incorrect sync file
     sync_file = os.path.join(sync_dir, "test.py")
     os.makedirs(os.path.dirname(sync_file), exist_ok=True)
     with open(sync_file, "w") as f:
-        f.write("""def test_func():
+        f.write(
+            """def test_func():
     time.sleep(1)
     return "test"
     # Extra line that shouldn't be here
-""")
+"""
+        )
 
     # Run unasync check with test directories
     dir_pairs = [(async_dir, sync_dir)]
@@ -178,10 +196,12 @@ def test_unasync_missing_sync_file(temp_dirs):
     # Create a test async file
     test_file = os.path.join(async_dir, "test.py")
     with open(test_file, "w") as f:
-        f.write("""async def test_func():
+        f.write(
+            """async def test_func():
     await asyncio.sleep(1)
     return "test"
-""")
+"""
+        )
 
     # Run unasync check with test directories
     dir_pairs = [(async_dir, sync_dir)]
