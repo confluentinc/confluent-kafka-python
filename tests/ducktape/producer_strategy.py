@@ -41,8 +41,6 @@ class ProducerStrategy:
         test_duration,
         start_time,
         message_formatter,
-        delivered_container,
-        failed_container=None,
         serialization_type=None,
     ):
         raise NotImplementedError()
@@ -209,8 +207,6 @@ class SyncProducerStrategy(ProducerStrategy):
         test_duration,
         start_time,
         message_formatter,
-        delivered_container,
-        failed_container=None,
         serialization_type=None,
         use_transaction=False,
     ):
@@ -233,14 +229,11 @@ class SyncProducerStrategy(ProducerStrategy):
 
         def delivery_callback(err, msg):
             if err:
-                if failed_container is not None:
-                    failed_container.append(err)
                 if self.metrics:
                     self.metrics.record_failed(
                         topic=msg.topic() if msg else topic_name, partition=msg.partition() if msg else 0
                     )
             else:
-                delivered_container.append(msg)
                 if self.metrics:
                     # Calculate latency if we have send time
                     msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
@@ -301,8 +294,6 @@ class SyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_poll()
 
             except Exception as e:
-                if failed_container is not None:
-                    failed_container.append(e)
                 if self.metrics:
                     self.metrics.record_failed(topic=topic_name, partition=0)
                 self.logger.error(f"Failed to produce message {messages_sent}: {e}")
@@ -452,8 +443,6 @@ class AsyncProducerStrategy(ProducerStrategy):
         test_duration,
         start_time,
         message_formatter,
-        delivered_container,
-        failed_container=None,
         serialization_type=None,
         use_transaction=False,
     ):
@@ -491,8 +480,6 @@ class AsyncProducerStrategy(ProducerStrategy):
                             latency_ms = (time.time() - send_times[msg_key]) * 1000
                             del send_times[msg_key]
                         self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
-                    if not err:  # Also append to delivered_messages for assertion
-                        delivered_container.append(msg)
 
             while time.time() - start_time < test_duration:
                 message_value, message_key = message_formatter(messages_sent)
@@ -547,8 +534,6 @@ class AsyncProducerStrategy(ProducerStrategy):
                             self.metrics.record_poll()
 
                 except Exception as e:
-                    if failed_container is not None:
-                        failed_container.append(e)
                     if self.metrics:
                         self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to produce message {messages_sent}: {e}")
@@ -562,9 +547,8 @@ class AsyncProducerStrategy(ProducerStrategy):
             for delivery_future, message_key in pending_futures:
                 try:
                     msg = await delivery_future
-                    delivered_container.append(msg)
 
-                    # Record delivery metrics (replaces the old callback approach)
+                    # Record delivery metrics
                     if self.metrics:
                         # Calculate latency if we have send time
                         latency_ms = 0.0
@@ -575,8 +559,6 @@ class AsyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
 
                 except Exception as e:
-                    if failed_container is not None:
-                        failed_container.append(e)
                     if self.metrics:
                         self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to deliver message with key {message_key}: {e}")

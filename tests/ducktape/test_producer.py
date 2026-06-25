@@ -82,10 +82,6 @@ class SimpleProducerTest(Test):
         def message_formatter(msg_num):
             return f"Test message {msg_num}", f"key-{msg_num}"
 
-        # Containers for results
-        delivered_messages = []
-        failed_messages = []
-
         # Run the test
         start_time = time.time()
         messages_sent = strategy.produce_messages(
@@ -93,8 +89,6 @@ class SimpleProducerTest(Test):
             test_duration,
             start_time,
             message_formatter,
-            delivered_messages,
-            failed_messages,
         )
 
         # Finalize metrics collection
@@ -110,8 +104,7 @@ class SimpleProducerTest(Test):
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -161,10 +154,6 @@ class SimpleProducerTest(Test):
         def message_formatter(msg_num):
             return f"Test message {msg_num}", f"key-{msg_num}"
 
-        # Containers for results
-        delivered_messages = []
-        failed_messages = []
-
         # Run the test
         start_time = time.time()
         messages_sent = strategy.produce_messages(
@@ -172,8 +161,6 @@ class SimpleProducerTest(Test):
             test_duration,
             start_time,
             message_formatter,
-            delivered_messages,
-            failed_messages,
             use_transaction=True,
         )
 
@@ -190,8 +177,7 @@ class SimpleProducerTest(Test):
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -238,10 +224,6 @@ class SimpleProducerTest(Test):
         def message_formatter(msg_num):
             return f"Batch message {msg_num}", f"batch-key-{msg_num}"
 
-        # Containers for results
-        delivered_messages = []
-        failed_messages = []
-
         # Run the test
         start_time = time.time()
         messages_sent = strategy.produce_messages(
@@ -249,8 +231,6 @@ class SimpleProducerTest(Test):
             test_duration,
             start_time,
             message_formatter,
-            delivered_messages,
-            failed_messages,
         )
 
         # Finalize metrics collection
@@ -279,8 +259,7 @@ class SimpleProducerTest(Test):
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -362,10 +341,6 @@ class SimpleProducerTest(Test):
         def message_formatter(msg_num):
             return f"{large_message}-{msg_num}", f"comp-key-{msg_num}"
 
-        # Containers for results
-        delivered_messages = []
-        failed_messages = []
-
         # Run the test
         start_time = time.time()
         messages_sent = strategy.produce_messages(
@@ -373,8 +348,6 @@ class SimpleProducerTest(Test):
             test_duration,
             start_time,
             message_formatter,
-            delivered_messages,
-            failed_messages,
         )
 
         # Finalize metrics collection
@@ -403,8 +376,7 @@ class SimpleProducerTest(Test):
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered"
         assert metrics_summary["send_throughput_msg_per_sec"] > 5, (
             f"Send throughput too low for {compression_type}: "
             f"{metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
@@ -516,17 +488,12 @@ class SimpleProducerTest(Test):
                 self.logger.error(f"Error creating message {i}: {e}")
                 return (f"Test message {i}", f"key-{i}")
 
-        delivered_messages = []
-        failed_messages = []
-
         start_time = time.time()
         messages_sent = strategy.produce_messages(
             topic_name,
             test_duration,
             start_time,
             message_formatter,
-            delivered_messages,
-            failed_messages,
             serialization_type,
         )
 
@@ -539,8 +506,7 @@ class SimpleProducerTest(Test):
         print_metrics_report(metrics_summary, is_valid, violations)
 
         assert messages_sent > 0, "No messages were sent"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary["messages_delivered"] > 0, "No messages were delivered"
         assert (
             metrics_summary["send_throughput_msg_per_sec"] > 10
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
