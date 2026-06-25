@@ -39,8 +39,6 @@ if __name__ == '__main__':
     group = sys.argv[2]
     topics = sys.argv[3:]
 
-    # ShareConsumer configuration.
-    # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {
         'bootstrap.servers': broker,
         'group.id': group,
@@ -53,6 +51,21 @@ if __name__ == '__main__':
         while True:
             try:
                 messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
+                for msg in messages:
+                    if msg.error():
+                        # The records with msg.error() field set will be acknowledged
+                        # internally with RELEASE for temporary errors and REJECT for
+                        # permanent errors. Check KIP for more details.
+                        sys.stderr.write('%% Error: %s\n' % msg.error())
+                        continue
+                    print(
+                        '%% %s [%d] at offset %d with key %s:'
+                        % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
+                    )
+                    print(msg.value())
+                    # No ack needed — the next poll() accepts this record. If we
+                    # crash first, another consumer picks it up later.
             except KafkaException as e:
                 # The consumer should stop consuming after fatal error.
                 if e.args[0].fatal():
@@ -65,20 +78,6 @@ if __name__ == '__main__':
                 # looping, so bail out.
                 sys.stderr.write('%% Fatal: %s\n' % e)
                 raise
-            for msg in messages:
-                if msg.error():
-                    # The records with msg.error() field set will be acknowledged
-                    # internally with RELEASE for temporary errors and REJECT for
-                    # permanent errors. Check KIP for more details.
-                    sys.stderr.write('%% Error: %s\n' % msg.error())
-                    continue
-                sys.stdout.write(
-                    '%% %s [%d] at offset %d with key %s:\n'
-                    % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
-                )
-                print(msg.value())
-                # No ack needed — the next poll() accepts this record. If we
-                # crash first, another consumer picks it up later.
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:

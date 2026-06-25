@@ -40,8 +40,6 @@ if __name__ == '__main__':
     group = sys.argv[2]
     topics = sys.argv[3:]
 
-    # ShareConsumer configuration.
-    # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {
         'bootstrap.servers': broker,
         'group.id': group,
@@ -53,6 +51,7 @@ if __name__ == '__main__':
             while True:
                 try:
                     messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
                     for msg in messages:
                         if msg.error():
                             sys.stderr.write('%% Error: %s\n' % msg.error())

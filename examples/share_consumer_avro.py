@@ -26,7 +26,14 @@
 import argparse
 import sys
 
-from confluent_kafka import AcknowledgeType, DeserializingShareConsumer, KafkaError, KafkaException
+from confluent_kafka import (
+    AcknowledgeType,
+    ConcurrentModificationException,
+    DeserializingShareConsumer,
+    IllegalStateException,
+    KafkaError,
+    KafkaException,
+)
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
 from confluent_kafka.serialization import StringDeserializer
@@ -100,38 +107,44 @@ def main(args):
         while True:
             try:
                 messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
+                for msg in messages:
+                    err = msg.error()
+                    if err is not None:
+                        if err.code() in (KafkaError._KEY_DESERIALIZATION, KafkaError._VALUE_DESERIALIZATION):
+                            # A record we received but can't decode. In explicit
+                            # mode we still have to ack it — RELEASE it so that
+                            # other consumer can pick and redeliver for processing
+                            # again. In implicit ack mode, we currently don't release
+                            # the record in the Preview internally.
+                            sc.acknowledge(msg, AcknowledgeType.RELEASE)
+                        else:
+                            # Any other flagged record is acked internally by the
+                            # library — see share_consumer.py for the error handling.
+                            sys.stderr.write('%% Error: %s\n' % err)
+                        continue
+
+                    # value is already deserialized.
+                    user = msg.value()
+                    if user is not None:
+                        print(
+                            "User record {}: name: {}, favorite_number: {}, favorite_color: {}".format(
+                                msg.key(), user.name, user.favorite_number, user.favorite_color
+                            )
+                        )
+                    sc.acknowledge(msg, AcknowledgeType.ACCEPT)
             except KafkaException as e:
                 # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
                 continue
-
-            for msg in messages:
-                err = msg.error()
-                if err is not None:
-                    if err.code() in (KafkaError._KEY_DESERIALIZATION, KafkaError._VALUE_DESERIALIZATION):
-                        # A record we received but can't decode. In explicit
-                        # mode we still have to ack it — RELEASE it so that
-                        # other consumer can pick and redeliver for processing
-                        # again. In implicit ack mode, we currently don't release
-                        # the record in the Preview internally.
-                        sc.acknowledge(msg, AcknowledgeType.RELEASE)
-                    else:
-                        # Any other flagged record is acked internally by the
-                        # library — see share_consumer.py for the error handling.
-                        sys.stderr.write('%% Error: %s\n' % err)
-                    continue
-
-                # value is already deserialized.
-                user = msg.value()
-                if user is not None:
-                    print(
-                        "User record {}: name: {}, favorite_number: {}, favorite_color: {}".format(
-                            msg.key(), user.name, user.favorite_number, user.favorite_color
-                        )
-                    )
-                sc.acknowledge(msg, AcknowledgeType.ACCEPT)
+            except (IllegalStateException, ConcurrentModificationException) as e:
+                # These signal misuse (polling or acking when not subscribed/closed,
+                # or from more than one thread), not a transient hiccup — no point
+                # looping, so bail out.
+                sys.stderr.write('%% Fatal: %s\n' % e)
+                raise
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:

@@ -28,7 +28,13 @@ import sys
 # commit_sync() blocks for the broker reply and returns a per-partition
 # {TopicPartition: error-or-None} dict, so you can see what succeeded.
 #
-from confluent_kafka import AcknowledgeType, KafkaException, ShareConsumer
+from confluent_kafka import (
+    AcknowledgeType,
+    ConcurrentModificationException,
+    IllegalStateException,
+    KafkaException,
+    ShareConsumer,
+)
 
 
 def print_usage_and_exit(program_name):
@@ -44,8 +50,6 @@ if __name__ == '__main__':
     group = sys.argv[2]
     topics = sys.argv[3:]
 
-    # ShareConsumer configuration.
-    # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {
         'bootstrap.servers': broker,
         'group.id': group,
@@ -58,43 +62,52 @@ if __name__ == '__main__':
     try:
         while True:
             try:
-                batch = sc.poll(timeout=1.0)  # a list, possibly empty
+                messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
+                for msg in messages:
+                    if msg.error():
+                        # Library already acknowledges the errored records internally
+                        # exception for Deserialization error where it needs to be
+                        # acknowledged explicitly from the application (Will be consistent
+                        # in GA). You can choose to override the acknowledge for the
+                        # errored offsets if required.
+                        sys.stderr.write('%% Error: %s\n' % msg.error())
+                        continue
+
+                    try:
+                        # Your processing goes here.
+                        print(msg.value())
+                    except Exception as e:
+                        # Couldn't process it — RELEASE so it can be retried.
+                        sys.stderr.write('%% Processing failed: %s\n' % e)
+                        sc.acknowledge(msg, AcknowledgeType.RELEASE)
+                        continue
+
+                    sc.acknowledge(msg, AcknowledgeType.ACCEPT)
+
+                if not messages:
+                    continue
+
+                # Flush the acks before the next poll().
+                results = sc.commit_sync(timeout=10.0)
+                for topic_partition, err in results.items():
+                    if err is not None:
+                        sys.stderr.write(
+                            '%% Commit failed for %s [%d]: %s\n'
+                            % (topic_partition.topic, topic_partition.partition, err)
+                        )
             except KafkaException as e:
                 # Re-raise fatal errors; otherwise log and keep going.
                 if e.args[0].fatal():
                     raise
                 sys.stderr.write('%% Consumer error: %s\n' % e)
                 continue
-
-            for msg in batch:
-                if msg.error():
-                    # No need to acknowledge a flagged record — the library
-                    # already handles it. Acking it yourself is redundant and
-                    # can override a permanent discard with a retry. Just log it.
-                    sys.stderr.write('%% Error: %s\n' % msg.error())
-                    continue
-
-                try:
-                    # Your processing goes here.
-                    print(msg.value())
-                except Exception as e:
-                    # Couldn't process it — RELEASE so it can be retried.
-                    sys.stderr.write('%% Processing failed: %s\n' % e)
-                    sc.acknowledge(msg, AcknowledgeType.RELEASE)
-                    continue
-
-                sc.acknowledge(msg, AcknowledgeType.ACCEPT)
-
-            if not batch:
-                continue
-
-            # Flush the acks before the next poll().
-            results = sc.commit_sync(timeout=10.0)
-            for topic_partition, err in results.items():
-                if err is not None:
-                    sys.stderr.write(
-                        '%% Commit failed for %s [%d]: %s\n' % (topic_partition.topic, topic_partition.partition, err)
-                    )
+            except (IllegalStateException, ConcurrentModificationException) as e:
+                # These signal misuse (polling, acking, or committing when not
+                # subscribed/closed, or from more than one thread), not a transient
+                # hiccup — no point looping, so bail out.
+                sys.stderr.write('%% Fatal: %s\n' % e)
+                raise
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
