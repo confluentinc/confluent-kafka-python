@@ -77,9 +77,7 @@ class HcVaultKmsDriver(KmsDriver):
         if key_location is None:
             key_location = os.getenv("VAULT_CLIENT_KEY")
         if key_location is not None and cert_location is None:
-            raise ValueError(
-                f"{_SSL_CERTIFICATE_LOCATION} required when configuring {_SSL_KEY_LOCATION}"
-            )
+            raise ValueError(f"{_SSL_CERTIFICATE_LOCATION} required when configuring {_SSL_KEY_LOCATION}")
         if cert_location is not None and key_location is not None:
             return cert_location, key_location
         if cert_location is not None:

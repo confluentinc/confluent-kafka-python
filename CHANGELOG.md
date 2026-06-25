@@ -21,6 +21,7 @@ for a worked example.
 - Fix Encryption fails when expanded union types have two references to the same record (@ChristophMajcenAtXxxlutz, #2262)
 - Make orjson optional in JSON serdes with stdlib json fallback (#2281)
 - Handle non-http errors during retries (#2292)
+- Use TLS certification verification with Hashicorp Vault (#2294)
 
 
 confluent-kafka-python v2.15.0rc1 is based on librdkafka v2.15.0-RC1, see the
