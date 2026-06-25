@@ -18,13 +18,12 @@
 import sys
 
 #
-# Example KIP-932 ShareConsumer.
+# Example KIP-932 ShareConsumer in the default (implicit) ack mode.
 #
-# A share consumer reads from one or more topics like a queue: many consumers
-# in the same share group can read the same partition, and each record is
-# acknowledged implicitly.
+# Consumers in a share group share partitions like a queue. In implicit mode
+# each record is acknowledged for you on the next poll().
 #
-from confluent_kafka import ShareConsumer
+from confluent_kafka import ConcurrentModificationException, IllegalStateException, KafkaException, ShareConsumer
 
 
 def print_usage_and_exit(program_name):
@@ -40,8 +39,6 @@ if __name__ == '__main__':
     group = sys.argv[2]
     topics = sys.argv[3:]
 
-    # ShareConsumer configuration.
-    # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {
         'bootstrap.servers': broker,
         'group.id': group,
@@ -52,23 +49,35 @@ if __name__ == '__main__':
 
     try:
         while True:
-            messages = sc.poll(timeout=1.0)  # returns a list (possibly empty)
-            for msg in messages:
-                if msg.error():
-                    # Per-message errors are informational; log and keep
-                    # polling. Truly fatal errors are raised out of poll()
-                    # itself via the error_cb path.
-                    sys.stderr.write('%% Error: %s\n' % msg.error())
-                    continue
-                sys.stderr.write(
-                    '%% %s [%d] at offset %d with key %s:\n'
-                    % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
-                )
-                print(msg.value())
-                # Implicit ack: the next poll() acknowledges this message.
-                # If we crash before the next poll, the broker will
-                # redeliver this record to another consumer in the share
-                # group after the acquisition lock expires.
+            try:
+                messages = sc.poll(timeout=1.0)  # a list, possibly empty
+
+                for msg in messages:
+                    if msg.error():
+                        # The records with msg.error() field set will be acknowledged
+                        # internally with RELEASE for temporary errors and REJECT for
+                        # permanent errors. Check KIP for more details.
+                        sys.stderr.write('%% Error: %s\n' % msg.error())
+                        continue
+                    print(
+                        '%% %s [%d] at offset %d with key %s:'
+                        % (msg.topic(), msg.partition(), msg.offset(), str(msg.key()))
+                    )
+                    print(msg.value())
+                    # No ack needed — the next poll() accepts this record. If we
+                    # crash first, another consumer picks it up later.
+            except KafkaException as e:
+                # The consumer should stop consuming after fatal error.
+                if e.args[0].fatal():
+                    raise
+                sys.stderr.write('%% Consumer error: %s\n' % e)
+                continue
+            except (IllegalStateException, ConcurrentModificationException) as e:
+                # These signal misuse (polling when not subscribed/closed, or
+                # from more than one thread), not a transient hiccup — no point
+                # looping, so bail out.
+                sys.stderr.write('%% Fatal: %s\n' % e)
+                raise
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
     finally:
