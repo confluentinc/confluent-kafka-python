@@ -59,11 +59,14 @@ class HcVaultKmsDriver(KmsDriver):
     @staticmethod
     def _get_verify(conf: Dict[str, Any]) -> Union[bool, str]:
         # A CA bundle path enables verification against that bundle. The standard
-        # VAULT_CACERT environment variable is honored as a fallback.
-        ca_location = conf.get(_SSL_CA_LOCATION)
-        if ca_location is None:
-            ca_location = os.getenv("VAULT_CACERT")
-        if ca_location is not None:
+        # VAULT_CACERT environment variable is honored as a fallback. An empty or
+        # unset value must NOT disable verification: requests/hvac treat a falsy
+        # ``verify`` as "do not verify the server certificate", so an empty string
+        # (e.g. ``VAULT_CACERT=""`` or ``ssl.ca.location=""``) would silently
+        # reopen the certificate-validation hole. Treat any falsy value as
+        # unconfigured and fall back to the secure default of True.
+        ca_location = conf.get(_SSL_CA_LOCATION) or os.getenv("VAULT_CACERT")
+        if ca_location:
             return ca_location
         # Verification is always enabled by default.
         return True
