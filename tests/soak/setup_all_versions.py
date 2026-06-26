@@ -23,7 +23,7 @@ LIBRDKAFKA_VERSIONS = [
 ]
 
 PYTHON_VERSIONS = [
-    '2.15.0rc1',
+    '2.15.0.dev',
     '2.14.2',
     '2.13.2',
     '2.13.0',
