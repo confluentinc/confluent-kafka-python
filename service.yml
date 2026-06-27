@@ -15,3 +15,8 @@ sonarqube:
 semaphore:
   enable: true
   pipeline_enable: false
+  managed_sections:
+    - version
+    - name
+    - agent
+    - global_job_config
