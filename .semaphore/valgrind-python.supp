@@ -1,0 +1,152 @@
+# CPython interpreter uninitialized-value false positives under Memcheck.
+# Harvested from the share-consumer Valgrind run (CPython 3.11, mise build):
+# 87 Value8 + 7 Cond, every one originating inside the interpreter itself —
+# the eval loop reading its own stack slots, the cyclic GC walking its graph,
+# and PyLong digit-array arithmetic. None touch cimpl or librdkafka.
+#
+# We match on the innermost (top) frame only. A genuine uninitialized read in
+# our C would have a cimpl/librdkafka frame on top, so it won't be masked here.
+# Function names are stable across CPython patch releases, so this survives a
+# mise bump. Leaks are LSAN's job (the ASAN block) — this file is uninit-only.
+
+# --- bytecode interpreter loop ---
+{
+   cpython-eval-loop-value8
+   Memcheck:Value8
+   fun:_PyEval_EvalFrameDefault
+   ...
+}
+
+# --- cyclic GC traversal ---
+{
+   cpython-gc-visit-reachable-value8
+   Memcheck:Value8
+   fun:visit_reachable
+   ...
+}
+{
+   cpython-gc-visit-decref-value8
+   Memcheck:Value8
+   fun:visit_decref
+   ...
+}
+
+# --- frame teardown ---
+{
+   cpython-frame-clear-value8
+   Memcheck:Value8
+   fun:_PyFrame_Clear
+   ...
+}
+
+# --- PyLong / int arithmetic over digit arrays ---
+{
+   cpython-long-fromstring-value8
+   Memcheck:Value8
+   fun:PyLong_FromString
+   ...
+}
+{
+   cpython-long-fromstring-cond
+   Memcheck:Cond
+   fun:PyLong_FromString
+   ...
+}
+{
+   cpython-long-asbytearray-value8
+   Memcheck:Value8
+   fun:_PyLong_AsByteArray
+   ...
+}
+{
+   cpython-long-frombytearray-value8
+   Memcheck:Value8
+   fun:_PyLong_FromByteArray
+   ...
+}
+{
+   cpython-long-frombytearray-cond
+   Memcheck:Cond
+   fun:_PyLong_FromByteArray
+   ...
+}
+{
+   cpython-long-and-value8
+   Memcheck:Value8
+   fun:long_and
+   ...
+}
+{
+   cpython-long-and-cond
+   Memcheck:Cond
+   fun:long_and
+   ...
+}
+{
+   cpython-long-richcompare-value8
+   Memcheck:Value8
+   fun:long_richcompare
+   ...
+}
+{
+   cpython-long-richcompare-cond
+   Memcheck:Cond
+   fun:long_richcompare
+   ...
+}
+
+# --- object / type machinery ---
+{
+   cpython-type-call-value8
+   Memcheck:Value8
+   fun:type_call
+   ...
+}
+{
+   cpython-object-init-value8
+   Memcheck:Value8
+   fun:object_init
+   ...
+}
+{
+   cpython-subtype-dealloc-value8
+   Memcheck:Value8
+   fun:subtype_dealloc
+   ...
+}
+{
+   cpython-generic-setattr-value8
+   Memcheck:Value8
+   fun:PyObject_GenericSetAttr
+   ...
+}
+{
+   cpython-tuple-dealloc-value8
+   Memcheck:Value8
+   fun:tupledealloc
+   ...
+}
+{
+   cpython-list-dealloc-value8
+   Memcheck:Value8
+   fun:list_dealloc
+   ...
+}
+{
+   cpython-tuple-fromarray-value8
+   Memcheck:Value8
+   fun:_PyTuple_FromArray
+   ...
+}
+{
+   cpython-function-vectorcall-value8
+   Memcheck:Value8
+   fun:_PyFunction_Vectorcall
+   ...
+}
+{
+   cpython-method-vectorcall-fk-value8
+   Memcheck:Value8
+   fun:method_vectorcall_FASTCALL_KEYWORDS
+   ...
+}
