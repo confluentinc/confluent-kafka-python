@@ -22,6 +22,8 @@ for a worked example.
 - Make orjson optional in JSON serdes with stdlib json fallback (#2281)
 - Handle non-http errors during retries (#2292)
 - Use TLS certification verification with Hashicorp Vault (#2294)
+- Return early from wakeable `Producer.poll()` once producer events are
+  served, instead of waiting for the full timeout.
 
 
 confluent-kafka-python v2.15.0rc1 is based on librdkafka v2.15.0-RC1, see the
