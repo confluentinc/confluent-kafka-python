@@ -120,7 +120,7 @@ The mode is fixed at construction by ``share.acknowledgement.mode``:
    :py:func:`~confluent_kafka.ShareConsumer.acknowledge_offset`), before the next
    poll. If any record from the previous batch is still unacknowledged, the next
    :py:func:`~confluent_kafka.ShareConsumer.poll` raises
-   :py:exc:`~confluent_kafka.error.IllegalStateException`.
+   :py:exc:`~confluent_kafka.IllegalStateException`.
 
 *********************
 Acknowledgement Types
@@ -142,12 +142,29 @@ reports how many times a record has been delivered, which can be used to
 Acknowledgements are sent to the broker as part of the next poll, or flushed
 explicitly with :py:func:`~confluent_kafka.ShareConsumer.commit_async`
 (fire-and-forget) or :py:func:`~confluent_kafka.ShareConsumer.commit_sync`
-(blocks for the broker replies and returns a ``dict`` of
+(blocks for the broker replies and returns a ``dict`` mapping each
 :py:class:`~confluent_kafka.TopicPartition` to an optional
 :py:exc:`~confluent_kafka.KafkaException`; ``None`` means that partition's
-acknowledgements succeeded). The acknowledgement-commit callback set with
+acknowledgements succeeded).
+
+The acknowledgement-commit callback registered with
 :py:func:`~confluent_kafka.ShareConsumer.set_acknowledgement_commit_callback`
-is invoked with the per-partition outcome.
+is invoked as ``callback(offsets, exception)``, where ``offsets`` is a
+``dict`` mapping each :py:class:`~confluent_kafka.TopicPartition` to the
+``set`` of acknowledged offsets and ``exception`` is a single
+:py:exc:`~confluent_kafka.KafkaException` covering all the topic partitions in
+``offsets`` (or ``None`` on success) — not a per-partition mapping like
+``commit_sync``.
+
+The callback runs on the application thread during
+:py:func:`~confluent_kafka.ShareConsumer.poll`,
+:py:func:`~confluent_kafka.ShareConsumer.commit_sync`,
+:py:func:`~confluent_kafka.ShareConsumer.commit_async` or
+:py:func:`~confluent_kafka.ShareConsumer.close` (never on a background thread),
+so keep calling the consumer to observe acknowledgement results.
+
+Calling any ShareConsumer method from within the callback raises
+:py:exc:`~confluent_kafka.IllegalStateException`.
 
 **************
 Usage Examples
@@ -294,13 +311,15 @@ The share consumer surfaces errors at three levels:
 
 -  **API-level (call-level) errors** are raised as exceptions:
 
-   -  :py:exc:`~confluent_kafka.error.ConcurrentModificationException` if the
+   -  :py:exc:`~confluent_kafka.ConcurrentModificationException` if the
       handle is used concurrently from more than one thread (the share consumer
       is **not thread-safe**; see `Thread Safety`_).
-   -  :py:exc:`~confluent_kafka.error.IllegalStateException` if a method is called
+   -  :py:exc:`~confluent_kafka.IllegalStateException` if a method is called
       in an invalid state — for example polling while not subscribed, polling in
       explicit mode before all previous records are acknowledged, acknowledging in
-      implicit mode, or using the consumer after it is closed.
+      implicit mode, using the consumer after it is closed, calling any method
+      from within the acknowledgement-commit callback, or otherwise calling the
+      consumer APIs in any wrong state.
    -  :py:exc:`~confluent_kafka.KafkaException` for other call-level failures.
 
 -  **Record-level errors** are reported on the message via
@@ -311,12 +330,14 @@ The share consumer surfaces errors at three levels:
    (``RELEASE`` for decompression failures, ``REJECT`` for corrupt/unsupported
    batches); the application can re-acknowledge them if required.
 
--  **Partition-level acknowledgement errors** are reported per partition, not
+-  **Acknowledgement errors** are reported through the commit result, not
    raised: the :py:func:`~confluent_kafka.ShareConsumer.commit_sync` return value
    maps each :py:class:`~confluent_kafka.TopicPartition` to an optional
-   :py:exc:`~confluent_kafka.KafkaException` (``None`` on success), and the
-   acknowledgement-commit callback receives the same per-partition outcome for
-   :py:func:`~confluent_kafka.ShareConsumer.commit_async`.
+   :py:exc:`~confluent_kafka.KafkaException` (``None`` on success), while the
+   acknowledgement-commit callback used by
+   :py:func:`~confluent_kafka.ShareConsumer.commit_async` reports a single
+   :py:exc:`~confluent_kafka.KafkaException` for the commit (see
+   `Acknowledgement Types`_ for the callback signature).
 
 *************
 Thread Safety
@@ -329,7 +350,7 @@ from multiple threads. This follows the share-consumer design in
 where the share consumer, like the classic consumer, is single-threaded and the
 application owns the threading model (typically one instance per thread).
 Concurrent use is detected on a best-effort basis and raises
-:py:exc:`~confluent_kafka.error.ConcurrentModificationException`.
+:py:exc:`~confluent_kafka.ConcurrentModificationException`.
 
 *******************
 Current Limitations
