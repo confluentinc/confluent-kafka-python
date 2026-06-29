@@ -38,6 +38,10 @@ bring queue-like semantics to Apache Kafka.
    broker-driven via the share-group heartbeat; there is **no** rebalance callback
    and **no** ``assign()`` step.
 
+For background on the underlying implementation and additional caveats, see the
+`Share consumers (Queues for Kafka) <https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka>`__
+section of librdkafka's ``INTRODUCTION.md``.
+
 ************
 Requirements
 ************

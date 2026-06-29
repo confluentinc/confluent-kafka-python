@@ -24,6 +24,8 @@ Share groups ([KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-93
 
   A share consumer is a separate handle, `~confluent_kafka.ShareConsumer` (and `~confluent_kafka.DeserializingShareConsumer`), not the regular `~confluent_kafka.Consumer`. Partition assignment is entirely broker-driven via the share-group heartbeat; there is **no** rebalance callback and **no** `assign()` step.
 
+For background on the underlying implementation and additional caveats, see the [Share consumers (Queues for Kafka)](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka) section of librdkafka's `INTRODUCTION.md`.
+
 # Requirements
 
 - **Broker:** share groups must be enabled on the broker. They are generally available in **Apache Kafka 4.2.0** (early access in 4.0.0, preview in 4.1.0).

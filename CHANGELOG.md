@@ -2,9 +2,19 @@
 
 ## v2.15.0rc1
 
-### Enhancements
+### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**
 
-- [KIP-932] Add Share Consumer support (Queues for Kafka), including a deserializing share consumer, acknowledgement/commit callbacks, and runtime SASL credential updates (#2217, #2239, #2241, #2252, #2253, #2265, #2273, #2277, #2279)
+confluent-kafka-python 2.15.0 adds a **Preview** implementation of the KIP-932 share consumer (Queues for Kafka). Members of a share group cooperatively consume from the same partitions with per-record acquire/acknowledge semantics and redelivery, providing queue-like consumption on top of Kafka.
+
+- New `ShareConsumer` and `DeserializingShareConsumer` clients: subscribe, batch poll (`poll()` returns a `Messages` batch), and close (with context-manager support).
+- Implicit (default) and explicit acknowledgement modes (`share.acknowledgement.mode`), with `AcknowledgeType` ACCEPT / RELEASE / REJECT and `Message.delivery_count()`.
+- Synchronous and asynchronous commit (`commit_sync` / `commit_async`) and an acknowledgement-commit callback.
+- Runtime SASL credential updates (`set_sasl_credentials`) and new `IllegalStateException` / `ConcurrentModificationException` exceptions.
+- (#2217, #2239, #2241, #2252, #2253, #2265, #2273, #2277, #2279)
+
+See the [Share Consumer guide](docs/kip-932-share-consumer.md) and the [Share consumers section of librdkafka's INTRODUCTION.md](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka).
+
+**Note:** The share consumer is currently in **Preview** and should not be used in production environments. Its public interfaces may change before General Availability, and known limitations apply (see the guide). The share consumer is single-threaded and not thread-safe. It requires a broker with share groups enabled (generally available in Apache Kafka 4.2.0).
 
 ### Features
 
