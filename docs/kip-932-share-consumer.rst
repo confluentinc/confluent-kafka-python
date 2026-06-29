@@ -71,10 +71,9 @@ Several regular-consumer configuration properties do not apply to share
 consumers (for example ``partition.assignment.strategy``,
 ``enable.auto.commit``, ``auto.offset.reset``, ``isolation.level``,
 ``enable.partition.eof``, ``group.instance.id`` and the per-partition fetch-queue
-tuning). A few network defaults also differ. See
-`CONFIGURATION.md <https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md>`_,
-where such properties are annotated, for the authoritative list and the
-share-consumer defaults.
+tuning). A few network defaults also differ. See the
+:ref:`Configuration Guide <pythonclient_configuration>`, where such properties
+are annotated, for the authoritative list and the share-consumer defaults.
 
 ******************
 Available Features
