@@ -7,11 +7,13 @@ Guides
    - :ref:`Configuration Guide <pythonclient_configuration>`
    - :ref:`Transactional API <pythonclient_transactional>`
    - :ref:`KIP-848 Migration Guide <pythonclient_migration_kip848>`
+   - :ref:`KIP-932 Share Consumer (Queues for Kafka) <pythonclient_kip932_share_consumer>`
    - :ref:`AWS IAM OAUTHBEARER <pythonclient_oauthbearer_aws>`
 
 Client API
    - :ref:`Producer <pythonclient_producer>`
    - :ref:`Consumer <pythonclient_consumer>`
+   - :ref:`ShareConsumer <pythonclient_shareconsumer>`
    - :ref:`AdminClient <pythonclient_adminclient>`
    - :ref:`SchemaRegistryClient <schemaregistry_client>`
 
@@ -35,6 +37,8 @@ Supporting classes
     - :ref:`ConsumerGroupState <pythonclient_consumer_group_state>`
     - :ref:`Uuid <pythonclient_uuid>`
     - :ref:`ElectionType <pythonclient_election_type>`
+    - :ref:`Messages <pythonclient_messages>`
+    - :ref:`AcknowledgeType <pythonclient_acknowledge_type>`
 
     - Errors:
        - :ref:`KafkaError <pythonclient_kafkaerror>`
@@ -46,6 +50,8 @@ Supporting classes
        - :ref:`ValueSerializationError <serde_error_serializer_value>`
        - :ref:`KeyDeserializationError <serde_error_deserializer_key>`
        - :ref:`ValueDeserializationError <serde_error_deserializer_value>`
+       - :ref:`IllegalStateException <pythonclient_illegalstateexception>`
+       - :ref:`ConcurrentModificationException <pythonclient_concurrentmodificationexception>`
 
     - Admin API
        - :ref:`NewTopic <pyclient_admin_newtopic>`
@@ -90,6 +96,7 @@ Experimental
 
    - :ref:`SerializingProducer <serde_producer>`
    - :ref:`DeserializingConsumer <serde_consumer>`
+   - :ref:`DeserializingShareConsumer <serde_share_consumer>`
 
 Legacy
    These classes are deprecated and will be removed in a future version of the library.
@@ -428,6 +435,16 @@ Consumer
    :members:
    :noindex:
 
+.. _pythonclient_shareconsumer:
+
+*************
+ShareConsumer
+*************
+
+.. autoclass:: confluent_kafka.ShareConsumer
+   :members:
+   :noindex:
+
 .. _serde_consumer:
 
 ************************************
@@ -435,6 +452,17 @@ DeserializingConsumer (experimental)
 ************************************
 
 .. autoclass:: confluent_kafka.DeserializingConsumer
+   :members:
+
+   :inherited-members:
+
+.. _serde_share_consumer:
+
+*****************************************
+DeserializingShareConsumer (experimental)
+*****************************************
+
+.. autoclass:: confluent_kafka.DeserializingShareConsumer
    :members:
 
    :inherited-members:
@@ -641,6 +669,24 @@ Message
 .. autoclass:: confluent_kafka.Message
    :members:
 
+.. _pythonclient_messages:
+
+********
+Messages
+********
+
+.. autoclass:: confluent_kafka.Messages
+   :members:
+
+.. _pythonclient_acknowledge_type:
+
+***************
+AcknowledgeType
+***************
+
+.. autoclass:: confluent_kafka.AcknowledgeType
+   :members:
+
 .. _pythonclient_topicpartition:
 
 **************
@@ -774,6 +820,24 @@ KafkaException
 **************
 
 .. autoclass:: confluent_kafka.KafkaException
+   :members:
+
+.. _pythonclient_illegalstateexception:
+
+**********************
+IllegalStateException
+**********************
+
+.. autoclass:: confluent_kafka.IllegalStateException
+   :members:
+
+.. _pythonclient_concurrentmodificationexception:
+
+********************************
+ConcurrentModificationException
+********************************
+
+.. autoclass:: confluent_kafka.ConcurrentModificationException
    :members:
 
 .. _pyclient_error_consumer:
@@ -1100,6 +1164,14 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 ==================================================================================================================================================
 
 .. include:: kip-848-migration-guide.rst
+
+
+.. _pythonclient_kip932_share_consumer:
+
+`KIP-932 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka>`_ - Share Consumer (Queues for Kafka)
+===============================================================================================================================
+
+.. include:: kip-932-share-consumer.rst
 
 
 .. _pythonclient_oauthbearer_aws:
