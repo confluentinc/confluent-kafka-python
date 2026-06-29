@@ -78,7 +78,7 @@ def _guard_external_uri(uri: str):
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == 'https' else 80))
     except socket.gaierror as ex:
-        raise ValueError("Could not resolve schema URI host {}: {}".format(host, ex))
+        raise ValueError("Could not resolve schema URI host {}: {}".format(host, ex)) from ex
     for info in infos:
         if _is_blocked_ip(ipaddress.ip_address(info[4][0])):
             raise ValueError("Refusing to retrieve schema from non-public address: {}".format(uri))

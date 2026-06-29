@@ -30,6 +30,8 @@ from confluent_kafka.schema_registry.common import json_schema
     "http://127.0.0.1:8080/internal",
     "http://10.0.0.5/schema",
     "http://[::1]/schema",
+    "http://[::ffff:127.0.0.1]/schema",
+    "http://100.64.0.1/schema",
     "file:///etc/passwd",
     "gopher://127.0.0.1/x",
 ])
