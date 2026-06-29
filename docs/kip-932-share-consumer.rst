@@ -26,9 +26,11 @@ bring queue-like semantics to Apache Kafka.
    (``group.share.record.lock.duration.ms``, 30 seconds by default) and is not
    configured on this client. A record that is not acknowledged before its lock
    expires, or that is explicitly released, becomes available again and may be
-   redelivered (possibly to a different member). This lets you scale the number
-   of consumers beyond the number of partitions and distribute work like a
-   traditional queue.
+   redelivered (possibly to a different member). A record thus moves through the
+   states *available* → *acquired* → *acknowledged*; a rejected record, or one
+   that exceeds the broker's delivery-count limit, becomes *archived* and is no
+   longer delivered. This lets you scale the number of consumers beyond the
+   number of partitions and distribute work like a traditional queue.
 
 -  **Distinct client:**
 
@@ -38,7 +40,9 @@ bring queue-like semantics to Apache Kafka.
    broker-driven via the share-group heartbeat; there is **no** rebalance callback
    and **no** ``assign()`` step.
 
-For background on the underlying implementation and additional caveats, see the
+For a conceptual overview of share groups and Queues for Kafka, see the
+`Confluent share consumer documentation <https://docs.confluent.io/platform/current/clients/share-consumers.html>`__.
+For the underlying implementation and additional caveats, see the
 `Share consumers (Queues for Kafka) <https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka>`__
 section of librdkafka's ``INTRODUCTION.md``.
 
@@ -58,6 +62,10 @@ Enablement
 Create a :py:class:`~confluent_kafka.ShareConsumer` with a configuration dict.
 ``group.id`` is required. The acknowledgement mode is selected with the
 optional ``share.acknowledgement.mode`` property and defaults to ``implicit``.
+This is the only share-specific client property: other share-group settings
+(acquisition-lock duration, delivery-count limit, session/heartbeat timeouts,
+isolation level, acquire mode and offset reset) are broker/group settings and
+are not exposed by this client.
 
 .. code:: python
 
@@ -144,7 +152,9 @@ Each acquired record is acknowledged with one of
 
 :py:func:`Message.delivery_count() <confluent_kafka.Message.delivery_count>`
 reports how many times a record has been delivered, which can be used to
-``REJECT`` a record after a threshold.
+``REJECT`` a record after a threshold. The broker also enforces its own maximum
+delivery count (``group.share.delivery.count.limit``, default 5); once a record
+exceeds it the broker archives the record and stops redelivering it.
 
 Acknowledgements are sent to the broker as part of the next poll, or flushed
 explicitly with :py:func:`~confluent_kafka.ShareConsumer.commit_async`

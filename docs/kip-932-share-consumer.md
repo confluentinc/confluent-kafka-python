@@ -18,13 +18,13 @@ Share groups ([KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-93
 
 - **What is different from a consumer group:**
 
-  A classic consumer group assigns each partition to exactly **one** member at a time. A **share group** lets **multiple** members consume from the **same** partitions cooperatively. The unit of progress is the individual **record** rather than the partition offset: each delivered record is *acquired* by a member under a time-limited acquisition lock, processed, and then *acknowledged*. The lock duration is a broker/group setting (`group.share.record.lock.duration.ms`, 30 seconds by default) and is not configured on this client. A record that is not acknowledged before its lock expires, or that is explicitly released, becomes available again and may be redelivered (possibly to a different member). This lets you scale the number of consumers beyond the number of partitions and distribute work like a traditional queue.
+  A classic consumer group assigns each partition to exactly **one** member at a time. A **share group** lets **multiple** members consume from the **same** partitions cooperatively. The unit of progress is the individual **record** rather than the partition offset: each delivered record is *acquired* by a member under a time-limited acquisition lock, processed, and then *acknowledged*. The lock duration is a broker/group setting (`group.share.record.lock.duration.ms`, 30 seconds by default) and is not configured on this client. A record that is not acknowledged before its lock expires, or that is explicitly released, becomes available again and may be redelivered (possibly to a different member). A record thus moves through the states *available* → *acquired* → *acknowledged*; a rejected record, or one that exceeds the broker's delivery-count limit, becomes *archived* and is no longer delivered. This lets you scale the number of consumers beyond the number of partitions and distribute work like a traditional queue.
 
 - **Distinct client:**
 
   A share consumer is a separate handle, `~confluent_kafka.ShareConsumer` (and `~confluent_kafka.DeserializingShareConsumer`), not the regular `~confluent_kafka.Consumer`. Partition assignment is entirely broker-driven via the share-group heartbeat; there is **no** rebalance callback and **no** `assign()` step.
 
-For background on the underlying implementation and additional caveats, see the [Share consumers (Queues for Kafka)](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka) section of librdkafka's `INTRODUCTION.md`.
+For a conceptual overview of share groups and Queues for Kafka, see the [Confluent share consumer documentation](https://docs.confluent.io/platform/current/clients/share-consumers.html). For the underlying implementation and additional caveats, see the [Share consumers (Queues for Kafka)](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka) section of librdkafka's `INTRODUCTION.md`.
 
 # Requirements
 
@@ -33,7 +33,7 @@ For background on the underlying implementation and additional caveats, see the 
 
 # Enablement
 
-Create a `~confluent_kafka.ShareConsumer` with a configuration dict. `group.id` is required. The acknowledgement mode is selected with the optional `share.acknowledgement.mode` property and defaults to `implicit`.
+Create a `~confluent_kafka.ShareConsumer` with a configuration dict. `group.id` is required. The acknowledgement mode is selected with the optional `share.acknowledgement.mode` property and defaults to `implicit`. This is the only share-specific client property: other share-group settings (acquisition-lock duration, delivery-count limit, session/heartbeat timeouts, isolation level, acquire mode and offset reset) are broker/group settings and are not exposed by this client.
 
 ``` python
 from confluent_kafka import ShareConsumer
@@ -77,7 +77,7 @@ Each acquired record is acknowledged with one of `~confluent_kafka.AcknowledgeTy
 - `RELEASE` — not processed; make the record available again for redelivery (use for transient failures that should be retried).
 - `REJECT` — do not deliver the record again (use for permanent failures, such as a "poison" record).
 
-`Message.delivery_count() <confluent_kafka.Message.delivery_count>` reports how many times a record has been delivered, which can be used to `REJECT` a record after a threshold.
+`Message.delivery_count() <confluent_kafka.Message.delivery_count>` reports how many times a record has been delivered, which can be used to `REJECT` a record after a threshold. The broker also enforces its own maximum delivery count (`group.share.delivery.count.limit`, default 5); once a record exceeds it the broker archives the record and stops redelivering it.
 
 Acknowledgements are sent to the broker as part of the next poll, or flushed explicitly with `~confluent_kafka.ShareConsumer.commit_async` (fire-and-forget) or `~confluent_kafka.ShareConsumer.commit_sync` (blocks for the broker replies and returns a `dict` mapping each `~confluent_kafka.TopicPartition` to an optional `~confluent_kafka.KafkaException`; `None` means that partition's acknowledgements succeeded).
 
