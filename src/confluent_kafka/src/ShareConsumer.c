@@ -1110,8 +1110,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "      currently registered callback.\n"
      "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
      "  :raises IllegalStateException: if called from within the\n"
-     "      acknowledgement-commit callback. This applies to every\n"
-     "      ShareConsumer method.\n"
+     "      acknowledgement-commit callback. This applies to the core share\n"
+     "      consumer APIs.\n"
      "  :raises IllegalStateException: if called on a closed share consumer.\n"
      "\n"},
 

@@ -67,7 +67,7 @@ Several regular-consumer configuration properties do not apply to share consumer
 The mode is fixed at construction by `share.acknowledgement.mode`:
 
 - **implicit** (default): the application does **not** call `acknowledge()`. All records returned by a poll are automatically accepted (`ACCEPT`) on the next `~confluent_kafka.ShareConsumer.poll`, `~confluent_kafka.ShareConsumer.commit_sync` or `~confluent_kafka.ShareConsumer.commit_async`.
-- **explicit**: the application **must** acknowledge every record returned by a poll, using `~confluent_kafka.ShareConsumer.acknowledge` (or `~confluent_kafka.ShareConsumer.acknowledge_offset`), before the next poll. If any record from the previous batch is still unacknowledged, the next `~confluent_kafka.ShareConsumer.poll` raises `~confluent_kafka.IllegalStateException`.
+- **explicit**: the application **must** acknowledge every record returned by a poll, using `~confluent_kafka.ShareConsumer.acknowledge` (or `~confluent_kafka.ShareConsumer.acknowledge_offset`), before the next poll. If any record from the previous batch is still unacknowledged, the next `~confluent_kafka.ShareConsumer.poll` raises `~confluent_kafka.IllegalStateException`. Records you have acknowledged but not yet committed are also committed when you call `~confluent_kafka.ShareConsumer.close`.
 
 # Acknowledgement Types
 
@@ -85,7 +85,7 @@ The acknowledgement-commit callback registered with `~confluent_kafka.ShareConsu
 
 The callback runs on the application thread during `~confluent_kafka.ShareConsumer.poll`, `~confluent_kafka.ShareConsumer.commit_sync`, `~confluent_kafka.ShareConsumer.commit_async` or `~confluent_kafka.ShareConsumer.close` (never on a background thread), so keep calling the consumer to observe acknowledgement results.
 
-Calling any ShareConsumer method from within the callback raises `~confluent_kafka.IllegalStateException`.
+Calling any of the share consumer's core APIs — `~confluent_kafka.ShareConsumer.subscribe`, `~confluent_kafka.ShareConsumer.unsubscribe`, `~confluent_kafka.ShareConsumer.subscription`, `~confluent_kafka.ShareConsumer.poll`, `~confluent_kafka.ShareConsumer.acknowledge`, `~confluent_kafka.ShareConsumer.acknowledge_offset`, `~confluent_kafka.ShareConsumer.commit_sync`, `~confluent_kafka.ShareConsumer.commit_async`, `~confluent_kafka.ShareConsumer.set_acknowledgement_commit_callback`, or `~confluent_kafka.ShareConsumer.close` — from within the callback raises `~confluent_kafka.IllegalStateException`.
 
 # Usage Examples
 
@@ -203,7 +203,7 @@ The share consumer surfaces errors at three levels:
 
 - **API-level (call-level) errors** are raised as exceptions:
   - `~confluent_kafka.ConcurrentModificationException` if the handle is used concurrently from more than one thread (the share consumer is **not thread-safe**; see [Thread Safety](#thread-safety)).
-  - `~confluent_kafka.IllegalStateException` if a method is called in an invalid state — for example polling while not subscribed, polling in explicit mode before all previous records are acknowledged, acknowledging in implicit mode, using the consumer after it is closed, calling any method from within the acknowledgement-commit callback, or otherwise calling the consumer APIs in any wrong state.
+  - `~confluent_kafka.IllegalStateException` if a method is called in an invalid state — for example polling while not subscribed, polling in explicit mode before all previous records are acknowledged, acknowledging in implicit mode, using the consumer after it is closed, calling a core share consumer API from within the acknowledgement-commit callback, or otherwise calling the consumer APIs in any wrong state.
   - `~confluent_kafka.KafkaException` for other call-level failures.
 - **Record-level errors** are reported on the message via `Message.error() <confluent_kafka.Message.error>`, with the topic, partition and offset intact. The application should check `msg.error()` on each record before treating it as data. For these records librdkafka has already applied the acknowledgement internally based on the error type (`RELEASE` for decompression failures, `REJECT` for corrupt/unsupported batches); the application can re-acknowledge them if required.
 - **Acknowledgement errors** are reported through the commit result, not raised: the `~confluent_kafka.ShareConsumer.commit_sync` return value maps each `~confluent_kafka.TopicPartition` to an optional `~confluent_kafka.KafkaException` (`None` on success), while the acknowledgement-commit callback used by `~confluent_kafka.ShareConsumer.commit_async` reports a single `~confluent_kafka.KafkaException` for the commit (see [Acknowledgement Types](#acknowledgement-types) for the callback signature).

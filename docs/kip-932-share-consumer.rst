@@ -135,7 +135,9 @@ The mode is fixed at construction by ``share.acknowledgement.mode``:
    :py:func:`~confluent_kafka.ShareConsumer.acknowledge_offset`), before the next
    poll. If any record from the previous batch is still unacknowledged, the next
    :py:func:`~confluent_kafka.ShareConsumer.poll` raises
-   :py:exc:`~confluent_kafka.IllegalStateException`.
+   :py:exc:`~confluent_kafka.IllegalStateException`. Records you have
+   acknowledged but not yet committed are also committed when you call
+   :py:func:`~confluent_kafka.ShareConsumer.close`.
 
 *********************
 Acknowledgement Types
@@ -180,8 +182,18 @@ The callback runs on the application thread during
 :py:func:`~confluent_kafka.ShareConsumer.close` (never on a background thread),
 so keep calling the consumer to observe acknowledgement results.
 
-Calling any ShareConsumer method from within the callback raises
-:py:exc:`~confluent_kafka.IllegalStateException`.
+Calling any of the share consumer's core APIs —
+:py:func:`~confluent_kafka.ShareConsumer.subscribe`,
+:py:func:`~confluent_kafka.ShareConsumer.unsubscribe`,
+:py:func:`~confluent_kafka.ShareConsumer.subscription`,
+:py:func:`~confluent_kafka.ShareConsumer.poll`,
+:py:func:`~confluent_kafka.ShareConsumer.acknowledge`,
+:py:func:`~confluent_kafka.ShareConsumer.acknowledge_offset`,
+:py:func:`~confluent_kafka.ShareConsumer.commit_sync`,
+:py:func:`~confluent_kafka.ShareConsumer.commit_async`,
+:py:func:`~confluent_kafka.ShareConsumer.set_acknowledgement_commit_callback`,
+or :py:func:`~confluent_kafka.ShareConsumer.close` — from within the callback
+raises :py:exc:`~confluent_kafka.IllegalStateException`.
 
 **************
 Usage Examples
@@ -334,9 +346,9 @@ The share consumer surfaces errors at three levels:
    -  :py:exc:`~confluent_kafka.IllegalStateException` if a method is called
       in an invalid state — for example polling while not subscribed, polling in
       explicit mode before all previous records are acknowledged, acknowledging in
-      implicit mode, using the consumer after it is closed, calling any method
-      from within the acknowledgement-commit callback, or otherwise calling the
-      consumer APIs in any wrong state.
+      implicit mode, using the consumer after it is closed, calling a core share
+      consumer API from within the acknowledgement-commit callback, or otherwise
+      calling the consumer APIs in any wrong state.
    -  :py:exc:`~confluent_kafka.KafkaException` for other call-level failures.
 
 -  **Record-level errors** are reported on the message via
