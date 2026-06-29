@@ -1099,8 +1099,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "  broker responds to an acknowledgement commit. It is always dispatched\n"
      "  on the application thread, from within whichever consumer call is\n"
      "  serving the response queue (:py:func:`poll`, :py:func:`commit_sync`,\n"
-     "  or :py:func:`close`), never from a background thread. Results of\n"
-     "  :py:func:`commit_async` are delivered on a subsequent such call.\n"
+     "  :py:func:`commit_async`, or :py:func:`close`), never from a background\n"
+     "  thread.\n"
      "\n"
      "  :param callback: A callable\n"
      "      ``callback(offsets, exception)`` where ``offsets`` is a\n"
@@ -1110,8 +1110,8 @@ static PyMethodDef ShareConsumer_methods[] = {
      "      currently registered callback.\n"
      "  :raises TypeError: if ``callback`` is neither callable nor None.\n"
      "  :raises IllegalStateException: if called from within the\n"
-     "      acknowledgement-commit callback. This applies to every\n"
-     "      ShareConsumer method.\n"
+     "      acknowledgement-commit callback. This applies to the core share\n"
+     "      consumer APIs.\n"
      "  :raises IllegalStateException: if called on a closed share consumer.\n"
      "\n"},
 
