@@ -17,10 +17,10 @@ bring queue-like semantics to Apache Kafka.
 
 -  **What is different from a consumer group:**
 
-   A classic consumer group assigns each partition to exactly **one** member at
+   A consumer group assigns each partition to exactly **one** member at
    a time. A **share group** lets **multiple** members consume from the **same**
    partitions cooperatively. The unit of progress is the individual **record**
-   rather than the partition offset: each delivered record is *acquired* by a
+   rather than the committed offset: each delivered record is *acquired* by a
    member under a time-limited acquisition lock, processed, and then
    *acknowledged*. The lock duration is a broker/group setting
    (``group.share.record.lock.duration.ms``, 30 seconds by default) and is not
@@ -50,8 +50,8 @@ section of librdkafka's ``INTRODUCTION.md``.
 Requirements
 ************
 
--  **Broker:** share groups must be enabled on the broker. They are generally
-   available in **Apache Kafka 4.2.0** (early access in 4.0.0, preview in 4.1.0).
+-  **Broker:** share groups must be enabled on the broker. They are available
+   since **Apache Kafka 4.2.0**.
 -  **Client:** a confluent-kafka-python release that includes the Preview share
    consumer.
 
@@ -364,7 +364,7 @@ The share consumer is **not thread-safe by design** — a single
 :py:class:`~confluent_kafka.ShareConsumer` instance must not be used concurrently
 from multiple threads. This follows the share-consumer design in
 `KIP-932 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka>`_,
-where the share consumer, like the classic consumer, is single-threaded and the
+where the share consumer, like the regular consumer, is single-threaded and the
 application owns the threading model (typically one instance per thread).
 Concurrent use is detected on a best-effort basis and raises
 :py:exc:`~confluent_kafka.ConcurrentModificationException`.
