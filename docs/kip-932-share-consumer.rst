@@ -109,7 +109,8 @@ Available Features
    and :py:func:`~confluent_kafka.ShareConsumer.acknowledge_offset` with the
    :py:class:`~confluent_kafka.AcknowledgeType` types ``ACCEPT`` / ``RELEASE`` /
    ``REJECT``; :py:func:`Message.delivery_count() <confluent_kafka.Message.delivery_count>`
-   for poison-record detection.
+   for poison-record detection. **Note:** ``RENEW`` / acquisition-lock renewal is
+   not yet available; see `Current Limitations`_.
 -  **Commit:** :py:func:`~confluent_kafka.ShareConsumer.commit_sync` (blocks and
    returns per-partition results) and
    :py:func:`~confluent_kafka.ShareConsumer.commit_async`, plus an
