@@ -10,7 +10,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CIBW_SKIP="pp* cp27-* cp35-* cp36-* *i686 *musllinux* *t-* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="pytest"
-export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py"
+export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py {project}/tests/test_ShareConsumer.py {project}/tests/test_ShareConsumer_callbacks.py {project}/tests/test_DeserializingShareConsumer.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
 
