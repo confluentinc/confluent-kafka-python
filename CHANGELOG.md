@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.15.0rc1
+## v2.15.0
 
 ### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**
 
@@ -34,8 +34,8 @@ for a worked example.
 - Use TLS certification verification with Hashicorp Vault (#2294)
 
 
-confluent-kafka-python v2.15.0rc1 is based on librdkafka v2.15.0-RC1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.0-RC1)
+confluent-kafka-python v2.15.0 is based on librdkafka v2.15.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
