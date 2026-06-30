@@ -26,6 +26,10 @@ See the [Share Consumer guide](docs/kip-932-share-consumer.md) and the [Share co
 [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
 for a worked example.
 
+### Enhancements
+
+- Add support for union-of-pools and auto pool mapping for Schema Registry (#2182)
+
 ### Fixes
 
 - Fix Encryption fails when expanded union types have two references to the same record (@ChristophMajcenAtXxxlutz, #2262)
