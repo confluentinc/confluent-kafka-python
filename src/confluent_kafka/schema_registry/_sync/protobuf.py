@@ -777,13 +777,23 @@ class ProtobufDeserializer(BaseDeserializer):
     ) -> Tuple[str, descriptor_pb2.DescriptorProto]:
         index = msg_index[0]
         if isinstance(desc, descriptor_pb2.FileDescriptorProto):
-            msg = desc.message_type[index]
+            messages = desc.message_type
+            if index < 0 or index >= len(messages):
+                raise SerializationError(
+                    "message index {} out of range, schema has {} top-level message(s)".format(index, len(messages))
+                )
+            msg = messages[index]
             path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
             return self._get_message_desc_proto(path, msg, msg_index[1:])
         else:
-            msg = desc.nested_type[index]
+            messages = desc.nested_type
+            if index < 0 or index >= len(messages):
+                raise SerializationError(
+                    "message index {} out of range, message has {} nested message(s)".format(index, len(messages))
+                )
+            msg = messages[index]
             path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
