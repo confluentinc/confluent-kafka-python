@@ -46,6 +46,7 @@ from confluent_kafka.admin import AdminClient, NewTopic
 
 try:
     from confluent_kafka import ShareConsumer
+
     HAS_SHARE_CONSUMER = True
 except ImportError:
     HAS_SHARE_CONSUMER = False
@@ -402,8 +403,7 @@ class SoakClient(object):
                     self.logger.info(
                         "share: Failed to deserialize message in "
                         "{} [{}] at offset {} (headers {}): {}".format(
-                            msg.topic(), msg.partition(), msg.offset(),
-                            msg.headers(), ex
+                            msg.topic(), msg.partition(), msg.offset(), msg.headers(), ex
                         )
                     )
                     self.share_msg_err_cnt += 1
@@ -420,17 +420,13 @@ class SoakClient(object):
                 txtime = headers.get('time', None)
                 if txtime is not None:
                     latency = time.time() - float(txtime)
-                    self.set_gauge(
-                        "consumer.e2e_latency", latency,
-                        tags={"partition": "{}".format(msg.partition())}
-                    )
+                    self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
 
                 if (self.share_msg_cnt % self.disprate) == 0:
                     self.logger.info(
                         "share: {} messages consumed: Message {} "
                         "[{}] at offset {} (headers {})".format(
-                            self.share_msg_cnt, msg.topic(),
-                            msg.partition(), msg.offset(), msg.headers()
+                            self.share_msg_cnt, msg.topic(), msg.partition(), msg.offset(), msg.headers()
                         )
                     )
 
@@ -447,8 +443,7 @@ class SoakClient(object):
                             self.logger.warning(
                                 "share: Old or duplicate message {} "
                                 "[{}] at offset {} (headers {}): wanted offset > {}".format(
-                                    msg.topic(), msg.partition(), msg.offset(),
-                                    msg.headers(), hw
+                                    msg.topic(), msg.partition(), msg.offset(), msg.headers(), hw
                                 )
                             )
                             self.share_msg_dup_cnt += (hw + 1) - msg.offset()
@@ -458,8 +453,7 @@ class SoakClient(object):
                                 "share: Lost messages, now at {} "
                                 "[{}] at offset {} (headers {}): "
                                 "expected offset {}+1".format(
-                                    msg.topic(), msg.partition(), msg.offset(),
-                                    msg.headers(), hw
+                                    msg.topic(), msg.partition(), msg.offset(), msg.headers(), hw
                                 )
                             )
                             self.share_msg_miss_cnt += msg.offset() - (hw + 1)
@@ -477,8 +471,7 @@ class SoakClient(object):
                     try:
                         self.share_consumer.acknowledge(msg)
                     except KafkaException as ex:
-                        self.logger.error(
-                            "share: acknowledge failed: {}".format(ex))
+                        self.logger.error("share: acknowledge failed: {}".format(ex))
                         self.share_err_cnt += 1
                         self.incr_counter("consumer.error", 1)
 
@@ -494,21 +487,21 @@ class SoakClient(object):
                         result = self.share_consumer.commit_sync(timeout=10.0)
                         err_details = [
                             "{}/{}={}".format(tp.topic, tp.partition, err)
-                            for tp, err in result.items() if err is not None
+                            for tp, err in result.items()
+                            if err is not None
                         ]
                         if err_details:
                             self.logger.warning(
-                                "share: commit_sync had {} partition error(s): {}"
-                                .format(len(err_details), "; ".join(err_details))
+                                "share: commit_sync had {} partition error(s): {}".format(
+                                    len(err_details), "; ".join(err_details)
+                                )
                             )
                             self.share_err_cnt += 1
                             self.incr_counter("consumer.error", 1)
                     else:
                         self.share_consumer.commit_async()
                 except KafkaException as ex:
-                    self.logger.error(
-                        "share: commit_{} exception: {}".format(
-                            "sync" if use_sync else "async", ex))
+                    self.logger.error("share: commit_{} exception: {}".format("sync" if use_sync else "async", ex))
                     self.share_err_cnt += 1
                     self.incr_counter("consumer.error", 1)
 
@@ -523,8 +516,7 @@ class SoakClient(object):
             self.logger.info("share: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("share: fatal exception: {}\n{}".format(
-                ex, traceback.print_exc()))
+            self.logger.fatal("share: fatal exception: {}\n{}".format(ex, traceback.print_exc()))
             self.run = False
 
     def rtt_stats(self, d):
@@ -592,8 +584,7 @@ class SoakClient(object):
             else:
                 raise
 
-    def __init__(self, testid, topic, rate, conf, enable_share=False,
-                 share_mode='implicit'):
+    def __init__(self, testid, topic, rate, conf, enable_share=False, share_mode='implicit'):
         """SoakClient constructor. conf is the client configuration"""
         self.topic = topic
         self.rate = rate
@@ -675,10 +666,7 @@ class SoakClient(object):
 
         if enable_share:
             if not HAS_SHARE_CONSUMER:
-                raise RuntimeError(
-                    "ShareConsumer requested but not available in this "
-                    "confluent_kafka build."
-                )
+                raise RuntimeError("ShareConsumer requested but not available in this " "confluent_kafka build.")
 
             sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
             sconf['error_cb'] = self.share_error_cb
@@ -838,12 +826,14 @@ if __name__ == '__main__':
         '-f', dest='conffile', type=argparse.FileType('r'), help='Configuration file (configprop=value format)'
     )
     parser.add_argument(
-        '--share', dest='share', action='store_true', default=False,
-        help='Enable share consumer thread'
+        '--share', dest='share', action='store_true', default=False, help='Enable share consumer thread'
     )
     parser.add_argument(
-        '--explicit', dest='explicit', action='store_true', default=False,
-        help='Share consumer: per-msg ACCEPT + alternating commit_async/sync (requires --share)'
+        '--explicit',
+        dest='explicit',
+        action='store_true',
+        default=False,
+        help='Share consumer: per-msg ACCEPT + alternating commit_async/sync (requires --share)',
     )
 
     args = parser.parse_args()
@@ -880,8 +870,7 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.testid, args.topic, args.rate, conf,
-                      enable_share=args.share, share_mode=share_mode)
+    soak = SoakClient(args.testid, args.topic, args.rate, conf, enable_share=args.share, share_mode=share_mode)
 
     # Get initial resource usage
     soak.get_rusage()
