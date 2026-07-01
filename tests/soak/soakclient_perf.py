@@ -54,15 +54,23 @@ except ImportError:
 class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
+    # Static padding built once at class load. Repeats a JSON-safe base label
+    # (letters, digits, spaces, '#') so the final value lands at ~10KB without
+    # rebuilding the string on every produce_record() call.
+    _PAD = (" SoakRecord nr #0" * 600)[:10200]
+
     def __init__(self, msgid, name=None):
         self.msgid = msgid
         if name is None:
-            self.name = "SoakRecord nr #{}".format(self.msgid)
+            self.name = "SoakRecord nr #{}{}".format(msgid, self._PAD)
         else:
             self.name = name
 
     def serialize(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
+        # Bytes formatting is ~3-5x faster than json.dumps for this shape.
+        # name only contains JSON-safe chars so no escaping is needed.
+        return b'{"msgid":%d,"name":"%s"}' % (
+            self.msgid, self.name.encode('ascii'))
 
     def __str__(self):
         return "SoakRecord({})".format(self.name)
@@ -141,7 +149,14 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        sleep_intvl = 1.0 / self.rate
+        # perf: produce in batches and pace per-batch instead of one
+        # produce()+blocking poll() per message. At high rates the per-message
+        # poll() floor (~hundreds of us) capped throughput well below -r; pacing
+        # a batch lets us sleep a duration the OS can actually honor. -r
+        # (self.rate) remains the target rate (an upper bound: if a batch takes
+        # longer than its time budget, we run as fast as we can, below -r).
+        batch = max(1, int(self.rate / 100))   # ~100 batches/sec
+        batch_intvl = batch / self.rate         # seconds budgeted per batch
 
         self.producer_msgid = 0
         self.dr_cnt = 0
@@ -151,26 +166,24 @@ class SoakClient(object):
         next_status = time.time() + self.disprate
 
         while self.run:
+            t_start = time.time()
 
-            # Produce a single record
-            self.produce_record()
+            # Produce a batch of records.
+            for _ in range(batch):
+                self.produce_record()
 
-            # Enforce message rate by polling until interval is exceeded.
-            now = time.time()
-            t_end = now + sleep_intvl
-            while True:
-                if now > next_status:
-                    # Print status
-                    self.producer_status()
-                    next_status = now + self.disprate
+            # Serve the producer queue (error_cb, any reports) without blocking.
+            self.producer.poll(0)
 
-                remaining_time = t_end - now
-                if remaining_time < 0:
-                    remaining_time = 0
-                self.producer.poll(remaining_time)
-                if remaining_time <= 0:
-                    break
-                now = time.time()
+            if t_start > next_status:
+                # Print status
+                self.producer_status()
+                next_status = t_start + self.disprate
+
+            # Sleep off the remainder of this batch's time budget to honor -r.
+            remaining_time = batch_intvl - (time.time() - t_start)
+            if remaining_time > 0:
+                time.sleep(remaining_time)
 
         # Wait for outstanding messages to be delivered.
         remaining = self.producer.flush(30)
