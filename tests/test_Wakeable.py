@@ -1438,3 +1438,131 @@ def test_flush_empty_queue_returns_immediately():
     # Key assertion: empty flush is fast
     assert qlen == 0, "Empty queue should return 0"
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Empty flush should return quickly, took {elapsed:.2f}s"
+
+
+# These tests verify that consume() correctly accumulates messages across
+# 200ms chunks instead of returning on the first non-empty chunk.
+
+
+def test_consume_accumulates_across_chunks_no_messages():
+    """consume() with no messages available should wait the full timeout
+    and return an empty list, not return early on the first empty chunk."""
+    consumer = TestConsumer(
+        {
+            'group.id': 'test-accumulate-no-msgs',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'auto.offset.reset': 'latest',
+        }
+    )
+    consumer.subscribe(['test-accumulate-topic'])
+
+    start = time.time()
+    msglist = consumer.consume(num_messages=10, timeout=0.5)
+    elapsed = time.time() - start
+
+    assert isinstance(msglist, list), "consume() should return a list"
+    assert len(msglist) == 0, "Expected empty list when no messages available"
+    assert (
+        WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
+    ), f"Should wait ~0.5s for timeout, took {elapsed:.2f}s"
+    consumer.close()
+
+
+def test_consume_accumulation_signal_interrupts_cleanly():
+    """When Ctrl+C arrives during accumulation, consume() should raise
+    KeyboardInterrupt without leaking messages."""
+    consumer = TestConsumer(
+        {
+            'group.id': 'test-accumulate-signal',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'auto.offset.reset': 'latest',
+        }
+    )
+    consumer.subscribe(['test-accumulate-topic'])
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    interrupted = False
+    try:
+        consumer.consume(num_messages=100, timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+    except KeyboardInterrupt:
+        interrupted = True
+    finally:
+        consumer.close()
+
+    assert interrupted, "Should have raised KeyboardInterrupt"
+
+
+def test_consume_accumulation_timeout_returns_partial():
+    """consume() should return whatever messages it has when timeout expires,
+    even if fewer than num_messages. With no broker, this means empty list."""
+    consumer = TestConsumer(
+        {
+            'group.id': 'test-accumulate-partial',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'auto.offset.reset': 'latest',
+        }
+    )
+    consumer.subscribe(['test-accumulate-topic'])
+
+    start = time.time()
+    msglist = consumer.consume(num_messages=1000, timeout=0.5)
+    elapsed = time.time() - start
+
+    assert isinstance(msglist, list), "consume() should return a list"
+    assert len(msglist) == 0, "Expected empty list with no broker"
+    assert (
+        WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
+    ), f"Should wait full timeout, took {elapsed:.2f}s"
+    consumer.close()
+
+
+def test_consume_accumulation_short_timeout_skips_chunking():
+    """consume() with timeout < 200ms should skip the chunked loop entirely."""
+    consumer = TestConsumer(
+        {
+            'group.id': 'test-accumulate-short',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'auto.offset.reset': 'latest',
+        }
+    )
+    consumer.subscribe(['test-accumulate-topic'])
+
+    start = time.time()
+    msglist = consumer.consume(num_messages=10, timeout=0.05)
+    elapsed = time.time() - start
+
+    assert isinstance(msglist, list), "consume() should return a list"
+    assert len(msglist) == 0, "Expected empty list"
+    assert (
+        elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
+    ), f"Short timeout should not behave like a long chunked wait, took {elapsed:.2f}s"
+    consumer.close()
+
+
+def test_consume_accumulation_zero_timeout_nonblocking():
+    """consume() with timeout=0 should return immediately."""
+    consumer = TestConsumer(
+        {
+            'group.id': 'test-accumulate-zero',
+            'socket.timeout.ms': 100,
+            'session.timeout.ms': 1000,
+            'auto.offset.reset': 'latest',
+        }
+    )
+    consumer.subscribe(['test-accumulate-topic'])
+
+    start = time.time()
+    msglist = consumer.consume(num_messages=10, timeout=0.0)
+    elapsed = time.time() - start
+
+    assert isinstance(msglist, list), "consume() should return a list"
+    assert len(msglist) == 0, "Expected empty list"
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Zero timeout should return immediately, took {elapsed:.2f}s"
+    consumer.close()
