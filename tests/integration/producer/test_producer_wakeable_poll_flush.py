@@ -80,17 +80,21 @@ def test_poll_message_delivery_with_wakeable_pattern(kafka_cluster):
     # Produce a test message with delivery callback
     producer.produce(topic, value=b'test-message', on_delivery=delivery_callback)
 
-    # Poll with wakeable pattern - should trigger delivery callback
+    # Poll with wakeable pattern - should trigger delivery callback and return
+    # when that event is served, rather than waiting for the whole timeout.
+    poll_timeout = 5.0
     start = time.time()
-    events_handled = producer.poll(timeout=2.0)
+    events_handled = producer.poll(timeout=poll_timeout)
     elapsed = time.time() - start
 
     # Verify delivery callback was called
     assert len(delivery_called) > 0, "Expected delivery callback to be called"
     assert len(delivery_errors) == 0, f"Unexpected delivery errors: {delivery_errors}"
     assert events_handled >= 0, "poll() should return non-negative int"
-    # Allow time for delivery callback, but should complete reasonably quickly
-    assert elapsed < 2.5, f"Poll took {elapsed:.2f}s, expected < 2.5s"
+    assert elapsed < poll_timeout - 1.0, (
+        f"Poll took {elapsed:.2f}s after delivery, expected it to return "
+        f"well before the {poll_timeout:.1f}s timeout"
+    )
 
     # Flush to ensure message is committed to Kafka
     producer.flush(timeout=1.0)

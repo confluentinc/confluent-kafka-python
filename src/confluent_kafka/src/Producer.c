@@ -395,6 +395,9 @@ static int Producer_poll0(Handle *self, int tmout) {
                                 break;
                         }
                         r += chunk_result; /* Accumulate events processed */
+                        if (chunk_result > 0) {
+                                break;
+                        }
 
                         chunk_count++;
 
