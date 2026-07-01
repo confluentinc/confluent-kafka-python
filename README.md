@@ -24,6 +24,7 @@ Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
 
 - **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
 - **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
+- **Queues for Kafka (Preview)**: A `ShareConsumer` ([KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka)) for queue-like, cooperative consumption with per-record acknowledgement. See the [Share Consumer guide](docs/kip-932-share-consumer.md). **Preview** — not recommended for production.
 - **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
 - **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
 - **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
@@ -263,7 +264,10 @@ for topic, f in fs.items():
 ```
 ## Thread safety
 
-The `Producer`, `Consumer`, and `AdminClient` are all thread safe.
+The `Producer`, `Consumer`, and `AdminClient` are all thread safe. The
+`ShareConsumer` (Preview) is **not** thread safe — a single instance must not
+be used concurrently from multiple threads (see the
+[Share Consumer guide](docs/kip-932-share-consumer.md)).
 ## Install
 
 ```bash
@@ -277,6 +281,9 @@ pip install "confluent-kafka[protobuf,schemaregistry]" # Protobuf
 
 # With Data Contract rules (includes CSFLE support)
 pip install "confluent-kafka[avro,schemaregistry,rules]"
+
+# With AWS IAM OAUTHBEARER authentication (mints JWTs via AWS STS GetWebIdentityToken)
+pip install "confluent-kafka[oauthbearer-aws]"
 ```
 
 **Note:** Pre-built Linux wheels do not include SASL Kerberos/GSSAPI support. For Kerberos, see the source installation instructions in [INSTALL.md](INSTALL.md).
@@ -303,6 +310,20 @@ When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
 ```bash
 pip install "confluent-kafka[avro,schemaregistry,rules]"
 ```
+
+To authenticate to a Kafka cluster using AWS IAM (when running on EC2, EKS, ECS,
+Fargate, or Lambda with an IAM role attached), add the `oauthbearer-aws` extra:
+
+```bash
+pip install "confluent-kafka[oauthbearer-aws]"
+```
+
+Activation is config-only — set `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. The client mints fresh
+JWTs via AWS STS on every token refresh — no static credentials, no Python-side
+imports. See [`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
 
 **Install from source**
 

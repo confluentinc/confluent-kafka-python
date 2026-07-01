@@ -1825,9 +1825,19 @@ static int Consumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         assert(self->u.Consumer.rkqu);
 
 
-        /* Wait for the background thread to set the token */
+        /* Wait for the background thread to set the token. Caller owns
+         * destroy on failure — wait_for_oauth_token_set no longer touches
+         * self->rk (see refactor note in confluent_kafka.c). */
         if (self->oauth_cb) {
-                return wait_for_oauth_token_set(self);
+                int ret_wait_oauth = wait_for_oauth_token_set(self);
+                if (ret_wait_oauth == -1) {
+                        CallState cs;
+                        CallState_begin(self, &cs);
+                        rd_kafka_destroy(self->rk);
+                        CallState_end(self, &cs);
+                        self->rk = NULL;
+                }
+                return ret_wait_oauth;
         }
 
         return 0;

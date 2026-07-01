@@ -49,6 +49,7 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     SchemaVersion,
     ServerConfig,
     _SchemaCache,
+    _StaticFieldProvider,
     full_jitter,
     is_retriable,
     is_success,
@@ -99,21 +100,28 @@ class _CustomOAuthClient(_BearerFieldProvider):
 
 class _AbstractOAuthClient(_BearerFieldProvider):
     def __init__(
-        self, logical_cluster: str, identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int
+        self,
+        logical_cluster: str,
+        identity_pool: Optional[str],
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
     ):
         self.logical_cluster: str = logical_cluster
-        self.identity_pool: str = identity_pool
+        self.identity_pool: Optional[str] = identity_pool
         self.max_retries: int = max_retries
         self.retries_wait_ms: int = retries_wait_ms
         self.retries_max_wait_ms: int = retries_max_wait_ms
         self.token: str = ""
 
     def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
     def get_access_token(self) -> str:
         if not self.token or self.token_expired():
@@ -150,10 +158,10 @@ class _OAuthClient(_AbstractOAuthClient):
         scope: str,
         token_endpoint: str,
         logical_cluster: str,
-        identity_pool: str,
         max_retries: int,
         retries_wait_ms: int,
         retries_max_wait_ms: int,
+        identity_pool: Optional[str] = None,
     ):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
@@ -175,7 +183,7 @@ class _OAuthAzureIMDSClient(_AbstractOAuthClient):
         self,
         token_endpoint: str,
         logical_cluster: str,
-        identity_pool: str,
+        identity_pool: Optional[str],
         max_retries: int,
         retries_wait_ms: int,
         retries_max_wait_ms: int,
@@ -205,10 +213,10 @@ class _OAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerOIDCFieldProvider
             self.scope,
             self.token_endpoint,
             self.logical_cluster,
-            self.identity_pool,
             max_retries,
             retries_wait_ms,
             retries_max_wait_ms,
+            self.identity_pool,
         )
 
 
@@ -235,12 +243,19 @@ class _CustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProv
         return _CustomOAuthClient(self.custom_function, self.custom_config)
 
 
+class _StaticFieldProviderBuilder(_StaticOAuthBearerFieldProviderBuilder):
+
+    def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
+        self._validate()
+        return _StaticFieldProvider(self.static_token, self.logical_cluster, self.identity_pool)
+
+
 class _FieldProviderBuilder:
 
     __builders: Dict[str, Type[Any]] = {
         "OAUTHBEARER": _OAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _OAuthBearerOIDCAzureIMDSFieldProviderBuilder,
-        "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
+        "STATIC_TOKEN": _StaticFieldProviderBuilder,
         "CUSTOM": _CustomOAuthBearerFieldProviderBuilder,
     }
 
@@ -428,7 +443,8 @@ class _RestClient(_BaseRestClient):
         if self.bearer_field_provider is None:
             raise ValueError("Bearer field provider is not set")
         bearer_fields = self.bearer_field_provider.get_bearer_fields()
-        required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
+        # Note: bearer.auth.identity.pool.id is optional; only token and logical.cluster are required
+        required_fields = ['bearer.auth.token', 'bearer.auth.logical.cluster']
 
         missing_fields = []
         for field in required_fields:
@@ -443,8 +459,10 @@ class _RestClient(_BaseRestClient):
             )
 
         headers["Authorization"] = "Bearer {}".format(bearer_fields['bearer.auth.token'])
-        headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
         headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
+
+        if 'bearer.auth.identity.pool.id' in bearer_fields:
+            headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
 
     def get(self, url: str, query: Optional[dict] = None) -> Any:
         return self.send_request(url, method='GET', query=query)
@@ -541,13 +559,15 @@ class _RestClient(_BaseRestClient):
         query: Optional[dict] = None,
     ) -> Response:
         """
-        Sends HTTP request to the SchemaRegistry.
+        Sends a single HTTP request to the Schema Registry, retrying transient
+        failures.
 
-        All unsuccessful attempts will raise a SchemaRegistryError with the
-        response contents. In most cases this will be accompanied by a
-        Schema Registry supplied error code.
-
-        In the event the response is malformed an error_code of -1 will be used.
+        Retries (up to max.retries, with exponential backoff) are attempted on
+        retriable HTTP status codes and on network-level errors
+        (httpx.TransportError: DNS failures, connection refused/reset, timeouts,
+        etc.). The HTTP response is returned as-is, including error responses;
+        converting an unsuccessful status into a SchemaRegistryError is done by
+        the caller (send_request).
 
         Args:
             base_url (str): Schema Registry base URL
@@ -563,17 +583,31 @@ class _RestClient(_BaseRestClient):
             query (dict): Query params to attach to the URL
 
         Returns:
-            Response: Schema Registry response content.
+            Response: The HTTP response, which may represent an error status.
+
+        Raises:
+            httpx.TransportError: If a network-level error persists after all
+                retries are exhausted.
         """
         response = None
         for i in range(self.max_retries + 1):
-            response = self.session.request(
-                method,
-                url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
-                headers=headers,
-                content=body,
-                params=query,
-            )
+            try:
+                response = self.session.request(
+                    method,
+                    url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                    headers=headers,
+                    content=body,
+                    params=query,
+                )
+            except httpx.TransportError:
+                # A TransportError means the request failed before a response
+                # was received (DNS failure, connection refused/reset, timeout,
+                # TLS error, etc.). Once retries are exhausted, re-raise so the
+                # caller can fail over to the next URL.
+                if i >= self.max_retries:
+                    raise
+                time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+                continue
 
             if is_success(response.status_code):
                 return response

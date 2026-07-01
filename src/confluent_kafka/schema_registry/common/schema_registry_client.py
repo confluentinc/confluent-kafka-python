@@ -23,11 +23,20 @@ from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from confluent_kafka.schema_registry.common._oauthbearer import (  # noqa: F401
+    _AsyncBearerFieldProvider,
+    _StaticFieldProvider,
+    normalize_identity_pool,
+)
+
 __all__ = [
     'VALID_AUTH_PROVIDERS',
     'is_success',
     'is_retriable',
     'full_jitter',
+    'normalize_identity_pool',
+    '_StaticFieldProvider',
+    '_AsyncStaticFieldProvider',
     '_SchemaCache',
     'RuleKind',
     'RuleMode',
@@ -50,6 +59,24 @@ __all__ = [
 ]
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
+
+
+class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
+    """Asynchronous static token bearer field provider."""
+
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    async def get_bearer_fields(self) -> dict:
+        fields = {
+            'bearer.auth.token': self.token,
+            'bearer.auth.logical.cluster': self.logical_cluster,
+        }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 def is_success(status_code: int) -> bool:

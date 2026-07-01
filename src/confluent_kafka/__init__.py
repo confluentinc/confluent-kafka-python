@@ -20,11 +20,13 @@ import os
 
 from ._model import Node  # noqa: F401
 from ._model import (
+    AcknowledgeType,
     ConsumerGroupState,
     ConsumerGroupTopicPartitions,
     ConsumerGroupType,
     ElectionType,
     IsolationLevel,
+    Messages,
     TopicCollection,
     TopicPartitionInfo,
 )
@@ -36,9 +38,12 @@ from .cimpl import (
     TIMESTAMP_CREATE_TIME,
     TIMESTAMP_LOG_APPEND_TIME,
     TIMESTAMP_NOT_AVAILABLE,
+    ConcurrentModificationException,
     Consumer,
+    IllegalStateException,
     Message,
     Producer,
+    ShareConsumer,
     TopicPartition,
     Uuid,
     consistent,
@@ -48,15 +53,20 @@ from .cimpl import (
     version,
 )
 from .deserializing_consumer import DeserializingConsumer
+from .deserializing_share_consumer import DeserializingShareConsumer
 from .error import KafkaError, KafkaException
 from .serializing_producer import SerializingProducer
 
 __all__ = [
     "admin",
     "Consumer",
+    "ShareConsumer",
+    "Messages",
     "aio",
     "KafkaError",
     "KafkaException",
+    "IllegalStateException",
+    "ConcurrentModificationException",
     "kafkatest",
     "libversion",
     "version",
@@ -70,6 +80,7 @@ __all__ = [
     "OFFSET_STORED",
     "Producer",
     "DeserializingConsumer",
+    "DeserializingShareConsumer",
     "SerializingProducer",
     "TIMESTAMP_CREATE_TIME",
     "TIMESTAMP_LOG_APPEND_TIME",
@@ -84,6 +95,7 @@ __all__ = [
     "TopicCollection",
     "TopicPartitionInfo",
     "ElectionType",
+    "AcknowledgeType",
 ]
 
 

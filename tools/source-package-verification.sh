@@ -6,12 +6,18 @@
 set -e
 
 uv pip install -r requirements/requirements-tests-install.txt
+# Install orjson (CI-only) so the test suite exercises the orjson fast-path of
+# the JSON codec. It is intentionally NOT in requirements-tests-install.txt:
+# orjson has no free-threaded wheels yet, and keeping it out lets contributors
+# on such interpreters still install the default test deps. The stdlib fallback
+# is covered by tests/schema_registry/test_json_codec.py regardless.
+uv pip install -r requirements/requirements-json-fast.txt
 uv pip install -U build
 
 # Cache trivup Apache Kafka versions
 
 BASE=$PWD
-for version in 3.9.0 4.0.0; do
+for version in 4.2.0; do
     artifact pull project kafka_2.13-$version.tgz || true
     if [[ ! -f  ./kafka_2.13-$version.tgz ]]; then
         wget -O ./kafka_2.13-$version.tgz "https://archive.apache.org/dist/kafka/$version/kafka_2.13-$version.tgz"
@@ -71,7 +77,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         python3 -c "
 import importlib.metadata, sys
 extras = set(importlib.metadata.metadata('confluent-kafka').get_all('Provides-Extra') or [])
-required = {'schema-registry', 'schemaregistry', 'avro', 'json', 'protobuf', 'rules'}
+required = {'schema-registry', 'schemaregistry', 'avro', 'json', 'protobuf', 'rules', 'oauthbearer-aws'}
 missing = required - extras
 if missing:
     print(f'Failing: package does not provide extras: {missing}', file=sys.stderr)
