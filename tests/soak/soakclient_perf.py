@@ -198,7 +198,7 @@ class SoakClient(object):
             self.logger.info("producer: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("producer: fatal exception: {}:\n{}".format(ex, traceback.print_exc()))
+            self.logger.fatal("producer: fatal exception: {}:\n{}".format(ex, traceback.format_exc()))
             self.run = False
 
     def consumer_status(self):
@@ -264,6 +264,9 @@ class SoakClient(object):
                 )
                 self.msg_err_cnt += 1
                 self.incr_counter("consumer.msgerr", 1)
+                # Corrupt payload: don't count it as consumed and don't let
+                # it drive hwmark/dup logic.
+                continue
 
             self.msg_cnt += 1
             self.incr_counter("consumer.msg", 1)
@@ -314,9 +317,6 @@ class SoakClient(object):
 
             hwmarks[hwkey] = msg.offset()
 
-        self.consumer.close()
-        self.consumer_status()
-
     def consumer_thread_main(self):
         """Consumer thread main function"""
         try:
@@ -325,8 +325,15 @@ class SoakClient(object):
             self.logger.info("consumer: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("consumer: fatal exception: {}\n{}".format(ex, traceback.print_exc()))
+            self.logger.fatal("consumer: fatal exception: {}\n{}".format(ex, traceback.format_exc()))
             self.run = False
+        finally:
+            if self.consumer is not None:
+                try:
+                    self.consumer.close()
+                except Exception as ex:
+                    self.logger.warning("consumer: close failed: {}".format(ex))
+            self.consumer_status()
 
     def consumer_error_cb(self, err):
         """Consumer error callback"""
@@ -354,6 +361,20 @@ class SoakClient(object):
         self.logger.error("share: error_cb: {}".format(err))
         self.share_error_cb_cnt += 1
         self.incr_counter("consumer.errorcb", 1)
+
+    def share_acknowledgement_commit_cb(self, offsets, exception):
+        """Ack-commit callback registered via
+        ShareConsumer.set_acknowledgement_commit_callback.
+
+        Fires from within commit_sync / commit_async / poll / close when the
+        broker returns a ShareAcknowledge response, so this is the single
+        source of truth for per-commit error visibility on both the sync and
+        async paths.
+        """
+        if exception is not None:
+            self.logger.error("share: ack commit failed for {} partition(s): {}".format(len(offsets), exception))
+            self.share_err_cnt += 1
+            self.incr_counter("consumer.error", 1)
 
     def share_status(self):
         """Print share consumer status"""
@@ -488,37 +509,19 @@ class SoakClient(object):
                         self.incr_counter("consumer.error", 1)
 
             if self.share_mode == 'explicit':
-                # commit_sync returns a per-partition result dict we can
-                # inspect; commit_async surfaces errors through error_cb
-                # (share_error_cb_cnt / consumer.errorcb), not here — so
-                # async-branch failures still show up in metrics, just under
-                # a different counter.
+                # Per-partition ack outcomes land in
+                # share_acknowledgement_commit_cb for both branches; only
+                # catch immediate call-level exceptions here.
                 use_sync = random.random() < 0.5
                 try:
                     if use_sync:
-                        result = self.share_consumer.commit_sync(timeout=10.0)
-                        err_details = [
-                            "{}/{}={}".format(tp.topic, tp.partition, err)
-                            for tp, err in result.items()
-                            if err is not None
-                        ]
-                        if err_details:
-                            self.logger.warning(
-                                "share: commit_sync had {} partition error(s): {}".format(
-                                    len(err_details), "; ".join(err_details)
-                                )
-                            )
-                            self.share_err_cnt += 1
-                            self.incr_counter("consumer.error", 1)
+                        self.share_consumer.commit_sync(timeout=10.0)
                     else:
                         self.share_consumer.commit_async()
                 except KafkaException as ex:
                     self.logger.error("share: commit_{} exception: {}".format("sync" if use_sync else "async", ex))
                     self.share_err_cnt += 1
                     self.incr_counter("consumer.error", 1)
-
-        self.share_consumer.close()
-        self.share_status()
 
     def share_thread_main(self):
         """Share consumer thread main function"""
@@ -528,8 +531,15 @@ class SoakClient(object):
             self.logger.info("share: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("share: fatal exception: {}\n{}".format(ex, traceback.print_exc()))
+            self.logger.fatal("share: fatal exception: {}\n{}".format(ex, traceback.format_exc()))
             self.run = False
+        finally:
+            if self.share_consumer is not None:
+                try:
+                    self.share_consumer.close()
+                except Exception as ex:
+                    self.logger.warning("share: close failed: {}".format(ex))
+            self.share_status()
 
     def rtt_stats(self, d):
         """Extract broker rtt statistics from the stats dict in @param d"""
@@ -655,7 +665,14 @@ class SoakClient(object):
 
         #
         # Create Producer and Consumer/ShareConsumer, each in its own thread.
+        # All clients are constructed BEFORE any thread starts so a failure
+        # here can't leave the producer running with no consumer draining.
         #
+
+        # Fail fast if share requested but not available in this build.
+        if enable_share and not HAS_SHARE_CONSUMER:
+            raise RuntimeError("ShareConsumer requested but not available in this confluent_kafka build.")
+
         conf['stats_cb'] = self.stats_cb
         conf['statistics.interval.ms'] = 120000
 
@@ -664,12 +681,7 @@ class SoakClient(object):
         pconf['error_cb'] = self.producer_error_cb
         pconf['client.id'] = self.testid
         self.producer = Producer(pconf)
-
         self.incr_counter("producer.errorcb", 0)
-
-        # Create and start producer thread
-        self.producer_thread = threading.Thread(target=self.producer_thread_main)
-        self.producer_thread.start()
 
         self.consumer = None
         self.consumer_thread = None
@@ -677,9 +689,6 @@ class SoakClient(object):
         self.share_thread = None
 
         if enable_share:
-            if not HAS_SHARE_CONSUMER:
-                raise RuntimeError("ShareConsumer requested but not available in this " "confluent_kafka build.")
-
             sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
             sconf['error_cb'] = self.share_error_cb
             sconf['client.id'] = self.testid
@@ -714,16 +723,16 @@ class SoakClient(object):
 
             self.logger.info("share: using group.id {}".format(sconf['group.id']))
             self.share_consumer = ShareConsumer(sconf)
+            # Register the ack-commit callback: covers per-partition results
+            # for both commit_sync and commit_async, replacing manual result
+            # inspection on the sync path.
+            self.share_consumer.set_acknowledgement_commit_callback(self.share_acknowledgement_commit_cb)
 
             # Initialize counters to zero
             self.incr_counter("consumer.error", 0)
             self.incr_counter("consumer.msgdup", 0)
             self.incr_counter("consumer.msgerr", 0)
             self.incr_counter("consumer.errorcb", 0)
-
-            # Create and start share consumer thread
-            self.share_thread = threading.Thread(target=self.share_thread_main)
-            self.share_thread.start()
         else:
             # Consumer
             cconf = filter_config(conf, ["producer.", "admin.", "share."], "consumer.")
@@ -737,7 +746,14 @@ class SoakClient(object):
             self.incr_counter("consumer.error", 0)
             self.incr_counter("consumer.msgdup", 0)
 
-            # Create and start consumer thread
+        # All clients constructed. Start threads together.
+        self.producer_thread = threading.Thread(target=self.producer_thread_main)
+        self.producer_thread.start()
+
+        if enable_share:
+            self.share_thread = threading.Thread(target=self.share_thread_main)
+            self.share_thread.start()
+        else:
             self.consumer_thread = threading.Thread(target=self.consumer_thread_main)
             self.consumer_thread.start()
 
@@ -898,7 +914,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         soak.logger.info("Interrupted by user")
     except Exception as ex:
-        soak.logger.error("Fatal exception {}\n{}".format(ex, traceback.print_exc()))
+        soak.logger.error("Fatal exception {}\n{}".format(ex, traceback.format_exc()))
 
     # Terminate
     soak.terminate()
