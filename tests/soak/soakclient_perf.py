@@ -373,16 +373,12 @@ class SoakClient(object):
         """Share consumer main loop"""
         self.share_consumer.subscribe([self.topic])
 
-        self.share_msg_cnt = 0
-        self.share_msg_dup_cnt = 0
-        self.share_msg_miss_cnt = 0
-        self.share_msg_err_cnt = 0
-        self.share_err_cnt = 0
-        self.share_error_cb_cnt = 0
+        # Counters are initialized in __init__ so error_cb can't hit an
+        # AttributeError if it fires before this thread starts.
 
-        # Track highest offset seen per partition for duplicate/gap detection.
-        # With implicit ack and a single share consumer, offsets should
-        # progress sequentially per partition. Skipped in Explict mode.
+        # Track highest offset seen per partition. Only used in implicit
+        # mode; in explicit mode released records get redelivered
+        # non-monotonically, so dup/gap detection isn't valid.
         hwmarks = defaultdict(int)
 
         self.logger.info("share: running in mode={}".format(self.share_mode))
@@ -425,6 +421,9 @@ class SoakClient(object):
                     )
                     self.share_msg_err_cnt += 1
                     self.incr_counter("consumer.msgerr", 1)
+                    # Corrupt payload: don't count it as consumed and don't let
+                    # it drive hwmark/dup logic.
+                    continue
 
                 self.share_msg_cnt += 1
                 self.incr_counter("consumer.msg", 1)
@@ -448,34 +447,42 @@ class SoakClient(object):
                         )
                     )
 
-                # Track per-partition high-water mark for duplicate/gap detection
-                hwkey = "{}-{}".format(msg.topic(), msg.partition())
-                hw = hwmarks[hwkey]
+                # Track per-partition high-water mark for duplicate/gap
+                # detection. Only meaningful with implicit ack + a single share
+                # consumer: in explicit mode, released records get redelivered
+                # non-monotonically, which would drive false dup/gap counters.
+                if self.share_mode == 'implicit':
+                    hwkey = "{}-{}".format(msg.topic(), msg.partition())
+                    hw = hwmarks[hwkey]
 
-                if hw > 0:
-                    if msg.offset() <= hw:
-                        self.logger.warning(
-                            "share: Old or duplicate message {} "
-                            "[{}] at offset {} (headers {}): wanted offset > {}".format(
-                                msg.topic(), msg.partition(), msg.offset(),
-                                msg.headers(), hw
+                    if hw > 0:
+                        if msg.offset() <= hw:
+                            self.logger.warning(
+                                "share: Old or duplicate message {} "
+                                "[{}] at offset {} (headers {}): wanted offset > {}".format(
+                                    msg.topic(), msg.partition(), msg.offset(),
+                                    msg.headers(), hw
+                                )
                             )
-                        )
-                        self.share_msg_dup_cnt += (hw + 1) - msg.offset()
-                        self.incr_counter("consumer.msgdup", 1)
-                    elif msg.offset() > hw + 1:
-                        self.logger.warning(
-                            "share: Lost messages, now at {} "
-                            "[{}] at offset {} (headers {}): "
-                            "expected offset {}+1".format(
-                                msg.topic(), msg.partition(), msg.offset(),
-                                msg.headers(), hw
+                            self.share_msg_dup_cnt += (hw + 1) - msg.offset()
+                            self.incr_counter("consumer.msgdup", 1)
+                        elif msg.offset() > hw + 1:
+                            self.logger.warning(
+                                "share: Lost messages, now at {} "
+                                "[{}] at offset {} (headers {}): "
+                                "expected offset {}+1".format(
+                                    msg.topic(), msg.partition(), msg.offset(),
+                                    msg.headers(), hw
+                                )
                             )
-                        )
-                        self.share_msg_miss_cnt += msg.offset() - (hw + 1)
-                        self.incr_counter("consumer.missedmsg", 1)
+                            self.share_msg_miss_cnt += msg.offset() - (hw + 1)
+                            self.incr_counter("consumer.missedmsg", 1)
 
-                hwmarks[hwkey] = msg.offset()
+                    # Only advance the mark; don't regress on an out-of-order
+                    # or duplicate delivery, otherwise the next in-order
+                    # message would be misreported as a large gap.
+                    if msg.offset() > hw:
+                        hwmarks[hwkey] = msg.offset()
 
                 # Explicit mode: ack each message with ACCEPT. Commit fires
                 # once per batch after the for-msg loop below.
@@ -489,6 +496,11 @@ class SoakClient(object):
                         self.incr_counter("consumer.error", 1)
 
             if self.share_mode == 'explicit':
+                # commit_sync returns a per-partition result dict we can
+                # inspect; commit_async surfaces errors through error_cb
+                # (share_error_cb_cnt / consumer.errorcb), not here — so
+                # async-branch failures still show up in metrics, just under
+                # a different counter.
                 use_sync = random.random() < 0.5
                 try:
                     if use_sync:
@@ -695,10 +707,23 @@ class SoakClient(object):
             if self.share_mode == 'explicit':
                 sconf['share.acknowledgement.mode'] = 'explicit'
 
-            # Always set a share-specific group.id.
-            sconf['group.id'] = 'soakclient-share-{}-{}-{}'.format(
-                self.hostname, version(), sys.version.split(' ')[0]
-            )
+            # Set a share-specific group.id unless the operator supplied one
+            # via `share.group.id` in the config (filter_config strips the
+            # prefix, so it lands in sconf['group.id']).
+            if 'group.id' not in sconf:
+                sconf['group.id'] = 'soakclient-share-{}-{}-{}'.format(
+                    self.hostname, version(), sys.version.split(' ')[0]
+                )
+
+            # Zero share counters *before* constructing the consumer so
+            # error_cb (which touches share_error_cb_cnt) can't hit
+            # AttributeError if it fires during construction.
+            self.share_msg_cnt = 0
+            self.share_msg_dup_cnt = 0
+            self.share_msg_miss_cnt = 0
+            self.share_msg_err_cnt = 0
+            self.share_err_cnt = 0
+            self.share_error_cb_cnt = 0
 
             self.logger.info("share: using group.id {}".format(sconf['group.id']))
             self.share_consumer = ShareConsumer(sconf)

@@ -25,6 +25,10 @@ fi
 
 explicit_flag=""
 if [[ "${EXPLICIT:-}" == "true" ]]; then
+    if [[ "${SHARE:-}" != "true" ]]; then
+        echo "ERROR: EXPLICIT=true requires SHARE=true" >&2
+        exit 1
+    fi
     explicit_flag="--explicit"
 fi
 
