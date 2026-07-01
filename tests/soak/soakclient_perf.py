@@ -106,8 +106,7 @@ class SoakClient(object):
         else:
             self.dr_cnt += 1
             self.incr_counter("producer.drok", 1)
-            self.set_gauge("producer.latency", msg.latency(),
-                           tags={"partition": "{}".format(msg.partition())})
+            self.set_gauge("producer.latency", msg.latency(), tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
                 self.logger.debug(
                     "producer: delivered message to {} [{}] at offset {} in {}s".format(
@@ -128,11 +127,7 @@ class SoakClient(object):
                 self.producer.produce(
                     self.topic,
                     value=record.serialize(),
-                    headers={
-                        "msgid": str(record.msgid),
-                        "txcnt": str(txcnt),
-                        "time": str(time.time()),
-                    },
+                    headers={"msgid": str(record.msgid), "time": str(time.time()), "txcnt": str(txcnt)},
                     on_delivery=self.dr_cb,
                 )
                 break
@@ -273,12 +268,12 @@ class SoakClient(object):
             self.msg_cnt += 1
             self.incr_counter("consumer.msg", 1)
 
+            # end-to-end latency
             headers = dict(msg.headers())
             txtime = headers.get('time', None)
             if txtime is not None:
                 latency = time.time() - float(txtime)
-                self.set_gauge("consumer.e2e_latency", latency,
-                               tags={"partition": "{}".format(msg.partition())})
+                self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
             else:
                 latency = None
 
@@ -434,6 +429,7 @@ class SoakClient(object):
                 self.share_msg_cnt += 1
                 self.incr_counter("consumer.msg", 1)
 
+                # end-to-end latency
                 headers = dict(msg.headers())
                 txtime = headers.get('time', None)
                 if txtime is not None:
@@ -497,13 +493,14 @@ class SoakClient(object):
                 try:
                     if use_sync:
                         result = self.share_consumer.commit_sync(timeout=10.0)
-                        partition_errs = sum(
-                            1 for err in result.values() if err is not None
-                        )
-                        if partition_errs > 0:
+                        err_details = [
+                            "{}/{}={}".format(tp.topic, tp.partition, err)
+                            for tp, err in result.items() if err is not None
+                        ]
+                        if err_details:
                             self.logger.warning(
-                                "share: commit_sync had {} partition error(s)"
-                                .format(partition_errs)
+                                "share: commit_sync had {} partition error(s): {}"
+                                .format(len(err_details), "; ".join(err_details))
                             )
                             self.share_err_cnt += 1
                             self.incr_counter("consumer.error", 1)
