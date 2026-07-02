@@ -32,12 +32,17 @@ if [[ "${EXPLICIT:-}" == "true" ]]; then
     explicit_flag="--explicit"
 fi
 
+perf_flag=""
+if [[ "${PERF:-}" == "true" ]]; then
+    perf_flag="--perf"
+fi
+
 echo "Starting soak client using topic $topic. Logging to $logfile."
 set +x
 while [ "$run" = true ]; do
     # Ignore SIGINT in children (inherited)
     trap "" SIGINT
-    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 $share_flag $explicit_flag |& tee /dev/tty | bzip2 > $logfile &
+    time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 $share_flag $explicit_flag $perf_flag |& tee /dev/tty | bzip2 > $logfile &
     PID=$!
     terminate_last() {
         # List children of $PID only

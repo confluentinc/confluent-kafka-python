@@ -20,7 +20,8 @@
 # long term validation testing.
 #
 # Usage:
-#  tests/soak/soakclient.py -i <testid> -t <topic> -r <produce-rate> -f <client-conf-file> [--share]
+#  tests/soak/soakclient.py -i <testid> -t <topic> -r <produce-rate> -f <client-conf-file>
+#      [--share] [--explicit] [--perf]
 #
 # A unique topic should be used for each soakclient instance.
 #
@@ -55,15 +56,23 @@ except ImportError:
 class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
+    # Optional padding appended to the auto-generated name. Empty by default;
+    # __main__ sets it to ~10KB when --perf is passed so higher-throughput
+    # runs exercise realistic payload sizes without rebuilding the string on
+    # every produce_record() call.
+    _PAD: str = ""
+
     def __init__(self, msgid, name=None):
         self.msgid = msgid
         if name is None:
-            self.name = "SoakRecord nr #{}".format(self.msgid)
+            self.name = "SoakRecord nr #{}{}".format(msgid, self._PAD)
         else:
             self.name = name
 
     def serialize(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
+        # Bytes formatting is ~3-5x faster than json.dumps for this shape.
+        # name only contains JSON-safe chars so no escaping is needed.
+        return b'{"msgid":%d,"name":"%s"}' % (self.msgid, self.name.encode('ascii'))
 
     def __str__(self):
         return "SoakRecord({})".format(self.name)
@@ -142,8 +151,6 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        sleep_intvl = 1.0 / self.rate
-
         self.producer_msgid = 0
         self.dr_cnt = 0
         self.dr_err_cnt = 0
@@ -151,27 +158,59 @@ class SoakClient(object):
 
         next_status = time.time() + self.disprate
 
-        while self.run:
+        if self.perf:
+            # perf: produce in batches and pace per-batch with time.sleep
+            # instead of one produce()+blocking poll() per message. At high
+            # rates the per-message poll() floor (~hundreds of us) caps
+            # throughput well below -r; pacing a batch lets us sleep a
+            # duration the OS can actually honor. -r remains the target rate
+            # (an upper bound: if a batch takes longer than its time budget,
+            # we run as fast as we can, below -r).
+            batch = max(1, int(self.rate / 100))  # ~100 batches/sec
+            batch_intvl = batch / self.rate  # seconds budgeted per batch
 
-            # Produce a single record
-            self.produce_record()
+            while self.run:
+                t_start = time.time()
 
-            # Enforce message rate by polling until interval is exceeded.
-            now = time.time()
-            t_end = now + sleep_intvl
-            while True:
-                if now > next_status:
-                    # Print status
+                # Produce a batch of records.
+                for _ in range(batch):
+                    self.produce_record()
+
+                # Serve the producer queue (error_cb, reports) without blocking.
+                self.producer.poll(0)
+
+                if t_start > next_status:
                     self.producer_status()
-                    next_status = now + self.disprate
+                    next_status = t_start + self.disprate
 
-                remaining_time = t_end - now
-                if remaining_time < 0:
-                    remaining_time = 0
-                self.producer.poll(remaining_time)
-                if remaining_time <= 0:
-                    break
+                # Sleep off the remainder of this batch's time budget.
+                remaining_time = batch_intvl - (time.time() - t_start)
+                if remaining_time > 0:
+                    time.sleep(remaining_time)
+        else:
+            sleep_intvl = 1.0 / self.rate
+
+            while self.run:
+
+                # Produce a single record
+                self.produce_record()
+
+                # Enforce message rate by polling until interval is exceeded.
                 now = time.time()
+                t_end = now + sleep_intvl
+                while True:
+                    if now > next_status:
+                        # Print status
+                        self.producer_status()
+                        next_status = now + self.disprate
+
+                    remaining_time = t_end - now
+                    if remaining_time < 0:
+                        remaining_time = 0
+                    self.producer.poll(remaining_time)
+                    if remaining_time <= 0:
+                        break
+                    now = time.time()
 
         # Wait for outstanding messages to be delivered.
         remaining = self.producer.flush(30)
@@ -594,7 +633,7 @@ class SoakClient(object):
             else:
                 raise
 
-    def __init__(self, testid, topic, rate, conf, enable_share=False, share_mode='implicit'):
+    def __init__(self, testid, topic, rate, conf, enable_share=False, share_mode='implicit', perf=False):
         """SoakClient constructor. conf is the client configuration"""
         self.topic = topic
         self.rate = rate
@@ -603,6 +642,7 @@ class SoakClient(object):
         self.stats_cnt = {'producer': 0, 'consumer': 0}
         self.start_time = time.time()
         self.share_mode = share_mode
+        self.perf = perf
 
         # OTEL instruments
         self.counters = {}
@@ -851,6 +891,13 @@ if __name__ == '__main__':
         default=False,
         help='Share consumer: per-msg ACCEPT + alternating commit_async/sync (requires --share)',
     )
+    parser.add_argument(
+        '--perf',
+        dest='perf',
+        action='store_true',
+        default=False,
+        help='High-throughput mode: ~10KB payloads and batched producer pacing',
+    )
 
     args = parser.parse_args()
 
@@ -858,6 +905,10 @@ if __name__ == '__main__':
 
     if share_mode == 'explicit' and not args.share:
         parser.error('--explicit requires --share')
+
+    # Enable ~10KB payload padding for perf runs. Built once at class load.
+    if args.perf:
+        SoakRecord._PAD = (" SoakRecord nr #0" * 600)[:10200]
 
     conf = dict()
     if args.conffile is not None:
@@ -886,7 +937,15 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.testid, args.topic, args.rate, conf, enable_share=args.share, share_mode=share_mode)
+    soak = SoakClient(
+        args.testid,
+        args.topic,
+        args.rate,
+        conf,
+        enable_share=args.share,
+        share_mode=share_mode,
+        perf=args.perf,
+    )
 
     # Get initial resource usage
     soak.get_rusage()
