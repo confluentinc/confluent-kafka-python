@@ -906,6 +906,9 @@ if __name__ == '__main__':
     if share_mode == 'explicit' and not args.share:
         parser.error('--explicit requires --share')
 
+    if args.perf and not args.share:
+        parser.error('--perf requires --share')
+
     # Enable ~10KB payload padding for perf runs. Built once at class load.
     if args.perf:
         SoakRecord._PAD = (" SoakRecord nr #0" * 600)[:10200]

@@ -34,6 +34,10 @@ fi
 
 perf_flag=""
 if [[ "${PERF:-}" == "true" ]]; then
+    if [[ "${SHARE:-}" != "true" ]]; then
+        echo "ERROR: PERF=true requires SHARE=true" >&2
+        exit 1
+    fi
     perf_flag="--perf"
 fi
 
