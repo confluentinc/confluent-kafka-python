@@ -11,7 +11,12 @@ uv pip install -r requirements/requirements-tests-install.txt
 # orjson has no free-threaded wheels yet, and keeping it out lets contributors
 # on such interpreters still install the default test deps. The stdlib fallback
 # is covered by tests/schema_registry/test_json_codec.py regardless.
-uv pip install -r requirements/requirements-json-fast.txt
+# Skipped on free-threaded interpreters for the same reason: no orjson wheel
+# exists there and the source build would fail; the orjson-path tests skip
+# themselves when orjson is not importable.
+if [[ $(python -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)") != "1" ]]; then
+    uv pip install -r requirements/requirements-json-fast.txt
+fi
 uv pip install -U build
 
 # Cache trivup Apache Kafka versions
