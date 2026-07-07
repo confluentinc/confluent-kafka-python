@@ -31,3 +31,11 @@ OpenTelemetry reporting supported through OTLP.
 ```bash
 TESTID=<testid> ./run.sh ccloud.config
 ```
+
+## Share Consumer 
+
+To run with a share consumer instead of the regular consumer:
+```bash
+SHARE=true TESTID=<testid> ./run.sh ccloud.config
+```
+Requires KIP-932 compatible librdkafka and broker.
