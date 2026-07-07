@@ -34,7 +34,7 @@ if FREE_THREADED_BUILD:
         at the test file whose imports or tests re-enabled the GIL; the
         interpreter's own RuntimeWarning names the offending extension module.
 
-        TODO FTS: replace the warnings with the commented asserts in the same
+        TODO NOGIL: replace the warnings with the commented asserts in the same
         PR that declares Py_MOD_GIL_NOT_USED in cimpl. Until then a re-enable
         is expected (cimpl itself triggers it) and must not fail the suite.
         """
