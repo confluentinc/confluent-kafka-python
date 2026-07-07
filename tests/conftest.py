@@ -26,6 +26,7 @@ FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 
 if FREE_THREADED_BUILD:
+
     @pytest.fixture(scope="module", autouse=True)
     def gil_stays_disabled():
         """
@@ -39,13 +40,11 @@ if FREE_THREADED_BUILD:
         is expected (cimpl itself triggers it) and must not fail the suite.
         """
         if sys._is_gil_enabled():
-            warnings.warn("the GIL was re-enabled before this test module "
-                          "started", RuntimeWarning)
+            warnings.warn("the GIL was re-enabled before this test module started", RuntimeWarning)
         # assert not sys._is_gil_enabled(), \
         #     "the GIL was re-enabled before this test module started"
         yield
         if sys._is_gil_enabled():
-            warnings.warn("the GIL was re-enabled by this test module",
-                          RuntimeWarning)
+            warnings.warn("the GIL was re-enabled by this test module", RuntimeWarning)
         # assert not sys._is_gil_enabled(), \
         #     "the GIL was re-enabled by this test module"

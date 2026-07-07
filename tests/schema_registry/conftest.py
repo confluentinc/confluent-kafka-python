@@ -27,7 +27,6 @@ import pytest
 import respx
 from httpx import Response
 
-
 # The modules below import optional dependencies (tink/celpy from the rules
 # extra, orjson from json-fast) at the top of the file. None of those deps
 # ship free-threaded wheels, so they are not installed on free-threaded
@@ -59,7 +58,9 @@ if FREE_THREADED_BUILD:
     warnings.warn(
         "free-threaded build: skipping collection of {} schema_registry "
         "test modules requiring optional deps (tink/celpy/orjson) that ship "
-        "no free-threaded wheels".format(len(collect_ignore)), RuntimeWarning)
+        "no free-threaded wheels".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
