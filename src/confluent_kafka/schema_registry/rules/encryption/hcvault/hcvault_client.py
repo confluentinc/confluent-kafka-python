@@ -11,9 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""A client for Google Cloud KMS."""
+"""A client for Hashicorp Vault."""
 
-from typing import Optional
+from typing import Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import hvac
@@ -34,6 +34,8 @@ class HcVaultKmsClient(tink.KmsClient):
         ns: Optional[str] = None,
         role_id: Optional[str] = None,
         secret_id: Optional[str] = None,
+        verify: Union[bool, str] = True,
+        cert: Optional[Union[str, Tuple[str, str]]] = None,
     ) -> None:
         """Creates a new HcVaultKmsClient that is bound to the key specified in 'key_uri'.
 
@@ -43,6 +45,14 @@ class HcVaultKmsClient(tink.KmsClient):
           key_uri: The URI of the key the client should be bound to.
           token: The Vault token.
           ns: The Vault namespace.
+          role_id: The AppRole role id.
+          secret_id: The AppRole secret id.
+          verify: Whether to verify the Vault server's TLS certificate. Either a
+            boolean, or the path to a CA bundle to use for verification. Defaults
+            to True; setting it to False disables certificate verification and is
+            insecure.
+          cert: Client certificate for mutual TLS. Either the path to a single PEM
+            file containing the certificate and key, or a (cert, key) tuple of paths.
 
         Raises:
           TinkError: If the key uri is not valid.
@@ -55,7 +65,7 @@ class HcVaultKmsClient(tink.KmsClient):
 
         parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX) :])
         vault_url = parsed.scheme + '://' + parsed.netloc
-        self._client = hvac.Client(url=vault_url, token=token, namespace=ns, verify=False)
+        self._client = hvac.Client(url=vault_url, token=token, namespace=ns, verify=verify, cert=cert)
         if role_id and secret_id and self._client is not None:
             self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 

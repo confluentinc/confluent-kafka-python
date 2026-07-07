@@ -17,9 +17,11 @@
 #
 
 import abc
+from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 __all__ = [
+    'normalize_identity_pool',
     '_AbstractOAuthBearerFieldProviderBuilder',
     '_AbstractOAuthBearerOIDCFieldProviderBuilder',
     '_StaticOAuthBearerFieldProviderBuilder',
@@ -27,7 +29,37 @@ __all__ = [
     '_AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder',
     '_BearerFieldProvider',
     '_AsyncBearerFieldProvider',
+    '_StaticFieldProvider',
 ]
+
+
+def normalize_identity_pool(identity_pool_raw: "str | list[str] | None") -> Optional[str]:
+    """
+    Normalize identity pool configuration to a comma-separated string.
+
+    Identity pool can be provided as:
+    - None: Returns None (no identity pool configured)
+    - str: Returns as-is (single pool ID or already comma-separated)
+    - list[str]: Joins with commas (multiple pool IDs)
+
+    Args:
+        identity_pool_raw: The raw identity pool configuration value.
+
+    Returns:
+        A comma-separated string of identity pool IDs, or None.
+
+    Raises:
+        TypeError: If identity_pool_raw is not None, str, or list of strings.
+    """
+    if identity_pool_raw is None:
+        return None
+    if isinstance(identity_pool_raw, str):
+        return identity_pool_raw
+    if isinstance(identity_pool_raw, list):
+        if not all(isinstance(item, str) for item in identity_pool_raw):
+            raise TypeError("All items in identity pool list must be strings")
+        return ",".join(identity_pool_raw)
+    raise TypeError("identity pool id must be a str or list, not " + str(type(identity_pool_raw)))
 
 
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
@@ -45,12 +77,13 @@ class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
 class _AbstractOAuthBearerFieldProviderBuilder(metaclass=abc.ABCMeta):
     """Abstract base class for OAuthBearer client builders"""
 
-    required_properties = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
+    required_properties = ['bearer.auth.logical.cluster']
 
     def __init__(self, conf: dict):
         self.conf: dict = conf
         self.logical_cluster: str = ""
-        self.identity_pool: str = ""
+        # identity pool is optional; may be omitted entirely
+        self.identity_pool: Optional[str] = None
 
     def _validate(self):
         missing_properties = [
@@ -65,9 +98,8 @@ class _AbstractOAuthBearerFieldProviderBuilder(metaclass=abc.ABCMeta):
         if not isinstance(self.logical_cluster, str):
             raise TypeError("logical cluster must be a str, not " + str(type(self.logical_cluster)))
 
-        self.identity_pool = self.conf.pop('bearer.auth.identity.pool.id')
-        if not isinstance(self.identity_pool, str):
-            raise TypeError("identity pool id must be a str, not " + str(type(self.identity_pool)))
+        # identity pool is optional and may be provided as a str or list of strings
+        self.identity_pool = normalize_identity_pool(self.conf.pop('bearer.auth.identity.pool.id', None))
 
     @abc.abstractmethod
     def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int) -> _BearerFieldProvider:
@@ -151,17 +183,19 @@ class _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearer
 
 
 class _StaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: Optional[str] = None):
         self.token: str = token
         self.logical_cluster: str = logical_cluster
-        self.identity_pool: str = identity_pool
+        self.identity_pool: Optional[str] = identity_pool
 
     def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.token,
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
 
 class _StaticOAuthBearerFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBuilder):

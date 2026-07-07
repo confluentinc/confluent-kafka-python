@@ -41,11 +41,15 @@ from confluent_kafka.schema_registry.common._oauthbearer import (
     _StaticOAuthBearerFieldProviderBuilder,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import (
+    Association,
+    AssociationCreateOrUpdateRequest,
+    AssociationResponse,
     RegisteredSchema,
     Schema,
     SchemaVersion,
     ServerConfig,
     _SchemaCache,
+    _StaticFieldProvider,
     full_jitter,
     is_retriable,
     is_success,
@@ -96,21 +100,28 @@ class _CustomOAuthClient(_BearerFieldProvider):
 
 class _AbstractOAuthClient(_BearerFieldProvider):
     def __init__(
-        self, logical_cluster: str, identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int
+        self,
+        logical_cluster: str,
+        identity_pool: Optional[str],
+        max_retries: int,
+        retries_wait_ms: int,
+        retries_max_wait_ms: int,
     ):
         self.logical_cluster: str = logical_cluster
-        self.identity_pool: str = identity_pool
+        self.identity_pool: Optional[str] = identity_pool
         self.max_retries: int = max_retries
         self.retries_wait_ms: int = retries_wait_ms
         self.retries_max_wait_ms: int = retries_max_wait_ms
         self.token: str = ""
 
     def get_bearer_fields(self) -> dict:
-        return {
+        fields = {
             'bearer.auth.token': self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
-            'bearer.auth.identity.pool.id': self.identity_pool,
         }
+        if self.identity_pool is not None:
+            fields['bearer.auth.identity.pool.id'] = self.identity_pool
+        return fields
 
     def get_access_token(self) -> str:
         if not self.token or self.token_expired():
@@ -147,10 +158,10 @@ class _OAuthClient(_AbstractOAuthClient):
         scope: str,
         token_endpoint: str,
         logical_cluster: str,
-        identity_pool: str,
         max_retries: int,
         retries_wait_ms: int,
         retries_max_wait_ms: int,
+        identity_pool: Optional[str] = None,
     ):
         super().__init__(logical_cluster, identity_pool, max_retries, retries_wait_ms, retries_max_wait_ms)
         self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
@@ -172,7 +183,7 @@ class _OAuthAzureIMDSClient(_AbstractOAuthClient):
         self,
         token_endpoint: str,
         logical_cluster: str,
-        identity_pool: str,
+        identity_pool: Optional[str],
         max_retries: int,
         retries_wait_ms: int,
         retries_max_wait_ms: int,
@@ -202,10 +213,10 @@ class _OAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerOIDCFieldProvider
             self.scope,
             self.token_endpoint,
             self.logical_cluster,
-            self.identity_pool,
             max_retries,
             retries_wait_ms,
             retries_max_wait_ms,
+            self.identity_pool,
         )
 
 
@@ -232,12 +243,19 @@ class _CustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProv
         return _CustomOAuthClient(self.custom_function, self.custom_config)
 
 
+class _StaticFieldProviderBuilder(_StaticOAuthBearerFieldProviderBuilder):
+
+    def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
+        self._validate()
+        return _StaticFieldProvider(self.static_token, self.logical_cluster, self.identity_pool)
+
+
 class _FieldProviderBuilder:
 
     __builders: Dict[str, Type[Any]] = {
         "OAUTHBEARER": _OAuthBearerOIDCFieldProviderBuilder,
         "OAUTHBEARER_AZURE_IMDS": _OAuthBearerOIDCAzureIMDSFieldProviderBuilder,
-        "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
+        "STATIC_TOKEN": _StaticFieldProviderBuilder,
         "CUSTOM": _CustomOAuthBearerFieldProviderBuilder,
     }
 
@@ -399,7 +417,7 @@ class _BaseRestClient(object):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    def delete(self, url: str) -> Any:
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
@@ -425,7 +443,8 @@ class _RestClient(_BaseRestClient):
         if self.bearer_field_provider is None:
             raise ValueError("Bearer field provider is not set")
         bearer_fields = self.bearer_field_provider.get_bearer_fields()
-        required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
+        # Note: bearer.auth.identity.pool.id is optional; only token and logical.cluster are required
+        required_fields = ['bearer.auth.token', 'bearer.auth.logical.cluster']
 
         missing_fields = []
         for field in required_fields:
@@ -440,8 +459,10 @@ class _RestClient(_BaseRestClient):
             )
 
         headers["Authorization"] = "Bearer {}".format(bearer_fields['bearer.auth.token'])
-        headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
         headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
+
+        if 'bearer.auth.identity.pool.id' in bearer_fields:
+            headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
 
     def get(self, url: str, query: Optional[dict] = None) -> Any:
         return self.send_request(url, method='GET', query=query)
@@ -449,8 +470,8 @@ class _RestClient(_BaseRestClient):
     def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         return self.send_request(url, method='POST', body=body)
 
-    def delete(self, url: str) -> Any:
-        return self.send_request(url, method='DELETE')
+    def delete(self, url: str, query: Optional[dict] = None) -> Any:
+        return self.send_request(url, method='DELETE', query=query)
 
     def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
@@ -505,6 +526,8 @@ class _RestClient(_BaseRestClient):
                 response = self.send_http_request(base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
+                    if response.status_code == 204 or not response.content:
+                        return None
                     return response.json()
 
                 if not is_retriable(response.status_code) or i == len(self.base_urls) - 1:
@@ -536,13 +559,15 @@ class _RestClient(_BaseRestClient):
         query: Optional[dict] = None,
     ) -> Response:
         """
-        Sends HTTP request to the SchemaRegistry.
+        Sends a single HTTP request to the Schema Registry, retrying transient
+        failures.
 
-        All unsuccessful attempts will raise a SchemaRegistryError with the
-        response contents. In most cases this will be accompanied by a
-        Schema Registry supplied error code.
-
-        In the event the response is malformed an error_code of -1 will be used.
+        Retries (up to max.retries, with exponential backoff) are attempted on
+        retriable HTTP status codes and on network-level errors
+        (httpx.TransportError: DNS failures, connection refused/reset, timeouts,
+        etc.). The HTTP response is returned as-is, including error responses;
+        converting an unsuccessful status into a SchemaRegistryError is done by
+        the caller (send_request).
 
         Args:
             base_url (str): Schema Registry base URL
@@ -558,13 +583,31 @@ class _RestClient(_BaseRestClient):
             query (dict): Query params to attach to the URL
 
         Returns:
-            Response: Schema Registry response content.
+            Response: The HTTP response, which may represent an error status.
+
+        Raises:
+            httpx.TransportError: If a network-level error persists after all
+                retries are exhausted.
         """
         response = None
         for i in range(self.max_retries + 1):
-            response = self.session.request(
-                method, url="/".join([base_url, url]), headers=headers, content=body, params=query
-            )
+            try:
+                response = self.session.request(
+                    method,
+                    url="/".join([base_url.rstrip("/"), url.lstrip("/")]),
+                    headers=headers,
+                    content=body,
+                    params=query,
+                )
+            except httpx.TransportError:
+                # A TransportError means the request failed before a response
+                # was received (DNS failure, connection refused/reset, timeout,
+                # TLS error, etc.). Once retries are exhausted, re-raise so the
+                # caller can fail over to the next URL.
+                if i >= self.max_retries:
+                    raise
+                time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+                continue
 
             if is_success(response.status_code):
                 return response
@@ -797,6 +840,8 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        if subject_name is not None:
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema.schema
 
@@ -1565,6 +1610,94 @@ class SchemaRegistryClient(object):
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
+
+    def get_associations_by_resource_name(
+        self,
+        resource_name: str,
+        resource_namespace: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        offset: int = 0,
+        limit: int = -1,
+    ) -> List['Association']:
+        """
+        Retrieves associations for a given resource name and namespace.
+
+        Args:
+            resource_name (str): The name of the resource (e.g., topic name).
+            resource_namespace (str): The namespace of the resource (e.g., kafka cluster ID).
+                Use "-" as a wildcard.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to filter by
+                (e.g., ["key", "value"]).
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[Association]: List of associations matching the criteria.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+        if offset > 0:
+            query['offset'] = offset
+        if limit >= 1:
+            query['limit'] = limit
+
+        response = self._rest_client.get(
+            'associations/resources/{}/{}'.format(_urlencode(resource_namespace), _urlencode(resource_name)), query
+        )
+
+        return [Association.from_dict(a) for a in response]
+
+    def create_association(self, request: 'AssociationCreateOrUpdateRequest') -> 'AssociationResponse':
+        """
+        Creates an association between a subject and a resource.
+
+        Args:
+            request (AssociationCreateOrUpdateRequest): The association create or update request.
+
+        Returns:
+            AssociationResponse: The response containing the created associations.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        response = self._rest_client.post('associations', body=request.to_dict())
+        return AssociationResponse.from_dict(response)
+
+    def delete_associations(
+        self,
+        resource_id: str,
+        resource_type: Optional[str] = None,
+        association_types: Optional[List[str]] = None,
+        cascade_lifecycle: bool = False,
+    ) -> None:
+        """
+        Deletes associations for a resource.
+
+        Args:
+            resource_id (str): The resource identifier.
+            resource_type (str, optional): The type of resource (e.g., "topic").
+            association_types (List[str], optional): The types of associations to delete
+                (e.g., ["key", "value"]). If not specified, all associations are deleted.
+            cascade_lifecycle (bool): Whether to cascade the lifecycle policy to dependent schemas.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """
+        query: Dict[str, Any] = {'cascadeLifecycle': cascade_lifecycle}
+        if resource_type is not None:
+            query['resourceType'] = resource_type
+        if association_types is not None:
+            query['associationType'] = association_types
+
+        self._rest_client.delete('associations/resources/{}'.format(_urlencode(resource_id)), query=query)
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':

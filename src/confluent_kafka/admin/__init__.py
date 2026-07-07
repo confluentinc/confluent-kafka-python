@@ -325,7 +325,7 @@ class AdminClient(_AdminClientImpl):
     ) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
-        and create a request-level future to be bassed to the C API.
+        and create a request-level future to be passed to the C API.
 
         FIXME: use _make_futures_v2 with TypeError in next major release.
         """
@@ -349,7 +349,7 @@ class AdminClient(_AdminClientImpl):
     ) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
-        and create a request-level future to be bassed to the C API.
+        and create a request-level future to be passed to the C API.
         """
         futmap = {}
         for key in futmap_keys:

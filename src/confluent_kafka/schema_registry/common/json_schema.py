@@ -1,7 +1,7 @@
 import decimal
 import logging
 from io import BytesIO
-from typing import List, Optional, Set, Union
+from typing import Any, List, Optional, Set, Union
 
 import httpx
 import referencing
@@ -23,7 +23,56 @@ __all__ = [
     'get_type',
     '_disjoint',
     'get_inline_tags',
+    '_json_loads',
+    '_json_dumps',
+    '_HAS_ORJSON',
 ]
+
+# JSON codec: prefer orjson for speed, but fall back to the stdlib json module
+# when orjson is unavailable (e.g. on free-threaded CPython builds that do not
+# yet have orjson wheels). Both implementations accept str/bytes/bytearray for
+# loads and return a str from dumps. The stdlib fallback mirrors orjson's wire
+# output (compact separators, non-ASCII preserved) so serialized bytes stay
+# consistent.
+#
+# Catch any exception (not just ImportError): orjson is a compiled extension and
+# may be present yet fail to import/initialize (ABI mismatch, broken shared lib,
+# init error raising OSError/RuntimeError/etc.). In that case we still degrade to
+# the stdlib codec rather than letting the failure break this module -- and with
+# it all JSON (de)serialization. Note `except Exception` deliberately does not
+# catch KeyboardInterrupt/SystemExit (those are BaseException).
+try:
+    import orjson
+
+    _HAS_ORJSON = True
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        return orjson.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return orjson.dumps(obj).decode("utf-8")
+
+except Exception as _orjson_exc:
+    if not isinstance(_orjson_exc, ImportError):
+        # Absence (ImportError) is the normal optional-dependency case and is
+        # silent; a present-but-broken orjson is unexpected, so surface it.
+        logging.getLogger(__name__).warning(
+            "orjson is installed but failed to import; falling back to the " "stdlib json module",
+            exc_info=True,
+        )
+
+    import json as _stdlib_json
+
+    _HAS_ORJSON = False
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        # json.loads accepts bytes/bytearray (auto-detecting the encoding)
+        # since Python 3.6, matching orjson.loads.
+        return _stdlib_json.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return _stdlib_json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
 
 JSON_TYPE = "JSON"
 
@@ -88,20 +137,38 @@ def transform(
         finally:
             schema["type"] = original_type  # restore original type
     all_of = schema.get("allOf")
-    if all_of is not None:
-        subschema = _validate_subschemas(all_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     any_of = schema.get("anyOf")
-    if any_of is not None:
-        subschema = _validate_subschemas(any_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     one_of = schema.get("oneOf")
-    if one_of is not None:
-        subschema = _validate_subschemas(one_of, message, ref_registry, ref_resolver)
-        if subschema is not None:
-            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
+    if all_of is not None or any_of is not None or one_of is not None:
+        if all_of is not None:
+            for subschema in all_of:
+                message = transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
+        elif one_of is not None:
+            for subschema in one_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    message = transform(ctx, resolved, ref_registry, ref_resolver, path, message, field_transform)
+                    break
+        elif any_of is not None:
+            for subschema in any_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    message = transform(ctx, resolved, ref_registry, ref_resolver, path, message, field_transform)
+        # Also visit sibling properties/items at this level
+        # (siblings to allOf/anyOf/oneOf).
+        props = schema.get("properties")
+        if props is not None and isinstance(message, dict):
+            for prop_name, prop_schema in props.items():
+                if isinstance(prop_schema, dict):
+                    _transform_field(
+                        ctx, path, prop_name, message, prop_schema, ref_registry, ref_resolver, field_transform
+                    )
+        items = schema.get("items")
+        if items is not None and isinstance(message, list):
+            message = [
+                transform(ctx, items, ref_registry, ref_resolver, path, item, field_transform) for item in message
+            ]
+        return message
     items = schema.get("items")
     if items is not None:
         if isinstance(message, list):
@@ -197,21 +264,37 @@ def _validate_subschemas(
         The validated schema if the message is valid against the subschemas, otherwise None.
     """
     for subschema in subschemas:
-        if isinstance(subschema, dict):
-            try:
-                ref = subschema.get("$ref")
-                if ref is not None:
-                    resolved = resolver.lookup(ref)
-                    subschema = resolved.contents
-                    # Pass _resolver (not resolver) to use the new referencing library's
-                    # Resolver with correct context for nested $ref resolution
-                    validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
-                else:
-                    validate(instance=message, schema=subschema, registry=registry)
-                return subschema
-            except ValidationError:
-                pass
+        resolved = _validate_subschema(subschema, message, registry, resolver)
+        if resolved is not None:
+            return resolved
     return None
+
+
+def _validate_subschema(
+    subschema: JsonSchema,
+    message: JsonMessage,
+    registry: Registry,
+    resolver: Resolver,
+) -> Optional[JsonSchema]:
+    """
+    Validate the message against a single subschema.
+    Returns the resolved subschema (with $ref followed) if valid, otherwise None.
+    """
+    if not isinstance(subschema, dict):
+        return None
+    try:
+        ref = subschema.get("$ref")
+        if ref is not None:
+            resolved = resolver.lookup(ref)
+            subschema = resolved.contents
+            # Pass _resolver (not resolver) to use the new referencing library's
+            # Resolver with correct context for nested $ref resolution
+            validate(instance=message, schema=subschema, registry=registry, _resolver=resolved.resolver)
+        else:
+            validate(instance=message, schema=subschema, registry=registry)
+        return subschema
+    except ValidationError:
+        return None
 
 
 def get_type(schema: JsonSchema) -> FieldType:

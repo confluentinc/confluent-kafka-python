@@ -24,6 +24,15 @@ import pytest
 from confluent_kafka.schema_registry import Metadata, MetadataProperties, Schema, header_schema_id_serializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufDeserializer, ProtobufSerializer
 from confluent_kafka.schema_registry._sync.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry._sync.serde import (
+    FALLBACK_TYPE,
+    KAFKA_CLUSTER_ID,
+)
+from confluent_kafka.schema_registry.common.schema_registry_client import (
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+)
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.protobuf import _schema_to_str
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
@@ -144,6 +153,55 @@ def test_proto_guid_in_header():
     deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
+
+
+def test_proto_use_schema_id_avoids_redundant_lookup_schema():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=123, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Prime registry/store for this subject and capture its registered schema id.
+    primer = ProtobufSerializer(
+        example_pb2.Author, client, conf={'auto.register.schemas': True, 'use.deprecated.format': False}
+    )
+    primer(obj, ser_ctx)
+    registered = client.get_latest_version(_SUBJECT, fmt='serialized')
+
+    get_schema_calls = {'count': 0}
+    lookup_calls = {'count': 0}
+    original_get_schema = client.get_schema
+    original_lookup_schema = client.lookup_schema
+
+    def patched_get_schema(schema_id, subject_name=None, fmt=None, reference_format=None):
+        get_schema_calls['count'] += 1
+        schema = original_get_schema(schema_id, subject_name, fmt, reference_format)
+        if subject_name is not None and registered.schema_id == schema_id:
+            client._cache.set_registered_schema(registered.schema, registered)
+        return schema
+
+    def patched_lookup_schema(subject_name, schema, normalize_schemas=False, fmt=None, deleted=False):
+        lookup_calls['count'] += 1
+        return original_lookup_schema(subject_name, schema, normalize_schemas, fmt, deleted)
+
+    client.get_schema = patched_get_schema
+    client.lookup_schema = patched_lookup_schema
+
+    serializer = ProtobufSerializer(
+        example_pb2.Author,
+        client,
+        conf={
+            'auto.register.schemas': False,
+            'use.schema.id': registered.schema_id,
+            'use.deprecated.format': False,
+        },
+    )
+    serializer(obj, ser_ctx)
+
+    assert get_schema_calls['count'] == 1
+    assert lookup_calls['count'] == 0
 
 
 def test_proto_basic_deserialization_no_client():
@@ -615,3 +673,286 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser = ProtobufDeserializer(newerwidget_pb2.NewerWidget, deser_conf, client)
     newobj = deser(obj_bytes, ser_ctx)
     assert obj3.length == newobj.length
+
+
+def test_associated_name_strategy_with_association():
+    """Test that AssociatedNameStrategy returns subject from association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=123, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="proto-resource-id-1",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-custom-subject-value",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=_schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+                ),
+            )
+        ],
+    )
+    client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version("my-custom-subject-value")
+    assert registered_schema is not None
+
+    client.delete_associations(resource_id="proto-resource-id-1", cascade_lifecycle=True)
+
+
+def test_associated_name_strategy_with_key_association():
+    """Test that AssociatedNameStrategy returns subject for key"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(name='Kafka', id=42)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="proto-resource-id-2",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-key-subject",
+                association_type="key",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=_schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+                ),
+            )
+        ],
+    )
+    client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.KEY)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version("my-key-subject")
+    assert registered_schema is not None
+
+    client.delete_associations(resource_id="proto-resource-id-2", cascade_lifecycle=True)
+
+
+def test_associated_name_strategy_fallback_to_topic():
+    """Test fallback to topic_subject_name_strategy when no association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=456, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version(_TOPIC + "-value")
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_to_record():
+    """Test fallback to record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=789, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.RECORD},
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version(example_pb2.Author.DESCRIPTOR.full_name)
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_to_topic_record():
+    """Test fallback to topic_record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=100, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version(_TOPIC + "-" + example_pb2.Author.DESCRIPTOR.full_name)
+    assert registered_schema is not None
+
+
+def test_associated_name_strategy_fallback_none_raises():
+    """Test that NONE fallback raises an error when no association"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(name='Kafka', id=1)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: "NONE"},
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        ser(obj, ser_ctx)
+
+    assert "No associated subject found" in str(exc_info.value)
+
+
+def test_associated_name_strategy_with_kafka_cluster_id():
+    """Test that subject.name.strategy.kafka.cluster.id config is used as resource namespace"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=100, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="my-cluster-id",
+        resource_id="proto-resource-id-4",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="cluster-specific-proto-subject",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=_schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+                ),
+            )
+        ],
+    )
+    client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {KAFKA_CLUSTER_ID: "my-cluster-id"},
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    registered_schema = client.get_latest_version("cluster-specific-proto-subject")
+    assert registered_schema is not None
+
+    client.delete_associations(resource_id="proto-resource-id-4", cascade_lifecycle=True)
+
+
+def test_associated_name_strategy_caching():
+    """Test that results are cached within a strategy instance and serializer works with caching"""
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="proto-resource-id-5",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="proto-cached-subject",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=_schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+                ),
+            )
+        ],
+    )
+    client.create_association(request)
+
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    obj1 = example_pb2.Author(name='Kafka', id=1)
+    obj_bytes1 = ser(obj1, ser_ctx)
+
+    registered_schema = client.get_latest_version("proto-cached-subject")
+    assert registered_schema is not None
+
+    deser = ProtobufDeserializer(example_pb2.Author, {'use.deprecated.format': False}, client)
+    result1 = deser(obj_bytes1, ser_ctx)
+    assert obj1 == result1
+
+    # Delete associations (but serializer should still work due to caching)
+    client.delete_associations(resource_id="proto-resource-id-5", cascade_lifecycle=True)
+
+    obj2 = example_pb2.Author(name='Kafka', id=2)
+    obj_bytes2 = ser(obj2, ser_ctx)
+
+    result2 = deser(obj_bytes2, ser_ctx)
+    assert obj2 == result2

@@ -29,7 +29,16 @@ from confluent_kafka.schema_registry import (
     Schema,
     header_schema_id_serializer,
 )
+from confluent_kafka.schema_registry._async.serde import (
+    FALLBACK_TYPE,
+    KAFKA_CLUSTER_ID,
+)
 from confluent_kafka.schema_registry.avro import AsyncAvroDeserializer, AsyncAvroSerializer
+from confluent_kafka.schema_registry.common.schema_registry_client import (
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+)
+from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
@@ -304,6 +313,41 @@ async def test_avro_serialize_references():
     assert obj == obj2
 
 
+async def test_avro_serialize_references_with_namespace():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    obj = {'payload': {'id': '123'}}
+    ref_schema = {
+        'type': 'record',
+        'name': 'ReferencedRecord',
+        'namespace': 'example.references',
+        'fields': [
+            {'name': 'id', 'type': 'string'},
+        ],
+    }
+    await client.register_schema('test-ReferencedRecord', Schema(json.dumps(ref_schema)))
+    schema = {
+        'type': 'record',
+        'name': 'ReferencingRecord',
+        'namespace': 'example.references',
+        'fields': [
+            {'name': 'payload', 'type': 'ReferencedRecord'},
+        ],
+    }
+    refs = [SchemaReference('ReferencedRecord', 'test-ReferencedRecord', 1)]
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 async def test_avro_serialize_union():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
@@ -414,6 +458,86 @@ async def test_avro_serialize_union_with_references():
     refs = [SchemaReference('ref', 'ref', 1), SchemaReference('ref2', 'ref2', 1)]
     await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
 
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_diamond_dependency_references():
+    # Two sibling references (OrderDetails, InvoiceDetails) both depend on the
+    # same named type (Address). Without the fix in _resolve_named_schema, each
+    # branch is pre-parsed with Address inlined, and the top-level parse then
+    # raises SchemaParseException("redefined named type ...Address").
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    ns = "com.example.diamond"
+    address_schema = {
+        'type': 'record',
+        'name': 'Address',
+        'namespace': ns,
+        'fields': [{'name': 'street', 'type': 'string'}],
+    }
+    order_schema = {
+        'type': 'record',
+        'name': 'OrderDetails',
+        'namespace': ns,
+        'fields': [{'name': 'shipping_address', 'type': f'{ns}.Address'}],
+    }
+    invoice_schema = {
+        'type': 'record',
+        'name': 'InvoiceDetails',
+        'namespace': ns,
+        'fields': [{'name': 'billing_address', 'type': f'{ns}.Address'}],
+    }
+    root_schema = {
+        'type': 'record',
+        'name': 'OrderEvent',
+        'namespace': ns,
+        'fields': [
+            {'name': 'order', 'type': f'{ns}.OrderDetails'},
+            {'name': 'invoice', 'type': f'{ns}.InvoiceDetails'},
+        ],
+    }
+
+    await client.register_schema('diamond-Address', Schema(json.dumps(address_schema)))
+    await client.register_schema(
+        'diamond-OrderDetails',
+        Schema(
+            json.dumps(order_schema),
+            'AVRO',
+            [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
+        ),
+    )
+    await client.register_schema(
+        'diamond-InvoiceDetails',
+        Schema(
+            json.dumps(invoice_schema),
+            'AVRO',
+            [SchemaReference(f'{ns}.Address', 'diamond-Address', 1)],
+        ),
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            json.dumps(root_schema),
+            'AVRO',
+            [
+                SchemaReference(f'{ns}.OrderDetails', 'diamond-OrderDetails', 1),
+                SchemaReference(f'{ns}.InvoiceDetails', 'diamond-InvoiceDetails', 1),
+            ],
+        ),
+    )
+
+    obj = {
+        'order': {'shipping_address': {'street': '123 Main St'}},
+        'invoice': {'billing_address': {'street': '456 Elm St'}},
+    }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
@@ -1105,6 +1229,138 @@ async def test_avro_encryption():
     executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
+
+
+async def test_avro_encryption_complex_schema():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {
+                'name': 'complexField1',
+                'type': {
+                    'fields': [
+                        {'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']},
+                    ],
+                    'name': 'ComplexFieldType',
+                    'type': 'record',
+                },
+            },
+            {'name': 'complexField2', 'type': 'ComplexFieldType'},
+        ],
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
+
+    obj = {
+        'complexField1': {'stringValue': 'test1'},
+        'complexField2': {'stringValue': 'test2'},
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    assert 'test1' not in str(obj_bytes)
+    assert 'test2' not in str(obj_bytes)
+
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    actual = await deser(obj_bytes, ser_ctx)
+    assert actual['complexField1']['stringValue'] == 'test1'
+    assert actual['complexField2']['stringValue'] == 'test2'
+
+
+async def test_avro_encryption_complex_schema_union():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {
+                'name': 'complexField1',
+                'type': {
+                    'fields': [
+                        {
+                            'name': 'complexSubType1',
+                            'type': {
+                                'fields': [{'name': 'stringValue', 'type': 'string', 'confluent:tags': ['PII']}],
+                                'name': 'ComplexSubType',
+                                'type': 'record',
+                            },
+                        },
+                        {'name': 'complexSubType2', 'type': 'ComplexSubType'},
+                    ],
+                    'name': 'ComplexFieldType',
+                    'type': 'record',
+                },
+            },
+            {'name': 'complexField2', 'type': ['null', 'ComplexFieldType']},
+        ],
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "AVRO", [], None, RuleSet(None, [rule])))
+
+    obj = {
+        'complexField1': {'complexSubType1': {'stringValue': 'test1'}, 'complexSubType2': {'stringValue': 'test2'}},
+        'complexField2': {'complexSubType1': {'stringValue': 'test3'}, 'complexSubType2': {'stringValue': 'test4'}},
+    }
+
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    assert 'test1' not in str(obj_bytes)
+    assert 'test2' not in str(obj_bytes)
+    assert 'test3' not in str(obj_bytes)
+    assert 'test4' not in str(obj_bytes)
+
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    actual = await deser(obj_bytes, ser_ctx)
+    assert actual['complexField1']['complexSubType1']['stringValue'] == 'test1'
+    assert actual['complexField1']['complexSubType2']['stringValue'] == 'test2'
+    assert actual['complexField2']['complexSubType1']['stringValue'] == 'test3'
+    assert actual['complexField2']['complexSubType2']['stringValue'] == 'test4'
 
 
 async def test_avro_payload_encryption():
@@ -2658,3 +2914,371 @@ class AwardedUser(object):
 
     def __eq__(self, other):
         return all([self.award == other.award, self.user == other.user])
+
+
+async def test_associated_name_strategy_with_association():
+    """Test that AsyncAssociatedNameStrategy returns subject from association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'stringField', 'type': 'string'},
+        ],
+    }
+    obj = {'intField': 123, 'stringField': 'hello'}
+
+    # Add an association for the custom subject
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="mock-resource-id-1",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-custom-subject-value",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    # Create serializer with associated name strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the custom subject
+    registered_schema = await client.get_latest_version("my-custom-subject-value")
+    assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-1", cascade_lifecycle=True)
+
+
+async def test_associated_name_strategy_with_key_association():
+    """Test that AsyncAssociatedNameStrategy returns subject for key"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'KeyRecord',
+        'fields': [
+            {'name': 'id', 'type': 'int'},
+        ],
+    }
+    obj = {'id': 42}
+
+    # Add an association for key
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="mock-resource-id-2",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="my-key-subject",
+                association_type="key",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    # Create serializer with associated name strategy for KEY
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.KEY)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the key subject
+    registered_schema = await client.get_latest_version("my-key-subject")
+    assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-2", cascade_lifecycle=True)
+
+
+async def test_associated_name_strategy_fallback_to_topic():
+    """Test fallback to topic_subject_name_strategy when no association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema and test object
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'stringField', 'type': 'string'},
+        ],
+    }
+    obj = {'intField': 456, 'stringField': 'world'}
+
+    # No associations added, should fall back to topic strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Default fallback is topic_subject_name_strategy which returns topic-value
+    registered_schema = await client.get_latest_version(_TOPIC + "-value")
+    assert registered_schema is not None
+
+
+async def test_associated_name_strategy_fallback_to_record():
+    """Test fallback to record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema with a specific record name
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'value', 'type': 'string'},
+        ],
+    }
+    obj = {'value': 'test'}
+
+    # No associations, configure fallback to RECORD
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.RECORD},
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Should have registered under the record name
+    registered_schema = await client.get_latest_version("MyRecord")
+    assert registered_schema is not None
+
+
+async def test_associated_name_strategy_fallback_to_topic_record():
+    """Test fallback to topic_record_subject_name_strategy when configured"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema with a specific record name
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'data', 'type': 'int'},
+        ],
+    }
+    obj = {'data': 789}
+
+    # No associations, configure fallback to TOPIC_RECORD
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: SubjectNameStrategyType.TOPIC_RECORD},
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Should have registered under topic-record_name
+    registered_schema = await client.get_latest_version(_TOPIC + "-MyRecord")
+    assert registered_schema is not None
+
+
+async def test_associated_name_strategy_fallback_none_raises():
+    """Test that NONE fallback raises an error when no association"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'MyRecord',
+        'fields': [
+            {'name': 'value', 'type': 'string'},
+        ],
+    }
+    obj = {'value': 'test'}
+
+    # No associations, configure fallback to NONE
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {FALLBACK_TYPE: "NONE"},
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as exc_info:
+        await ser(obj, ser_ctx)
+
+    assert "No associated subject found" in str(exc_info.value)
+
+
+async def test_associated_name_strategy_with_kafka_cluster_id():
+    """Test that subject.name.strategy.kafka.cluster.id config is used as resource namespace"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'TestRecord',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+        ],
+    }
+    obj = {'intField': 100}
+
+    # Add an association with specific namespace
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="my-cluster-id",
+        resource_id="mock-resource-id-4",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="cluster-specific-subject",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    # Create serializer with matching cluster ID
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+        'subject.name.strategy.conf': {KAFKA_CLUSTER_ID: "my-cluster-id"},
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    # Deserialize and verify
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+    # Verify the schema was registered with the cluster-specific subject
+    registered_schema = await client.get_latest_version("cluster-specific-subject")
+    assert registered_schema is not None
+
+    await client.delete_associations(resource_id="mock-resource-id-4", cascade_lifecycle=True)
+
+
+async def test_associated_name_strategy_caching():
+    """Test that results are cached within a strategy instance and serializer works with caching"""
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    # Define schema
+    schema = {
+        'type': 'record',
+        'name': 'CacheTestRecord',
+        'fields': [
+            {'name': 'count', 'type': 'int'},
+        ],
+    }
+
+    # Add an association
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace="-",
+        resource_id="mock-resource-id-5",
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject="cached-subject",
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(
+                    schema_str=json.dumps(schema),
+                ),
+            )
+        ],
+    )
+    await client.create_association(request)
+
+    # Create serializer with associated name strategy
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': SubjectNameStrategyType.ASSOCIATED,
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # First serialization
+    obj1 = {'count': 1}
+    obj_bytes1 = await ser(obj1, ser_ctx)
+
+    # Verify it was registered under cached-subject
+    registered_schema = await client.get_latest_version("cached-subject")
+    assert registered_schema is not None
+
+    # Deserialize first message
+    deser = await AsyncAvroDeserializer(client)
+    result1 = await deser(obj_bytes1, ser_ctx)
+    assert obj1 == result1
+
+    # Delete associations (but serializer should still work due to caching)
+    await client.delete_associations(resource_id="mock-resource-id-5", cascade_lifecycle=True)
+
+    # Second serialization should still work (schema already registered)
+    obj2 = {'count': 2}
+    obj_bytes2 = await ser(obj2, ser_ctx)
+
+    # Deserialize second message
+    result2 = await deser(obj_bytes2, ser_ctx)
+    assert obj2 == result2

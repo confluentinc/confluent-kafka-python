@@ -19,7 +19,6 @@ import io
 import logging
 from typing import Any, Callable, Coroutine, Optional, Tuple, Union, cast
 
-import orjson
 from cachetools import LRUCache
 from jsonschema import ValidationError
 from jsonschema.protocols import Validator
@@ -32,7 +31,6 @@ from confluent_kafka.schema_registry import (
     Schema,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
-    topic_subject_name_strategy,
 )
 from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.common.json_schema import (
@@ -40,6 +38,8 @@ from confluent_kafka.schema_registry.common.json_schema import (
     JSON_TYPE,
     JsonSchema,
     _ContextStringIO,
+    _json_dumps,
+    _json_loads,
     _retrieve_via_httpx,
     transform,
 )
@@ -80,7 +80,7 @@ async def _resolve_named_schema(
             if referenced_schema.schema.schema_str is None:
                 raise TypeError("Schema string cannot be None")
 
-            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
+            referenced_schema_dict = _json_loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(referenced_schema_dict, default_specification=DEFAULT_SPEC)
             if ref.name is None:
                 raise TypeError("Name cannot be None")
@@ -95,64 +95,78 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
     Configuration properties:
 
-    +-----------------------------+----------+----------------------------------------------------+
-    | Property Name               | Type     | Description                                        |
-    +=============================+==========+====================================================+
-    |                             |          | If True, automatically register the configured     |
-    | ``auto.register.schemas``   | bool     | schema with Confluent Schema Registry if it has    |
-    |                             |          | not previously been associated with the relevant   |
-    |                             |          | subject (determined via subject.name.strategy).    |
-    |                             |          |                                                    |
-    |                             |          | Defaults to True.                                  |
-    |                             |          |                                                    |
-    |                             |          | Raises SchemaRegistryError if the schema was not   |
-    |                             |          | registered against the subject, or could not be    |
-    |                             |          | successfully registered.                           |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to normalize schemas, which will           |
-    | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,     |
-    |                             |          | including ordering properties and references.      |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the given schema ID for             |
-    | ``use.schema.id``           | int      | serialization.                                     |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the latest subject version for      |
-    | ``use.latest.version``      | bool     | serialization.                                     |
-    |                             |          |                                                    |
-    |                             |          | WARNING: There is no check that the latest         |
-    |                             |          | schema is backwards compatible with the object     |
-    |                             |          | being serialized.                                  |
-    |                             |          |                                                    |
-    |                             |          | Defaults to False.                                 |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
-    |                             |          |                                                    |
-    |                             |          | WARNING: There is no check that the latest         |
-    |                             |          | schema is backwards compatible with the object     |
-    |                             |          | being serialized.                                  |
-    |                             |          |                                                    |
-    |                             |          | Defaults to None.                                  |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Callable(SerializationContext, str) -> str         |
-    |                             |          |                                                    |
-    | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
-    |                             |          | constructed. Standard naming strategies are        |
-    |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
-    |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to validate the payload against the        |
-    | ``validate``                | bool     | the given schema.                                  |
-    |                             |          |                                                    |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Callable(bytes, SerializationContext, schema_id)   |
-    |                             |          |   -> bytes                                         |
-    |                             |          |                                                    |
-    | ``schema.id.serializer``    | callable | Defines how the schema id/guid is serialized.      |
-    |                             |          | Defaults to prefix_schema_id_serializer.           |
-    +-----------------------------+----------+----------------------------------------------------+
+    +----------------------------------+----------+----------------------------------------------------+
+    | Property Name                    | Type     | Description                                        |
+    +==================================+==========+====================================================+
+    |                                  |          | If True, automatically register the configured     |
+    | ``auto.register.schemas``        | bool     | schema with Confluent Schema Registry if it has    |
+    |                                  |          | not previously been associated with the relevant   |
+    |                                  |          | subject (determined via subject.name.strategy).    |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to True.                                  |
+    |                                  |          |                                                    |
+    |                                  |          | Raises SchemaRegistryError if the schema was not   |
+    |                                  |          | registered against the subject, or could not be    |
+    |                                  |          | successfully registered.                           |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to normalize schemas, which will           |
+    | ``normalize.schemas``            | bool     | transform schemas to have a consistent format,     |
+    |                                  |          | including ordering properties and references.      |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to use the given schema ID for             |
+    | ``use.schema.id``                | int      | serialization.                                     |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version for      |
+    | ``use.latest.version``           | bool     | serialization.                                     |
+    |                                  |          |                                                    |
+    |                                  |          | WARNING: There is no check that the latest         |
+    |                                  |          | schema is backwards compatible with the object     |
+    |                                  |          | being serialized.                                  |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to False.                                 |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version with     |
+    | ``use.latest.with.metadata``     | dict     | the given metadata.                                |
+    |                                  |          |                                                    |
+    |                                  |          | WARNING: There is no check that the latest         |
+    |                                  |          | schema is backwards compatible with the object     |
+    |                                  |          | being serialized.                                  |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | The type of subject name strategy to use.          |
+    | ``subject.name.strategy.type``   | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                                  |          | ASSOCIATED.                                        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to ASSOCIATED if neither this nor         |
+    |                                  |          | subject.name.strategy is specified.                |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Configuration dictionary passed to strategies      |
+    | ``subject.name.strategy.conf``   | dict     | that require additional configuration, such as     |
+    |                                  |          | ASSOCIATED.                                        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Callable(SerializationContext, str) -> str         |
+    |                                  |          |                                                    |
+    | ``subject.name.strategy``        | callable | Defines how Schema Registry subject names are      |
+    |                                  |          | constructed. Standard naming strategies are        |
+    |                                  |          | defined in the confluent_kafka.schema_registry     |
+    |                                  |          | namespace. Takes precedence over                   |
+    |                                  |          | subject.name.strategy.type if both are set.        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to validate the payload against the        |
+    | ``validate``                     | bool     | the given schema.                                  |
+    |                                  |          |                                                    |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Callable(bytes, SerializationContext, schema_id)   |
+    |                                  |          |   -> bytes                                         |
+    |                                  |          |                                                    |
+    | ``schema.id.serializer``         | callable | Defines how the schema id/guid is serialized.      |
+    |                                  |          | Defaults to prefix_schema_id_serializer.           |
+    +----------------------------------+----------+----------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -226,7 +240,9 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate': True,
     }
@@ -250,7 +266,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         else:
             self._schema = None
 
-        self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
+        self._json_encode = json_encode or _json_dumps
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
@@ -292,12 +308,11 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_serializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], bytes], conf_copy.pop('schema.id.serializer')
@@ -354,7 +369,11 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
+        subject = (
+            await self._subject_name_func(ctx, self._schema_name, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, self._schema_name)
+        )
         latest_schema = await self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
@@ -439,7 +458,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         ref_registry = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
             raise TypeError("Schema string cannot be None")
-        parsed_schema = orjson.loads(schema.schema_str)
+        parsed_schema = _json_loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
@@ -467,39 +486,53 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
     Configuration properties:
 
-    +-----------------------------+----------+----------------------------------------------------+
-    | Property Name               | Type     | Description                                        |
-    +=============================+==========+====================================================+
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the latest subject version for      |
-    | ``use.latest.version``      | bool     | deserialization.                                   |
-    |                             |          |                                                    |
-    |                             |          | Defaults to False.                                 |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
-    |                             |          |                                                    |
-    |                             |          | Defaults to None.                                  |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Callable(SerializationContext, str) -> str         |
-    |                             |          |                                                    |
-    | ``subject.name.strategy``   | callable | Defines how Schema Registry subject names are      |
-    |                             |          | constructed. Standard naming strategies are        |
-    |                             |          | defined in the confluent_kafka.schema_registry     |
-    |                             |          | namespace.                                         |
-    |                             |          |                                                    |
-    |                             |          | Defaults to topic_subject_name_strategy.           |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to validate the payload against the        |
-    | ``validate``                | bool     | the given schema.                                  |
-    |                             |          |                                                    |
-    +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Callable(bytes, SerializationContext, schema_id)   |
-    |                             |          |   -> io.BytesIO                                    |
-    |                             |          |                                                    |
-    | ``schema.id.deserializer``  | callable | Defines how the schema id/guid is deserialized.    |
-    |                             |          | Defaults to dual_schema_id_deserializer.           |
-    +-----------------------------+----------+----------------------------------------------------+
+    +----------------------------------+----------+----------------------------------------------------+
+    | Property Name                    | Type     | Description                                        |
+    +==================================+==========+====================================================+
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version for      |
+    | ``use.latest.version``           | bool     | deserialization.                                   |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to False.                                 |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to use the latest subject version with     |
+    | ``use.latest.with.metadata``     | dict     | the given metadata.                                |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | The type of subject name strategy to use.          |
+    | ``subject.name.strategy.type``   | str      | Valid values are: TOPIC, RECORD, TOPIC_RECORD,     |
+    |                                  |          | ASSOCIATED.                                        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to ASSOCIATED if neither this nor         |
+    |                                  |          | subject.name.strategy is specified.                |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Configuration dictionary passed to strategies      |
+    | ``subject.name.strategy.conf``   | dict     | that require additional configuration, such as     |
+    |                                  |          | ASSOCIATED.                                        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Callable(SerializationContext, str) -> str         |
+    |                                  |          |                                                    |
+    | ``subject.name.strategy``        | callable | Defines how Schema Registry subject names are      |
+    |                                  |          | constructed. Standard naming strategies are        |
+    |                                  |          | defined in the confluent_kafka.schema_registry     |
+    |                                  |          | namespace. Takes precedence over                   |
+    |                                  |          | subject.name.strategy.type if both are set.        |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to None.                                  |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to validate the payload against the        |
+    | ``validate``                     | bool     | the given schema.                                  |
+    |                                  |          |                                                    |
+    +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Callable(bytes, SerializationContext, schema_id)   |
+    |                                  |          |   -> io.BytesIO                                    |
+    |                                  |          |                                                    |
+    | ``schema.id.deserializer``       | callable | Defines how the schema id/guid is deserialized.    |
+    |                                  |          | Defaults to dual_schema_id_deserializer.           |
+    +----------------------------------+----------+----------------------------------------------------+
 
     Args:
         schema_str (str, Schema, optional):
@@ -531,7 +564,9 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     _default_conf = {
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'subject.name.strategy': topic_subject_name_strategy,
+        'subject.name.strategy.type': None,
+        'subject.name.strategy.conf': None,
+        'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'validate': True,
     }
@@ -569,7 +604,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         self._parsed_schemas = ParsedSchemaCache()
         self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
         self._validators_lock = _locks.Lock()
-        self._json_decode = json_decode or orjson.loads
+        self._json_decode = json_decode or _json_loads
         self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
@@ -584,12 +619,11 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if self._use_latest_with_metadata is not None and not isinstance(self._use_latest_with_metadata, dict):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = cast(
-            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
-            conf_copy.pop('subject.name.strategy'),
+        self.configure_subject_name_strategy(
+            subject_name_strategy_type=cast(Any, conf_copy.pop('subject.name.strategy.type')),
+            subject_name_strategy_conf=cast(Any, conf_copy.pop('subject.name.strategy.conf')),
+            subject_name_strategy=cast(Any, conf_copy.pop('subject.name.strategy')),
         )
-        if not callable(self._subject_name_func):
-            raise ValueError("subject.name.strategy must be callable")
 
         self._schema_id_deserializer = cast(
             Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO], conf_copy.pop('schema.id.deserializer')
@@ -647,7 +681,11 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if data is None:
             return None
 
-        subject = self._subject_name_func(ctx, None)
+        subject = (
+            await self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+            if self._strategy_accepts_client
+            else self._subject_name_func(ctx, None)
+        )
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = await self._get_reader_schema(subject)
@@ -660,7 +698,13 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             writer_schema_raw = await self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
-                subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                subject = (
+                    await self._subject_name_func(
+                        ctx, writer_schema.get("title"), self._registry, self._subject_name_conf
+                    )
+                    if self._strategy_accepts_client
+                    else self._subject_name_func(ctx, writer_schema.get("title"))
+                )
                 if subject is not None:
                     latest_schema = await self._get_reader_schema(subject)
         else:
@@ -747,7 +791,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         ref_registry = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
             raise TypeError("Schema string cannot be None")
-        parsed_schema = orjson.loads(schema.schema_str)
+        parsed_schema = _json_loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry

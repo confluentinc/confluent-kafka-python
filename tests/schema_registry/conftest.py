@@ -148,6 +148,8 @@ def mock_schema_registry():
 
         respx_mock.get(CONTEXTS_RE).mock(side_effect=get_contexts_callback)
 
+        respx_mock.get(ASSOCIATIONS_RESOURCES_RE).mock(side_effect=get_associations_resources_callback)
+
         respx_mock.get(MODE_GLOBAL_RE).mock(side_effect=get_global_mode_callback)
         respx_mock.put(MODE_GLOBAL_RE).mock(side_effect=put_global_mode_callback)
         respx_mock.get(MODE_RE).mock(side_effect=get_mode_callback)
@@ -191,6 +193,8 @@ MODE_GLOBAL_RE = re.compile(r"/mode(\?.*)?$")
 MODE_RE = re.compile("/mode/(.*)$")
 
 CONTEXTS_RE = re.compile(r"/contexts(\?.*)?$")
+
+ASSOCIATIONS_RESOURCES_RE = re.compile(r"/associations/resources/(.*)/(.*?)(\?.*)?$")
 
 # constants
 SCHEMA_ID = 47
@@ -266,6 +270,11 @@ def delete_config_callback(request, route):
 def get_contexts_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
     return Response(200, json=['context1', 'context2'])
+
+
+def get_associations_resources_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[])
 
 
 def delete_subject_callback(request, route):

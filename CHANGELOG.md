@@ -1,10 +1,115 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.15.0
+
+### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**
+
+confluent-kafka-python 2.15.0 adds a **Preview** implementation of the KIP-932 share consumer (Queues for Kafka). Members of a share group cooperatively consume from the same partitions with per-record acquire/acknowledge semantics and redelivery, providing queue-like consumption on top of Kafka.
+
+- New `ShareConsumer` and `DeserializingShareConsumer` clients: subscribe, batch poll (`poll()` returns a `Messages` batch), and close (with context-manager support).
+- Implicit (default) and explicit acknowledgement modes (`share.acknowledgement.mode`), with `AcknowledgeType` ACCEPT / RELEASE / REJECT and `Message.delivery_count()`.
+- Synchronous and asynchronous commit (`commit_sync` / `commit_async`) and an acknowledgement-commit callback.
+- Runtime SASL credential updates (`set_sasl_credentials`) and new `IllegalStateException` / `ConcurrentModificationException` exceptions.
+- (#2217, #2239, #2241, #2252, #2253, #2265, #2273, #2277, #2279)
+
+See the [Share Consumer guide](docs/kip-932-share-consumer.md) and the [Share consumers section of librdkafka's INTRODUCTION.md](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#share-consumers-queues-for-kafka).
+
+**Note:** The share consumer is currently in **Preview** and should not be used in production environments. Its public interfaces may change before General Availability, and known limitations apply (see the guide). The share consumer is single-threaded and not thread-safe. It requires a broker with share groups enabled (generally available in Apache Kafka 4.2.0).
+
+### Features
+
+- New optional install `confluent-kafka[oauthbearer-aws]` provides AWS IAM-based
+  OAUTHBEARER authentication via AWS STS `GetWebIdentityToken`. Activate by setting `sasl.oauthbearer.method=oidc`,
+`sasl.oauthbearer.metadata.authentication.type=aws_iam`, and
+`sasl.oauthbearer.config="region=...,audience=..."`. See the
+[AWS IAM OAUTHBEARER guide](docs/oauthbearer-aws.md) for full configuration, and
+[`examples/oauth_oidc_ccloud_aws_iam.py`](examples/oauth_oidc_ccloud_aws_iam.py)
+for a worked example.
+
+### Enhancements
+
+- Add support for union-of-pools and auto pool mapping for Schema Registry (#2182)
+
+### Fixes
+
+- Fix Encryption fails when expanded union types have two references to the same record (@ChristophMajcenAtXxxlutz, #2262)
+- Make orjson optional in JSON serdes with stdlib json fallback (#2281)
+- Handle non-http errors during retries (#2292)
+- Use TLS certification verification with Hashicorp Vault (#2294)
+
+
+confluent-kafka-python v2.15.0 is based on librdkafka v2.15.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.14.2 - 2026-06-03
+
+v2.14.2 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+- Fix URL joining in Python client (#2228)
+- Handle anyOf/allOf in JSON transforms (#2237)
+- Fix redefining a named Avro type in a diamond dependency pattern (#2238)
+- Fix typing_extensions import errors on Python 3.12 (#2232)
+- Fix Encryption fails when referencing self defined types (#2254)
+
+
+confluent-kafka-python v2.14.2 is based on librdkafka v2.14.2, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.14.1
+
+There was no 2.14.1 release of the Python Client.
+
+
+
+## v2.14.0 - 2026-04-01
+
+v2.14.0 is a feature release with the following features, fixes and enhancements:
+
+### Enhancements
+
+- Implement async context manager protocol for AIOProducer and AIOConsumer (#2180)
+- Add AssociatedNameStrategy (#2194)
+- Add enableAt to RuleSet (#2218)
+
+### Fixes
+
+- Ensure normalize.schemas config is passed during Protobuf ref lookup #2214
+- Fix type annotations for context manager hooks so that they are correct for subclasses (#2181)
+- Fix OAuth callback handling for Async IO clients to prevent initialization failures (#2219)
+
+
+confluent-kafka-python v2.14.0 is based on librdkafka v2.14.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.14.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.13.2 - 2026-03-02
+
+v2.13.2 is a maintenance release with the following fixes and enhancements:
+
+### Enhancements
+
+- Add Confluent-Client-Version header to requests to SR, Python client (#2148)
+- Add UAMI OAuth changes (#2189)
 
 ### Fixes
 
 - Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
 - Fixed type hinting of `KafkaError` class, `Consumer.__init()__`, `Producer.__init()__`, `Producer.produce()` and `Consumer.commit()` and introduced a script in tools directory to keep error codes up to date. Fixes Issue [#2168](https://github.com/confluentinc/confluent-kafka-python/issues/2168).
+- Fix the token expiration logic in SR Oauth (#2177)
+- Ensure use of cachetools is thread-safe (#2178)
+- Remove passing resolver in json validate (#2186)
+- Fix JSON schema resolver bug (#2188)
+
 
 ## v2.13.0 - 2025-12-15
 
