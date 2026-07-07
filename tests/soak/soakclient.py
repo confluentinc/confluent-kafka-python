@@ -254,7 +254,7 @@ class SoakClient(object):
         self.msg_err_cnt = 0
         self.consumer_err_cnt = 0
         self.consumer_error_cb_cnt = 0
-        self.last_commited = None
+        self.last_committed = None
 
         # Keep track of high-watermarks to make sure we don't go backwards
         hwmarks = defaultdict(int)
@@ -299,7 +299,7 @@ class SoakClient(object):
             self.incr_counter("consumer.msg", 1)
 
             # end-to-end latency
-            headers = dict(msg.headers())
+            headers = dict(msg.headers() or [])
             txtime = headers.get('time', None)
             if txtime is not None:
                 latency = time.time() - float(txtime)
@@ -476,7 +476,7 @@ class SoakClient(object):
                 self.incr_counter("consumer.msg", 1)
 
                 # end-to-end latency
-                headers = dict(msg.headers())
+                headers = dict(msg.headers() or [])
                 txtime = headers.get('time', None)
                 if txtime is not None:
                     latency = time.time() - float(txtime)
