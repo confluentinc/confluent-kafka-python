@@ -1,5 +1,10 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+### Fixes
+
+- Bump minimum `authlib` version to 1.7.1 to avoid a spurious `authlib.jose` deprecation
+  warning raised on import by `authlib` 1.7.0 (#2242)
+
 ## v2.15.0
 
 ### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**

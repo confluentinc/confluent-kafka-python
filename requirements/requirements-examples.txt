@@ -7,7 +7,7 @@ six
 attrs
 cachetools
 httpx>=0.26
-authlib>=1.0.0
+authlib>=1.7.1
 
 fastavro >= 1.5.4, < 1.8.0; python_version == "3.7"
 fastavro >= 1.5.4, < 2; python_version > "3.7"
