@@ -25,16 +25,19 @@ from confluent_kafka.schema_registry.common import json_schema
 
 # Numeric hosts so resolution needs no network; schemes other than http(s)
 # are rejected before any lookup.
-@pytest.mark.parametrize("uri", [
-    "http://169.254.169.254/latest/meta-data/",
-    "http://127.0.0.1:8080/internal",
-    "http://10.0.0.5/schema",
-    "http://[::1]/schema",
-    "http://[::ffff:127.0.0.1]/schema",
-    "http://100.64.0.1/schema",
-    "file:///etc/passwd",
-    "gopher://127.0.0.1/x",
-])
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "http://169.254.169.254/latest/meta-data/",
+        "http://127.0.0.1:8080/internal",
+        "http://10.0.0.5/schema",
+        "http://[::1]/schema",
+        "http://[::ffff:127.0.0.1]/schema",
+        "http://100.64.0.1/schema",
+        "file:///etc/passwd",
+        "gopher://127.0.0.1/x",
+    ],
+)
 def test_retrieve_via_httpx_refuses_non_public(uri):
     with mock.patch.object(json_schema.httpx, "get") as get:
         with pytest.raises(ValueError):
@@ -49,7 +52,8 @@ def test_retrieve_via_httpx_allows_public_host():
     def gai(host, port, *args, **kwargs):
         return [(2, 1, 6, "", ("93.184.216.34", port))]
 
-    with mock.patch.object(json_schema.socket, "getaddrinfo", side_effect=gai), \
-            mock.patch.object(json_schema.httpx, "get", return_value=response) as get:
+    with mock.patch.object(json_schema.socket, "getaddrinfo", side_effect=gai), mock.patch.object(
+        json_schema.httpx, "get", return_value=response
+    ) as get:
         json_schema._retrieve_via_httpx("http://schemas.example.com/draft-07/schema")
         get.assert_called_once()
