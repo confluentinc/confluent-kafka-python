@@ -91,13 +91,11 @@ def get_versioned_key_id(conf: Dict[str, Any], kms_key_id: str) -> str:
         key = client.get_key(parsed.name)
     except Exception as e:
         raise TinkError(
-            f"Failed to resolve Azure Key Vault key id for key name '{parsed.name}' in vault "
-            f"{parsed.vault_url}"
+            f"Failed to resolve Azure Key Vault key id for key name '{parsed.name}' in vault " f"{parsed.vault_url}"
         ) from e
     if key is None or key.id is None:
         raise TinkError(
-            f"Failed to resolve Azure Key Vault key id for key name '{parsed.name}' in vault "
-            f"{parsed.vault_url}"
+            f"Failed to resolve Azure Key Vault key id for key name '{parsed.name}' in vault " f"{parsed.vault_url}"
         )
     resolved_id = key.id
     if _parse(resolved_id).version is None:

@@ -78,9 +78,7 @@ def test_decrypt_uses_embedded_version_via_client_factory():
     default_client = _fake_client(plaintext=b"wrong-client")
     versioned_client = _fake_client(plaintext=b"correct-plaintext")
     client_factory = mock.Mock(return_value=versioned_client)
-    aead = AzureKmsAead(
-        default_client, EncryptionAlgorithm.rsa_oaep_256, client_factory=client_factory
-    )
+    aead = AzureKmsAead(default_client, EncryptionAlgorithm.rsa_oaep_256, client_factory=client_factory)
     ciphertext = b"azure:v1:" + VERSION_A.encode("ascii") + b":wrapped-bytes"
 
     result = aead.decrypt(ciphertext, b"")
@@ -93,9 +91,7 @@ def test_decrypt_uses_embedded_version_via_client_factory():
 def test_decrypt_falls_back_to_default_client_for_legacy_ciphertext():
     default_client = _fake_client(plaintext=b"legacy-plaintext")
     client_factory = mock.Mock()
-    aead = AzureKmsAead(
-        default_client, EncryptionAlgorithm.rsa_oaep_256, client_factory=client_factory
-    )
+    aead = AzureKmsAead(default_client, EncryptionAlgorithm.rsa_oaep_256, client_factory=client_factory)
 
     result = aead.decrypt(b"legacy-unprefixed-ciphertext", b"")
 

@@ -32,9 +32,7 @@ log = logging.getLogger(__name__)
 class AzureKmsClient(tink.KmsClient):
     """Basic Azure client for AEAD."""
 
-    def __init__(
-        self, key_uri: str, credentials: TokenCredential, conf: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def __init__(self, key_uri: str, credentials: TokenCredential, conf: Optional[Dict[str, Any]] = None) -> None:
         """Creates a new AzureKmsClient that is bound to the key specified in 'key_uri'.
 
         Uses the specified credentials when communicating with the KMS.
@@ -83,7 +81,7 @@ class AzureKmsClient(tink.KmsClient):
             raise tink.TinkError('This client is bound to %s and cannot use key %s' % (self._key_uri, key_uri))
         if not key_uri.startswith(AZURE_KEYURI_PREFIX):
             raise tink.TinkError('Invalid key_uri.')
-        key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
+        key_id = key_uri[len(AZURE_KEYURI_PREFIX) :]
 
         save_version = str(self._conf.get(azure_driver.ENCRYPT_AZURE_KEY_VERSION_SAVE, False)).lower() == 'true'
         if not save_version:
@@ -92,7 +90,8 @@ class AzureKmsClient(tink.KmsClient):
                     log.warning(
                         "Azure Key Vault key '%s' is versionless and %s is not enabled; DEKs "
                         "wrapped with it may become undecryptable after the key is rotated.",
-                        key_id, azure_driver.ENCRYPT_AZURE_KEY_VERSION_SAVE,
+                        key_id,
+                        azure_driver.ENCRYPT_AZURE_KEY_VERSION_SAVE,
                     )
             except tink.TinkError:
                 pass  # Malformed key id; surfaced properly when it is actually used below.
@@ -124,6 +123,7 @@ class AzureKmsClient(tink.KmsClient):
                 # Reuses client_factory rather than building its own CryptographyClient, so there
                 # is only one place that knows how to turn a version into a client.
                 return client_factory(version), version
+
         else:
             encrypt_target = None
 

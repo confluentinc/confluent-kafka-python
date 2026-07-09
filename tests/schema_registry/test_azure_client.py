@@ -57,9 +57,7 @@ def test_versionless_without_toggle_logs_warning(caplog):
 
 
 def test_no_warning_when_toggle_enabled(caplog):
-    client = azure_client.AzureKmsClient(
-        KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: "true"}
-    )
+    client = azure_client.AzureKmsClient(KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: "true"})
 
     with caplog.at_level(logging.WARNING, logger=azure_client.__name__):
         client.get_aead(KEY_URI)
@@ -71,9 +69,7 @@ def test_no_warning_when_toggle_enabled(caplog):
 def test_toggle_accepts_bool_and_string_values(truthy_value, caplog):
     # Values coming from kek kms_props are always strings, but a caller could also pass a real
     # bool; both must enable the feature (and neither should raise).
-    client = azure_client.AzureKmsClient(
-        KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: truthy_value}
-    )
+    client = azure_client.AzureKmsClient(KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: truthy_value})
 
     with caplog.at_level(logging.WARNING, logger=azure_client.__name__):
         aead = client.get_aead(KEY_URI)
@@ -86,9 +82,7 @@ def test_get_aead_always_builds_client_factory_regardless_of_toggle():
     # Regression guard: a DEK wrapped while the toggle was on must remain decryptable even after
     # the toggle is turned back off, so decrypt() must always be able to resolve an embedded
     # version via client_factory.
-    client = azure_client.AzureKmsClient(
-        KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: "false"}
-    )
+    client = azure_client.AzureKmsClient(KEY_URI, mock.Mock(), conf={ENCRYPT_AZURE_KEY_VERSION_SAVE: "false"})
 
     aead = client.get_aead(KEY_URI)
     ciphertext = b"azure:v1:" + VERSION_A.encode("ascii") + b":wrapped-bytes"

@@ -48,7 +48,7 @@ def _extract_version(ciphertext: bytes) -> Optional[str]:
         or ciphertext[_HEADER_LENGTH - 1] != ord(':')
     ):
         return None
-    return ciphertext[len(_PREFIX):len(_PREFIX) + _VERSION_LENGTH].decode('ascii', errors='replace')
+    return ciphertext[len(_PREFIX) : len(_PREFIX) + _VERSION_LENGTH].decode('ascii', errors='replace')
 
 
 class AzureKmsAead(aead.Aead):
@@ -128,15 +128,12 @@ class AzureKmsAead(aead.Aead):
                 raise tink.TinkError(f"ciphertext carries an invalid azure:v1: key version: '{version}'")
             if self._client_factory is None:
                 raise tink.TinkError(
-                    'ciphertext carries a kms key version prefix, but this Aead has no client '
-                    'factory to resolve it'
+                    'ciphertext carries a kms key version prefix, but this Aead has no client ' 'factory to resolve it'
                 )
             try:
                 client = self._client_factory(version)
             except Exception as e:
-                raise tink.TinkError(
-                    f"failed to resolve kms client for embedded key version '{version}': {e}"
-                ) from e
+                raise tink.TinkError(f"failed to resolve kms client for embedded key version '{version}': {e}") from e
             wrapped = ciphertext[_HEADER_LENGTH:]
         try:
             return client.decrypt(self._algorithm, wrapped).plaintext
