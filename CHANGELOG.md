@@ -1,5 +1,12 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.x.0
+
+### Enhancements
+
+- Add support for saving Azure key version with DEK (#23060
+
+
 ## v2.15.0
 
 ### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**
