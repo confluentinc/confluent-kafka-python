@@ -73,9 +73,9 @@ def with_version(kms_key_id: str, version: str) -> str:
 
 def get_versioned_key_id(conf: Dict[str, Any], kms_key_id: str) -> str:
     """Resolves a possibly-versionless Azure Key Vault key identifier (e.g.
-    "https://vault.vault.azure.net/keys/name") into the concrete, currently-enabled version (e.g.
-    "https://vault.vault.azure.net/keys/name/<version>"). If kms_key_id already includes a version
-    segment, it is returned unchanged and no call is made.
+    "https://vault.vault.azure.net/keys/name") into the concrete latest key version returned by
+    Key Vault (e.g. "https://vault.vault.azure.net/keys/name/<version>"). If kms_key_id already
+    includes a version segment, it is returned unchanged and no call is made.
 
     This exists because, unlike AWS KMS and GCP KMS, Azure Key Vault's wrap/unwrap operations
     address an explicit key version and do not embed that version in the returned ciphertext, so a
