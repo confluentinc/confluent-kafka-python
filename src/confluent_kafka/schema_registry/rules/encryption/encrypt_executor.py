@@ -486,7 +486,10 @@ class AeadWrapper(aead.Aead):
 
     def _get_aead(self, config: dict, kms_type: str, kms_key_id: str) -> aead.Aead:
         kek_url = kms_type + "://" + kms_key_id
-        kms_client = self._get_kms_client(config, kek_url)
+        aead_config = dict(config)
+        if self._kek.kms_props is not None:
+            aead_config.update(self._kek.kms_props.properties)
+        kms_client = self._get_kms_client(aead_config, kek_url)
         return kms_client.get_aead(kek_url)
 
     def _get_kms_client(self, config: dict, kek_url: str) -> KmsClient:
