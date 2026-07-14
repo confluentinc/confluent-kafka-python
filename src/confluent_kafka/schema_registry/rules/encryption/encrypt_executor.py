@@ -58,6 +58,24 @@ ENCRYPT_ALTERNATE_KMS_KEY_IDS = "encrypt.alternate.kms.key.ids"
 
 MILLIS_IN_DAY = 24 * 60 * 60 * 1000
 
+_CONTEXT_DELIMITER = ":"
+_CONTEXT_PREFIX = _CONTEXT_DELIMITER + "."
+
+
+def _context_for(subject: Optional[str]) -> Optional[str]:
+    """
+    Returns the context parsed from the given qualified subject (of the form
+    ":.context:subject"), or None if the subject has no context prefix or is
+    explicitly qualified with the default (".") context.
+    Tenant is not handled here as it is a server-side-only concept.
+    """
+    if subject is not None and subject.startswith(_CONTEXT_PREFIX):
+        rest = subject[len(_CONTEXT_PREFIX):]
+        ix = rest.find(_CONTEXT_DELIMITER)
+        context = subject[1:ix + len(_CONTEXT_PREFIX)] if ix >= 0 else subject[1:]
+        return None if context == "." else context
+    return None
+
 
 class Clock(object):
     def now(self) -> int:
@@ -222,7 +240,8 @@ class EncryptionExecutorTransform(object):
         is_read = ctx.rule_mode == RuleMode.READ
         kms_type = ctx.get_parameter(ENCRYPT_KMS_TYPE)
         kms_key_id = ctx.get_parameter(ENCRYPT_KMS_KEY_ID)
-        kek_id = KekId(self._kek_name, False)
+        context = _context_for(ctx.subject)
+        kek_id = KekId(self._kek_name, False, context)
         kek = self._retrieve_kek_from_registry(kek_id)
         if kek is None:
             if is_read:
@@ -252,7 +271,7 @@ class EncryptionExecutorTransform(object):
         if self._executor.client is None:
             raise RuleError("client not configured")
         try:
-            return self._executor.client.get_kek(kek_id.name, kek_id.deleted)
+            return self._executor.client.get_kek(kek_id.name, kek_id.deleted, kek_id.context)
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 404:
                 return None
@@ -262,7 +281,7 @@ class EncryptionExecutorTransform(object):
         if self._executor.client is None:
             raise RuleError("client not configured")
         try:
-            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared)
+            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared, context=kek_id.context)
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 409:
                 return None
