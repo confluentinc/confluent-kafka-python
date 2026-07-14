@@ -78,3 +78,9 @@ def test_get_or_create_kek_uses_context_from_subject():
     # None rather than being looked up under the literal "." context.
     kek = transform._get_or_create_kek(_new_context("widget-value"))
     assert kek.kms_key_id == "defaultkey"
+
+    # Explicitly-qualified default context (":.:subject"): should behave
+    # identically to an unqualified subject, not be looked up under the
+    # literal "." context.
+    kek = transform._get_or_create_kek(_new_context(":.:widget-value"))
+    assert kek.kms_key_id == "defaultkey"
