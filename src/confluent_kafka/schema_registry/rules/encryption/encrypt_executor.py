@@ -65,15 +65,15 @@ _CONTEXT_PREFIX = _CONTEXT_DELIMITER + "."
 def _context_for(subject: Optional[str]) -> Optional[str]:
     """
     Returns the context parsed from the given qualified subject (of the form
-    ":.context:subject"), or None if the subject has no context prefix.
+    ":.context:subject"), or None if the subject has no context prefix or is
+    explicitly qualified with the default (".") context.
     Tenant is not handled here as it is a server-side-only concept.
     """
     if subject is not None and subject.startswith(_CONTEXT_PREFIX):
         rest = subject[len(_CONTEXT_PREFIX):]
         ix = rest.find(_CONTEXT_DELIMITER)
-        if ix >= 0:
-            return subject[1:ix + len(_CONTEXT_PREFIX)]
-        return subject[1:]
+        context = subject[1:ix + len(_CONTEXT_PREFIX)] if ix >= 0 else subject[1:]
+        return None if context == "." else context
     return None
 
 
