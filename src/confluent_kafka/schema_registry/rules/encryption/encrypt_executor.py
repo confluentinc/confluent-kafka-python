@@ -70,9 +70,9 @@ def _context_for(subject: Optional[str]) -> Optional[str]:
     Tenant is not handled here as it is a server-side-only concept.
     """
     if subject is not None and subject.startswith(_CONTEXT_PREFIX):
-        rest = subject[len(_CONTEXT_PREFIX):]
+        rest = subject[len(_CONTEXT_PREFIX) :]
         ix = rest.find(_CONTEXT_DELIMITER)
-        context = subject[1:ix + len(_CONTEXT_PREFIX)] if ix >= 0 else subject[1:]
+        context = subject[1 : ix + len(_CONTEXT_PREFIX)] if ix >= 0 else subject[1:]
         return None if context == "." else context
     return None
 
