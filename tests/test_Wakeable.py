@@ -1441,9 +1441,7 @@ def test_consume_short_timeout_returns_quickly():
 
     assert isinstance(msglist, list), "consume() should return a list"
     assert len(msglist) == 0, "Expected empty list"
-    assert (
-        elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
-    ), f"Short timeout should return quickly, took {elapsed:.2f}s"
+    assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Short timeout should return quickly, took {elapsed:.2f}s"
     consumer.close()
 
 

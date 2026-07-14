@@ -177,7 +177,8 @@ def test_consume_accumulates_messages_up_to_num_messages(kafka_cluster):
     msglist = consumer.consume(num_messages=num_produced, timeout=10.0)
 
     assert len(msglist) == num_produced, (
-        f"Expected {num_produced} messages but got {len(msglist)}. " f"consume() did not gather the full batch within the timeout."
+        f"Expected {num_produced} messages but got {len(msglist)}. "
+        f"consume() did not gather the full batch within the timeout."
     )
 
     for i, msg in enumerate(msglist):
