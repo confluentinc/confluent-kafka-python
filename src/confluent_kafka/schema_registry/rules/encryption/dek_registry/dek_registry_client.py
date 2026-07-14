@@ -497,7 +497,7 @@ class DekRegistryClient(object):
             kms_props (Dict[str, str]): Additional properties for the KMS.
             doc (str): Description of the KEK.
             shared (bool): Whether the KEK is shared.
-            context (str): The Schema Registry context the KEK belongs to, or None for the default context.
+            context (Optional[str]): The Schema Registry context the KEK belongs to, or None for the default context.
 
         Returns:
             Kek: KEK instance.
@@ -537,7 +537,7 @@ class DekRegistryClient(object):
         Args:
             name (str): Name of the KEK.
             deleted (bool): Whether to include deleted KEKs.
-            context (str): The Schema Registry context the KEK belongs to, or None for the default context.
+            context (Optional[str]): The Schema Registry context the KEK belongs to, or None for the default context.
 
         Returns:
             Kek: KEK instance.
