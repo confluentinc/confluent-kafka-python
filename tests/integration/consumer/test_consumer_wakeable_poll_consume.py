@@ -144,10 +144,9 @@ def test_consume_message_delivery_with_wakeable_pattern(kafka_cluster):
     consumer.close()
 
 
-def test_consume_accumulates_messages_across_chunks(kafka_cluster):
-    """Test that consume() accumulates messages across 200ms chunks.
-    This verifies that consume() doesn't return early on the first chunk of messages
-    when using the wakeable pattern.
+def test_consume_accumulates_messages_up_to_num_messages(kafka_cluster):
+    """Test that consume() gathers up to num_messages within the timeout,
+    rather than returning as soon as the first messages become available.
     """
     topic = kafka_cluster.create_topic_and_wait_propogation('test-consume-accumulate-chunks')
 
@@ -173,13 +172,12 @@ def test_consume_accumulates_messages_across_chunks(kafka_cluster):
     # Wait for subscription and partition assignment
     time.sleep(2.0)
 
-    # Consume with num_messages=10 and a generous timeout.
-    # Before the fix: would return < 10 (whatever arrived in the first 200ms chunk)
-    # After the fix: accumulates across chunks until 10 are collected
+    # Consume num_messages=10 with a generous timeout; the batch call gathers
+    # all 10 within the timeout rather than returning on the first few.
     msglist = consumer.consume(num_messages=num_produced, timeout=10.0)
 
     assert len(msglist) == num_produced, (
-        f"Expected {num_produced} messages but got {len(msglist)}. " f"consume() may not be accumulating across chunks."
+        f"Expected {num_produced} messages but got {len(msglist)}. " f"consume() did not gather the full batch within the timeout."
     )
 
     for i, msg in enumerate(msglist):
@@ -230,9 +228,8 @@ def test_consume_returns_partial_on_timeout(kafka_cluster):
 
 
 def test_consume_accumulates_messages_produced_in_waves(kafka_cluster):
-    """Test that consume() accumulates messages that arrive in multiple waves.
-    This verifies that consume() doesn't return early on the first wave of messages
-    when using the wakeable pattern.
+    """Test that consume() accumulates messages that arrive in multiple waves,
+    rather than returning as soon as the first wave becomes available.
     """
     import threading
 

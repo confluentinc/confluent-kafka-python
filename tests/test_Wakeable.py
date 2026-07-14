@@ -47,7 +47,10 @@ WAKEABLE_POLL_TIMEOUT_MAX = 2.0  # Maximum timeout (seconds)
 #
 # Consumer Implementation (Consumer.c):
 #   - Consumer.poll() uses wakeable pattern for timeouts >= 200ms
-#   - Consumer.consume() uses wakeable pattern for timeouts >= 200ms
+#   - Consumer.consume() is intentionally NOT wakeable: it makes a single
+#     blocking batch call so offset storage stays atomic with the batch the
+#     caller actually receives. It is therefore not interruptible mid-call and
+#     has no wakeability/interruptibility tests here.
 #
 # How We Test Wakeability:
 # ------------------------
@@ -783,88 +786,17 @@ def test_consumer_wakeable_poll_edge_cases():
     consumer4.close()
 
 
-def test_consumer_wakeable_consume_interruptibility_and_messages():
-    """Test consume() interruptibility (main fix) and message handling."""
-    topic = 'test-consume-interrupt-topic'
+def test_consumer_consume_timeout_and_message_handling():
+    """Test consume() batch timeout behavior and message handling.
 
-    # Assertion 1: Infinite timeout can be interrupted immediately
+    consume() is not wakeable/interruptible (single blocking batch call), so
+    this only covers the non-signal behavior: honoring the timeout and the
+    num_messages=0 short-circuit.
+    """
+    topic = 'test-consume-topic'
+
+    # Assertion 1: No signal - timeout works normally, returns empty list
     consumer1 = TestConsumer(
-        {
-            'group.id': 'test-consume-infinite-immediate',
-            'socket.timeout.ms': 100,
-            'session.timeout.ms': 1000,
-            'auto.offset.reset': 'latest',
-        }
-    )
-    consumer1.subscribe([topic])
-
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
-    interrupted = False
-    try:
-        consumer1.consume()  # Infinite timeout, default num_messages=1
-    except KeyboardInterrupt:
-        interrupted = True
-    finally:
-        consumer1.close()
-
-    assert interrupted, "Assertion 1 failed: Should have raised KeyboardInterrupt"
-
-    # Assertion 2: Finite timeout can be interrupted before timeout expires
-    consumer2 = TestConsumer(
-        {
-            'group.id': 'test-consume-finite-interrupt',
-            'socket.timeout.ms': 100,
-            'session.timeout.ms': 1000,
-            'auto.offset.reset': 'latest',
-        }
-    )
-    consumer2.subscribe([topic])
-
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
-    interrupted = False
-    timeout_value = WAKEABLE_POLL_TIMEOUT_MAX  # Use constant instead of hardcoded 2.0
-    try:
-        consumer2.consume(num_messages=10, timeout=timeout_value)  # Use constant for timeout
-    except KeyboardInterrupt:
-        interrupted = True
-    finally:
-        consumer2.close()
-
-    assert interrupted, "Assertion 2 failed: Should have raised KeyboardInterrupt"
-
-    # Assertion 3: Signal sent after multiple chunks still interrupts quickly
-    consumer3 = TestConsumer(
-        {
-            'group.id': 'test-consume-multiple-chunks',
-            'socket.timeout.ms': 100,
-            'session.timeout.ms': 1000,
-            'auto.offset.reset': 'latest',
-        }
-    )
-    consumer3.subscribe([topic])
-
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
-    interrupted = False
-    try:
-        consumer3.consume(num_messages=5)  # Infinite timeout
-    except KeyboardInterrupt:
-        interrupted = True
-    finally:
-        consumer3.close()
-
-    assert interrupted, "Assertion 3 failed: Should have raised KeyboardInterrupt"
-
-    # Assertion 4: No signal - timeout works normally, returns empty list
-    consumer4 = TestConsumer(
         {
             'group.id': 'test-consume-timeout-normal',
             'socket.timeout.ms': 100,
@@ -872,21 +804,21 @@ def test_consumer_wakeable_consume_interruptibility_and_messages():
             'auto.offset.reset': 'latest',
         }
     )
-    consumer4.subscribe([topic])
+    consumer1.subscribe([topic])
 
     start = time.time()
-    msglist = consumer4.consume(num_messages=10, timeout=0.5)  # 500ms, no signal
+    msglist = consumer1.consume(num_messages=10, timeout=0.5)  # 500ms, no signal
     elapsed = time.time() - start
 
-    assert isinstance(msglist, list), "Assertion 4 failed: consume() should return a list"
-    assert len(msglist) == 0, f"Assertion 4 failed: Expected empty list (timeout), got {len(msglist)} messages"
+    assert isinstance(msglist, list), "Assertion 1 failed: consume() should return a list"
+    assert len(msglist) == 0, f"Assertion 1 failed: Expected empty list (timeout), got {len(msglist)} messages"
     assert (
         WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
-    ), f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
-    consumer4.close()
+    ), f"Assertion 1 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
+    consumer1.close()
 
-    # Assertion 5: num_messages=0 returns empty list immediately
-    consumer5 = TestConsumer(
+    # Assertion 2: num_messages=0 returns empty list immediately
+    consumer2 = TestConsumer(
         {
             'group.id': 'test-consume-zero-messages',
             'socket.timeout.ms': 100,
@@ -894,18 +826,18 @@ def test_consumer_wakeable_consume_interruptibility_and_messages():
             'auto.offset.reset': 'latest',
         }
     )
-    consumer5.subscribe([topic])
+    consumer2.subscribe([topic])
 
     start = time.time()
-    msglist = consumer5.consume(num_messages=0, timeout=1.0)
+    msglist = consumer2.consume(num_messages=0, timeout=1.0)
     elapsed = time.time() - start
 
-    assert isinstance(msglist, list), "Assertion 5 failed: consume() should return a list"
-    assert len(msglist) == 0, "Assertion 5 failed: num_messages=0 should return empty list"
+    assert isinstance(msglist, list), "Assertion 2 failed: consume() should return a list"
+    assert len(msglist) == 0, "Assertion 2 failed: num_messages=0 should return empty list"
     assert (
         elapsed < WAKEABLE_POLL_TIMEOUT_MAX
-    ), f"Assertion 5 failed: num_messages=0 took {elapsed:.2f}s, expected < {WAKEABLE_POLL_TIMEOUT_MAX}s"
-    consumer5.close()
+    ), f"Assertion 2 failed: num_messages=0 took {elapsed:.2f}s, expected < {WAKEABLE_POLL_TIMEOUT_MAX}s"
+    consumer2.close()
 
 
 def test_consumer_wakeable_consume_edge_cases():
@@ -1319,11 +1251,14 @@ def test_utilities_interaction(api_type):
         ("producer", "poll"),
         ("producer", "flush"),
         ("consumer", "poll"),
-        ("consumer", "consume"),
     ],
 )
 def test_can_be_interrupted(api_type, method):
-    """Test that blocking operations can be interrupted."""
+    """Test that blocking operations can be interrupted.
+
+    consumer.consume() is intentionally excluded: it is a single blocking batch
+    call and is not interruptible.
+    """
     if api_type == "producer":
         obj = Producer({'bootstrap.servers': 'localhost:9092', 'socket.timeout.ms': 100, 'message.timeout.ms': 10})
         if method == "poll":
@@ -1347,15 +1282,9 @@ def test_can_be_interrupted(api_type, method):
             }
         )
         obj.subscribe(['test-topic'])
-        if method == "poll":
 
-            def blocking_call():
-                return obj.poll()
-
-        else:  # consume
-
-            def blocking_call():
-                return obj.consume()
+        def blocking_call():
+            return obj.poll()
 
     interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
     interrupt_thread.daemon = True
@@ -1440,13 +1369,13 @@ def test_flush_empty_queue_returns_immediately():
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Empty flush should return quickly, took {elapsed:.2f}s"
 
 
-# These tests verify that consume() correctly accumulates messages across
-# 200ms chunks instead of returning on the first non-empty chunk.
+# These tests verify consume()'s single blocking batch call: it honors the
+# timeout and returns up to num_messages messages (empty here, no broker).
 
 
-def test_consume_accumulates_across_chunks_no_messages():
+def test_consume_no_messages_waits_full_timeout():
     """consume() with no messages available should wait the full timeout
-    and return an empty list, not return early on the first empty chunk."""
+    and return an empty list."""
     consumer = TestConsumer(
         {
             'group.id': 'test-accumulate-no-msgs',
@@ -1467,34 +1396,6 @@ def test_consume_accumulates_across_chunks_no_messages():
         WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
     ), f"Should wait ~0.5s for timeout, took {elapsed:.2f}s"
     consumer.close()
-
-
-def test_consume_accumulation_signal_interrupts_cleanly():
-    """When Ctrl+C arrives during accumulation, consume() should raise
-    KeyboardInterrupt without leaking messages."""
-    consumer = TestConsumer(
-        {
-            'group.id': 'test-accumulate-signal',
-            'socket.timeout.ms': 100,
-            'session.timeout.ms': 1000,
-            'auto.offset.reset': 'latest',
-        }
-    )
-    consumer.subscribe(['test-accumulate-topic'])
-
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
-    interrupted = False
-    try:
-        consumer.consume(num_messages=100, timeout=WAKEABLE_POLL_TIMEOUT_MAX)
-    except KeyboardInterrupt:
-        interrupted = True
-    finally:
-        consumer.close()
-
-    assert interrupted, "Should have raised KeyboardInterrupt"
 
 
 def test_consume_accumulation_timeout_returns_partial():
@@ -1522,8 +1423,8 @@ def test_consume_accumulation_timeout_returns_partial():
     consumer.close()
 
 
-def test_consume_accumulation_short_timeout_skips_chunking():
-    """consume() with timeout < 200ms should skip the chunked loop entirely."""
+def test_consume_short_timeout_returns_quickly():
+    """consume() with a short timeout should return promptly with an empty list."""
     consumer = TestConsumer(
         {
             'group.id': 'test-accumulate-short',
@@ -1542,7 +1443,7 @@ def test_consume_accumulation_short_timeout_skips_chunking():
     assert len(msglist) == 0, "Expected empty list"
     assert (
         elapsed <= WAKEABLE_POLL_TIMEOUT_MAX
-    ), f"Short timeout should not behave like a long chunked wait, took {elapsed:.2f}s"
+    ), f"Short timeout should return quickly, took {elapsed:.2f}s"
     consumer.close()
 
 
