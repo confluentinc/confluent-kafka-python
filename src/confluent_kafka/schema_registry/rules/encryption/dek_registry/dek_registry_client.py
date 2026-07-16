@@ -395,6 +395,7 @@ class CreateDekRequest:
 class KekId:
     name: str
     deleted: bool
+    context: Optional[str] = _attrs_field(default=None)
 
 
 @_attrs_define(frozen=True)
@@ -484,6 +485,7 @@ class DekRegistryClient(object):
         shared: bool = False,
         kms_props: Optional[Dict[str, str]] = None,
         doc: Optional[str] = None,
+        context: Optional[str] = None,
     ) -> Kek:
         """
         Register a new Key Encryption Key (KEK) with the DEK Registry.
@@ -495,6 +497,7 @@ class DekRegistryClient(object):
             kms_props (Dict[str, str]): Additional properties for the KMS.
             doc (str): Description of the KEK.
             shared (bool): Whether the KEK is shared.
+            context (Optional[str]): The Schema Registry context the KEK belongs to, or None for the default context.
 
         Returns:
             Kek: KEK instance.
@@ -503,7 +506,7 @@ class DekRegistryClient(object):
             SchemaRegistryError: If KEK can't be registered.
         """  # noqa: E501
 
-        cache_key = KekId(name=name, deleted=False)
+        cache_key = KekId(name=name, deleted=False, context=context)
         kek = self._kek_cache.get_kek(cache_key)
         if kek is not None:
             return kek
@@ -517,20 +520,24 @@ class DekRegistryClient(object):
             shared=shared,
         )
 
-        response = self._rest_client.post('/dek-registry/v1/keks', request.to_dict())
+        path = '/dek-registry/v1/keks'
+        if context is not None:
+            path = '{}?context={}'.format(path, urllib.parse.quote(context, safe=''))
+        response = self._rest_client.post(path, request.to_dict())
         kek = Kek.from_dict(response)
 
         self._kek_cache.set(cache_key, kek)
 
         return kek
 
-    def get_kek(self, name: str, deleted: bool = False) -> Kek:
+    def get_kek(self, name: str, deleted: bool = False, context: Optional[str] = None) -> Kek:
         """
         Get a Key Encryption Key (KEK) from the DEK Registry.
 
         Args:
             name (str): Name of the KEK.
             deleted (bool): Whether to include deleted KEKs.
+            context (Optional[str]): The Schema Registry context the KEK belongs to, or None for the default context.
 
         Returns:
             Kek: KEK instance.
@@ -539,12 +546,14 @@ class DekRegistryClient(object):
             SchemaRegistryError: If KEK can't be found.
         """
 
-        cache_key = KekId(name=name, deleted=deleted)
+        cache_key = KekId(name=name, deleted=deleted, context=context)
         kek = self._kek_cache.get_kek(cache_key)
         if kek is not None:
             return kek
 
         query = {'deleted': deleted}
+        if context is not None:
+            query['context'] = context
         response = self._rest_client.get('/dek-registry/v1/keks/{}'.format(urllib.parse.quote(name, safe='')), query)
         kek = Kek.from_dict(response)
 
