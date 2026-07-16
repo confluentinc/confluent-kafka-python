@@ -4,7 +4,8 @@
 
 ### Enhancements
 
-- Add support for saving Azure key version with DEK (#23060
+- Add support for saving Azure key version with DEK (#2306)
+- Pass context when clients make KEK calls to DEK Registry (#2308)
 
 
 ## v2.15.0
