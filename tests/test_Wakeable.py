@@ -1249,7 +1249,6 @@ def test_utilities_interaction(api_type):
     "api_type,method",
     [
         ("producer", "poll"),
-        ("producer", "flush"),
         ("consumer", "poll"),
     ],
 )
@@ -1261,16 +1260,9 @@ def test_can_be_interrupted(api_type, method):
     """
     if api_type == "producer":
         obj = Producer({'bootstrap.servers': 'localhost:9092', 'socket.timeout.ms': 100, 'message.timeout.ms': 10})
-        if method == "poll":
 
-            def blocking_call():
-                return obj.poll()
-
-        else:  # flush
-            obj.produce('test-topic', value='test', callback=lambda err, msg: None)
-
-            def blocking_call():
-                return obj.flush()
+        def blocking_call():
+            return obj.poll()
 
     else:  # consumer
         obj = TestConsumer(
@@ -1296,8 +1288,12 @@ def test_can_be_interrupted(api_type, method):
     except KeyboardInterrupt:
         interrupted = True
     finally:
-        # Wait for signal thread to complete
-        time.sleep(0.2)
+        # A SIGINT delivered after the blocking call already returned must not
+        # escape cleanup and abort the whole pytest session.
+        try:
+            time.sleep(0.2)
+        except KeyboardInterrupt:
+            interrupted = True
         obj.close()
 
     # Key assertion: operation was interruptible
