@@ -551,7 +551,7 @@ class DekRegistryClient(object):
         if kek is not None:
             return kek
 
-        query = {'deleted': deleted}
+        query: Dict[str, Any] = {'deleted': deleted}
         if context is not None:
             query['context'] = context
         response = self._rest_client.get('/dek-registry/v1/keks/{}'.format(urllib.parse.quote(name, safe='')), query)
