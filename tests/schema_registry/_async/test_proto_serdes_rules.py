@@ -20,6 +20,7 @@ Tests for protobuf serdes that depend on the rules extra (tink/celpy) and are
 excluded from collection on free-threaded builds -- see
 tests/schema_registry/conftest.py.
 """
+
 import os
 import sys
 import time

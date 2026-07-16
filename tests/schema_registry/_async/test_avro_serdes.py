@@ -37,7 +37,6 @@ from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.schema_registry_client import SchemaReference
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 
-
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
