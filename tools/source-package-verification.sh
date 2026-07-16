@@ -5,13 +5,23 @@
 #
 set -e
 
-uv pip install -r requirements/requirements-tests-install.txt
-# Install orjson (CI-only) so the test suite exercises the orjson fast-path of
-# the JSON codec. It is intentionally NOT in requirements-tests-install.txt:
-# orjson has no free-threaded wheels yet, and keeping it out lets contributors
-# on such interpreters still install the default test deps. The stdlib fallback
-# is covered by tests/schema_registry/test_json_codec.py regardless.
-uv pip install -r requirements/requirements-json-fast.txt
+FREE_THREADED=$(python -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)")
+
+if [[ $FREE_THREADED == "1" ]]; then
+    # The rules and json-fast extras' compiled deps (tink, google-re2, grpcio;
+    # orjson) ship no free-threaded wheels and their source builds fail
+    # (e.g. tink needs protoc), so install the supported subset.
+    uv pip install -r requirements/requirements-tests-install-nogil.txt
+else
+    uv pip install -r requirements/requirements-tests-install.txt
+    # Install orjson (CI-only) so the test suite exercises the orjson fast-path
+    # of the JSON codec. It is intentionally NOT in
+    # requirements-tests-install.txt: orjson has no free-threaded wheels yet,
+    # and keeping it out lets contributors on such interpreters still install
+    # the default test deps. The stdlib fallback is covered by
+    # tests/schema_registry/test_json_codec.py regardless.
+    uv pip install -r requirements/requirements-json-fast.txt
+fi
 uv pip install -U build
 
 # Cache trivup Apache Kafka versions
