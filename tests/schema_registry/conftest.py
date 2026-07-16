@@ -35,25 +35,22 @@ from httpx import Response
 # deps are expected to be installed, so a missing dep stays a loud collection
 # error instead of a silent skip. The stdlib JSON codec path stays covered by
 # test_json_codec.py.
-# TODO NOGIL: the serdes/config files bundle many tests that don't need these
-# deps; narrowing the exclusion (moving the rule tests to dedicated files) is
-# a follow-up.
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 collect_ignore = []
 if FREE_THREADED_BUILD:
     collect_ignore = [
         "test_hcvault_driver.py",
-        "_async/test_avro_serdes.py",
-        "_async/test_config.py",
+        "_async/test_avro_serdes_rules.py",
+        "_async/test_config_rules.py",
         "_async/test_json.py",
-        "_async/test_json_serdes.py",
-        "_async/test_proto_serdes.py",
-        "_sync/test_avro_serdes.py",
-        "_sync/test_config.py",
+        "_async/test_json_serdes_rules.py",
+        "_async/test_proto_serdes_rules.py",
+        "_sync/test_avro_serdes_rules.py",
+        "_sync/test_config_rules.py",
         "_sync/test_json.py",
-        "_sync/test_json_serdes.py",
-        "_sync/test_proto_serdes.py",
+        "_sync/test_json_serdes_rules.py",
+        "_sync/test_proto_serdes_rules.py",
     ]
     warnings.warn(
         "free-threaded build: skipping collection of {} schema_registry "
