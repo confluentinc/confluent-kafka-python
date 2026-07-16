@@ -1,3 +1,4 @@
+# Keep requirements-tests-install-nogil.txt in sync when adding includes.
 -r requirements-tests.txt
 -r requirements-schemaregistry.txt
 -r requirements-rules.txt
