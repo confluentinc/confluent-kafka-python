@@ -17,6 +17,7 @@
 #
 
 import abc
+import contextvars
 import io
 import logging
 import struct
@@ -51,6 +52,15 @@ __all__ = [
     'RuleAction',
     'ErrorAction',
     'NoneAction',
+    'DLQ_HEADER_PREFIX',
+    'DLQ_RULE_NAME_HEADER',
+    'DLQ_RULE_MODE_HEADER',
+    'DLQ_RULE_SUBJECT_HEADER',
+    'DLQ_RULE_TOPIC_HEADER',
+    'DLQ_RULE_EXCEPTION_HEADER',
+    'set_original_key',
+    'get_original_key',
+    'clear_original_key',
     'RuleError',
     'RuleConditionError',
     'Migration',
@@ -59,6 +69,40 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+
+
+DLQ_HEADER_PREFIX = "__rule."
+DLQ_RULE_NAME_HEADER = DLQ_HEADER_PREFIX + "name"
+DLQ_RULE_MODE_HEADER = DLQ_HEADER_PREFIX + "mode"
+DLQ_RULE_SUBJECT_HEADER = DLQ_HEADER_PREFIX + "subject"
+DLQ_RULE_TOPIC_HEADER = DLQ_HEADER_PREFIX + "topic"
+DLQ_RULE_EXCEPTION_HEADER = DLQ_HEADER_PREFIX + "exception"
+
+
+# Tracks the key for use when serializing/deserializing the value, such as for a DLQ.
+# Relies on the key serde being invoked before the value serde in the same thread
+# (or asyncio task), as is the case when producing/consuming a message: the built-in
+# SerializingProducer, DeserializingConsumer and DeserializingShareConsumer all
+# process the key before the value. This mirrors the Java client's ThreadLocal and
+# carries the same limitation: the key is captured only when a Schema-Registry key
+# serde runs before the value serde. If the key uses a non-SR serializer (or none is
+# configured), the value-side DLQ record's key is None. To avoid leaking a stale key
+# across messages, an SR value serde clears the stashed key once it has finished
+# (including for a None/tombstone value), so a later value serde reads None unless a
+# fresh key was stashed by its own key serde first.
+_ORIGINAL_KEY: contextvars.ContextVar[Any] = contextvars.ContextVar('sr_original_key', default=None)
+
+
+def set_original_key(key: Any):
+    _ORIGINAL_KEY.set(key)
+
+
+def get_original_key() -> Any:
+    return _ORIGINAL_KEY.get()
+
+
+def clear_original_key():
+    _ORIGINAL_KEY.set(None)
 
 
 class SubjectNameStrategyType(str, Enum):
@@ -134,6 +178,8 @@ class RuleContext(object):
         'rules',
         'inline_tags',
         'field_transformer',
+        'original_key',
+        'original_value',
         '_field_contexts',
     ]
 
@@ -150,6 +196,8 @@ class RuleContext(object):
         rules: List[Rule],
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer,
+        original_key: Any = None,
+        original_value: Any = None,
     ):
         self.enabled_env = enabled_env
         self.ser_ctx = ser_ctx
@@ -162,6 +210,8 @@ class RuleContext(object):
         self.rules = rules
         self.inline_tags = inline_tags
         self.field_transformer = field_transformer
+        self.original_key = original_key
+        self.original_value = original_value
         self._field_contexts: List[FieldContext] = []
 
     def get_parameter(self, name: str) -> Optional[str]:
