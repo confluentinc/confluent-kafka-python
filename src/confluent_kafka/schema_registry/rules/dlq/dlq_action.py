@@ -200,13 +200,24 @@ class DlqAction(RuleAction):
         # client_conf is the Schema Registry client config, which contains no
         # Kafka producer properties and cannot be merged into the producer conf
         # (librdkafka rejects unknown properties), so it is not used here.
-        if rule_conf:
-            for key, value in rule_conf.items():
-                if key == self.PRODUCER or key.startswith('dlq.'):
-                    self._conf[key] = value
-        self._parse_conf()
+        #
+        # This instance is shared across every serde bound to the same registry, so
+        # each serde's constructor calls configure() concurrently in the worst case.
+        # Hold the lock while mutating _conf (and deriving fields from it) so a
+        # concurrent _get_producer() -- which iterates _conf under the same lock --
+        # cannot observe a half-written config or raise "dict changed size during
+        # iteration". _parse_conf() must not take the lock (it is called here with
+        # the lock already held).
+        with self._lock:
+            if rule_conf:
+                for key, value in rule_conf.items():
+                    if key == self.PRODUCER or key.startswith('dlq.'):
+                        self._conf[key] = value
+            self._parse_conf()
 
     def _parse_conf(self):
+        # Not thread-safe on its own; callers must hold self._lock (or be __init__,
+        # which runs before the instance is shared).
         self._topic = self._conf.get(self.DLQ_TOPIC)
         auto_flush = self._conf.get(self.DLQ_AUTO_FLUSH)
         if auto_flush is not None:
@@ -401,9 +412,14 @@ class DlqAction(RuleAction):
         return str(value).encode('utf-8')
 
     def close(self):
-        if self._producer is not None:
-            self._producer.flush()
+        # Detach the producer under the lock (so it can't race _get_producer /
+        # configure), then flush outside the lock: flush() can block for a long
+        # time (message.timeout.ms=0 is infinite) and must not stall other callers.
+        with self._lock:
+            producer = self._producer
             self._producer = None
+        if producer is not None:
+            producer.flush()
 
     @classmethod
     def register(cls, conf: Optional[dict] = None) -> 'DlqAction':
