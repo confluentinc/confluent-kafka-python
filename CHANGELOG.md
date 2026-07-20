@@ -6,6 +6,7 @@
 
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
 
 
 ## v2.15.0
