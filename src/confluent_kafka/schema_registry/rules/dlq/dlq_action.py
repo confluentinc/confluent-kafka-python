@@ -161,11 +161,14 @@ class DlqAction(RuleAction):
     Original-key capture limitation: the value-side DLQ record's ``key`` is taken
     from the key stashed by the key serde via ``set_original_key`` (a contextvar,
     mirroring Java's ThreadLocal). This only works when a Schema-Registry key
-    serializer/deserializer runs before the value serde in the same thread/task. If
-    the key uses a non-SR serializer, no key serializer is configured, or the key
-    serde failed before stashing, the value-side DLQ record's key will be ``None``.
-    A value serde clears any stashed key on entry, so a stale key is not leaked
-    across messages by an SR value serde; see ``get_original_key`` in
+    serializer/deserializer runs before the value serde in the same thread/task.
+    The built-in ``SerializingProducer``, ``DeserializingConsumer`` and
+    ``DeserializingShareConsumer`` all process the key before the value, so the
+    key is captured when both key and value use SR serdes. If the key uses a
+    non-SR serializer, no key serializer is configured, or the key serde failed
+    before stashing, the value-side DLQ record's key will be ``None``. After a
+    value serde runs it clears the stashed key, so a stale key is not leaked to a
+    later value serde that has no key of its own; see ``get_original_key`` in
     ``common/serde.py``.
     """
 

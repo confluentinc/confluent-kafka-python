@@ -81,13 +81,15 @@ DLQ_RULE_EXCEPTION_HEADER = DLQ_HEADER_PREFIX + "exception"
 
 # Tracks the key for use when serializing/deserializing the value, such as for a DLQ.
 # Relies on the key serde being invoked before the value serde in the same thread
-# (or asyncio task), as is the case when producing/consuming a message. This mirrors
-# the Java client's ThreadLocal and carries the same limitation: the key is captured
-# only when a Schema-Registry key serde runs before the value serde. If the key uses
-# a non-SR serializer (or none is configured), the value-side DLQ record's key is
-# None. To avoid leaking a stale key across messages, an SR value serde clears the
-# stashed key on entry (including for a None/tombstone value), so the next value
-# reads None unless its own key serde stashed a fresh key first.
+# (or asyncio task), as is the case when producing/consuming a message: the built-in
+# SerializingProducer, DeserializingConsumer and DeserializingShareConsumer all
+# process the key before the value. This mirrors the Java client's ThreadLocal and
+# carries the same limitation: the key is captured only when a Schema-Registry key
+# serde runs before the value serde. If the key uses a non-SR serializer (or none is
+# configured), the value-side DLQ record's key is None. To avoid leaking a stale key
+# across messages, an SR value serde clears the stashed key once it has finished
+# (including for a None/tombstone value), so a later value serde reads None unless a
+# fresh key was stashed by its own key serde first.
 _ORIGINAL_KEY: contextvars.ContextVar[Any] = contextvars.ContextVar('sr_original_key', default=None)
 
 
