@@ -6,6 +6,16 @@
 
 - Add support for saving Azure key version with DEK (#23060
 
+### Fixes
+
+- `DeserializingConsumer` and `DeserializingShareConsumer` now deserialize the
+  message key before the value (previously the value was deserialized first),
+  matching `SerializingProducer` and the Java client. This lets a key
+  deserializer stash state for the value deserializer (used by the Schema
+  Registry dead-letter-queue rule action to capture the original key). As a
+  side effect, when *both* the key and value fail to deserialize, the key
+  deserialization error is now surfaced instead of the value error.
+
 
 ## v2.15.0
 
