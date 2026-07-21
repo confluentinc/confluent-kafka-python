@@ -27,6 +27,12 @@
 
 #include "confluent_kafka.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 
 /**
  * @brief KNOWN ISSUES
@@ -296,12 +302,11 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!dr_cb || dr_cb == Py_None)
                 dr_cb = self->u.Producer.default_dr_cb;
 
-        if (!self->rk) {
+        if (!Handle_enter_rk_use(self)) {
 #ifdef RD_KAFKA_V_HEADERS
                 if (rd_headers)
                         rd_kafka_headers_destroy(rd_headers);
 #endif
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
                 return NULL;
         }
 
@@ -322,6 +327,8 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
         err = Producer_produce0(self, topic, partition, value, value_len, key,
                                 key_len, msgstate);
 #endif
+
+        Handle_exit_rk_use(self);
 
         if (err) {
                 if (msgstate)
@@ -421,12 +428,13 @@ static PyObject *Producer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         r = Producer_poll0(self, cfl_timeout_ms(tmout));
+
+        Handle_exit_rk_use(self);
+
         if (r == -1)
                 return NULL;
 
@@ -469,10 +477,8 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         total_timeout_ms = cfl_timeout_ms(tmout);
         CallState_begin(self, &cs);
@@ -507,6 +513,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                          * interruptibility) */
                         chunk_count++;
                         if (check_signals_between_chunks(self, &cs)) {
+                                Handle_exit_rk_use(self);
                                 return NULL; /* Signal detected */
                         }
 
@@ -524,11 +531,15 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        if (!CallState_end(self, &cs))
+        if (!CallState_end(self, &cs)) {
+                Handle_exit_rk_use(self);
                 return NULL;
+        }
 
         if (err) /* Get the queue length on error (timeout) */
                 qlen = rd_kafka_outq_len(self->rk);
+
+        Handle_exit_rk_use(self);
 
         return cfl_PyInt_FromInt(qlen);
 }
@@ -541,6 +552,37 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         if (!self->rk)
                 Py_RETURN_TRUE;
+
+        /* Only one concurrent close() can destroy rk, otherwise,
+         * two threads could both reach rd_kafka_destroy() on the
+         * same handle (a double-free). The losing thread(s) wait for the
+         * winner to finish and then return True, same as a normal close(),
+         * rather than racing it. */
+        if (!atomic_int_cas(&self->closing, 0, 1)) {
+                while (self->rk) {
+                        CallState_begin(self, &cs);
+#ifdef _WIN32
+                        Sleep(100);
+#else
+                        usleep(100000);
+#endif
+                        CallState_end(self, &cs);
+                }
+                Py_RETURN_TRUE;
+        }
+
+        /* Signal in-flight calls to stop, and wait for them to finish
+         * using self->rk before destroying it -- see Handle_enter_rk_use().
+         * New calls will see `closing` and fail with ERR_MSG_PRODUCER_CLOSED. */
+        while (atomic_int_get(&self->active_calls) > 0) {
+                CallState_begin(self, &cs);
+#ifdef _WIN32
+                Sleep(100);
+#else
+                usleep(100000);
+#endif
+                CallState_end(self, &cs);
+        }
 
         CallState_begin(self, &cs);
 
@@ -817,10 +859,8 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
                 return cfl_PyInt_FromInt(0);
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         /* Allocate arrays for librdkafka messages and msgstates */
         rkmessages = calloc(message_cnt, sizeof(*rkmessages));
@@ -849,6 +889,8 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
             messages_list, rkt, partition, rkmessages, msgstates, message_cnt);
 
 cleanup:
+        Handle_exit_rk_use(self);
+
         /* Cleanup resources */
         if (rkt)
                 rd_kafka_topic_destroy(rkt);
@@ -871,20 +913,21 @@ static PyObject *Producer_init_transactions(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         CallState_begin(self, &cs);
 
         error = rd_kafka_init_transactions(self->rk, cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
+                Handle_exit_rk_use(self);
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
                 return NULL;
         }
+
+        Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -897,12 +940,12 @@ static PyObject *Producer_init_transactions(Handle *self, PyObject *args) {
 static PyObject *Producer_begin_transaction(Handle *self) {
         rd_kafka_error_t *error;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         error = rd_kafka_begin_transaction(self->rk);
+
+        Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -924,16 +967,17 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         if (!PyArg_ParseTuple(args, "OO|d", &offsets, &metadata, &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
+                return NULL;
+
+        if (!(c_offsets = py_to_c_parts(offsets))) {
+                Handle_exit_rk_use(self);
                 return NULL;
         }
 
-        if (!(c_offsets = py_to_c_parts(offsets)))
-                return NULL;
-
         if (!(cgmd = py_to_c_cgmd(metadata))) {
                 rd_kafka_topic_partition_list_destroy(c_offsets);
+                Handle_exit_rk_use(self);
                 return NULL;
         }
 
@@ -946,10 +990,13 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         rd_kafka_topic_partition_list_destroy(c_offsets);
 
         if (!CallState_end(self, &cs)) {
+                Handle_exit_rk_use(self);
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
                 return NULL;
         }
+
+        Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -967,20 +1014,21 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         CallState_begin(self, &cs);
 
         error = rd_kafka_commit_transaction(self->rk, cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
+                Handle_exit_rk_use(self);
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
                 return NULL;
         }
+
+        Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -998,20 +1046,21 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         CallState_begin(self, &cs);
 
         error = rd_kafka_abort_transaction(self->rk, cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
+                Handle_exit_rk_use(self);
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
                 return NULL;
         }
+
+        Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -1034,10 +1083,8 @@ static void *Producer_purge(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &in_flight, &blocking))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+        if (!Handle_enter_rk_use(self))
                 return NULL;
-        }
 
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
@@ -1047,6 +1094,8 @@ static void *Producer_purge(Handle *self, PyObject *args, PyObject *kwargs) {
                 purge_strategy |= RD_KAFKA_PURGE_F_NON_BLOCKING;
 
         err = rd_kafka_purge(self->rk, purge_strategy);
+
+        Handle_exit_rk_use(self);
 
         if (err) {
                 cfl_PyErr_Format(err, "Purge failed: %s",
@@ -1403,9 +1452,23 @@ static PyMethodDef Producer_methods[] = {
 
 
 static Py_ssize_t Producer__len__(Handle *self) {
-        if (!self->rk)
+        Py_ssize_t len;
+
+        /* __len__ must never raise, so we can't use Handle_enter_rk_use()
+         * (which sets an exception on failure) -- fall back to returning 0,
+         * , if the Handle is closed/closing. */
+        if (atomic_int_get(&self->closing) || !self->rk)
                 return 0;
-        return rd_kafka_outq_len(self->rk);
+        atomic_int_inc(&self->active_calls);
+        if (atomic_int_get(&self->closing) || !self->rk) {
+                atomic_int_dec(&self->active_calls);
+                return 0;
+        }
+
+        len = rd_kafka_outq_len(self->rk);
+
+        atomic_int_dec(&self->active_calls);
+        return len;
 }
 
 

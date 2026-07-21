@@ -13,6 +13,7 @@ pytest_cov
 pluggy<1.6.0
 pytest-asyncio
 async-timeout
+pytest-forked; sys_platform != "win32"
 
 # Formatting tools
 black>=24.0.0
