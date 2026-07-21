@@ -18,7 +18,7 @@ import threading
 import time
 
 from confluent_kafka import Consumer, Producer, TopicPartition
-from tests.parallel.conftest import subprocess_isolated
+from tests.parallel._subprocess_isolation import subprocess_isolated
 
 ###############################################################################
 # Tests for races between Producer.close() and concurrent calls to
