@@ -35,16 +35,12 @@ if FREE_THREADED_BUILD:
         at the test file whose imports or tests re-enabled the GIL; the
         interpreter's own RuntimeWarning names the offending extension module.
 
-        TODO NOGIL: replace the warnings with the commented asserts in the same
-        PR that declares Py_MOD_GIL_NOT_USED in cimpl. Until then a re-enable
-        is expected (cimpl itself triggers it) and must not fail the suite.
+        The full suite imports optional compiled dependencies that may still
+        re-enable the GIL. Strict cimpl checks run in an isolated process via
+        tests/test_free_threading.py.
         """
         if sys._is_gil_enabled():
             warnings.warn("the GIL was re-enabled before this test module started", RuntimeWarning)
-        # assert not sys._is_gil_enabled(), \
-        #     "the GIL was re-enabled before this test module started"
         yield
         if sys._is_gil_enabled():
             warnings.warn("the GIL was re-enabled by this test module", RuntimeWarning)
-        # assert not sys._is_gil_enabled(), \
-        #     "the GIL was re-enabled by this test module"

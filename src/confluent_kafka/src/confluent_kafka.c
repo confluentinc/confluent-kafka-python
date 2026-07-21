@@ -3926,6 +3926,10 @@ static PyObject *_init_cimpl(void) {
         if (!m)
                 return NULL;
 
+#ifdef Py_GIL_DISABLED
+        PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED);
+#endif
+
         Py_INCREF(&KafkaErrorType);
         KafkaErrorType.tp_doc =
             KafkaError_add_errs(KafkaErrorType.tp_dict, KafkaErrorType.tp_doc);

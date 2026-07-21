@@ -328,6 +328,26 @@ static PyObject *ShareConsumer_subscription(ShareConsumerHandle *self,
  * @brief Poll for a batch of messages from the share consumer.
  *
  */
+static PyObject *ShareConsumer_get_messages_type(void) {
+        static PyObject *messages_type = NULL;
+#ifdef Py_GIL_DISABLED
+        static PyMutex messages_type_mutex = {0};
+
+        PyMutex_Lock(&messages_type_mutex);
+#endif
+
+        if (!messages_type)
+                messages_type =
+                    cfl_PyObject_lookup("confluent_kafka._model", "Messages");
+
+#ifdef Py_GIL_DISABLED
+        PyMutex_Unlock(&messages_type_mutex);
+#endif
+
+        return messages_type;
+}
+
+
 static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
                                     PyObject *args,
                                     PyObject *kwargs) {
@@ -337,9 +357,8 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         size_t rkmessages_size          = 0;
         rd_kafka_error_t *error         = NULL;
         PyObject *msglist;
+        PyObject *messages_type;
         PyObject *records;
-        /* Cached for the process lifetime; see the lazy lookup below. */
-        static PyObject *Messages_type = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
@@ -445,26 +464,19 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
 
         rd_kafka_messages_destroy(rkmessages);
 
-        /* Wrap the plain list in Messages so callers get records() /
-         * count() / is_empty(). The class object is the same for the whole
-         * process, so look it up on the first poll and hold that reference
-         * forever -- this is on the hot path and the per-call import+attr
-         * lookup isn't free. The GIL serializes this first init. */
-        if (!Messages_type) {
-                Messages_type =
-                    cfl_PyObject_lookup("confluent_kafka._model", "Messages");
-                if (!Messages_type) {
-                        Py_DECREF(msglist);
-                        return NULL;
-                }
-                /* Kept for the process lifetime, so it's intentionally never
-                 * DECREF'd. */
+        /* The class object is cached for the process lifetime. Free-threaded
+         * builds synchronize the first lookup because the GIL no longer
+         * serializes concurrent poll calls. */
+        messages_type = ShareConsumer_get_messages_type();
+        if (!messages_type) {
+                Py_DECREF(msglist);
+                return NULL;
         }
 
         /* _from_list takes over msglist as-is (no copy) -- we built it for
          * this and don't touch it again. */
         records =
-            PyObject_CallMethod(Messages_type, "_from_list", "O", msglist);
+            PyObject_CallMethod(messages_type, "_from_list", "O", msglist);
         Py_DECREF(msglist);
 
         return records;

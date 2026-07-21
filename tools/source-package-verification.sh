@@ -12,6 +12,10 @@ if [[ $FREE_THREADED == "1" ]]; then
     # orjson) ship no free-threaded wheels and their source builds fail
     # (e.g. tink needs protoc), so install the supported subset.
     uv pip install -r requirements/requirements-tests-install-nogil.txt
+    FREE_THREADED_PYTEST_ARGS=(
+        --ignore=tests/test_free_threading.py
+        --ignore=tests/test_free_threading_shared_clients.py
+    )
 else
     uv pip install -r requirements/requirements-tests-install.txt
     # Install orjson (CI-only) so the test suite exercises the orjson fast-path
@@ -21,8 +25,19 @@ else
     # the default test deps. The stdlib fallback is covered by
     # tests/schema_registry/test_json_codec.py regardless.
     uv pip install -r requirements/requirements-json-fast.txt
+    FREE_THREADED_PYTEST_ARGS=()
 fi
 uv pip install -U build
+
+run_free_threaded_tests() {
+    if [[ $FREE_THREADED == "1" ]]; then
+        # Keep this in a separate process so optional compiled test dependencies
+        # cannot re-enable the GIL before cimpl is verified.
+        python -m pytest --timeout 1200 \
+            tests/test_free_threading.py \
+            tests/test_free_threading_shared_clients.py
+    fi
+}
 
 # Cache trivup Apache Kafka versions
 
@@ -52,8 +67,10 @@ if [[ $RUN_COVERAGE == true ]]; then
       # Example: ".tox/cover/lib/python3.11/site-packages/confluent_kafka/__init__.py"
       #   instead of "src/confluent_kafka/__init__.py"
   uv pip install -e .
+  run_free_threaded_tests
   python -m pytest --cov confluent_kafka --cov-report term --cov-report html --cov-report xml \
-      --cov-branch --junitxml=test-report.xml tests/ --timeout 1200 --ignore=dest
+      --cov-branch --junitxml=test-report.xml tests/ --timeout 1200 --ignore=dest \
+      "${FREE_THREADED_PYTEST_ARGS[@]}"
   exit 0
 fi
 
@@ -95,7 +112,10 @@ if missing:
 print(f'All required extras present: {required}')
 "
     fi
-    python -m pytest --timeout 1200 --ignore=dest
+    run_free_threaded_tests
+    python -m pytest --timeout 1200 --ignore=dest "${FREE_THREADED_PYTEST_ARGS[@]}"
 else
-    python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration
+    run_free_threaded_tests
+    python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration \
+        "${FREE_THREADED_PYTEST_ARGS[@]}"
 fi
