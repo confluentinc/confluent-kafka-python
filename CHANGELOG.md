@@ -29,6 +29,7 @@ for a worked example.
 ### Enhancements
 
 - Add support for union-of-pools and auto pool mapping for Schema Registry (#2182)
+- Add free-threaded CPython 3.14 support to the core C extension.
 
 ### Fixes
 

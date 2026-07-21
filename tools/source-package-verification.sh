@@ -14,7 +14,7 @@ if [[ $FREE_THREADED == "1" ]]; then
     uv pip install -r requirements/requirements-tests-install-nogil.txt
     FREE_THREADED_PYTEST_ARGS=(
         --ignore=tests/test_free_threading.py
-        --ignore=tests/test_free_threading_shared_clients.py
+        --ignore=tests/integration/test_free_threading_shared_clients.py
     )
 else
     uv pip install -r requirements/requirements-tests-install.txt
@@ -33,9 +33,9 @@ run_free_threaded_tests() {
     if [[ $FREE_THREADED == "1" ]]; then
         # Keep this in a separate process so optional compiled test dependencies
         # cannot re-enable the GIL before cimpl is verified.
-        python -m pytest --timeout 1200 \
-            tests/test_free_threading.py \
-            tests/test_free_threading_shared_clients.py
+        python -m pytest --timeout 1200 tests/test_free_threading.py
+        PYTHON_GIL=0 python -m pytest --timeout 1200 \
+            tests/integration/test_free_threading_shared_clients.py
     fi
 }
 

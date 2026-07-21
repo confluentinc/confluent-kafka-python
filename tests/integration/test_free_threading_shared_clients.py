@@ -1,5 +1,22 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2026 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import concurrent.futures
-import os
 import sys
 import sysconfig
 import threading
@@ -9,39 +26,31 @@ import uuid
 import pytest
 
 from confluent_kafka import Consumer, Producer
-from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.admin import AdminClient
 
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
-BOOTSTRAP_SERVERS = os.environ.get("TEST_FREE_THREADED_BROKER")
 
-pytestmark = [
-    pytest.mark.skipif(
-        not FREE_THREADED_BUILD,
-        reason="requires a free-threaded CPython build",
-    ),
-    pytest.mark.skipif(
-        not BOOTSTRAP_SERVERS,
-        reason="TEST_FREE_THREADED_BROKER is not set",
-    ),
-]
+pytestmark = pytest.mark.skipif(
+    not FREE_THREADED_BUILD,
+    reason="requires a free-threaded CPython build",
+)
 
 
-def test_shared_clients_against_real_broker():
-    topic = f"confluent-kafka-nogil-{uuid.uuid4().hex}"
-    admin = AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+def test_shared_clients_against_real_broker(kafka_cluster):
+    assert not sys._is_gil_enabled()
 
-    admin.create_topics([NewTopic(topic, 1, 1)])[topic].result(15)
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        "confluent-kafka-nogil",
+        {"num_partitions": 1, "replication_factor": 1},
+    )
+    admin = AdminClient(kafka_cluster.client_conf())
+
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             metadata = list(executor.map(lambda _: admin.list_topics(timeout=5), range(32)))
         assert all(topic in item.topics for item in metadata)
 
-        producer = Producer(
-            {
-                "bootstrap.servers": BOOTSTRAP_SERVERS,
-                "queue.buffering.max.messages": 100_000,
-            }
-        )
+        producer = Producer(kafka_cluster.client_conf({"queue.buffering.max.messages": 100_000}))
         delivered = 0
         delivered_lock = threading.Lock()
 
@@ -69,12 +78,13 @@ def test_shared_clients_against_real_broker():
         assert delivered == 2_000
 
         consumer = Consumer(
-            {
-                "bootstrap.servers": BOOTSTRAP_SERVERS,
-                "group.id": f"confluent-kafka-nogil-{uuid.uuid4().hex}",
-                "auto.offset.reset": "earliest",
-                "enable.auto.commit": False,
-            }
+            kafka_cluster.client_conf(
+                {
+                    "group.id": f"confluent-kafka-nogil-{uuid.uuid4().hex}",
+                    "auto.offset.reset": "earliest",
+                    "enable.auto.commit": False,
+                }
+            )
         )
         consumer.subscribe([topic])
         seen = set()
@@ -100,4 +110,4 @@ def test_shared_clients_against_real_broker():
         assert len(seen) == 2_000
         assert not sys._is_gil_enabled()
     finally:
-        admin.delete_topics([topic], operation_timeout=10)[topic].result(15)
+        kafka_cluster.delete_topic(topic)
