@@ -36,6 +36,55 @@
 
 
 /**
+ * @brief Minimal portable atomic-int primitives.
+ *
+ * Not <stdatomic.h>: this project's build does not pin a C standard
+ * version, and MSVC's C11 <stdatomic.h> support is version- and flag-gated,
+ * so it cannot be relied on across this project's actual build matrix.
+ *
+ * Modeled on librdkafka's own rdatomic.h: GCC/Clang __atomic_* builtins
+ * on non-Windows, Interlocked* on Windows.
+ */
+#if defined(_MSC_VER)
+typedef volatile LONG atomic_int_t;
+
+#define atomic_int_init(p, v) (*(p) = (v))
+#define atomic_int_inc(p) InterlockedIncrement((p))
+#define atomic_int_dec(p) InterlockedDecrement((p))
+#define atomic_int_get(p) InterlockedCompareExchange((p), 0, 0)
+#define atomic_int_set(p, v) InterlockedExchange((p), (v))
+
+/**
+ * @brief Atomic compare-and-swap: if *p == expected, set *p = desired and
+ *        return 1; otherwise leave *p unchanged and return 0.
+ */
+static __inline int atomic_int_cas(atomic_int_t *p, LONG expected,
+                                   LONG desired) {
+        return InterlockedCompareExchange(p, desired, expected) == expected;
+}
+
+#else /* gcc / clang */
+typedef int atomic_int_t;
+
+#define atomic_int_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+#define atomic_int_inc(p) __atomic_add_fetch((p), 1, __ATOMIC_SEQ_CST)
+#define atomic_int_dec(p) __atomic_sub_fetch((p), 1, __ATOMIC_SEQ_CST)
+#define atomic_int_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_int_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+
+/**
+ * @brief Atomic compare-and-swap: if *p == expected, set *p = desired and
+ *        return 1; otherwise leave *p unchanged and return 0.
+ */
+static inline int atomic_int_cas(atomic_int_t *p, int expected, int desired) {
+        return __atomic_compare_exchange_n(p, &expected, desired,
+                                           0 /* strong */, __ATOMIC_SEQ_CST,
+                                           __ATOMIC_SEQ_CST);
+}
+#endif
+
+
+/**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
 #define CFL_VERSION_STR "2.15.0"
@@ -241,7 +290,13 @@ typedef struct {
 
         PyObject *logger;
         PyObject *oauth_cb;
-        int oauth_token_set;
+        atomic_int_t oauth_token_set;
+
+        /* Protects self->rk from being freed by close() while another method
+         * is still using it. See Handle_enter_rk_use()/Handle_exit_rk_use()
+         * in confluent_kafka.c. */
+        atomic_int_t active_calls;
+        atomic_int_t closing;
 
         union {
                 /**
@@ -349,6 +404,17 @@ void CallState_begin(Handle *h, CallState *cs);
  * @returns 0 if a Python signal was raised or a callback crashed, else 1.
  */
 int CallState_end(Handle *h, CallState *cs);
+
+/**
+ * @brief Mark self->rk as in-use by the calling thread.
+ * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
+ *          return path), 0 with ERR_MSG_PRODUCER_CLOSED set otherwise.
+ */
+int Handle_enter_rk_use(Handle *h);
+/**
+ * @brief Counterpart to Handle_enter_rk_use().
+ */
+void Handle_exit_rk_use(Handle *h);
 
 /**
  * @brief Get the current thread's CallState and re-locks the GIL.
