@@ -14,21 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import threading
 import time
 
-import pytest
-
 from confluent_kafka import Consumer, Producer, TopicPartition
-
-# pytest-forked runs each marked test in its own forked child process (via
-# os.fork(), POSIX only), so a segfault in one test only fails that test
-# instead of taking down the whole pytest run. Not available on Windows.
-forked = pytest.mark.forked
-skip_on_windows = pytest.mark.skipif(
-    sys.platform == "win32", reason="pytest-forked requires os.fork(), not available on Windows"
-)
+from tests.parallel.conftest import subprocess_isolated
 
 ###############################################################################
 # Tests for races between Producer.close() and concurrent calls to
@@ -97,15 +87,13 @@ def _worker_poll(producer, stop_event):
             break
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_produce():
     """close() concurrent with produce() on another thread."""
     _race_close_against(_worker_produce)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_multiple_producers_and_pollers():
     """
     close() concurrent with several threads calling produce()/poll() at
@@ -116,15 +104,13 @@ def test_close_races_multiple_producers_and_pollers():
     _race_close_against(_worker_poll, num_workers=num_workers)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_poll():
     """close() concurrent with poll() on another thread."""
     _race_close_against(_worker_poll)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_flush():
     """close() concurrent with flush() on another thread."""
 
@@ -138,8 +124,7 @@ def test_close_races_flush():
     _race_close_against(worker)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_produce_batch():
     """close() concurrent with produce_batch() on another thread."""
 
@@ -154,8 +139,7 @@ def test_close_races_produce_batch():
     _race_close_against(worker)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_init_transactions():
     """close() concurrent with init_transactions() on another thread."""
 
@@ -171,8 +155,7 @@ def test_close_races_init_transactions():
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_begin_transaction():
     """close() concurrent with begin_transaction() on another thread."""
 
@@ -188,8 +171,7 @@ def test_close_races_begin_transaction():
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_commit_transaction():
     """close() concurrent with commit_transaction() on another thread."""
 
@@ -205,8 +187,7 @@ def test_close_races_commit_transaction():
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_abort_transaction():
     """close() concurrent with abort_transaction() on another thread."""
 
@@ -222,8 +203,7 @@ def test_close_races_abort_transaction():
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_send_offsets_to_transaction():
     """close() concurrent with send_offsets_to_transaction() on another thread."""
 
@@ -245,8 +225,7 @@ def test_close_races_send_offsets_to_transaction():
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_purge():
     """close() concurrent with purge() on another thread."""
 
@@ -260,8 +239,7 @@ def test_close_races_purge():
     _race_close_against(worker)
 
 
-@forked
-@skip_on_windows
+@subprocess_isolated
 def test_close_races_close():
     """Multiple threads calling close() on the same Producer at once."""
     worker_close_results = []
@@ -287,10 +265,13 @@ def test_close_waits_for_in_flight_call():
     producer = Producer(_PRODUCER_CONF)
     poll_started = threading.Event()
     poll_duration = 10
+    poll_finished_at = None
 
     def run_poll():
+        nonlocal poll_finished_at
         poll_started.set()
         producer.poll(poll_duration)
+        poll_finished_at = time.monotonic()
 
     t = threading.Thread(target=run_poll)
     t.start()
@@ -299,11 +280,22 @@ def test_close_waits_for_in_flight_call():
 
     close_start = time.monotonic()
     producer.close()
-    close_duration = time.monotonic() - close_start
+    close_end = time.monotonic()
 
     t.join(timeout=10)
     assert not t.is_alive(), "poll() thread did not finish after close()"
-    assert close_duration >= 7, (
-        f"close() took only {close_duration:.2f}s -- expected it to block "
-        f"for close to the in-flight poll({poll_duration}s) call"
+    assert poll_finished_at is not None, "poll() never finished"
+
+    # close() should have waited for close to the actual remaining poll()
+    # duration, not a fixed guess -- a slower/loaded machine can take longer
+    # to reach close_start, shrinking how much of poll_duration is actually
+    # left to wait for, so we compare against what really happened instead
+    # of a hardcoded constant.
+    close_duration = close_end - close_start
+    remaining_poll_duration = poll_finished_at - close_start
+    assert close_duration >= remaining_poll_duration * 0.9, (
+        f"close() took {close_duration:.2f}s but the in-flight poll() call "
+        f"was still going to run for {remaining_poll_duration:.2f}s more "
+        f"-- close() returned too early relative to what it should have "
+        f"waited for"
     )
