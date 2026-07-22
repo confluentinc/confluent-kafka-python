@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import json
 import logging
 import struct
@@ -136,9 +137,23 @@ class DlqAction(RuleAction):
     - ``dlq.auto.flush`` blocks, which stalls the event loop under asyncio.
 
     Failure behaviors: redaction failures are fail-open (the unredacted value is
-    sent, with an error logged); redaction mutates the failed message in place;
-    an ``ENCRYPT_PAYLOAD`` failure on serialize sends the plaintext serialized
-    bytes verbatim (payload-level rules carry no field tags to redact).
+    sent, with an error logged). Redaction operates on a deep copy, so the
+    caller's message object is not mutated (this diverges from the Java client,
+    which redacts in place).
+
+    .. warning::
+
+        **Field-level redaction only applies to field-level rules (e.g.**
+        ``ENCRYPT`` **).** A payload-level ``ENCRYPT_PAYLOAD`` rule runs in the
+        ENCODING phase on the already-serialized buffer, which carries no field
+        tags, so nothing can be redacted. On a **serialize (WRITE)** failure --
+        for example a transient KMS/DEK outage -- the DLQ therefore receives the
+        **entire record as unencrypted plaintext**. If the DLQ topic is less
+        protected than the source topic, a KMS outage becomes a plaintext
+        exposure. Restrict access to the DLQ topic accordingly, or use
+        field-level ``ENCRYPT`` rules (which redact tagged fields) when the DLQ
+        must not hold plaintext. On the READ path the wire bytes are ciphertext,
+        so this exposure does not apply. This matches the Java client.
 
     Shared instance / register-once semantics: a ``DlqAction`` is registered once
     into a :class:`RuleRegistry` and shared by every serde bound to that registry
@@ -380,6 +395,13 @@ class DlqAction(RuleAction):
                 ctx.original_key,
                 ctx.original_value,
             )
+            # Redact a copy so the caller's live object is never mutated: on a
+            # WRITE failure the message is the record the application still holds
+            # and may retry, and masking its fields in place would silently
+            # replace real (e.g. PII) values with "<REDACTED>". This diverges
+            # from the Java client, which redacts in place; the DLQ record bytes
+            # are identical either way, so cross-client behavior is unaffected.
+            message = copy.deepcopy(message)
             executor = FieldRedactionExecutor()
             try:
                 return executor.transform(new_ctx, message)

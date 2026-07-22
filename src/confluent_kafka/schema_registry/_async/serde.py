@@ -608,11 +608,22 @@ class AsyncBaseSerde(object):
         # event loop.
         from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 
-        if self._rule_registry is not None and self._rule_registry is not RuleRegistry.get_global_instance():
-            for executor in self._rule_registry.get_executors():
-                executor.close()
-            for action in self._rule_registry.get_actions():
+        if self._rule_registry is None or self._rule_registry is RuleRegistry.get_global_instance():
+            return
+        # Flush actions (e.g. the DlqAction producer) before closing executors,
+        # and isolate every close in its own try/except, so one failing member
+        # can never skip the others -- most importantly, a buggy executor must
+        # not cost us buffered DLQ records.
+        for action in self._rule_registry.get_actions():
+            try:
                 action.close()
+            except Exception as e:
+                log.warning("Error closing rule action %s: %s", type(action).__name__, e)
+        for executor in self._rule_registry.get_executors():
+            try:
+                executor.close()
+            except Exception as e:
+                log.warning("Error closing rule executor %s: %s", type(executor).__name__, e)
 
 
 class AsyncBaseSerializer(AsyncBaseSerde, Serializer):

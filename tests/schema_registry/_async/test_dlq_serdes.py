@@ -202,8 +202,8 @@ async def test_avro_dlq_encryption_write_redaction():
     assert headers_dict[DlqAction.RULE_SUBJECT] == _SUBJECT.encode('utf-8')
     assert headers_dict[DlqAction.RULE_TOPIC] == _TOPIC.encode('utf-8')
     assert DlqAction.RULE_EXCEPTION in headers_dict
-    # redaction mutates the failed message in place
-    assert obj['stringField'] == FieldRedactionExecutor.REDACTED_STRING
+    # redaction runs on a copy: the caller's object keeps its original value
+    assert obj['stringField'] == 'hi'
 
 
 async def test_avro_dlq_encryption_read_ciphertext_and_replay_skip():
@@ -335,6 +335,56 @@ async def test_serializer_close_flushes_dlq_and_closes_executors():
     await ser.aclose()
     assert producer.flush_count == 1
     assert spy.closed is True
+
+
+async def test_field_encryption_executor_close_does_not_raise():
+    # Regression: FieldEncryptionExecutor.close() used to reference a
+    # non-existent self.client and raise AttributeError; it must delegate to the
+    # wrapped EncryptionExecutor. An unconfigured executor closes cleanly.
+    FieldEncryptionExecutor().close()  # must not raise
+
+
+async def test_serializer_close_with_real_encryption_executor_flushes_dlq():
+    # The DLQ_DESIGN "durable shutdown" path: a dedicated registry holding a real
+    # FieldEncryptionExecutor plus a DlqAction. Closing the serde must close the
+    # encryption executor without raising AND still flush the DLQ producer.
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    producer = RecordingProducer()
+    registry = RuleRegistry()
+    registry.register_executor(FieldEncryptionExecutor(FakeClock()))
+    registry.register_action(DlqAction({'dlq.topic': _DLQ_TOPIC, 'producer': producer}))
+
+    ser = await AsyncAvroSerializer(
+        client, schema_str='"string"', conf={'auto.register.schemas': True}, rule_registry=registry
+    )
+    await ser.aclose()  # must not raise
+    assert producer.flush_count == 1
+
+
+async def test_close_isolates_failing_executor_and_still_flushes_dlq():
+    # Regression: a failing executor.close() must not abort shutdown before the
+    # DlqAction is flushed. Actions are flushed first and every close is isolated,
+    # so buffered DLQ records survive a buggy executor.
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+
+    producer = RecordingProducer()
+    registry = RuleRegistry()
+
+    class _BoomExecutor(FieldRedactionExecutor):
+        def close(self):
+            raise RuntimeError("boom")
+
+    registry.register_executor(_BoomExecutor())
+    registry.register_action(DlqAction({'dlq.topic': _DLQ_TOPIC, 'producer': producer}))
+
+    ser = await AsyncAvroSerializer(
+        client, schema_str='"string"', conf={'auto.register.schemas': True}, rule_registry=registry
+    )
+    await ser.aclose()  # must not raise despite the failing executor
+    assert producer.flush_count == 1
 
 
 async def test_serializer_close_does_not_close_shared_global_registry():
@@ -604,5 +654,5 @@ async def test_proto_dlq_encryption_write_redaction():
     assert base64.b64encode(b'foobar') not in value
     assert b'<REDACTED>' in value
     assert b'The Castle' in value
-    # redaction mutates the failed message in place
-    assert obj.name == FieldRedactionExecutor.REDACTED_STRING
+    # redaction runs on a copy: the caller's object keeps its original value
+    assert obj.name == 'Kafka'
