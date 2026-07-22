@@ -129,7 +129,7 @@ def test_convert_to_bytes_matrix():
     assert convert(ctx, 'str') == b'str'
     u = uuid.uuid4()
     assert convert(ctx, u) == str(u).encode('utf-8')
-    # bool falls through to the JSON path, as in Java
+    # bool falls through to the JSON path
     assert convert(ctx, True) == b'true'
     assert convert(ctx, 7) == struct.pack('>q', 7)
     # signed int64 boundaries still take the fixed-width path
@@ -307,7 +307,7 @@ def test_redact_fields_no_matching_rule_type():
 
 
 def test_redact_fields_fail_open():
-    # redaction errors are fail-open, as in Java: the unredacted message is sent
+    # redaction errors are fail-open: the unredacted message is sent
     producer = RecordingProducer()
     action = DlqAction({'dlq.topic': 'dlq', 'producer': producer})
     rule = _make_rule(rule_type='ENCRYPT', kind=RuleKind.TRANSFORM, tags=['PII'])
@@ -332,7 +332,7 @@ def test_is_dlq_replay():
     assert is_dlq_replay(None, ctx_with([('__rule.name', 'my-rule')]), rule) is True
     assert is_dlq_replay(None, ctx_with([('__rule.name', b'other')]), rule) is False
     assert is_dlq_replay(None, ctx_with([('other', b'my-rule')]), rule) is False
-    # last occurrence wins, matching Java's Headers.lastHeader
+    # last occurrence wins when a header key repeats
     assert is_dlq_replay(None, ctx_with([('__rule.name', b'other'), ('__rule.name', b'my-rule')]), rule) is True
     assert is_dlq_replay(None, ctx_with([('__rule.name', b'my-rule'), ('__rule.name', b'other')]), rule) is False
     assert is_dlq_replay(None, ctx_with({'__rule.name': b'my-rule'}), rule) is True

@@ -83,9 +83,9 @@ DLQ_RULE_EXCEPTION_HEADER = DLQ_HEADER_PREFIX + "exception"
 # Relies on the key serde being invoked before the value serde in the same thread
 # (or asyncio task), as is the case when producing/consuming a message: the built-in
 # SerializingProducer, DeserializingConsumer and DeserializingShareConsumer all
-# process the key before the value. This mirrors the Java client's ThreadLocal and
-# carries the same limitation: the key is captured only when a Schema-Registry key
-# serde runs before the value serde. If the key uses a non-SR serializer (or none is
+# process the key before the value. A limitation of this approach: the key is
+# captured only when a Schema-Registry key serde runs before the value serde. If
+# the key uses a non-SR serializer (or none is
 # configured), the value-side DLQ record's key is None. To avoid leaking a stale key
 # across messages, an SR value serde clears the stashed key once it has finished
 # (including for a None/tombstone value), so a later value serde reads None unless a
