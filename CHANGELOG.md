@@ -8,6 +8,22 @@
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
 
+### Fixes
+
+- Schema Registry `DlqAction`: with the default (global) `RuleRegistry` the DLQ
+  is best-effort — records teed just before process exit may be dropped, since
+  DLQ sends are asynchronous and a per-serde `close()`/`aclose()` does not close
+  the shared action. For durability, set `dlq.auto.flush=true` (flushes after
+  every send) or give the serde its own `RuleRegistry` and call `close()`/
+  `aclose()` on shutdown.
+- `DeserializingConsumer` and `DeserializingShareConsumer` now deserialize the
+  message key before the value (previously the value was deserialized first),
+  matching `SerializingProducer` and the Java client. This lets a key
+  deserializer stash state for the value deserializer (used by the Schema
+  Registry dead-letter-queue rule action to capture the original key). As a
+  side effect, when *both* the key and value fail to deserialize, the key
+  deserialization error is now surfaced instead of the value error.
+
 
 ## v2.15.0
 
