@@ -18,7 +18,7 @@ import threading
 import time
 
 from confluent_kafka import Consumer, Producer, TopicPartition
-from tests.parallel._subprocess_isolation import subprocess_isolated
+from tests.concurrency._subprocess_isolation import subprocess_isolated
 
 ###############################################################################
 # Tests for races between Producer.close() and concurrent calls to
@@ -287,10 +287,7 @@ def test_close_waits_for_in_flight_call():
     assert poll_finished_at is not None, "poll() never finished"
 
     # close() should have waited for close to the actual remaining poll()
-    # duration, not a fixed guess -- a slower/loaded machine can take longer
-    # to reach close_start, shrinking how much of poll_duration is actually
-    # left to wait for, so we compare against what really happened instead
-    # of a hardcoded constant.
+    # duration
     close_duration = close_end - close_start
     remaining_poll_duration = poll_finished_at - close_start
     assert close_duration >= remaining_poll_duration * 0.9, (
