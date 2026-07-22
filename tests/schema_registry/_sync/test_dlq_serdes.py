@@ -202,7 +202,7 @@ def test_avro_dlq_encryption_write_redaction():
     assert headers_dict[DlqAction.RULE_SUBJECT] == _SUBJECT.encode('utf-8')
     assert headers_dict[DlqAction.RULE_TOPIC] == _TOPIC.encode('utf-8')
     assert DlqAction.RULE_EXCEPTION in headers_dict
-    # redaction mutates the failed message in place, as in Java
+    # redaction mutates the failed message in place
     assert obj['stringField'] == FieldRedactionExecutor.REDACTED_STRING
 
 
@@ -490,7 +490,7 @@ def test_avro_dlq_payload_encryption_write():
     assert len(producer.records) == 1
     topic, key, value, headers = producer.records[0]
     # payload-level rules carry no field tags, so the plaintext serialized bytes
-    # are sent verbatim, matching Java
+    # are sent verbatim
     assert b'hi' in value
     assert b'foobar' in value
     assert dict(headers)[DlqAction.RULE_MODE] == b'WRITE'
@@ -598,5 +598,5 @@ def test_proto_dlq_encryption_write_redaction():
     assert base64.b64encode(b'foobar') not in value
     assert b'<REDACTED>' in value
     assert b'The Castle' in value
-    # redaction mutates the failed message in place, as in Java
+    # redaction mutates the failed message in place
     assert obj.name == FieldRedactionExecutor.REDACTED_STRING

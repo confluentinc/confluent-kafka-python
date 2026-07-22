@@ -537,7 +537,7 @@ class BaseSerde(object):
             value = headers.get(DLQ_RULE_NAME_HEADER)
         else:
             for k, v in headers:
-                # last occurrence wins, matching Java's Headers.lastHeader
+                # last occurrence wins when a header key repeats
                 if k == DLQ_RULE_NAME_HEADER:
                     value = v
         if value is None:
@@ -593,9 +593,8 @@ class BaseSerde(object):
 
     def close(self):
         # Release rule executors/actions that THIS serde uniquely owns so their
-        # resources (e.g. a DlqAction's Kafka producer) are flushed and released.
-        # Mirrors the Java SerDe close(), which calls RuleBase.close() on each
-        # executor and action.
+        # resources (e.g. a DlqAction's Kafka producer) are flushed and released,
+        # by calling close() on each executor and action.
         #
         # A serde that uses the shared global RuleRegistry (the default when no
         # dedicated rule_registry is supplied) must NOT close its members: the
@@ -603,11 +602,10 @@ class BaseSerde(object):
         # the process, so closing them here would tear down resources still in use
         # elsewhere (e.g. close another serde's KMS client, or flush and null out
         # a live DlqAction producer). Global rule resources are process-lifetime;
-        # only a serde given its own registry owns and closes them. (Java owns
-        # per-serde executor/action instances, so its close() never faces this.)
+        # only a serde given its own registry owns and closes them.
         #
         # Under asyncio, DlqAction.close()'s producer.flush() briefly blocks the
-        # event loop; this mirrors the synchronous Java close().
+        # event loop.
         from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 
         if self._rule_registry is not None and self._rule_registry is not RuleRegistry.get_global_instance():

@@ -115,7 +115,7 @@ class DeserializingConsumer(_ConsumerImpl):
         the original key for the value deserializer (e.g. the Schema Registry
         dead-letter-queue rule action tees the value's original key). This
         matches ``SerializingProducer``, which serializes the key before the
-        value, and the Java client, whose consumer deserializes the key first.
+        value.
 
         Raises:
             KeyDeserializationError: If an error occurs during key deserialization.

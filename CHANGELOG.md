@@ -8,6 +8,12 @@
 
 ### Fixes
 
+- Schema Registry `DlqAction`: with the default (global) `RuleRegistry` the DLQ
+  is best-effort — records teed just before process exit may be dropped, since
+  DLQ sends are asynchronous and a per-serde `close()`/`aclose()` does not close
+  the shared action. For durability, set `dlq.auto.flush=true` (flushes after
+  every send) or give the serde its own `RuleRegistry` and call `close()`/
+  `aclose()` on shutdown.
 - `DeserializingConsumer` and `DeserializingShareConsumer` now deserialize the
   message key before the value (previously the value was deserialized first),
   matching `SerializingProducer` and the Java client. This lets a key

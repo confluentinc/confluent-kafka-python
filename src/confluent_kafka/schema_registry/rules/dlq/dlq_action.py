@@ -122,30 +122,28 @@ class DlqAction(RuleAction):
     |                          | ``bootstrap.servers``, ``security.protocol``, ...  |
     +--------------------------+----------------------------------------------------+
 
-    Differences from the Java client, forced by the platform:
+    Producer configuration and encoding notes:
 
-    - Java serializers receive the producer's config map, so the Java DlqAction
-      inherits ``bootstrap.servers`` etc. automatically. Python serdes only see
-      the Schema Registry client config, so producer connectivity must be given
-      explicitly in ``conf`` (librdkafka also rejects unknown properties, so the
-      Schema Registry config cannot be merged in).
-    - Java's ``max.block.ms``/``delivery.timeout.ms`` map to a non-blocking
-      ``produce()`` (a full queue raises and is logged) and
-      ``message.timeout.ms=0`` (infinite).
-    - Python ``int``/``float`` are encoded as 8-byte big-endian (Java picks the
-      width from the boxed type).
+    - The serde only receives the Schema Registry client config, not Kafka
+      producer properties, so producer connectivity must be given explicitly in
+      ``conf`` (``bootstrap.servers`` etc.). librdkafka rejects unknown
+      properties, so the Schema Registry config cannot be merged into the
+      producer conf.
+    - ``produce()`` is non-blocking: a full queue raises and is logged. The
+      producer uses ``message.timeout.ms=0`` (infinite), so records are retried
+      until delivered.
+    - ``int`` and ``float`` values are encoded as 8-byte big-endian.
     - ``dlq.auto.flush`` blocks, which stalls the event loop under asyncio.
 
-    Behaviors intentionally matching Java: redaction failures are fail-open (the
-    unredacted value is sent, with an error logged); redaction mutates the failed
-    message in place; ``ENCRYPT_PAYLOAD`` failures on serialize send the plaintext
-    serialized bytes verbatim (payload-level rules carry no field tags to redact).
+    Failure behaviors: redaction failures are fail-open (the unredacted value is
+    sent, with an error logged); redaction mutates the failed message in place;
+    an ``ENCRYPT_PAYLOAD`` failure on serialize sends the plaintext serialized
+    bytes verbatim (payload-level rules carry no field tags to redact).
 
-    Shared instance / register-once semantics (differs from Java): a ``DlqAction``
-    is registered once into a :class:`RuleRegistry` and shared by every serde bound
-    to that registry (typically the process-wide global registry). Unlike the Java
-    client, which owns a per-serde action instance, this instance holds a single
-    ``_conf``/producer. Consequently:
+    Shared instance / register-once semantics: a ``DlqAction`` is registered once
+    into a :class:`RuleRegistry` and shared by every serde bound to that registry
+    (typically the process-wide global registry). This single instance holds one
+    ``_conf`` and one producer. Consequently:
 
     - ``configure()`` is called by every serde's constructor and merges the
       serde's ``rule_conf`` ``dlq.*``/``producer`` keys into the shared ``_conf``
@@ -158,9 +156,23 @@ class DlqAction(RuleAction):
       per-serde :meth:`close`/``aclose`` does NOT close it when it lives in the
       global registry; see :meth:`AsyncBaseSerde.aclose`.
 
+    Durability contract: DLQ sends are asynchronous, so records still queued in
+    the producer when the process exits are lost -- the producer is destroyed
+    without a flush. A serde bound to the *global* registry is never closed by
+    :meth:`close`/``aclose`` (see above), so with the default (global) registry
+    the DLQ is **best-effort**: records teed just before shutdown may be dropped.
+    Two ways to make it durable:
+
+    - Set ``dlq.auto.flush=true`` so :meth:`run` flushes after every send (the
+      record is delivered before the failing serialize/deserialize call returns).
+      This is the durability knob for the global/default registry.
+    - Give the serde its own :class:`RuleRegistry`; then ``serde.close()`` /
+      ``await serde.aclose()`` flushes and closes this action's producer. This is
+      the deterministic, ownership-based path.
+
     Original-key capture limitation: the value-side DLQ record's ``key`` is taken
-    from the key stashed by the key serde via ``set_original_key`` (a contextvar,
-    mirroring Java's ThreadLocal). This only works when a Schema-Registry key
+    from the key stashed by the key serde via ``set_original_key`` (a contextvar).
+    This only works when a Schema-Registry key
     serializer/deserializer runs before the value serde in the same thread/task.
     The built-in ``SerializingProducer``, ``DeserializingConsumer`` and
     ``DeserializingShareConsumer`` all process the key before the value, so the
@@ -239,7 +251,7 @@ class DlqAction(RuleAction):
             'enable.idempotence': False,
             'acks': 'all',
             'max.in.flight.requests.per.connection': 1,
-            # librdkafka equivalent of Java's delivery.timeout.ms=MAX; 0 is infinite
+            # 0 = infinite message timeout: records are retried until delivered
             'message.timeout.ms': 0,
         }
 
@@ -306,7 +318,7 @@ class DlqAction(RuleAction):
             return message.encode('utf-8')
         elif isinstance(message, uuid.UUID):
             return str(message).encode('utf-8')
-        # bool is excluded so that it falls through to the JSON path, as in Java.
+        # bool is excluded so that it falls through to the JSON path.
         # Ints outside the signed int64 range also fall through to the JSON path
         # rather than raising struct.error, which would abort the whole DLQ send.
         elif isinstance(message, int) and not isinstance(message, bool) and _INT64_MIN <= message <= _INT64_MAX:
@@ -329,7 +341,7 @@ class DlqAction(RuleAction):
     @staticmethod
     def _json_default(obj: Any) -> str:
         if isinstance(obj, (bytes, bytearray)):
-            # matches the ISO-8859-1 rendering of bytes in the Java client
+            # render bytes as an ISO-8859-1 (latin-1) string
             return bytes(obj).decode('latin-1')
         return str(obj)
 
