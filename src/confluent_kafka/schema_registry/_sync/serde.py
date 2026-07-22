@@ -29,6 +29,7 @@ from confluent_kafka.schema_registry import (
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.common.serde import (
+    DLQ_RULE_NAME_HEADER,
     STRATEGY_TYPE_MAP,
     ErrorAction,
     FieldTransformer,
@@ -40,6 +41,7 @@ from confluent_kafka.schema_registry.common.serde import (
     RuleError,
     SchemaId,
     SubjectNameStrategyType,
+    get_original_key,
 )
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
@@ -360,9 +362,19 @@ class BaseSerde(object):
         message: Any,
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer: Optional[FieldTransformer],
+        original_message: Any = None,
     ) -> Any:
         return self._execute_rules_with_phase(
-            ser_ctx, subject, RulePhase.DOMAIN, rule_mode, source, target, message, inline_tags, field_transformer
+            ser_ctx,
+            subject,
+            RulePhase.DOMAIN,
+            rule_mode,
+            source,
+            target,
+            message,
+            inline_tags,
+            field_transformer,
+            original_message,
         )
 
     def _execute_rules_with_phase(
@@ -376,9 +388,12 @@ class BaseSerde(object):
         message: Any,
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer: Optional[FieldTransformer],
+        original_message: Any = None,
     ) -> Any:
         if message is None or target is None:
             return message
+        if original_message is None:
+            original_message = message
         enabled_env: Optional[str] = None
         rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
@@ -406,6 +421,10 @@ class BaseSerde(object):
         if not rules:
             return message
 
+        is_key = ser_ctx is not None and ser_ctx.field == MessageField.KEY
+        original_key = original_message if is_key else get_original_key()
+        original_value = None if is_key else original_message
+
         for index in range(len(rules)):
             rule = rules[index]
             ctx = RuleContext(
@@ -420,8 +439,12 @@ class BaseSerde(object):
                 rules,
                 inline_tags,
                 field_transformer,
+                original_key,
+                original_value,
             )
             if self._is_disabled(ctx, rule):
+                continue
+            if self._is_dlq_replay(ctx, rule):
                 continue
             if rule.mode == RuleMode.WRITEREAD:
                 if rule_mode != RuleMode.READ and rule_mode != RuleMode.WRITE:
@@ -503,6 +526,29 @@ class BaseSerde(object):
             return True
         return rule.disabled
 
+    def _is_dlq_replay(self, ctx: RuleContext, rule: Rule) -> bool:
+        # If the rule name exists as a header, then we are processing a record from a DLQ.
+        # In that case, we don't want the same rule to fail again, so we skip it.
+        headers = ctx.ser_ctx.headers if ctx.ser_ctx is not None else None
+        if not headers or rule.name is None:
+            return False
+        value: Any = None
+        if isinstance(headers, dict):
+            value = headers.get(DLQ_RULE_NAME_HEADER)
+        else:
+            for k, v in headers:
+                # last occurrence wins when a header key repeats
+                if k == DLQ_RULE_NAME_HEADER:
+                    value = v
+        if value is None:
+            return False
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                value = value.decode('utf-8')
+            except UnicodeDecodeError:
+                return False
+        return value == rule.name
+
     def _run_action(
         self,
         ctx: RuleContext,
@@ -544,6 +590,29 @@ class BaseSerde(object):
         elif action_name == 'NONE':
             return NoneAction()
         return self._rule_registry.get_action(action_name)
+
+    def close(self):
+        # Release rule executors/actions that THIS serde uniquely owns so their
+        # resources (e.g. a DlqAction's Kafka producer) are flushed and released,
+        # by calling close() on each executor and action.
+        #
+        # A serde that uses the shared global RuleRegistry (the default when no
+        # dedicated rule_registry is supplied) must NOT close its members: the
+        # same executor/action objects are shared by every other default serde in
+        # the process, so closing them here would tear down resources still in use
+        # elsewhere (e.g. close another serde's KMS client, or flush and null out
+        # a live DlqAction producer). Global rule resources are process-lifetime;
+        # only a serde given its own registry owns and closes them.
+        #
+        # Under asyncio, DlqAction.close()'s producer.flush() briefly blocks the
+        # event loop.
+        from confluent_kafka.schema_registry.rule_registry import RuleRegistry
+
+        if self._rule_registry is not None and self._rule_registry is not RuleRegistry.get_global_instance():
+            for executor in self._rule_registry.get_executors():
+                executor.close()
+            for action in self._rule_registry.get_actions():
+                action.close()
 
 
 class BaseSerializer(BaseSerde, Serializer):
