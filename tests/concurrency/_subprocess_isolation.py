@@ -15,21 +15,13 @@
 # limitations under the License.
 
 """
-Shared test infrastructure for tests/parallel/.
+Shared test infrastructure for tests/concurrency/.
 
 Tests here deliberately race Producer/Consumer methods against each other,
 so a real regression can segfault the process instead of just failing an
 assertion. subprocess_isolated() below runs a decorated test in a fresh
 `python -m pytest` subprocess, so a crash only fails that one test instead
 of taking down the whole suite.
-
-This is a plain module, not conftest.py: conftest.py is auto-loaded by
-pytest's own plugin machinery and isn't meant to be imported as a regular
-module -- doing so (`from tests.parallel.conftest import ...`) is not
-guaranteed to resolve the same way from a re-invoked subprocess as it does
-under pytest's own collection, and failed with
-"ModuleNotFoundError: No module named 'tests.parallel.conftest'" in
-exactly that scenario.
 """
 
 import functools
@@ -37,7 +29,7 @@ import os
 import subprocess
 import sys
 
-_SUBPROCESS_MARKER_ENV = "_PARALLEL_TESTS_SUBPROCESS"
+_SUBPROCESS_MARKER_ENV = "_CONCURRENCY_TESTS_SUBPROCESS"
 _SUBPROCESS_TIMEOUT_SECONDS = 120
 
 
