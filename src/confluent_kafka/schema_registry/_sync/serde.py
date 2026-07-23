@@ -16,15 +16,15 @@
 # limitations under the License.
 #
 
-import threading as _locks
 import logging
+import threading as _locks
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from cachetools import LRUCache
 
 from confluent_kafka.schema_registry import (
-    SchemaRegistryClient,
     RegisteredSchema,
+    SchemaRegistryClient,
     topic_subject_name_strategy,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase

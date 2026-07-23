@@ -14,22 +14,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import threading as _locks
 import io
 import json
+import threading as _locks
 from typing import Any, Callable, Dict, Optional, Union, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 from fastavro.schema import expand_schema
 
 from confluent_kafka.schema_registry import (
-    SchemaRegistryClient,
     RuleMode,
     Schema,
+    SchemaRegistryClient,
     dual_schema_id_deserializer,
     prefix_schema_id_serializer,
 )
-
 from confluent_kafka.schema_registry.common.avro import (
     AVRO_TYPE,
     AvroSchema,
@@ -56,9 +55,7 @@ __all__ = [
 ]
 
 
-def _resolve_named_schema(
-    schema: Schema, schema_registry_client: SchemaRegistryClient
-) -> Dict[str, AvroSchema]:
+def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient) -> Dict[str, AvroSchema]:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -95,7 +92,6 @@ def _resolve_named_schema(
                 if fqn != ref.name:
                     named_schemas[fqn] = raw_schema
     return named_schemas
-
 
 
 class AvroSerializer(BaseSerializer):
@@ -510,7 +506,6 @@ class AvroSerializer(BaseSerializer):
         return parsed_schema
 
 
-
 class AvroDeserializer(BaseDeserializer):
     """
     Deserializer for Avro binary encoded data with Confluent Schema Registry
@@ -675,9 +670,7 @@ class AvroDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(
-        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
-    ) -> Union[dict, object, None]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(
@@ -733,9 +726,7 @@ class AvroDeserializer(BaseDeserializer):
         if subject is None and isinstance(writer_schema, dict):
             subject = (
                 (
-                    self._subject_name_func(
-                        ctx, writer_schema.get("name"), self._registry, self._subject_name_conf
-                    )
+                    self._subject_name_func(ctx, writer_schema.get("name"), self._registry, self._subject_name_conf)
                     if self._strategy_accepts_client
                     else self._subject_name_func(ctx, writer_schema.get("name"))
                 )

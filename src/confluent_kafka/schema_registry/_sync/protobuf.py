@@ -15,8 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading as _locks
 import io
+import threading as _locks
 from typing import Any, Callable, List, Optional, Set, Tuple, Union, cast
 
 from google.protobuf import descriptor_pb2, json_format
@@ -33,7 +33,6 @@ from confluent_kafka.schema_registry import (
     prefix_schema_id_serializer,
     reference_subject_name_strategy,
 )
-
 from confluent_kafka.schema_registry.common.protobuf import (
     PROTOBUF_TYPE,
     _bytes,
@@ -96,7 +95,6 @@ def _resolve_named_schema(
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
-
 
 
 class ProtobufSerializer(BaseSerializer):
@@ -378,9 +376,7 @@ class ProtobufSerializer(BaseSerializer):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(
-        self, ctx: SerializationContext, file_desc: FileDescriptor
-    ) -> List[SchemaReference]:
+    def _resolve_dependencies(self, ctx: SerializationContext, file_desc: FileDescriptor) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -437,9 +433,7 @@ class ProtobufSerializer(BaseSerializer):
 
         subject = (
             (
-                self._subject_name_func(
-                    ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf
-                )
+                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf)
                 if self._strategy_accepts_client
                 else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
             )
@@ -525,7 +519,6 @@ class ProtobufSerializer(BaseSerializer):
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
-
 
 
 class ProtobufDeserializer(BaseDeserializer):
@@ -651,9 +644,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(
-        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
-    ) -> Optional[bytes]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -704,9 +695,7 @@ class ProtobufDeserializer(BaseDeserializer):
             if subject is None:
                 subject = (
                     (
-                        self._subject_name_func(
-                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf
-                        )
+                        self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
                         if self._strategy_accepts_client
                         else self._subject_name_func(ctx, writer_desc.full_name)
                     )
