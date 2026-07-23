@@ -372,6 +372,11 @@ class DlqAction(RuleAction):
                 None,
                 RuleKind.TRANSFORM,
                 ctx.rule_mode,
+                # Labelled with the DLQ action's own type, matching the Java client.
+                # This synthetic rule drives FieldRedactionExecutor.transform() directly
+                # (it is never looked up by type), and in the single-rule context below
+                # are_transforms_with_same_tag() is unreachable, so rule.type is never
+                # read. Kept equal to Java so any future type-based dispatch stays in sync.
                 self.TYPE,
                 sorted(tags),
                 None,
