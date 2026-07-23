@@ -7,22 +7,19 @@
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
+- Schema Registry: add support for the DLQ (dead-letter-queue) rule action
+  (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
+  topic and the original serialize/deserialize call still raises. With the
+  default (global) `RuleRegistry` the DLQ is best-effort; set
+  `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
+  shutdown) for durability.
 
 ### Fixes
 
-- Schema Registry `DlqAction`: with the default (global) `RuleRegistry` the DLQ
-  is best-effort — records teed just before process exit may be dropped, since
-  DLQ sends are asynchronous and a per-serde `close()`/`aclose()` does not close
-  the shared action. For durability, set `dlq.auto.flush=true` (flushes after
-  every send) or give the serde its own `RuleRegistry` and call `close()`/
-  `aclose()` on shutdown.
 - `DeserializingConsumer` and `DeserializingShareConsumer` now deserialize the
-  message key before the value (previously the value was deserialized first),
-  matching `SerializingProducer` and the Java client. This lets a key
-  deserializer stash state for the value deserializer (used by the Schema
-  Registry dead-letter-queue rule action to capture the original key). As a
-  side effect, when *both* the key and value fail to deserialize, the key
-  deserialization error is now surfaced instead of the value error.
+  message key before the value, matching `SerializingProducer` and the Java
+  client. When both key and value fail to deserialize, the key error is now
+  surfaced instead of the value error.
 
 
 ## v2.15.0

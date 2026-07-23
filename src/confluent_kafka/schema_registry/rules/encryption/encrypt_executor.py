@@ -542,10 +542,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
         return transform.transform
 
     def close(self):
-        # Delegate to the wrapped EncryptionExecutor, which owns the
-        # DekRegistryClient (self.executor.client). This executor holds no
-        # client of its own, so referencing self.client here would raise
-        # AttributeError.
+        # Delegate to the wrapped EncryptionExecutor, which owns the client;
+        # this executor has none of its own.
         self.executor.close()
 
     @classmethod

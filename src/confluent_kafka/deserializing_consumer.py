@@ -109,13 +109,11 @@ class DeserializingConsumer(_ConsumerImpl):
 
     def _deserialize(self, msg: Message) -> Message:
         """
-        Deserialize a single message's key and value in place and return it.
+        Deserialize a message's key and value in place and return it.
 
         The key is deserialized before the value so a key deserializer can stash
-        the original key for the value deserializer (e.g. the Schema Registry
-        dead-letter-queue rule action tees the value's original key). This
-        matches ``SerializingProducer``, which serializes the key before the
-        value.
+        state for the value deserializer (e.g. the Schema Registry DLQ action),
+        matching ``SerializingProducer``.
 
         Raises:
             KeyDeserializationError: If an error occurs during key deserialization.

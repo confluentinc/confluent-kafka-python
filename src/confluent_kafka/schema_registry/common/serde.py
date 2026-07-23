@@ -79,17 +79,10 @@ DLQ_RULE_TOPIC_HEADER = DLQ_HEADER_PREFIX + "topic"
 DLQ_RULE_EXCEPTION_HEADER = DLQ_HEADER_PREFIX + "exception"
 
 
-# Tracks the key for use when serializing/deserializing the value, such as for a DLQ.
-# Relies on the key serde being invoked before the value serde in the same thread
-# (or asyncio task), as is the case when producing/consuming a message: the built-in
-# SerializingProducer, DeserializingConsumer and DeserializingShareConsumer all
-# process the key before the value. A limitation of this approach: the key is
-# captured only when a Schema-Registry key serde runs before the value serde. If
-# the key uses a non-SR serializer (or none is
-# configured), the value-side DLQ record's key is None. To avoid leaking a stale key
-# across messages, an SR value serde clears the stashed key once it has finished
-# (including for a None/tombstone value), so a later value serde reads None unless a
-# fresh key was stashed by its own key serde first.
+# Holds the key for the value serde (e.g. the DLQ action), set by the key serde
+# earlier in the same thread/asyncio task. Captured only when an SR key serde runs
+# before the value serde; otherwise the value-side DLQ key is None. The value serde
+# clears it when done so a stale key isn't leaked to the next message.
 _ORIGINAL_KEY: contextvars.ContextVar[Any] = contextvars.ContextVar('sr_original_key', default=None)
 
 

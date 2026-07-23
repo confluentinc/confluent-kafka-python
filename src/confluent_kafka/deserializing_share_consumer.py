@@ -122,34 +122,23 @@ class DeserializingShareConsumer(_ShareConsumerImpl):
 
     def _deserialize(self, msg: Message) -> None:
         """
-        Deserialize a single message's key and value.
+        Deserialize a message's key and value.
 
         The key is deserialized before the value (matching
         :py:class:`DeserializingConsumer` and ``SerializingProducer``) so a key
-        deserializer can stash the original key for the value deserializer.
-
-        Both fields are deserialized into locals and written back to the
-        message only once *both* succeed, so a deserialization failure leaves
-        the record's raw key and value bytes untouched (and therefore still
-        acknowledgeable). On a deserialization failure the record is marked via
-        :py:func:`Message.set_error` rather than raising, so the rest of the
-        batch (already fetched from the broker) is not lost. The deserializer
-        calls are guarded, so a failure marks only this record instead of
-        aborting the batch.
-
-        A message with no topic is a broken invariant rather than a per-record
-        data error, so it raises :py:exc:`TypeError` (matching
-        :py:class:`DeserializingConsumer`).
+        deserializer can stash state for the value deserializer (e.g. the DLQ
+        action). Fields are written back only if *both* succeed; a failure marks
+        the record via :py:func:`Message.set_error` (leaving its raw bytes intact
+        and acknowledgeable) instead of raising, so the rest of the batch is kept.
+        A message with no topic is a broken invariant, so it raises
+        :py:exc:`TypeError`.
         """
 
         topic = msg.topic()
         if topic is None:
             raise TypeError("Message topic is None")
 
-        # Deserialize the key before the value. A key deserializer may stash the
-        # original key for the value deserializer to consume (e.g. the Schema
-        # Registry DLQ action), so the key must be processed first. This matches
-        # SerializingProducer and DeserializingConsumer.
+        # Key first: a key deserializer may stash state for the value deserializer.
         ctx = SerializationContext(topic, MessageField.KEY, msg.headers())
         try:
             key = msg.key()

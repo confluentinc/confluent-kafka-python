@@ -527,8 +527,8 @@ class AsyncBaseSerde(object):
         return rule.disabled
 
     def _is_dlq_replay(self, ctx: RuleContext, rule: Rule) -> bool:
-        # If the rule name exists as a header, then we are processing a record from a DLQ.
-        # In that case, we don't want the same rule to fail again, so we skip it.
+        # A __rule.name header means this record came from a DLQ; skip that rule
+        # so it doesn't fail again.
         headers = ctx.ser_ctx.headers if ctx.ser_ctx is not None else None
         if not headers or rule.name is None:
             return False
@@ -592,28 +592,15 @@ class AsyncBaseSerde(object):
         return self._rule_registry.get_action(action_name)
 
     async def aclose(self):
-        # Release rule executors/actions that THIS serde uniquely owns so their
-        # resources (e.g. a DlqAction's Kafka producer) are flushed and released,
-        # by calling close() on each executor and action.
-        #
-        # A serde that uses the shared global RuleRegistry (the default when no
-        # dedicated rule_registry is supplied) must NOT close its members: the
-        # same executor/action objects are shared by every other default serde in
-        # the process, so closing them here would tear down resources still in use
-        # elsewhere (e.g. close another serde's KMS client, or flush and null out
-        # a live DlqAction producer). Global rule resources are process-lifetime;
-        # only a serde given its own registry owns and closes them.
-        #
-        # Under asyncio, DlqAction.close()'s producer.flush() briefly blocks the
-        # event loop.
+        # Close only the executors/actions this serde owns via a dedicated
+        # registry. Members of the shared global registry are process-lifetime and
+        # used by other serdes, so closing them here would tear down live resources.
         from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 
         if self._rule_registry is None or self._rule_registry is RuleRegistry.get_global_instance():
             return
-        # Flush actions (e.g. the DlqAction producer) before closing executors,
-        # and isolate every close in its own try/except, so one failing member
-        # can never skip the others -- most importantly, a buggy executor must
-        # not cost us buffered DLQ records.
+        # Close actions before executors, each isolated so one failure can't skip
+        # the rest (a buggy executor must not cost buffered DLQ records).
         for action in self._rule_registry.get_actions():
             try:
                 action.close()

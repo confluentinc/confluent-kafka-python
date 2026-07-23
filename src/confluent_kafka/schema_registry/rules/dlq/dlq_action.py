@@ -53,12 +53,8 @@ _INT64_MAX = 2**63 - 1
 
 
 class FieldRedactionExecutor(FieldRuleExecutor):
-    """
-    A field-level rule executor that replaces tagged STRING fields with
-    ``"<REDACTED>"`` and tagged BYTES fields with ``b"<REDACTED>"``; all other
-    field types pass through unchanged. Used by :class:`DlqAction` to redact
-    fields tagged by encryption rules before writing a record to the DLQ.
-    """
+    """Replaces tagged STRING/BYTES fields with ``<REDACTED>``; used by
+    :class:`DlqAction` to mask encrypted fields before writing to the DLQ."""
 
     TYPE = "REDACT"
 
@@ -89,114 +85,27 @@ class FieldRedactionExecutor(FieldRuleExecutor):
 
 class DlqAction(RuleAction):
     """
-    A rule action that sends the record being processed to a dead-letter-queue
-    topic when a rule fails, then raises a :class:`SerializationError`. The DLQ
-    is a tee, not a swallow: the original serialize/deserialize call still fails.
+    Rule action that tees the record to a dead-letter-queue topic when a rule
+    fails, then raises ``SerializationError`` (the original call still fails).
 
-    The DLQ record is built from the original key/value as they were at entry to
-    the current rule phase. On serialize (WRITE), structured values are converted
-    to JSON after redacting every field tagged by rules whose type is in
-    ``dlq.redact.rule.types`` (default ``ENCRYPT,ENCRYPT_PAYLOAD``), so plaintext
-    for encrypted fields does not leak to the DLQ. On deserialize (READ), the
-    original wire bytes are sent verbatim (for encrypted payloads this is
-    ciphertext, and the DLQ record can be re-consumed directly). Records consumed
-    from a DLQ topic carry a ``__rule.name`` header, which causes the previously
-    failed rule to be skipped on deserialization.
+    On WRITE, structured values are JSON-encoded after redacting fields tagged
+    by ``dlq.redact.rule.types`` (default ``ENCRYPT,ENCRYPT_PAYLOAD``); on READ
+    the original wire bytes are sent verbatim. DLQ records carry ``__rule.*``
+    headers, so the failed rule is skipped when they are re-consumed.
 
-    Configuration keys (constructor ``conf`` dict; ``dlq.*`` and ``producer``
-    may also be supplied via the serializer/deserializer ``rule_conf``):
+    Config keys (constructor ``conf``; ``dlq.*``/``producer`` may also come from
+    the serde ``rule_conf``):
 
-    +--------------------------+----------------------------------------------------+
-    | Property name            | Description                                        |
-    +==========================+====================================================+
-    | ``dlq.topic``            | DLQ topic (overridable per rule via a ``dlq.topic``|
-    |                          | rule parameter)                                    |
-    +--------------------------+----------------------------------------------------+
-    | ``dlq.auto.flush``       | Flush the producer after each DLQ send             |
-    +--------------------------+----------------------------------------------------+
-    | ``dlq.redact.rule.types``| Comma-separated rule types whose tagged fields are |
-    |                          | redacted; defaults to ``ENCRYPT,ENCRYPT_PAYLOAD``  |
-    +--------------------------+----------------------------------------------------+
-    | ``producer``             | A pre-built producer to use instead of creating one|
-    +--------------------------+----------------------------------------------------+
-    | any other key            | Passed to the internal librdkafka producer, e.g.   |
-    |                          | ``bootstrap.servers``, ``security.protocol``, ...  |
-    +--------------------------+----------------------------------------------------+
+    - ``dlq.topic``: DLQ topic (a per-rule ``dlq.topic`` parameter overrides it)
+    - ``dlq.auto.flush``: flush after every send
+    - ``dlq.redact.rule.types``: rule types whose tagged fields are redacted
+    - ``producer``: pre-built producer; any other key is passed to librdkafka
 
-    Producer configuration and encoding notes:
-
-    - The serde only receives the Schema Registry client config, not Kafka
-      producer properties, so producer connectivity must be given explicitly in
-      ``conf`` (``bootstrap.servers`` etc.). librdkafka rejects unknown
-      properties, so the Schema Registry config cannot be merged into the
-      producer conf.
-    - ``produce()`` is non-blocking: a full queue raises and is logged. The
-      producer uses ``message.timeout.ms=0`` (infinite), so records are retried
-      until delivered.
-    - ``int`` and ``float`` values are encoded as 8-byte big-endian.
-    - ``dlq.auto.flush`` blocks, which stalls the event loop under asyncio.
-
-    Failure behaviors: redaction failures are fail-open (the unredacted value is
-    sent, with an error logged). Redaction operates on a deep copy, so the
-    caller's message object is not mutated (this diverges from the Java client,
-    which redacts in place).
-
-    .. warning::
-
-        **Field-level redaction only applies to field-level rules (e.g.**
-        ``ENCRYPT`` **).** A payload-level ``ENCRYPT_PAYLOAD`` rule runs in the
-        ENCODING phase on the already-serialized buffer, which carries no field
-        tags, so nothing can be redacted. On a **serialize (WRITE)** failure --
-        for example a transient KMS/DEK outage -- the DLQ therefore receives the
-        **entire record as unencrypted plaintext**. If the DLQ topic is less
-        protected than the source topic, a KMS outage becomes a plaintext
-        exposure. Restrict access to the DLQ topic accordingly, or use
-        field-level ``ENCRYPT`` rules (which redact tagged fields) when the DLQ
-        must not hold plaintext. On the READ path the wire bytes are ciphertext,
-        so this exposure does not apply. This matches the Java client.
-
-    Shared instance / register-once semantics: a ``DlqAction`` is registered once
-    into a :class:`RuleRegistry` and shared by every serde bound to that registry
-    (typically the process-wide global registry). This single instance holds one
-    ``_conf`` and one producer. Consequently:
-
-    - ``configure()`` is called by every serde's constructor and merges the
-      serde's ``rule_conf`` ``dlq.*``/``producer`` keys into the shared ``_conf``
-      (last writer wins). Two serdes sharing one action with different
-      ``rule_conf`` (e.g. different ``dlq.topic``) will clobber each other; give a
-      serde its own :class:`RuleRegistry` (with its own ``DlqAction``) if it needs
-      an isolated DLQ config. A per-rule ``dlq.topic`` parameter (see the table)
-      is resolved per invocation and is unaffected.
-    - Because the action (and its producer) is shared and process-lifetime, a
-      per-serde :meth:`close`/``aclose`` does NOT close it when it lives in the
-      global registry; see :meth:`AsyncBaseSerde.aclose`.
-
-    Durability contract: DLQ sends are asynchronous, so records still queued in
-    the producer when the process exits are lost -- the producer is destroyed
-    without a flush. A serde bound to the *global* registry is never closed by
-    :meth:`close`/``aclose`` (see above), so with the default (global) registry
-    the DLQ is **best-effort**: records teed just before shutdown may be dropped.
-    Two ways to make it durable:
-
-    - Set ``dlq.auto.flush=true`` so :meth:`run` flushes after every send (the
-      record is delivered before the failing serialize/deserialize call returns).
-      This is the durability knob for the global/default registry.
-    - Give the serde its own :class:`RuleRegistry`; then ``serde.close()`` /
-      ``await serde.aclose()`` flushes and closes this action's producer. This is
-      the deterministic, ownership-based path.
-
-    Original-key capture limitation: the value-side DLQ record's ``key`` is taken
-    from the key stashed by the key serde via ``set_original_key`` (a contextvar).
-    This only works when a Schema-Registry key
-    serializer/deserializer runs before the value serde in the same thread/task.
-    The built-in ``SerializingProducer``, ``DeserializingConsumer`` and
-    ``DeserializingShareConsumer`` all process the key before the value, so the
-    key is captured when both key and value use SR serdes. If the key uses a
-    non-SR serializer, no key serializer is configured, or the key serde failed
-    before stashing, the value-side DLQ record's key will be ``None``. After a
-    value serde runs it clears the stashed key, so a stale key is not leaked to a
-    later value serde that has no key of its own; see ``get_original_key`` in
-    ``common/serde.py``.
+    With the global registry the DLQ is best-effort (a per-serde close does not
+    close the shared action); use ``dlq.auto.flush`` or a dedicated ``RuleRegistry``
+    for durability. ``ENCRYPT_PAYLOAD`` carries no field tags, so a WRITE failure
+    tees plaintext -- restrict DLQ access accordingly. Redaction runs on a deep
+    copy, so the caller's object is not mutated.
     """
 
     TYPE = "DLQ"
@@ -227,17 +136,9 @@ class DlqAction(RuleAction):
         return self.TYPE
 
     def configure(self, client_conf: dict, rule_conf: dict):
-        # client_conf is the Schema Registry client config, which contains no
-        # Kafka producer properties and cannot be merged into the producer conf
-        # (librdkafka rejects unknown properties), so it is not used here.
-        #
-        # This instance is shared across every serde bound to the same registry, so
-        # each serde's constructor calls configure() concurrently in the worst case.
-        # Hold the lock while mutating _conf (and deriving fields from it) so a
-        # concurrent _get_producer() -- which iterates _conf under the same lock --
-        # cannot observe a half-written config or raise "dict changed size during
-        # iteration". _parse_conf() must not take the lock (it is called here with
-        # the lock already held).
+        # Shared across serdes: hold the lock while mutating _conf so a concurrent
+        # _get_producer() can't observe a half-written config. client_conf carries
+        # no producer properties, so it is unused here.
         with self._lock:
             if rule_conf:
                 for key, value in rule_conf.items():
@@ -246,8 +147,7 @@ class DlqAction(RuleAction):
             self._parse_conf()
 
     def _parse_conf(self):
-        # Not thread-safe on its own; callers must hold self._lock (or be __init__,
-        # which runs before the instance is shared).
+        # Callers must hold self._lock (except __init__, which runs pre-share).
         self._topic = self._conf.get(self.DLQ_TOPIC)
         auto_flush = self._conf.get(self.DLQ_AUTO_FLUSH)
         if auto_flush is not None:
@@ -266,7 +166,7 @@ class DlqAction(RuleAction):
             'enable.idempotence': False,
             'acks': 'all',
             'max.in.flight.requests.per.connection': 1,
-            # 0 = infinite message timeout: records are retried until delivered
+            # 0 = infinite: retry until delivered
             'message.timeout.ms': 0,
         }
 
@@ -333,9 +233,8 @@ class DlqAction(RuleAction):
             return message.encode('utf-8')
         elif isinstance(message, uuid.UUID):
             return str(message).encode('utf-8')
-        # bool is excluded so that it falls through to the JSON path.
-        # Ints outside the signed int64 range also fall through to the JSON path
-        # rather than raising struct.error, which would abort the whole DLQ send.
+        # bool and out-of-int64-range ints fall through to the JSON path
+        # (packing the latter with '>q' would raise struct.error).
         elif isinstance(message, int) and not isinstance(message, bool) and _INT64_MIN <= message <= _INT64_MAX:
             return struct.pack('>q', message)
         elif isinstance(message, float):
@@ -372,11 +271,8 @@ class DlqAction(RuleAction):
                 None,
                 RuleKind.TRANSFORM,
                 ctx.rule_mode,
-                # Labelled with the DLQ action's own type, matching the Java client.
-                # This synthetic rule drives FieldRedactionExecutor.transform() directly
-                # (it is never looked up by type), and in the single-rule context below
-                # are_transforms_with_same_tag() is unreachable, so rule.type is never
-                # read. Kept equal to Java so any future type-based dispatch stays in sync.
+                # DLQ action's own type, matching Java; unused here (the executor
+                # is invoked directly, never looked up by type).
                 self.TYPE,
                 sorted(tags),
                 None,
@@ -400,12 +296,8 @@ class DlqAction(RuleAction):
                 ctx.original_key,
                 ctx.original_value,
             )
-            # Redact a copy so the caller's live object is never mutated: on a
-            # WRITE failure the message is the record the application still holds
-            # and may retry, and masking its fields in place would silently
-            # replace real (e.g. PII) values with "<REDACTED>". This diverges
-            # from the Java client, which redacts in place; the DLQ record bytes
-            # are identical either way, so cross-client behavior is unaffected.
+            # Redact a copy so the caller's object is not mutated (Java redacts
+            # in place; the DLQ bytes are identical either way).
             message = copy.deepcopy(message)
             executor = FieldRedactionExecutor()
             try:
@@ -454,9 +346,8 @@ class DlqAction(RuleAction):
         return str(value).encode('utf-8')
 
     def close(self):
-        # Detach the producer under the lock (so it can't race _get_producer /
-        # configure), then flush outside the lock: flush() can block for a long
-        # time (message.timeout.ms=0 is infinite) and must not stall other callers.
+        # Detach under the lock, then flush outside it: flush() can block
+        # indefinitely (message.timeout.ms=0) and must not stall other callers.
         with self._lock:
             producer = self._producer
             self._producer = None
