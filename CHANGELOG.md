@@ -1,5 +1,14 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.x.0
+
+### Enhancements
+
+- Add support for saving Azure key version with DEK (#2306)
+- Pass context when clients make KEK calls to DEK Registry (#2308)
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
+
+
 ## v2.15.0
 
 ### [KIP-932](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka) Queues for Kafka – Now in **Preview**
