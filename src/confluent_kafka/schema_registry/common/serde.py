@@ -17,6 +17,7 @@
 #
 
 import abc
+import contextvars
 import io
 import logging
 import struct
@@ -51,6 +52,15 @@ __all__ = [
     'RuleAction',
     'ErrorAction',
     'NoneAction',
+    'DLQ_HEADER_PREFIX',
+    'DLQ_RULE_NAME_HEADER',
+    'DLQ_RULE_MODE_HEADER',
+    'DLQ_RULE_SUBJECT_HEADER',
+    'DLQ_RULE_TOPIC_HEADER',
+    'DLQ_RULE_EXCEPTION_HEADER',
+    'set_original_key',
+    'get_original_key',
+    'clear_original_key',
     'RuleError',
     'RuleConditionError',
     'Migration',
@@ -59,6 +69,33 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+
+
+DLQ_HEADER_PREFIX = "__rule."
+DLQ_RULE_NAME_HEADER = DLQ_HEADER_PREFIX + "name"
+DLQ_RULE_MODE_HEADER = DLQ_HEADER_PREFIX + "mode"
+DLQ_RULE_SUBJECT_HEADER = DLQ_HEADER_PREFIX + "subject"
+DLQ_RULE_TOPIC_HEADER = DLQ_HEADER_PREFIX + "topic"
+DLQ_RULE_EXCEPTION_HEADER = DLQ_HEADER_PREFIX + "exception"
+
+
+# Holds the key for the value serde (e.g. the DLQ action), set by the key serde
+# earlier in the same thread/asyncio task. Captured only when an SR key serde runs
+# before the value serde; otherwise the value-side DLQ key is None. The value serde
+# clears it when done so a stale key isn't leaked to the next message.
+_ORIGINAL_KEY: contextvars.ContextVar[Any] = contextvars.ContextVar('sr_original_key', default=None)
+
+
+def set_original_key(key: Any):
+    _ORIGINAL_KEY.set(key)
+
+
+def get_original_key() -> Any:
+    return _ORIGINAL_KEY.get()
+
+
+def clear_original_key():
+    _ORIGINAL_KEY.set(None)
 
 
 class SubjectNameStrategyType(str, Enum):
@@ -134,6 +171,8 @@ class RuleContext(object):
         'rules',
         'inline_tags',
         'field_transformer',
+        'original_key',
+        'original_value',
         '_field_contexts',
     ]
 
@@ -150,6 +189,8 @@ class RuleContext(object):
         rules: List[Rule],
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer,
+        original_key: Any = None,
+        original_value: Any = None,
     ):
         self.enabled_env = enabled_env
         self.ser_ctx = ser_ctx
@@ -162,6 +203,8 @@ class RuleContext(object):
         self.rules = rules
         self.inline_tags = inline_tags
         self.field_transformer = field_transformer
+        self.original_key = original_key
+        self.original_value = original_value
         self._field_contexts: List[FieldContext] = []
 
     def get_parameter(self, name: str) -> Optional[str]:
