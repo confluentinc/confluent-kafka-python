@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading as _locks
 import io
 from typing import Any, Callable, List, Optional, Set, Tuple, Union, cast
 
@@ -32,6 +33,7 @@ from confluent_kafka.schema_registry import (
     prefix_schema_id_serializer,
     reference_subject_name_strategy,
 )
+
 from confluent_kafka.schema_registry.common.protobuf import (
     PROTOBUF_TYPE,
     _bytes,
@@ -94,6 +96,7 @@ def _resolve_named_schema(
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
+
 
 
 class ProtobufSerializer(BaseSerializer):
@@ -224,6 +227,7 @@ class ProtobufSerializer(BaseSerializer):
     __slots__ = [
         '_skip_known_types',
         '_known_subjects',
+        '_known_subjects_lock',
         '_msg_class',
         '_index_array',
         '_schema',
@@ -320,6 +324,7 @@ class ProtobufSerializer(BaseSerializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
+        self._known_subjects_lock = _locks.Lock()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
 
@@ -373,7 +378,9 @@ class ProtobufSerializer(BaseSerializer):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(self, ctx: SerializationContext, file_desc: FileDescriptor) -> List[SchemaReference]:
+    def _resolve_dependencies(
+        self, ctx: SerializationContext, file_desc: FileDescriptor
+    ) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -430,7 +437,9 @@ class ProtobufSerializer(BaseSerializer):
 
         subject = (
             (
-                self._subject_name_func(ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf)
+                self._subject_name_func(
+                    ctx, message.DESCRIPTOR.full_name, self._registry, self._subject_name_conf
+                )
                 if self._strategy_accepts_client
                 else self._subject_name_func(ctx, message.DESCRIPTOR.full_name)
             )
@@ -441,29 +450,40 @@ class ProtobufSerializer(BaseSerializer):
         if subject is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
+        # schema_id is kept as a local variable (rather than read back from self._schema_id)
+        # so that concurrent __serialize calls on a shared serializer instance can't clobber
+        # each other's result between this point and where it's used below.
+        schema_id = self._schema_id
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            self._schema_id = schema_id
 
         elif subject is not None and subject not in self._known_subjects and ctx is not None:
-            references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
-            self._schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
+            with self._known_subjects_lock:
+                if subject not in self._known_subjects:
+                    references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
+                    schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
 
-            if self._auto_register:
-                registered_schema = self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
-            else:
-                registered_schema = self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
+                    if self._auto_register:
+                        registered_schema = self._registry.register_schema_full_response(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
+                    else:
+                        registered_schema = self._registry.lookup_schema(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
 
-            self._known_subjects.add(subject)
+                    self._schema = schema
+                    self._known_subjects.add(subject)
+                    self._schema_id = schema_id
+                else:
+                    schema_id = self._schema_id
 
         if latest_schema is not None:
             fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
@@ -480,8 +500,8 @@ class ProtobufSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            if self._schema_id is not None:
-                self._schema_id.message_indexes = self._index_array
+            if schema_id is not None:
+                schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None and ctx is not None and subject is not None:
@@ -489,7 +509,7 @@ class ProtobufSerializer(BaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
                 )
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -505,6 +525,7 @@ class ProtobufSerializer(BaseSerializer):
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
+
 
 
 class ProtobufDeserializer(BaseDeserializer):
@@ -630,7 +651,9 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -681,7 +704,9 @@ class ProtobufDeserializer(BaseDeserializer):
             if subject is None:
                 subject = (
                     (
-                        self._subject_name_func(ctx, writer_desc.full_name, self._registry, self._subject_name_conf)
+                        self._subject_name_func(
+                            ctx, writer_desc.full_name, self._registry, self._subject_name_conf
+                        )
                         if self._strategy_accepts_client
                         else self._subject_name_func(ctx, writer_desc.full_name)
                     )
