@@ -40,6 +40,10 @@ FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 collect_ignore = []
 if FREE_THREADED_BUILD:
     collect_ignore = [
+        "test_azure_aead.py",
+        "test_azure_client.py",
+        "test_azure_driver.py",
+        "test_encrypt_executor.py",
         "test_hcvault_driver.py",
         "_async/test_avro_serdes_rules.py",
         "_async/test_config_rules.py",
