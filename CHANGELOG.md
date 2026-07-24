@@ -8,6 +8,10 @@
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
 
+### Fixes
+
+- Fix race conditions (#2315)
+
 
 ## v2.15.0
 

@@ -19,7 +19,6 @@
 import json
 from unittest.mock import Mock
 
-import orjson
 import pytest
 
 from confluent_kafka.schema_registry import (
@@ -31,6 +30,8 @@ from confluent_kafka.schema_registry import (
 from confluent_kafka.schema_registry.json_schema import AsyncJSONDeserializer, AsyncJSONSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.serialization import SerializationContext
+
+orjson = pytest.importorskip("orjson")
 
 
 async def test_json_deserializer_referenced_schema_no_schema_registry_client(load_avsc):
