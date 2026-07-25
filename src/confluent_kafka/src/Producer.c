@@ -1076,6 +1076,32 @@ static PyObject *Producer_exit(Handle *self, PyObject *args) {
 }
 
 
+static PyObject *
+Producer_clusterid(Handle *self, PyObject *args, PyObject *kwargs) {
+        char *clusterid;
+        PyObject *clusteridobj;
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
+
+        clusterid = rd_kafka_clusterid(self->rk, 0);
+
+        if (!clusterid)
+                Py_RETURN_NONE;
+
+        if (!*clusterid) {
+                rd_kafka_mem_free(self->rk, clusterid);
+                Py_RETURN_NONE;
+        }
+
+        clusteridobj = Py_BuildValue("s", clusterid);
+        rd_kafka_mem_free(self->rk, clusterid);
+
+        return clusteridobj;
+}
+
+
 static PyMethodDef Producer_methods[] = {
     {"produce", (PyCFunction)Producer_produce, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: produce(topic, [value], [key], [partition], "
@@ -1395,6 +1421,20 @@ static PyMethodDef Producer_methods[] = {
      "\n"},
     {"set_sasl_credentials", (PyCFunction)set_sasl_credentials,
      METH_VARARGS | METH_KEYWORDS, set_sasl_credentials_doc},
+    {"cluster_id", (PyCFunction)Producer_clusterid, METH_NOARGS,
+     ".. py:function:: cluster_id()\n"
+     "\n"
+     " Return the cluster id of the Kafka cluster this producer is connected to,\n"
+     " or None if it is not yet known.\n"
+     "\n"
+     " The cluster id is fetched from the broker metadata and cached locally.\n"
+     " A None return indicates the cluster id has not yet been retrieved;\n"
+     " the application should retry after a short delay.\n"
+     "\n"
+     "  :returns: Cluster id string or None\n"
+     "  :rtype: string\n"
+     "  :raises: RuntimeError if called on a closed producer\n"
+     "\n"},
     {"__enter__", (PyCFunction)Producer_enter, METH_NOARGS,
      "Context manager entry."},
     {"__exit__", (PyCFunction)Producer_exit, METH_VARARGS,

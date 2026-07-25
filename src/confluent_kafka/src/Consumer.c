@@ -1089,6 +1089,32 @@ Consumer_memberid(Handle *self, PyObject *args, PyObject *kwargs) {
         return memberidobj;
 }
 
+
+static PyObject *
+Consumer_clusterid(Handle *self, PyObject *args, PyObject *kwargs) {
+        char *clusterid;
+        PyObject *clusteridobj;
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                return NULL;
+        }
+
+        clusterid = rd_kafka_clusterid(self->rk, 0);
+
+        if (!clusterid)
+                Py_RETURN_NONE;
+
+        if (!*clusterid) {
+                rd_kafka_mem_free(self->rk, clusterid);
+                Py_RETURN_NONE;
+        }
+
+        clusteridobj = Py_BuildValue("s", clusterid);
+        rd_kafka_mem_free(self->rk, clusterid);
+
+        return clusteridobj;
+}
+
 /**
  * @brief Consume a batch of messages from the subscribed topics.
  *
@@ -1636,6 +1662,20 @@ static PyMethodDef Consumer_methods[] = {
      " is propagated to the consumer during rebalance.\n"
      "\n"
      "  :returns: Member id string or None\n"
+     "  :rtype: string\n"
+     "  :raises: RuntimeError if called on a closed consumer\n"
+     "\n"},
+    {"cluster_id", (PyCFunction)Consumer_clusterid, METH_NOARGS,
+     ".. py:function:: cluster_id()\n"
+     "\n"
+     " Return the cluster id of the Kafka cluster this consumer is connected to,\n"
+     " or None if it is not yet known.\n"
+     "\n"
+     " The cluster id is fetched from the broker metadata and cached locally.\n"
+     " A None return indicates the cluster id has not yet been retrieved;\n"
+     " the application should retry after a short delay.\n"
+     "\n"
+     "  :returns: Cluster id string or None\n"
      "  :rtype: string\n"
      "  :raises: RuntimeError if called on a closed consumer\n"
      "\n"},
