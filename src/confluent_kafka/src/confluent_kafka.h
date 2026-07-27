@@ -292,9 +292,10 @@ typedef struct {
         PyObject *oauth_cb;
         atomic_int_t oauth_token_set;
 
-        /* Protects self->rk from being freed by close() while another method
-         * is still using it. See Handle_enter_rk_use()/Handle_exit_rk_use()
-         * in confluent_kafka.c. */
+        /* Protects self->rk in Producer and Admin clients from being freed by
+         * close() while another method is still using it.
+         * See Handle_enter_rk_use()/Handle_exit_rk_use() in confluent_kafka.c.
+         */
         atomic_int_t active_calls;
         atomic_int_t closing;
 
