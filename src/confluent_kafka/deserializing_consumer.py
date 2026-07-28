@@ -105,25 +105,40 @@ class DeserializingConsumer(_ConsumerImpl):
         if error is not None:
             raise ConsumeError(error, kafka_message=msg)
 
+        return self._deserialize(msg)
+
+    def _deserialize(self, msg: Message) -> Message:
+        """
+        Deserialize a message's key and value in place and return it.
+
+        The key is deserialized before the value so a key deserializer can stash
+        state for the value deserializer (e.g. the Schema Registry DLQ action),
+        matching ``SerializingProducer``.
+
+        Raises:
+            KeyDeserializationError: If an error occurs during key deserialization.
+
+            ValueDeserializationError: If an error occurs during value deserialization.
+        """
         topic = msg.topic()
         if topic is None:
             raise TypeError("Message topic is None")
-        ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
-
-        value = msg.value()
-        if self._value_deserializer is not None:
-            try:
-                value = self._value_deserializer(value, ctx)
-            except Exception as se:
-                raise ValueDeserializationError(exception=se, kafka_message=msg)
+        ctx = SerializationContext(topic, MessageField.KEY, msg.headers())
 
         key = msg.key()
-        ctx.field = MessageField.KEY
         if self._key_deserializer is not None:
             try:
                 key = self._key_deserializer(key, ctx)
             except Exception as se:
                 raise KeyDeserializationError(exception=se, kafka_message=msg)
+
+        value = msg.value()
+        ctx.field = MessageField.VALUE
+        if self._value_deserializer is not None:
+            try:
+                value = self._value_deserializer(value, ctx)
+            except Exception as se:
+                raise ValueDeserializationError(exception=se, kafka_message=msg)
 
         msg.set_key(key)
         msg.set_value(value)

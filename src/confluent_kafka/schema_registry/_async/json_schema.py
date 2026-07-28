@@ -50,8 +50,10 @@ from confluent_kafka.schema_registry.serde import (
     AsyncBaseSerializer,
     ParsedSchemaCache,
     SchemaId,
+    clear_original_key,
+    set_original_key,
 )
-from confluent_kafka.serialization import SerializationContext, SerializationError
+from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 
 __all__ = ['_resolve_named_schema', 'AsyncJSONSerializer', 'AsyncJSONDeserializer']
 
@@ -341,6 +343,8 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -350,6 +354,18 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         return self.__serialize(obj, ctx)
 
     async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        try:
+            if obj is None:
+                return None
+            return await self.__serialize_impl(obj, ctx)
+        finally:
+            # Track the key for use when serializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(obj)
+            else:
+                clear_original_key()
+
+    async def __serialize_impl(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -664,6 +680,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -673,6 +691,20 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         return self.__deserialize(data, ctx)
 
     async def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        try:
+            if data is None:
+                return None
+            return await self.__deserialize_impl(data, ctx)
+        finally:
+            # Track the key for use when deserializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(data)
+            else:
+                clear_original_key()
+
+    async def __deserialize_impl(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -725,7 +757,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         if ctx is not None and subject is not None:
             payload = self._execute_rules_with_phase(
-                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None, data
             )
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
@@ -765,7 +797,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
             if ctx is not None and subject is not None:
                 obj_dict = self._execute_rules(
-                    ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, None, field_transformer
+                    ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, None, field_transformer, data
                 )
 
         if self._validate:
