@@ -3316,21 +3316,31 @@ int CallState_end(Handle *h, CallState *cs) {
 
 
 /**
+ * @brief Whether self->rk is protected by the active_calls/closing
+ *        mechanism.
+ */
+int Handle_is_rk_use_gated(Handle *h) {
+        return h->initiated && (h->type == RD_KAFKA_PRODUCER ||
+                               h->type == PY_RD_KAFKA_ADMIN);
+}
+
+/**
  * @brief Mark self->rk as in-use by the calling thread, so that close()
  *        (running concurrently on another thread) will wait for us before
  *        destroying it. Must be called before CallState_begin().
  *
- * @returns 1 if self->rk is safe to use (active_calls has been
- *          incremented; caller must call Handle_exit_rk_use() on every
- *          return path), or 0 with ERR_MSG_PRODUCER_CLOSED set if the
- *          Handle is closed/closing (nothing to undo).
+ * @param closed_msg Message to raise (as RuntimeError) if the Handle is
+ *                   closed/closing.
+ *
+ * @returns 1 if self->rk is safe to use (caller must call Handle_exit_rk_use()
+ *          on every return path), or 0 with `closed_msg` set otherwise.
  *
  * @warning Not re-entrant: don't call from a method that's already
  *          between its own Handle_enter_rk_use()/Handle_exit_rk_use().
  */
-int Handle_enter_rk_use(Handle *h) {
+int Handle_enter_rk_use(Handle *h, const char *closed_msg) {
         if (atomic_int_get(&h->closing) || !h->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, closed_msg);
                 return 0;
         }
         atomic_int_inc(&h->active_calls);
@@ -3338,7 +3348,7 @@ int Handle_enter_rk_use(Handle *h) {
          * increment; re-check now that we're counted. */
         if (atomic_int_get(&h->closing) || !h->rk) {
                 atomic_int_dec(&h->active_calls);
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                PyErr_SetString(PyExc_RuntimeError, closed_msg);
                 return 0;
         }
         return 1;
@@ -3350,6 +3360,25 @@ int Handle_enter_rk_use(Handle *h) {
  */
 void Handle_exit_rk_use(Handle *h) {
         atomic_int_dec(&h->active_calls);
+}
+
+/**
+ * @brief Release the GIL for a short, fixed sleep (100ms), then reacquire
+ *        it. Used by close()/__exit__ while waiting for a
+ *        concurrent close()/__exit__ to finish, or for active_calls to
+ *        drain to 0).
+ *
+ * @warning Must be called with the GIL held, same as CallState_begin().
+ */
+void Handle_teardown_wait_sleep(Handle *h) {
+        CallState cs;
+        CallState_begin(h, &cs);
+#ifdef _WIN32
+        Sleep(100);
+#else
+        usleep(100000);
+#endif
+        CallState_end(h, &cs);
 }
 
 /**
@@ -3660,6 +3689,7 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
         const char *password = NULL;
         rd_kafka_error_t *error;
         CallState cs;
+        int gated = Handle_is_rk_use_gated(self);
         static char *kws[] = {"username", "password", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws, &username,
@@ -3667,14 +3697,22 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
+        if (gated && !Handle_enter_rk_use(self, ERR_MSG_HANDLE_CLOSED))
+                return NULL;
+
         CallState_begin(self, &cs);
         error = rd_kafka_sasl_set_credentials(self->rk, username, password);
 
         if (!CallState_end(self, &cs)) {
+                if (gated)
+                        Handle_exit_rk_use(self);
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
                 return NULL;
         }
+
+        if (gated)
+                Handle_exit_rk_use(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
