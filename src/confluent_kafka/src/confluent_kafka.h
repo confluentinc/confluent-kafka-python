@@ -407,15 +407,29 @@ void CallState_begin(Handle *h, CallState *cs);
 int CallState_end(Handle *h, CallState *cs);
 
 /**
- * @brief Mark self->rk as in-use by the calling thread.
- * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
- *          return path), 0 with ERR_MSG_PRODUCER_CLOSED set otherwise.
+ * @brief Whether self->rk is protected by the active_calls/closing
+ *        mechanism for this Handle's type.
  */
-int Handle_enter_rk_use(Handle *h);
+int Handle_is_rk_use_gated(Handle *h);
+
+/**
+ * @brief Mark self->rk as in-use by the calling thread.
+ * @param closed_msg Message to raise (as RuntimeError) if the Handle is
+ *                   closed/closing.
+ * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
+ *          return path), 0 with `closed_msg` set otherwise.
+ */
+int Handle_enter_rk_use(Handle *h, const char *closed_msg);
 /**
  * @brief Counterpart to Handle_enter_rk_use().
  */
 void Handle_exit_rk_use(Handle *h);
+
+/**
+ * @brief Release the GIL for a short, fixed sleep (100ms), then reacquire
+ *        it. Used for waiting for active calls in close()/__exit__.
+ */
+void Handle_teardown_wait_sleep(Handle *h);
 
 /**
  * @brief Get the current thread's CallState and re-locks the GIL.
