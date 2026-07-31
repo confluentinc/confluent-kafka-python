@@ -48,7 +48,11 @@ class AIOConsumer:
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_conf_callback = _common.wrap_conf_callback
         wrap_common_callbacks(loop, consumer_conf)
-        wrap_conf_callback(loop, consumer_conf, 'on_commit')
+        # get_consumer is a deferred accessor (self._consumer does not exist
+        # yet at this point) so on_commit can mint a NOGIL gate token -- see
+        # _common.wrap_callback() -- to let a re-entrant commit() call made
+        # from within the on_commit callback through the gate.
+        wrap_conf_callback(loop, consumer_conf, 'on_commit', get_consumer=lambda: self._consumer)
 
         self._consumer: confluent_kafka.Consumer = confluent_kafka.Consumer(consumer_conf)
 
@@ -68,15 +72,15 @@ class AIOConsumer:
         edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
         edit_kwargs: Optional[Callable[[Any], Any]] = None,
     ) -> Callable[..., Any]:
-        def ret(*args: Any, **kwargs: Any) -> Any:
-            if edit_args:
-                args = edit_args(args)
-            if edit_kwargs:
-                kwargs = edit_kwargs(kwargs)
-            f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
-            return f.result()
-
-        return ret
+        # Delegates to the module-level wrap_callback so rebalance callbacks
+        # (on_assign/on_revoke/on_lost) get the same NOGIL gate token
+        # treatment as on_commit -- see _common.wrap_callback(). By the time
+        # subscribe() runs, self._consumer already exists, but get_consumer
+        # is still used (rather than passing self._consumer directly) for
+        # consistency with wrap_conf_callback's call in __init__.
+        return _common.wrap_callback(
+            loop, callback, edit_args=edit_args, edit_kwargs=edit_kwargs, get_consumer=lambda: self._consumer
+        )
 
     async def poll(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -127,7 +131,18 @@ class AIOConsumer:
         return await self._call(self._consumer.unsubscribe, *args, **kwargs)
 
     async def commit(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.commit, *args, **kwargs)
+        # commit() is one of the 5 re-entrant-eligible methods: it may be
+        # called from within an on_commit callback (see
+        # test_on_commit_calls_commit_from_callback), which runs on a
+        # ThreadPoolExecutor worker thread that already holds the NOGIL
+        # Consumer gate. That worker thread minted a one-shot token (see
+        # _common.wrap_callback()) and set it on _reentry_token_var as the
+        # first thing the callback coroutine did. We must read it here, on
+        # the event-loop thread, since contextvars do not propagate across
+        # the run_in_executor() submission boundary -- then pass it through
+        # explicitly to the internal token-carrying C method.
+        token = _common._reentry_token_var.get()
+        return await self._call(self._consumer._commit_with_token, token, *args, **kwargs)
 
     async def close(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.close, *args, **kwargs)
@@ -148,16 +163,28 @@ class AIOConsumer:
         return await self._call(self._consumer.committed, *args, **kwargs)
 
     async def assign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.assign, *args, **kwargs)
+        # Re-entrant-eligible: see commit() above for why the token is read
+        # here (event-loop thread) and threaded through explicitly.
+        token = _common._reentry_token_var.get()
+        return await self._call(self._consumer._assign_with_token, token, *args, **kwargs)
 
     async def unassign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.unassign, *args, **kwargs)
+        # Re-entrant-eligible: see commit() above for why the token is read
+        # here (event-loop thread) and threaded through explicitly.
+        token = _common._reentry_token_var.get()
+        return await self._call(self._consumer._unassign_with_token, token, *args, **kwargs)
 
     async def incremental_assign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.incremental_assign, *args, **kwargs)
+        # Re-entrant-eligible: see commit() above for why the token is read
+        # here (event-loop thread) and threaded through explicitly.
+        token = _common._reentry_token_var.get()
+        return await self._call(self._consumer._incremental_assign_with_token, token, *args, **kwargs)
 
     async def incremental_unassign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.incremental_unassign, *args, **kwargs)
+        # Re-entrant-eligible: see commit() above for why the token is read
+        # here (event-loop thread) and threaded through explicitly.
+        token = _common._reentry_token_var.get()
+        return await self._call(self._consumer._incremental_unassign_with_token, token, *args, **kwargs)
 
     async def assignment(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.assignment, *args, **kwargs)

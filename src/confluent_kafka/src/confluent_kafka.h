@@ -98,12 +98,26 @@ typedef volatile LONG_PTR atomic_ulong_t;
 #define atomic_ulong_set(p, v)                                                \
         InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
 
+static __inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+                                     unsigned long desired) {
+        return InterlockedCompareExchangePointer(
+                   (PVOID volatile *)p, (PVOID)desired, (PVOID)expected) ==
+               (PVOID)expected;
+}
+
 #else /* gcc / clang */
 typedef unsigned long atomic_ulong_t;
 
 #define atomic_ulong_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 #define atomic_ulong_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_ulong_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+
+static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+                                   unsigned long desired) {
+        return __atomic_compare_exchange_n(p, &expected, desired,
+                                           0 /* strong */, __ATOMIC_SEQ_CST,
+                                           __ATOMIC_SEQ_CST);
+}
 #endif
 
 
@@ -354,6 +368,15 @@ typedef struct {
                         PyObject *on_commit; /* Commit callback */
                         rd_kafka_queue_t *rkqu; /* Consumer queue */
 
+#ifdef Py_GIL_DISABLED
+                        /* The following variables ensure only one thread
+                         * is inside gated Consumer C code at a time.
+                         */
+                        atomic_ulong_t gate_owner; /* Owning thread's ID */
+                        int gate_depth; /* Re-entrant depth */
+                        atomic_int_t gate_pending_token; /* Token a re-entrant call must present to borrow the gate */
+                        atomic_int_t gate_token_ctr; /* Monotonic counter used to mint fresh tokens */
+#endif
                 } Consumer;
 
                 struct {
@@ -440,6 +463,50 @@ int Handle_enter_rk_use(Handle *h);
  * @brief Counterpart to Handle_enter_rk_use().
  */
 void Handle_exit_rk_use(Handle *h);
+
+/**
+ * @brief Reject-on-contention gate: only one thread may be inside gated
+ *        Consumer C code at a time. The owning thread may re-enter (e.g.
+ *        Consumer_exit calling Consumer_close directly); any other thread
+ *        is rejected with ConcurrentModificationException rather than
+ *        allowed to race the owner, UNLESS it presents a valid one-shot
+ *        `token` previously minted by the current owner via
+ *        Handle_gate_mint_token() (pass 0 if no token is being presented).
+ *        A token-based entry does not increment gate_depth: the token
+ *        holder is borrowing the gate for a single call, and it is the
+ *        original owner's own eventual Handle_gate_exit() that releases
+ *        it.
+ *
+ * @returns 1 if the calling thread now holds (or already held, or was let
+ *          in via a valid token) the gate -- caller must call
+ *          Handle_gate_exit() on every return path -- or 0 with
+ *          ConcurrentModificationException set if another thread currently
+ *          holds it and no valid token was presented.
+ */
+int Handle_gate_enter(Handle *h, atomic_int_t token);
+/**
+ * @brief Counterpart to Handle_gate_enter(). Must be called once per
+ *        successful Handle_gate_enter(), on every return path.
+ */
+void Handle_gate_exit(Handle *h);
+
+/**
+ * @brief Mint a fresh one-shot token for the gate's current owner to hand
+ *        to a specific re-entrant call it is about to allow in from another
+ *        thread (see nogil-aioconsumer-gate-incompatibility design note).
+ *        Consumed by Handle_gate_enter() via Handle_gate_redeem_token().
+ *
+ * @returns A nonzero token on success, or 0 if the calling thread does not
+ *          currently hold the gate (only the owner may mint).
+ */
+atomic_int_t Handle_gate_mint_token(Handle *h);
+/**
+ * @brief Atomically consume a token minted by Handle_gate_mint_token(): if
+ *        it still matches the pending token, clears it and returns 1
+ *        (consumed exactly once, even under concurrent redemption attempts);
+ *        otherwise returns 0.
+ */
+int Handle_gate_redeem_token(Handle *h, atomic_int_t token);
 
 /**
  * @brief Get the current thread's CallState and re-locks the GIL.
