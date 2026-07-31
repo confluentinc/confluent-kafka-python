@@ -3324,9 +3324,6 @@ int CallState_end(Handle *h, CallState *cs) {
  *          incremented; caller must call Handle_exit_rk_use() on every
  *          return path), or 0 with ERR_MSG_PRODUCER_CLOSED set if the
  *          Handle is closed/closing (nothing to undo).
- *
- * @warning Not re-entrant: don't call from a method that's already
- *          between its own Handle_enter_rk_use()/Handle_exit_rk_use().
  */
 int Handle_enter_rk_use(Handle *h) {
         if (atomic_int_get(&h->closing) || !h->rk) {
