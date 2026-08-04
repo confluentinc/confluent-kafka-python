@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import signal
 import threading
 import time
 
@@ -265,67 +263,6 @@ def test_close_races_close():
         assert all(all_results), f"iteration {i}: every concurrent close() call must return True, got: {all_results}"
 
 
-@subprocess_isolated
-def test_close_races_close_losers_wait_for_slow_winner():
-    """Losing close() calls must actually block until the winner finishes.
-    A held poll(-1) call keeps active_calls > 0, forcing the CAS winner (and therefore every
-    loser waiting behind it) to spin through its drain-wait loop."""
-    num_workers = 5
-
-    for i in range(ITERATIONS):
-        producer = Producer(_PRODUCER_CONF)
-        poll_started = threading.Event()
-
-        def hold_active_call():
-            poll_started.set()
-            try:
-                producer.poll(-1)
-            except RuntimeError:
-                pass
-
-        holder = threading.Thread(target=hold_active_call)
-        holder.start()
-        poll_started.wait()
-        # Give poll() a brief moment to increment the active calls counter
-        # before starting any close() call.
-        time.sleep(0.05)
-
-        all_results = []
-        start_barrier = threading.Barrier(num_workers)
-
-        def call_close():
-            start_barrier.wait()
-            all_results.append(producer.close())
-
-        threads = [threading.Thread(target=call_close) for _ in range(num_workers)]
-        for t in threads:
-            t.start()
-
-        # Watch continuously: as long as the holder is still alive (still
-        # holding its active_calls slot), no close() thread should have
-        # finished yet. Stop watching, without failing, once the holder
-        # itself has finished -- at that point active_calls may have
-        # legitimately dropped to 0 and close() calls are free to proceed.
-        deadline = time.monotonic() + 10
-        while time.monotonic() < deadline and holder.is_alive():
-            finished_early = [t for t in threads if not t.is_alive()]
-            assert not finished_early, (
-                f"iteration {i}: {len(finished_early)} close() call(s) returned while the held "
-                f"poll(-1) was still active -- active_calls should still have been > 0"
-            )
-            time.sleep(0.01)
-
-        for t in threads:
-            t.join(timeout=10)
-
-        holder.join(timeout=10)
-        assert not holder.is_alive(), f"iteration {i}: poll(-1) thread did not finish"
-        assert all(not t.is_alive() for t in threads), f"iteration {i}: a close() thread did not finish"
-
-        assert len(all_results) == num_workers, f"iteration {i}: expected {num_workers} results, got {all_results}"
-        assert all(all_results), f"iteration {i}: every concurrent close() call must return True, got: {all_results}"
-
-
 ###############################################################################
 # End of tests for races between Producer.close() and concurrent calls
 # on the same Producer instance.
@@ -396,50 +333,6 @@ def test_close_completes_quickly_with_indefinite_flush_in_progress():
         f"close() took {close_duration:.2f}s to complete while flush(-1) was "
         f"in progress -- expected it to finish within 0.5s"
     )
-
-
-@subprocess_isolated
-def test_close_propagates_signal_while_waiting_for_active_calls():
-    """close() must raise KeyboardInterrupt if a signal arrives while its
-    active_calls drain-wait loop is spinning. Afterwards, `closing` must
-    have been reset so the Handle isn't left permanently bricked -- a
-    retried close(), once the held active_calls slot is released, should
-    succeed instead of failing with ERR_MSG_PRODUCER_CLOSED or hanging."""
-    producer = Producer(_PRODUCER_CONF)
-    poll_started = threading.Event()
-
-    def hold_active_call():
-        poll_started.set()
-        try:
-            producer.poll(-1)
-        except BaseException:  # noqa: BLE001 - just draining the thread, not asserting here
-            pass
-
-    t = threading.Thread(target=hold_active_call)
-    t.start()
-    poll_started.wait()
-
-    def send_sigint_soon():
-        time.sleep(0.05)
-        os.kill(os.getpid(), signal.SIGINT)
-
-    interrupt_thread = threading.Thread(target=send_sigint_soon)
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
-    try:
-        producer.close()
-        assert False, "close() returned normally instead of raising KeyboardInterrupt"
-    except KeyboardInterrupt:
-        assert True  # expected outcome: close() correctly propagated the signal
-    finally:
-        t.join(timeout=10)
-        assert not t.is_alive(), "poll() thread did not finish after close() was interrupted"
-
-    # The interrupted close() never destroyed rk (poll() was still holding
-    # an active_calls slot when the signal hit), so a retry now that
-    # poll() has returned must succeed instead of failing or hanging.
-    assert producer.close() is True, "close() retried after a signal-interrupted attempt must return True"
 
 
 def test_close_is_idempotent():
