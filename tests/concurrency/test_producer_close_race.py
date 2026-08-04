@@ -267,15 +267,9 @@ def test_close_races_close():
 
 @subprocess_isolated
 def test_close_races_close_losers_wait_for_slow_winner():
-    """Losing close() calls must actually block until the winner finishes,
-    not just happen to observe self->rk already NULL. A held poll(-1) call
-    keeps active_calls > 0, forcing the CAS winner (and therefore every
-    loser waiting behind it) to spin through its drain-wait loop. Proven by
-    checking every close() thread is still alive shortly after starting
-    them, while the held poll(-1) is confirmed in-flight -- not by a fixed
-    wall-clock lower bound on total duration, which would be racing poll0's
-    own ~200ms closing-flag chunk boundary at a variable, flaky-to-bound
-    offset depending on scheduling."""
+    """Losing close() calls must actually block until the winner finishes.
+    A held poll(-1) call keeps active_calls > 0, forcing the CAS winner (and therefore every
+    loser waiting behind it) to spin through its drain-wait loop."""
     num_workers = 5
 
     for i in range(ITERATIONS):
@@ -307,13 +301,19 @@ def test_close_races_close_losers_wait_for_slow_winner():
         for t in threads:
             t.start()
 
-        # Every close() caller must still be blocked shortly after starting:
-        # active_calls was > 0 (from the held poll(-1)) at the moment they
-        # started, so none of the threads should have finished yet.
-        time.sleep(0.15)
-        assert all(
-            t.is_alive() for t in threads
-        ), f"iteration {i}: a close() call returned before the held poll(-1) released active_calls"
+        # Watch continuously: as long as the holder is still alive (still
+        # holding its active_calls slot), no close() thread should have
+        # finished yet. Stop watching, without failing, once the holder
+        # itself has finished -- at that point active_calls may have
+        # legitimately dropped to 0 and close() calls are free to proceed.
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and holder.is_alive():
+            finished_early = [t for t in threads if not t.is_alive()]
+            assert not finished_early, (
+                f"iteration {i}: {len(finished_early)} close() call(s) returned while the held "
+                f"poll(-1) was still active -- active_calls should still have been > 0"
+            )
+            time.sleep(0.01)
 
         for t in threads:
             t.join(timeout=10)
