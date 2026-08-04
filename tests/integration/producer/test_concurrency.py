@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import inspect
+import os
+import signal
 import threading
 import time
 from uuid import uuid1
@@ -35,7 +37,7 @@ def prefixed_error_cb(prefix):
     return error_cb
 
 
-class TestCloseRaceDelivery:
+class TestCloseRace:
     def test_close_delivers_in_flight_messages(self, kafka_cluster):
         """
         Messages produced just before/during a concurrent close() are genuinely delivered,
@@ -164,6 +166,135 @@ class TestCloseRaceDelivery:
             r == 0 for r in flush_results
         ), f"flush() returned early with messages still outstanding: {flush_results}"
         assert len(producer) == 0
+
+    def test_close_propagates_signal_while_waiting_for_active_calls(self, kafka_cluster):
+        """A signal during close()'s active_calls wait raises
+        KeyboardInterrupt and resets `closing`, but does not unblock an
+        already-held poll() -- it keeps running, unaware anything
+        happened. Only a second, uninterrupted close() call actually
+        finishes the job."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_close_signal_interruption")
+        producer = kafka_cluster.producer(
+            {'error_cb': prefixed_error_cb('test_close_propagates_signal_while_waiting_for_active_calls')}
+        )
+
+        callback_started = threading.Event()
+
+        def slow_on_delivery(err, msg):
+            callback_started.set()
+            time.sleep(2)
+
+        producer.produce(topic, value=b'msg', on_delivery=slow_on_delivery)
+
+        poll_started = threading.Event()
+
+        def hold_active_call():
+            poll_started.set()
+            try:
+                producer.poll(10)
+            except BaseException:  # noqa: BLE001 - just draining the thread, not asserting here
+                pass
+
+        t = threading.Thread(target=hold_active_call, daemon=True)
+        t.start()
+        poll_started.wait()
+        callback_started.wait(timeout=10)
+        assert callback_started.is_set(), "delivery callback never started"
+
+        def send_sigint_soon():
+            time.sleep(0.5)  # comfortably inside the callback's 2s sleep
+            os.kill(os.getpid(), signal.SIGINT)
+
+        interrupt_thread = threading.Thread(target=send_sigint_soon, daemon=True)
+        interrupt_thread.start()
+
+        try:
+            producer.close()
+            assert False, "close() returned normally instead of raising KeyboardInterrupt"
+        except KeyboardInterrupt:
+            pass
+
+        # The interrupted attempt must NOT have unblocked the held poll():
+        # `closing` was reset to 0 before poll() ever got a chance to see
+        # it, so poll() has no reason to exit early and must still be
+        # running its own call.
+        assert t.is_alive(), "poll() thread must still be running right after the interrupted close() attempt"
+
+        # A second, uninterrupted close() call is required to actually
+        # finish the job -- it must succeed, and this time the held
+        # poll() must notice `closing` and exit, letting the holder thread
+        # finish.
+        assert producer.close() is True, "close() retried after a signal-interrupted attempt must return True"
+
+        t.join(timeout=10)
+        assert not t.is_alive(), "poll() thread did not finish after the successful retry of close()"
+
+    def test_close_races_close_losers_wait_for_slow_winner(self, kafka_cluster):
+        """Losing close() calls must actually block until the winner
+        finishes, not just happen to observe self->rk already NULL. A
+        slow delivery callback forces the CAS winner and every loser waiting behind it
+        to spin through the drain-wait loop."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_close_race_slow_winner")
+        producer = kafka_cluster.producer(
+            {'error_cb': prefixed_error_cb('test_close_races_close_losers_wait_for_slow_winner')}
+        )
+
+        callback_started = threading.Event()
+
+        def slow_on_delivery(err, msg):
+            callback_started.set()
+            time.sleep(2)
+
+        producer.produce(topic, value=b'msg', on_delivery=slow_on_delivery)
+
+        poll_started = threading.Event()
+
+        def hold_active_call():
+            poll_started.set()
+            try:
+                producer.poll(10)
+            except RuntimeError:
+                pass
+
+        holder = threading.Thread(target=hold_active_call, daemon=True)
+        holder.start()
+        poll_started.wait()
+        callback_started.wait(timeout=10)
+        assert callback_started.is_set(), "delivery callback never started"
+
+        num_workers = 5
+        all_results = []
+        start_barrier = threading.Barrier(num_workers)
+
+        def call_close():
+            start_barrier.wait()
+            all_results.append(producer.close())
+
+        threads = [threading.Thread(target=call_close) for _ in range(num_workers)]
+        for t in threads:
+            t.start()
+
+        # Watch continuously: as long as the holder is still alive (still
+        # holding its active_calls slot via the slow callback), no
+        # close() thread should have finished yet.
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and holder.is_alive():
+            finished_early = [t for t in threads if not t.is_alive()]
+            assert not finished_early, (
+                f"{len(finished_early)} close() call(s) returned while the slow delivery callback "
+                f"was still holding active_calls"
+            )
+            time.sleep(0.01)
+
+        for t in threads:
+            t.join(timeout=10)
+        holder.join(timeout=10)
+
+        print(f"{called_by()}: all_results={all_results}")
+        assert not holder.is_alive(), "poll() thread did not finish"
+        assert all(not t.is_alive() for t in threads), "a close() thread did not finish"
+        assert len(all_results) == num_workers, f"expected {num_workers} results, got: {all_results}"
+        assert all(all_results), f"every concurrent close() call must return True, got: {all_results}"
 
 
 class TestTransactionalProducerConcurrency:
