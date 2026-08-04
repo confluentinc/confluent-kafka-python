@@ -152,8 +152,6 @@ def test_close_races_init_transactions():
                 producer.init_transactions(0.05)
             except RuntimeError:
                 break
-            except Exception:  # noqa: BLE001 - librdkafka state/timeout errors are expected without a broker
-                pass
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -168,8 +166,6 @@ def test_close_races_begin_transaction():
                 producer.begin_transaction()
             except RuntimeError:
                 break
-            except Exception:  # noqa: BLE001 - librdkafka state errors are expected without a broker
-                pass
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -184,8 +180,6 @@ def test_close_races_commit_transaction():
                 producer.commit_transaction(0.05)
             except RuntimeError:
                 break
-            except Exception:  # noqa: BLE001 - librdkafka state/timeout errors are expected without a broker
-                pass
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -200,8 +194,6 @@ def test_close_races_abort_transaction():
                 producer.abort_transaction(0.05)
             except RuntimeError:
                 break
-            except Exception:  # noqa: BLE001 - librdkafka state/timeout errors are expected without a broker
-                pass
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -222,8 +214,6 @@ def test_close_races_send_offsets_to_transaction():
                 producer.send_offsets_to_transaction(offsets, metadata, 0.05)
             except RuntimeError:
                 break
-            except Exception:  # noqa: BLE001 - librdkafka state/timeout errors are expected without a broker
-                pass
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -245,10 +235,8 @@ def test_close_races_purge():
 @subprocess_isolated
 def test_close_races_close():
     """Multiple threads calling close() on the same Producer at once. The
-    CAS winner (whichever thread's close() actually tears down self->rk)
-    returns True; a losing thread returns False *unless* its own check
-    happens to run after self->rk is already NULL (the winner fully
-    completed first), in which case it also gets True."""
+    CAS winner tears down self->rk itself; every losing thread blocks until
+    the winner finishes and then returns True too, same as a normal close()."""
     num_workers = 7
 
     for i in range(ITERATIONS):
@@ -274,12 +262,73 @@ def test_close_races_close():
         assert (
             len(all_results) == num_workers + 1
         ), f"iteration {i}: expected {num_workers + 1} results, got {all_results}"
+        assert all(all_results), f"iteration {i}: every concurrent close() call must return True, got: {all_results}"
+
+
+@subprocess_isolated
+def test_close_races_close_losers_wait_for_slow_winner():
+    """Losing close() calls must actually block until the winner finishes,
+    not just happen to observe self->rk already NULL. A held poll(-1) call
+    keeps active_calls > 0, forcing the CAS winner (and therefore every
+    loser waiting behind it) to spin through its drain-wait loop. Proven by
+    checking every close() thread is still alive shortly after starting
+    them, while the held poll(-1) is confirmed in-flight -- not by a fixed
+    wall-clock lower bound on total duration, which would be racing poll0's
+    own ~200ms closing-flag chunk boundary at a variable, flaky-to-bound
+    offset depending on scheduling."""
+    num_workers = 5
+
+    for i in range(ITERATIONS):
+        producer = Producer(_PRODUCER_CONF)
+        poll_started = threading.Event()
+
+        def hold_active_call():
+            poll_started.set()
+            try:
+                producer.poll(-1)
+            except RuntimeError:
+                pass
+
+        holder = threading.Thread(target=hold_active_call)
+        holder.start()
+        poll_started.wait()
+        # Give poll() a brief moment to increment the active calls counter
+        # before starting any close() call.
+        time.sleep(0.05)
+
+        all_results = []
+        start_barrier = threading.Barrier(num_workers)
+
+        def call_close():
+            start_barrier.wait()
+            all_results.append(producer.close())
+
+        threads = [threading.Thread(target=call_close) for _ in range(num_workers)]
+        for t in threads:
+            t.start()
+
+        # Every close() caller must still be blocked shortly after starting:
+        # active_calls was > 0 (from the held poll(-1)) at the moment they
+        # started, so none of the threads should have finished yet.
+        time.sleep(0.15)
         assert all(
-            isinstance(r, bool) for r in all_results
-        ), f"iteration {i}: every close() call must return True or False, got: {all_results}"
-        assert any(all_results), f"iteration {i}: expected at least one close() call to return True, got: {all_results}"
+            t.is_alive() for t in threads
+        ), f"iteration {i}: a close() call returned before the held poll(-1) released active_calls"
+
+        for t in threads:
+            t.join(timeout=10)
+
+        holder.join(timeout=10)
+        assert not holder.is_alive(), f"iteration {i}: poll(-1) thread did not finish"
+        assert all(not t.is_alive() for t in threads), f"iteration {i}: a close() thread did not finish"
+
+        assert len(all_results) == num_workers, f"iteration {i}: expected {num_workers} results, got {all_results}"
+        assert all(all_results), f"iteration {i}: every concurrent close() call must return True, got: {all_results}"
 
 
+###############################################################################
+# End of tests for races between Producer.close() and concurrent calls
+# on the same Producer instance.
 ###############################################################################
 
 
@@ -352,7 +401,10 @@ def test_close_completes_quickly_with_indefinite_flush_in_progress():
 @subprocess_isolated
 def test_close_propagates_signal_while_waiting_for_active_calls():
     """close() must raise KeyboardInterrupt if a signal arrives while its
-    active_calls drain-wait loop is spinning"""
+    active_calls drain-wait loop is spinning. Afterwards, `closing` must
+    have been reset so the Handle isn't left permanently bricked -- a
+    retried close(), once the held active_calls slot is released, should
+    succeed instead of failing with ERR_MSG_PRODUCER_CLOSED or hanging."""
     producer = Producer(_PRODUCER_CONF)
     poll_started = threading.Event()
 
@@ -383,3 +435,17 @@ def test_close_propagates_signal_while_waiting_for_active_calls():
     finally:
         t.join(timeout=10)
         assert not t.is_alive(), "poll() thread did not finish after close() was interrupted"
+
+    # The interrupted close() never destroyed rk (poll() was still holding
+    # an active_calls slot when the signal hit), so a retry now that
+    # poll() has returned must succeed instead of failing or hanging.
+    assert producer.close() is True, "close() retried after a signal-interrupted attempt must return True"
+
+
+def test_close_is_idempotent():
+    """Calling close() twice, with no concurrency at all, must return True
+    both times."""
+    producer = Producer(_PRODUCER_CONF)
+
+    assert producer.close() is True, "first close() must return True"
+    assert producer.close() is True, "second close() on an already-closed producer must also return True"

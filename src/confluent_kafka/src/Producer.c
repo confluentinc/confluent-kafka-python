@@ -565,13 +565,34 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!self->rk)
                 Py_RETURN_TRUE;
 
+        /* Calling close() reentrantly from within a callback
+         * is not supported and will deadlock here.
+         * TODO NOGIL: Update documentation to highlight this.
+         */
+
         /* If there are concurrent calls to close(), only one of them can
-         * destroy rk. The remaining close() calls return False immediately with
-         * a warning. */
+         * destroy rk, the rest wait here for the winner to finish
+         * flushing and destroying it.
+         */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
-                PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
-                                 "Producer is already closing");
-                Py_RETURN_FALSE;
+                while (self->rk && atomic_int_get(&self->closing)) {
+                        CallState_begin(self, &cs);
+#ifdef _WIN32
+                        Sleep(100);
+#else
+                        usleep(100000);
+#endif
+                        if (!CallState_end(self, &cs))
+                                return NULL;
+                }
+                if (!self->rk)
+                        Py_RETURN_TRUE;
+
+                /* The winner got interrupted by a signal */
+                PyErr_SetString(PyExc_RuntimeError,
+                                "close() was interrupted by a signal on "
+                                "another thread");
+                return NULL;
         }
 
         /* Signal in-flight calls to stop, and wait for them to finish
@@ -586,8 +607,13 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 #else
                 usleep(100000);
 #endif
-                if (!CallState_end(self, &cs))
+                if (!CallState_end(self, &cs)) {
+                        /* Abort the attempt: rk was never touched, so
+                         * reopen the gate for a future close() attempt.
+                         */
+                        atomic_int_set(&self->closing, 0);
                         return NULL;
+                }
         }
 
         CallState_begin(self, &cs);
