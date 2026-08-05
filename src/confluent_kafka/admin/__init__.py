@@ -58,6 +58,14 @@ from ..cimpl import (  # noqa: F401
 )
 from ._acl import AclOperation  # noqa: F401
 from ._acl import AclBinding, AclBindingFilter, AclPermissionType  # noqa: F401
+from ._client_quota import (  # noqa: F401
+    ClientQuotaAlteration,
+    ClientQuotaAlterationOp,
+    ClientQuotaEntity,
+    ClientQuotaFilter,
+    ClientQuotaFilterComponent,
+    ClientQuotaMatchType,
+)
 from ._cluster import DescribeClusterResult  # noqa: F401
 
 # Unused imports are keeped to be accessible using this public module
@@ -527,6 +535,71 @@ class AdminClient(_AdminClientImpl):
                     + "to be either a UserScramCredentialUpsertion or a "
                     + "UserScramCredentialDeletion"
                 )
+
+    @staticmethod
+    def _check_client_quota_filter(client_quota_filter: ClientQuotaFilter) -> None:
+        if not isinstance(client_quota_filter, ClientQuotaFilter):
+            raise TypeError("client_quota_filter must be a ClientQuotaFilter")
+        if not isinstance(client_quota_filter.components, list):
+            raise TypeError("components must be a list")
+        if not isinstance(client_quota_filter.strict, bool):
+            raise TypeError("strict must be a bool")
+
+        entity_types = set()
+        for component in client_quota_filter.components:
+            if not isinstance(component, ClientQuotaFilterComponent):
+                raise TypeError("components must contain ClientQuotaFilterComponent objects")
+            if not isinstance(component.entity_type, string_type):
+                raise TypeError("entity_type must be a string")
+            if not component.entity_type:
+                raise ValueError("entity_type must not be empty")
+            if component.entity_type in entity_types:
+                raise ValueError("entity_type values must be unique")
+            entity_types.add(component.entity_type)
+            if not isinstance(component.match_type, ClientQuotaMatchType):
+                raise TypeError("match_type must be a ClientQuotaMatchType")
+            if component.match_type is ClientQuotaMatchType.EXACT:
+                if not isinstance(component.match, string_type) or not component.match:
+                    raise ValueError("EXACT match requires a non-empty match string")
+            elif component.match is not None:
+                raise ValueError("DEFAULT and ANY matches require match=None")
+
+    @staticmethod
+    def _check_client_quota_alterations(alterations: List[ClientQuotaAlteration]) -> None:
+        if not isinstance(alterations, list):
+            raise TypeError("alterations must be a list")
+        if not alterations:
+            raise ValueError("alterations must not be empty")
+
+        entities = set()
+        for alteration in alterations:
+            if not isinstance(alteration, ClientQuotaAlteration):
+                raise TypeError("alterations must contain ClientQuotaAlteration objects")
+            if not isinstance(alteration.entity, ClientQuotaEntity):
+                raise TypeError("entity must be a ClientQuotaEntity")
+            if not alteration.entity.entries:
+                raise ValueError("entity entries must not be empty")
+            for entity_type, entity_name in alteration.entity.entries.items():
+                if not isinstance(entity_type, string_type) or not entity_type:
+                    raise ValueError("entity type must be a non-empty string")
+                if entity_name is not None and (not isinstance(entity_name, string_type) or not entity_name):
+                    raise ValueError("entity name must be None or a non-empty string")
+            if alteration.entity in entities:
+                raise ValueError("quota entities must be unique")
+            entities.add(alteration.entity)
+            if not isinstance(alteration.ops, list) or not alteration.ops:
+                raise ValueError("ops must be a non-empty list")
+            keys = set()
+            for op in alteration.ops:
+                if not isinstance(op, ClientQuotaAlterationOp):
+                    raise TypeError("ops must contain ClientQuotaAlterationOp objects")
+                if not isinstance(op.key, string_type) or not op.key:
+                    raise ValueError("quota key must be a non-empty string")
+                if op.key in keys:
+                    raise ValueError("quota keys must be unique within an alteration")
+                keys.add(op.key)
+                if op.value is not None and not isinstance(op.value, (int, float)):
+                    raise TypeError("quota value must be numeric or None")
 
     @staticmethod
     def _check_list_offsets_request(
@@ -1259,6 +1332,39 @@ class AdminClient(_AdminClientImpl):
         )
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+        return futmap
+
+    def describe_client_quotas(  # type: ignore[override]
+        self, client_quota_filter: ClientQuotaFilter, **kwargs: Any
+    ) -> concurrent.futures.Future:
+        """Describe client quotas matching ``client_quota_filter``.
+
+        :param ClientQuotaFilter client_quota_filter: Quota entity filter.
+        :param float request_timeout: Overall request timeout in seconds.
+        :returns: A future yielding ``dict[ClientQuotaEntity, dict[str, float]]``.
+        """
+        AdminClient._check_client_quota_filter(client_quota_filter)
+        internal_f, result_f = AdminClient._make_single_future_pair()
+        super(AdminClient, self).describe_client_quotas(client_quota_filter, internal_f, **kwargs)
+        return result_f
+
+    def alter_client_quotas(  # type: ignore[override]
+        self, alterations: List[ClientQuotaAlteration], **kwargs: Any
+    ) -> Dict[ClientQuotaEntity, concurrent.futures.Future]:
+        """Alter client quotas for one or more entities.
+
+        :param list(ClientQuotaAlteration) alterations: Quota alterations.
+        :param bool validate_only: Validate without applying changes.
+        :param float request_timeout: Overall request timeout in seconds.
+        :returns: Futures keyed by client quota entity.
+        """
+        AdminClient._check_client_quota_alterations(alterations)
+        f, futmap = AdminClient._make_futures_v2(
+            [alteration.entity for alteration in alterations],
+            ClientQuotaEntity,
+            AdminClient._make_futmap_result,
+        )
+        super(AdminClient, self).alter_client_quotas(alterations, f, **kwargs)
         return futmap
 
     def list_offsets(  # type: ignore[override]

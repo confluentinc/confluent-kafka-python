@@ -3409,6 +3409,318 @@ const char Admin_elect_leaders_doc[] = PyDoc_STR(
     "  This method should not be used directly, use "
     "confluent_kafka.AdminClient.elect_leaders()\n");
 
+
+static PyObject *
+Admin_describe_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *filter, *future, *components = NULL, *strict_obj = NULL;
+        static char *kws[]                 = {"client_quota_filter", "future",
+                                              "request_timeout", NULL};
+        struct Admin_options options       = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_ClientQuotaFilter_t *c_filter = NULL;
+        rd_kafka_queue_t *rkqu                 = NULL;
+        Py_ssize_t i, component_cnt;
+        int strict;
+        char errstr[512];
+        CallState cs;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws, &filter,
+                                         &future, &options.request_timeout))
+                return NULL;
+
+        components = PyObject_GetAttrString(filter, "components");
+        strict_obj = PyObject_GetAttrString(filter, "strict");
+        if (!components || !strict_obj || !PyList_Check(components)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "client_quota_filter must provide list "
+                                "components and bool strict attributes");
+                goto err;
+        }
+
+        strict = PyObject_IsTrue(strict_obj);
+        if (strict == -1)
+                goto err;
+        c_filter = rd_kafka_ClientQuotaFilter_new(strict);
+        if (!c_filter) {
+                PyErr_NoMemory();
+                goto err;
+        }
+        component_cnt = PyList_Size(components);
+        for (i = 0; i < component_cnt; i++) {
+                PyObject *component = PyList_GET_ITEM(components, i);
+                PyObject *type_obj = NULL, *match_type_obj = NULL;
+                PyObject *match_value_obj = NULL, *match_obj = NULL;
+                const char *entity_type, *match              = NULL;
+                long match_type;
+                rd_kafka_resp_err_t c_err;
+
+                type_obj = PyObject_GetAttrString(component, "entity_type");
+                match_type_obj =
+                    PyObject_GetAttrString(component, "match_type");
+                match_obj = PyObject_GetAttrString(component, "match");
+                if (match_type_obj)
+                        match_value_obj =
+                            PyObject_GetAttrString(match_type_obj, "value");
+                if (!type_obj || !match_type_obj || !match_value_obj ||
+                    !match_obj || !PyUnicode_Check(type_obj) ||
+                    (match_obj != Py_None && !PyUnicode_Check(match_obj))) {
+                        Py_XDECREF(type_obj);
+                        Py_XDECREF(match_type_obj);
+                        Py_XDECREF(match_value_obj);
+                        Py_XDECREF(match_obj);
+                        PyErr_Format(PyExc_TypeError,
+                                     "Invalid client quota filter component "
+                                     "at index %zd",
+                                     i);
+                        goto err;
+                }
+
+                entity_type = PyUnicode_AsUTF8(type_obj);
+                match_type  = PyLong_AsLong(match_value_obj);
+                if (match_obj != Py_None)
+                        match = PyUnicode_AsUTF8(match_obj);
+                if (!entity_type || (match_obj != Py_None && !match) ||
+                    PyErr_Occurred()) {
+                        Py_DECREF(type_obj);
+                        Py_DECREF(match_type_obj);
+                        Py_DECREF(match_value_obj);
+                        Py_DECREF(match_obj);
+                        goto err;
+                }
+                c_err = rd_kafka_ClientQuotaFilter_add_component(
+                    c_filter, entity_type,
+                    (rd_kafka_ClientQuotaMatchType_t)match_type, match, errstr,
+                    sizeof(errstr));
+                Py_DECREF(type_obj);
+                Py_DECREF(match_type_obj);
+                Py_DECREF(match_value_obj);
+                Py_DECREF(match_obj);
+                if (c_err) {
+                        PyErr_SetString(PyExc_ValueError, errstr);
+                        goto err;
+                }
+        }
+
+        c_options = Admin_options_to_c(
+            self, RD_KAFKA_ADMIN_OP_DESCRIBECLIENTQUOTAS, &options, future);
+        if (!c_options)
+                goto err;
+        Py_INCREF(future);
+        rkqu = rd_kafka_queue_get_background(self->rk);
+        CallState_begin(self, &cs);
+        rd_kafka_DescribeClientQuotas(self->rk, c_filter, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu);
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_ClientQuotaFilter_destroy(c_filter);
+        Py_DECREF(components);
+        Py_DECREF(strict_obj);
+        Py_RETURN_NONE;
+
+err:
+        if (rkqu)
+                rd_kafka_queue_destroy(rkqu);
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if (c_filter)
+                rd_kafka_ClientQuotaFilter_destroy(c_filter);
+        Py_XDECREF(components);
+        Py_XDECREF(strict_obj);
+        return NULL;
+}
+
+
+static PyObject *
+Admin_alter_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *alterations, *future;
+        static char *kws[] = {"alterations", "future", "validate_only",
+                              "request_timeout", NULL};
+        struct Admin_options options            = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options      = NULL;
+        rd_kafka_ClientQuotaEntry_t **c_entries = NULL;
+        rd_kafka_queue_t *rkqu                  = NULL;
+        Py_ssize_t i, alteration_cnt;
+        size_t c_entry_cnt = 0;
+        char errstr[512];
+        CallState cs;
+
+        if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "OO|pf", kws, &alterations, &future,
+                &options.validate_only, &options.request_timeout))
+                return NULL;
+        if (!PyList_Check(alterations) || PyList_Size(alterations) == 0) {
+                PyErr_SetString(PyExc_ValueError,
+                                "alterations must be a non-empty list");
+                return NULL;
+        }
+
+        alteration_cnt = PyList_Size(alterations);
+        c_entries      = calloc((size_t)alteration_cnt, sizeof(*c_entries));
+        if (!c_entries)
+                return PyErr_NoMemory();
+        for (i = 0; i < alteration_cnt; i++) {
+                PyObject *alteration = PyList_GET_ITEM(alterations, i);
+                PyObject *entity = NULL, *entries = NULL, *ops = NULL;
+                Py_ssize_t pos = 0, j, op_cnt;
+                PyObject *entity_type_obj, *entity_name_obj;
+
+                c_entries[i] = rd_kafka_ClientQuotaEntry_new();
+                if (!c_entries[i]) {
+                        PyErr_NoMemory();
+                        goto err;
+                }
+                c_entry_cnt++;
+                entity = PyObject_GetAttrString(alteration, "entity");
+                if (entity)
+                        entries = PyObject_GetAttrString(entity, "entries");
+                ops = PyObject_GetAttrString(alteration, "ops");
+                if (!entity || !entries || !PyDict_Check(entries) || !ops ||
+                    !PyList_Check(ops)) {
+                        Py_XDECREF(entity);
+                        Py_XDECREF(entries);
+                        Py_XDECREF(ops);
+                        PyErr_Format(PyExc_TypeError,
+                                     "Invalid client quota alteration at "
+                                     "index %zd",
+                                     i);
+                        goto err;
+                }
+
+                while (PyDict_Next(entries, &pos, &entity_type_obj,
+                                   &entity_name_obj)) {
+                        const char *entity_type, *entity_name = NULL;
+                        rd_kafka_resp_err_t c_err;
+
+                        if (!PyUnicode_Check(entity_type_obj) ||
+                            (entity_name_obj != Py_None &&
+                             !PyUnicode_Check(entity_name_obj))) {
+                                PyErr_SetString(
+                                    PyExc_TypeError,
+                                    "quota entity entries must map strings to "
+                                    "strings or None");
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                goto err;
+                        }
+                        entity_type = PyUnicode_AsUTF8(entity_type_obj);
+                        if (entity_name_obj != Py_None)
+                                entity_name = PyUnicode_AsUTF8(entity_name_obj);
+                        if (!entity_type ||
+                            (entity_name_obj != Py_None && !entity_name)) {
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                goto err;
+                        }
+                        c_err = rd_kafka_ClientQuotaEntry_add_entity(
+                            c_entries[i], entity_type, entity_name, errstr,
+                            sizeof(errstr));
+                        if (c_err) {
+                                PyErr_SetString(PyExc_ValueError, errstr);
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                goto err;
+                        }
+                }
+
+                op_cnt = PyList_Size(ops);
+                for (j = 0; j < op_cnt; j++) {
+                        PyObject *op      = PyList_GET_ITEM(ops, j);
+                        PyObject *key_obj = PyObject_GetAttrString(op, "key");
+                        PyObject *value_obj =
+                            PyObject_GetAttrString(op, "value");
+                        const char *key;
+                        double value = 0.0;
+                        int remove;
+                        rd_kafka_resp_err_t c_err;
+
+                        if (!key_obj || !value_obj ||
+                            !PyUnicode_Check(key_obj)) {
+                                Py_XDECREF(key_obj);
+                                Py_XDECREF(value_obj);
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                PyErr_SetString(PyExc_TypeError,
+                                                "Invalid client quota op");
+                                goto err;
+                        }
+                        key = PyUnicode_AsUTF8(key_obj);
+                        if (!key) {
+                                Py_DECREF(key_obj);
+                                Py_DECREF(value_obj);
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                goto err;
+                        }
+                        remove = value_obj == Py_None;
+                        if (!remove) {
+                                value = PyFloat_AsDouble(value_obj);
+                                if (PyErr_Occurred()) {
+                                        Py_DECREF(key_obj);
+                                        Py_DECREF(value_obj);
+                                        Py_DECREF(entity);
+                                        Py_DECREF(entries);
+                                        Py_DECREF(ops);
+                                        goto err;
+                                }
+                        }
+                        c_err = rd_kafka_ClientQuotaEntry_add_operation(
+                            c_entries[i], key, value, remove, errstr,
+                            sizeof(errstr));
+                        Py_DECREF(key_obj);
+                        Py_DECREF(value_obj);
+                        if (c_err) {
+                                PyErr_SetString(PyExc_ValueError, errstr);
+                                Py_DECREF(entity);
+                                Py_DECREF(entries);
+                                Py_DECREF(ops);
+                                goto err;
+                        }
+                }
+                Py_DECREF(entity);
+                Py_DECREF(entries);
+                Py_DECREF(ops);
+        }
+
+        c_options = Admin_options_to_c(
+            self, RD_KAFKA_ADMIN_OP_ALTERCLIENTQUOTAS, &options, future);
+        if (!c_options)
+                goto err;
+        Py_INCREF(future);
+        rkqu = rd_kafka_queue_get_background(self->rk);
+        CallState_begin(self, &cs);
+        rd_kafka_AlterClientQuotas(self->rk, c_entries, (size_t)alteration_cnt,
+                                   c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu);
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_ClientQuotaEntry_destroy_array(c_entries,
+                                                (size_t)alteration_cnt);
+        free(c_entries);
+        Py_RETURN_NONE;
+
+err:
+        if (rkqu)
+                rd_kafka_queue_destroy(rkqu);
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if (c_entries) {
+                rd_kafka_ClientQuotaEntry_destroy_array(c_entries, c_entry_cnt);
+                free(c_entries);
+        }
+        return NULL;
+}
+
 /**
  * @brief Call rd_kafka_poll() and keep track of crashing callbacks.
  * @returns -1 if callback crashed (or poll() failed), else the number
@@ -3606,6 +3918,12 @@ static PyMethodDef Admin_methods[] = {
 
     {"elect_leaders", (PyCFunction)Admin_elect_leaders,
      METH_VARARGS | METH_KEYWORDS, Admin_elect_leaders_doc},
+    {"describe_client_quotas", (PyCFunction)Admin_describe_client_quotas,
+     METH_VARARGS | METH_KEYWORDS,
+     "Describe client quotas. Use AdminClient.describe_client_quotas()."},
+    {"alter_client_quotas", (PyCFunction)Admin_alter_client_quotas,
+     METH_VARARGS | METH_KEYWORDS,
+     "Alter client quotas. Use AdminClient.alter_client_quotas()."},
     {"__enter__", (PyCFunction)Admin_enter, METH_NOARGS,
      "Context manager entry."},
     {"__exit__", (PyCFunction)Admin_exit, METH_VARARGS,
@@ -5034,6 +5352,145 @@ raise:
         return NULL;
 }
 
+
+static PyObject *
+Admin_c_ClientQuotaEntity_to_py(const rd_kafka_ClientQuotaEntity_t **c_entities,
+                                size_t c_entity_cnt) {
+        PyObject *entity_type = NULL, *entries = NULL, *entity = NULL;
+        size_t i;
+
+        entity_type =
+            cfl_PyObject_lookup("confluent_kafka.admin", "ClientQuotaEntity");
+        if (!entity_type)
+                return NULL;
+        entries = PyDict_New();
+        if (!entries)
+                goto err;
+
+        for (i = 0; i < c_entity_cnt; i++) {
+                const char *type =
+                    rd_kafka_ClientQuotaEntity_type(c_entities[i]);
+                const char *name =
+                    rd_kafka_ClientQuotaEntity_name(c_entities[i]);
+                PyObject *py_name =
+                    name ? cfl_PyUnistr(_FromString(name)) : Py_None;
+
+                if (!name)
+                        Py_INCREF(Py_None);
+                if (!py_name ||
+                    PyDict_SetItemString(entries, type, py_name) == -1) {
+                        Py_XDECREF(py_name);
+                        goto err;
+                }
+                Py_DECREF(py_name);
+        }
+
+        entity = PyObject_CallFunctionObjArgs(entity_type, entries, NULL);
+err:
+        Py_XDECREF(entity_type);
+        Py_XDECREF(entries);
+        return entity;
+}
+
+
+static PyObject *Admin_c_AlterClientQuotasResult_to_py(
+    const rd_kafka_ClientQuotaEntry_t **c_entries,
+    size_t c_entry_cnt) {
+        PyObject *result = PyDict_New();
+        size_t i;
+
+        if (!result)
+                return NULL;
+        for (i = 0; i < c_entry_cnt; i++) {
+                const rd_kafka_ClientQuotaEntity_t **c_entities;
+                const rd_kafka_error_t *c_error;
+                size_t c_entity_cnt;
+                PyObject *entity, *error;
+
+                c_entities = rd_kafka_ClientQuotaEntry_entities(c_entries[i],
+                                                                &c_entity_cnt);
+                entity =
+                    Admin_c_ClientQuotaEntity_to_py(c_entities, c_entity_cnt);
+                if (!entity)
+                        goto err;
+                c_error = rd_kafka_ClientQuotaEntry_error(c_entries[i]);
+                error =
+                    c_error
+                        ? KafkaError_new_or_None(rd_kafka_error_code(c_error),
+                                                 rd_kafka_error_string(c_error))
+                        : KafkaError_new_or_None(RD_KAFKA_RESP_ERR_NO_ERROR,
+                                                 NULL);
+                if (!error || PyDict_SetItem(result, entity, error) == -1) {
+                        Py_DECREF(entity);
+                        Py_XDECREF(error);
+                        goto err;
+                }
+                Py_DECREF(entity);
+                Py_DECREF(error);
+        }
+        return result;
+err:
+        Py_DECREF(result);
+        return NULL;
+}
+
+
+static PyObject *Admin_c_DescribeClientQuotasResult_to_py(
+    const rd_kafka_DescribeClientQuotas_result_entry_t **c_entries,
+    size_t c_entry_cnt) {
+        PyObject *result = PyDict_New();
+        size_t i;
+
+        if (!result)
+                return NULL;
+        for (i = 0; i < c_entry_cnt; i++) {
+                const rd_kafka_ClientQuotaEntity_t **c_entities;
+                const rd_kafka_ClientQuotaValue_t **c_values;
+                size_t c_entity_cnt, c_value_cnt, j;
+                PyObject *entity, *values;
+
+                c_entities =
+                    rd_kafka_DescribeClientQuotas_result_entry_entities(
+                        c_entries[i], &c_entity_cnt);
+                c_values = rd_kafka_DescribeClientQuotas_result_entry_values(
+                    c_entries[i], &c_value_cnt);
+                entity =
+                    Admin_c_ClientQuotaEntity_to_py(c_entities, c_entity_cnt);
+                values = PyDict_New();
+                if (!entity || !values) {
+                        Py_XDECREF(entity);
+                        Py_XDECREF(values);
+                        goto err;
+                }
+                for (j = 0; j < c_value_cnt; j++) {
+                        PyObject *value = PyFloat_FromDouble(
+                            rd_kafka_ClientQuotaValue_value(c_values[j]));
+                        if (!value ||
+                            PyDict_SetItemString(
+                                values,
+                                rd_kafka_ClientQuotaValue_key(c_values[j]),
+                                value) == -1) {
+                                Py_XDECREF(value);
+                                Py_DECREF(entity);
+                                Py_DECREF(values);
+                                goto err;
+                        }
+                        Py_DECREF(value);
+                }
+                if (PyDict_SetItem(result, entity, values) == -1) {
+                        Py_DECREF(entity);
+                        Py_DECREF(values);
+                        goto err;
+                }
+                Py_DECREF(entity);
+                Py_DECREF(values);
+        }
+        return result;
+err:
+        Py_DECREF(result);
+        return NULL;
+}
+
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -5408,6 +5865,32 @@ static void Admin_background_event_cb(rd_kafka_t *rk,
                 result = c_topic_partition_result_to_py_dict(partition_results,
                                                              c_result_cnt);
 
+                break;
+        }
+
+        case RD_KAFKA_EVENT_ALTERCLIENTQUOTAS_RESULT: {
+                const rd_kafka_AlterClientQuotas_result_t *c_result;
+                const rd_kafka_ClientQuotaEntry_t **c_entries;
+                size_t c_entry_cnt;
+
+                c_result  = rd_kafka_event_AlterClientQuotas_result(rkev);
+                c_entries = rd_kafka_AlterClientQuotas_result_entries(
+                    c_result, &c_entry_cnt);
+                result = Admin_c_AlterClientQuotasResult_to_py(c_entries,
+                                                               c_entry_cnt);
+                break;
+        }
+
+        case RD_KAFKA_EVENT_DESCRIBECLIENTQUOTAS_RESULT: {
+                const rd_kafka_DescribeClientQuotas_result_t *c_result;
+                const rd_kafka_DescribeClientQuotas_result_entry_t **c_entries;
+                size_t c_entry_cnt;
+
+                c_result  = rd_kafka_event_DescribeClientQuotas_result(rkev);
+                c_entries = rd_kafka_DescribeClientQuotas_result_entries(
+                    c_result, &c_entry_cnt);
+                result = Admin_c_DescribeClientQuotasResult_to_py(c_entries,
+                                                                  c_entry_cnt);
                 break;
         }
 
