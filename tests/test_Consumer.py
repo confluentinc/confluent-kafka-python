@@ -398,6 +398,50 @@ def test_any_method_after_close_throws_exception():
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
     assert ex.match('Consumer closed')
 
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+
+def test_pause_after_close_raises_runtime_error():
+    """Regression test: Consumer__pause_internal must check self->rk before
+    calling into librdkafka, same as every other _internal method. Prior
+    to this fix, pause() after close() dereferenced a NULL self->rk and
+    segfaulted the process instead of raising RuntimeError."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([])
+    assert ex.match('Consumer closed')
+
+
+def test_resume_after_close_raises_runtime_error():
+    """Same regression as test_pause_after_close_raises_runtime_error, for
+    Consumer__resume_internal."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([])
+    assert ex.match('Consumer closed')
+
 
 def test_calling_store_offsets_after_close_throws_erro():
     """calling store_offset after close should throw RuntimeError"""
