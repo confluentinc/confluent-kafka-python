@@ -38,6 +38,71 @@
  *
  ****************************************************************************/
 
+/**
+ * @brief Reject-on-contention gate: only one caller may be inside gated
+ *        Consumer C code at a time. `identity` identifies the caller --
+ *        for the sync Consumer this is always the calling thread's own ID.
+ *        For AIOConsumer this is a temporary ID generated when the method
+ *        is called.
+ *
+ *        If the gate is unowned, `identity` becomes the owner. If
+ *        `identity` already matches the current owner, this is a
+ *        legitimate re-entrant call (gate_depth is incremented). Any other
+ *        identity is rejected with ConcurrentModificationException.
+ *
+ * @returns 1 if the gate is now held or 0 with ConcurrentModificationException
+ *          set if a different identity currently holds it.
+ *
+ * @warning Only compiled in when CFL_CONSUMER_GATE_ENABLED is true
+ *          to preserve backward compatibility. When false, Handle_gate_enter()
+ *          always succeeds.
+ */
+static int Handle_gate_enter(Handle *h, atomic_ulong_t identity) {
+#if !CFL_CONSUMER_GATE_ENABLED
+        (void)h;
+        (void)identity;
+        return 1;
+#else
+        assert(identity != 0);
+
+        if (atomic_ulong_cas(&h->u.Consumer.gate_owner, 0, identity)) {
+                /* Gate was unowned: we now own it. */
+                h->u.Consumer.gate_depth = 1;
+                return 1;
+        }
+
+        if (atomic_ulong_get(&h->u.Consumer.gate_owner) == identity) {
+                /* Re-entrant call presenting the same identity that already
+                 * owns the gate.
+                 */
+                h->u.Consumer.gate_depth++;
+                return 1;
+        }
+
+        PyErr_SetString(ConcurrentModificationException,
+                        "Illegal concurrent access to this Consumer "
+                        "instance from another caller");
+        return 0;
+#endif
+}
+
+/**
+ * @brief Counterpart to Handle_gate_enter(): call once per successful
+ *        Handle_gate_enter(), on every return path.
+ *
+ * @warning Only compiled in when CFL_CONSUMER_GATE_ENABLED is true
+ *          to preserve backward compatibility. When false, Handle_gate_exit()
+ *          is a no-op.
+ */
+static void Handle_gate_exit(Handle *h) {
+#if !CFL_CONSUMER_GATE_ENABLED
+        (void)h;
+#else
+        h->u.Consumer.gate_depth--;
+        if (h->u.Consumer.gate_depth == 0)
+                atomic_ulong_set(&h->u.Consumer.gate_owner, 0);
+#endif
+}
 
 static void Consumer_clear0(Handle *self) {
         if (self->u.Consumer.on_assign) {
@@ -106,43 +171,49 @@ static int Consumer_traverse(Handle *self, visitproc visit, void *arg) {
 
 
 static PyObject *
-Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__subscribe_internal(Handle *self, PyObject *args, PyObject *kwargs) {
 
         rd_kafka_topic_partition_list_t *topics;
-        static char *kws[] = {"topics", "on_assign", "on_revoke", "on_lost",
-                              NULL};
+        static char *kws[] = {"identity", "topics", "on_assign", "on_revoke",
+                              "on_lost", NULL};
         PyObject *tlist, *on_assign = NULL, *on_revoke = NULL, *on_lost = NULL;
+        PyObject *result = NULL;
         Py_ssize_t pos = 0;
         rd_kafka_resp_err_t err;
+        atomic_ulong_t identity;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO|OOO", kws,
+                                         &identity, &tlist, &on_assign,
+                                         &on_revoke, &on_lost))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws, &tlist,
-                                         &on_assign, &on_revoke, &on_lost))
-                return NULL;
 
         if (!PyList_Check(tlist)) {
                 PyErr_Format(PyExc_TypeError,
                              "expected list of topic unicode strings");
-                return NULL;
+                goto done;
         }
 
         if (on_assign && !PyCallable_Check(on_assign)) {
                 PyErr_Format(PyExc_TypeError, "on_assign expects a callable");
-                return NULL;
+                goto done;
         }
 
         if (on_revoke && !PyCallable_Check(on_revoke)) {
                 PyErr_Format(PyExc_TypeError, "on_revoke expects a callable");
-                return NULL;
+                goto done;
         }
 
         if (on_lost && !PyCallable_Check(on_lost)) {
                 PyErr_Format(PyExc_TypeError, "on_lost expects a callable");
-                return NULL;
+                goto done;
         }
 
         topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
@@ -153,7 +224,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                         PyErr_Format(PyExc_TypeError,
                                      "expected list of unicode strings");
                         rd_kafka_topic_partition_list_destroy(topics);
-                        return NULL;
+                        goto done;
                 }
                 rd_kafka_topic_partition_list_add(topics,
                                                   cfl_PyUnistr_AsUTF8(uo, &uo8),
@@ -169,7 +240,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         if (err) {
                 cfl_PyErr_Format(err, "Failed to set subscription: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
         /*
@@ -202,41 +273,68 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                 Py_INCREF(self->u.Consumer.on_lost);
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-
-static PyObject *Consumer_unsubscribe(Handle *self, PyObject *ignore) {
-
+static PyObject *Consumer__unsubscribe_internal(Handle *self,
+                                                PyObject *args) {
+        atomic_ulong_t identity;
+        PyObject *result = NULL;
         rd_kafka_resp_err_t err;
+
+        if (!PyArg_ParseTuple(args, "k", &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         err = rd_kafka_unsubscribe(self->rk);
         if (err) {
                 cfl_PyErr_Format(err, "Failed to remove subscription: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
-static PyObject *Consumer_incremental_assign(Handle *self, PyObject *tlist) {
+static PyObject *
+Consumer__incremental_assign_internal(Handle *self, PyObject *args) {
+        atomic_ulong_t identity;
+        PyObject *tlist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
+        if (!PyArg_ParseTuple(args, "kO", &identity, &tlist))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         if (!(c_parts = py_to_c_parts(tlist)))
-                return NULL;
+                goto done;
 
         self->u.Consumer.rebalance_incremental_assigned++;
 
@@ -246,25 +344,40 @@ static PyObject *Consumer_incremental_assign(Handle *self, PyObject *tlist) {
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-
-static PyObject *Consumer_assign(Handle *self, PyObject *tlist) {
-
+/**
+ * @brief Identity-carrying entry points for assign().
+ */
+static PyObject *Consumer__assign_internal(Handle *self, PyObject *args) {
+        atomic_ulong_t identity;
+        PyObject *tlist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
 
+        if (!PyArg_ParseTuple(args, "kO", &identity, &tlist))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         if (!(c_parts = py_to_c_parts(tlist)))
-                return NULL;
+                goto done;
 
         self->u.Consumer.rebalance_assigned++;
 
@@ -275,20 +388,34 @@ static PyObject *Consumer_assign(Handle *self, PyObject *tlist) {
         if (err) {
                 cfl_PyErr_Format(err, "Failed to set assignment: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-
-static PyObject *Consumer_unassign(Handle *self, PyObject *ignore) {
-
+/**
+ * @brief Identity-carrying entry points for unassign().
+ */
+static PyObject *Consumer__unassign_internal(Handle *self, PyObject *args) {
+        atomic_ulong_t identity;
+        PyObject *result = NULL;
         rd_kafka_resp_err_t err;
+
+        if (!PyArg_ParseTuple(args, "k", &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         self->u.Consumer.rebalance_assigned++;
@@ -297,25 +424,41 @@ static PyObject *Consumer_unassign(Handle *self, PyObject *ignore) {
         if (err) {
                 cfl_PyErr_Format(err, "Failed to remove assignment: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-
-static PyObject *Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
-
+/**
+ * @brief Identity-carrying entry points for incremental unassign().
+ */
+static PyObject *
+Consumer__incremental_unassign_internal(Handle *self, PyObject *args) {
+        atomic_ulong_t identity;
+        PyObject *tlist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
+        if (!PyArg_ParseTuple(args, "kO", &identity, &tlist))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         if (!(c_parts = py_to_c_parts(tlist)))
-                return NULL;
+                goto done;
 
         self->u.Consumer.rebalance_incremental_unassigned++;
 
@@ -325,37 +468,55 @@ static PyObject *Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-
+/**
+ * @brief Identity-carrying entry point for assignment().
+ */
 static PyObject *
-Consumer_assignment(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__assignment_internal(Handle *self, PyObject *args,
+                              PyObject *kwargs) {
 
-        PyObject *plist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
+        atomic_ulong_t identity;
+        static char *kws[] = {"identity", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "k", kws, &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         err = rd_kafka_assignment(self->rk, &c_parts);
         if (err) {
                 cfl_PyErr_Format(err, "Failed to get assignment: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
 
-        plist = c_parts_to_py(c_parts);
+        result = c_parts_to_py(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
 
-        return plist;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
@@ -441,8 +602,15 @@ Consumer_offset_commit_return_cb(rd_kafka_t *rk,
 }
 
 
-static PyObject *
-Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
+/**
+ * @brief Identity-carrying entry point for commit().
+ */
+static PyObject *Consumer__commit_internal(Handle *self, PyObject *args,
+                                           PyObject *kwargs) {
+        atomic_ulong_t identity;
+        Py_ssize_t nargs;
+        PyObject *inner_args;
+        PyObject *identity_obj;
         rd_kafka_resp_err_t err;
         PyObject *msg = NULL, *offsets = NULL, *async_o = NULL;
         rd_kafka_topic_partition_list_t *c_offsets;
@@ -453,14 +621,44 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        nargs = PyTuple_GET_SIZE(args);
+        if (nargs < 1) {
+                PyErr_SetString(PyExc_TypeError,
+                                "_commit_internal requires a leading "
+                                "identity argument");
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws, &msg,
-                                         &offsets, &async_o, &async_o))
+        identity_obj = PyTuple_GET_ITEM(args, 0);
+        identity     = (atomic_ulong_t)PyLong_AsUnsignedLong(identity_obj);
+        if (identity == (atomic_ulong_t)-1 && PyErr_Occurred())
                 return NULL;
+
+        inner_args = PyTuple_GetSlice(args, 1, nargs);
+        if (!inner_args)
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity)) {
+                Py_DECREF(inner_args);
+                return NULL;
+        }
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                Handle_gate_exit(self);
+                Py_DECREF(inner_args);
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(inner_args, kwargs, "|OOOO", kws,
+                                         &msg, &offsets, &async_o,
+                                         &async_o)) {
+                Handle_gate_exit(self);
+                Py_DECREF(inner_args);
+                return NULL;
+        }
+
+        Py_DECREF(inner_args);
 
         msg     = msg == Py_None ? NULL : msg;
         offsets = offsets == Py_None ? NULL : offsets;
@@ -468,6 +666,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
         if (msg && offsets) {
                 PyErr_SetString(PyExc_ValueError,
                                 "message and offsets are mutually exclusive");
+                Handle_gate_exit(self);
                 return NULL;
         }
 
@@ -477,8 +676,10 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
         if (offsets) {
 
-                if (!(c_offsets = py_to_c_parts(offsets)))
+                if (!(c_offsets = py_to_c_parts(offsets))) {
+                        Handle_gate_exit(self);
                         return NULL;
+                }
         } else if (msg) {
                 Message *m;
                 PyObject *uo8;
@@ -488,6 +689,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                     (PyObject *)&MessageType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      MessageType.tp_name);
+                        Handle_gate_exit(self);
                         return NULL;
                 }
 
@@ -503,6 +705,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                                          PyUnicode_AsUTF8(errstr));
                         Py_DECREF(error);
                         Py_DECREF(errstr);
+                        Handle_gate_exit(self);
                         return NULL;
                 }
 
@@ -558,11 +761,13 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 cfl_PyErr_Format(err, "Commit failed: %s",
                                  rd_kafka_err2str(err));
+                Handle_gate_exit(self);
                 return NULL;
         }
 
         if (async) {
                 /* async commit returns None when commit is in progress */
+                Handle_gate_exit(self);
                 Py_RETURN_NONE;
 
         } else {
@@ -574,14 +779,18 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 plist = c_parts_to_py(commit_return.c_parts);
                 rd_kafka_topic_partition_list_destroy(commit_return.c_parts);
 
+                Handle_gate_exit(self);
                 return plist;
         }
 }
 
 
-
+/**
+ * @brief Identity-carrying entry point for store_offsets().
+ */
 static PyObject *
-Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__store_offsets_internal(Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
         PyErr_Format(PyExc_NotImplementedError,
                      "Consumer store_offsets require "
@@ -593,17 +802,23 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
 #else
         rd_kafka_resp_err_t err;
         PyObject *msg = NULL, *offsets = NULL;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_offsets;
-        static char *kws[] = {"message", "offsets", NULL};
+        static char *kws[] = {"identity", "message", "offsets", NULL};
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "k|OO", kws, &identity,
+                                         &msg, &offsets)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws, &msg,
-                                         &offsets))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
         msg     = msg == Py_None ? NULL : msg;
         offsets = offsets == Py_None ? NULL : offsets;
@@ -611,19 +826,19 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         if (msg && offsets) {
                 PyErr_SetString(PyExc_ValueError,
                                 "message and offsets are mutually exclusive");
-                return NULL;
+                goto done;
         }
 
         if (!msg && !offsets) {
                 PyErr_SetString(PyExc_ValueError,
                                 "expected either message or offsets");
-                return NULL;
+                goto done;
         }
 
         if (offsets) {
 
                 if (!(c_offsets = py_to_c_parts(offsets)))
-                        return NULL;
+                        goto done;
         } else {
                 Message *m;
                 PyObject *uo8;
@@ -633,7 +848,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                     (PyObject *)&MessageType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      MessageType.tp_name);
-                        return NULL;
+                        goto done;
                 }
 
                 m = (Message *)msg;
@@ -648,7 +863,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                             PyUnicode_AsUTF8(errstr));
                         Py_DECREF(error);
                         Py_DECREF(errstr);
-                        return NULL;
+                        goto done;
                 }
 
                 c_offsets = rd_kafka_topic_partition_list_new(1);
@@ -670,36 +885,51 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         if (err) {
                 cfl_PyErr_Format(err, "StoreOffsets failed: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 #endif
 }
 
 
 
+/**
+ * @brief Identity-carrying entry point for committed().
+ */
 static PyObject *
-Consumer_committed(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__committed_internal(Handle *self, PyObject *args,
+                             PyObject *kwargs) {
 
         PyObject *plist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
         double tmout       = -1.0f;
-        static char *kws[] = {"partitions", "timeout", NULL};
+        static char *kws[] = {"identity", "partitions", "timeout", NULL};
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO|d", kws, &identity,
+                                         &plist, &tmout)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws, &plist,
-                                         &tmout))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
 
         if (!(c_parts = py_to_c_parts(plist)))
-                return NULL;
+                goto done;
 
         Py_BEGIN_ALLOW_THREADS;
         err = rd_kafka_committed(self->rk, c_parts, cfl_timeout_ms(tmout));
@@ -709,36 +939,49 @@ Consumer_committed(Handle *self, PyObject *args, PyObject *kwargs) {
                 rd_kafka_topic_partition_list_destroy(c_parts);
                 cfl_PyErr_Format(err, "Failed to get committed offsets: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
 
-        plist = c_parts_to_py(c_parts);
+        result = c_parts_to_py(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
 
-        return plist;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
+/**
+ * @brief Identity-carrying entry point for position().
+ */
 static PyObject *
-Consumer_position(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__position_internal(Handle *self, PyObject *args,
+                            PyObject *kwargs) {
 
         PyObject *plist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
-        static char *kws[] = {"partitions", NULL};
+        static char *kws[] = {"identity", "partitions", NULL};
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO", kws, &identity,
+                                         &plist)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
 
         if (!(c_parts = py_to_c_parts(plist)))
-                return NULL;
+                goto done;
 
         err = rd_kafka_position(self->rk, c_parts);
 
@@ -746,88 +989,142 @@ Consumer_position(Handle *self, PyObject *args, PyObject *kwargs) {
                 rd_kafka_topic_partition_list_destroy(c_parts);
                 cfl_PyErr_Format(err, "Failed to get position: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
 
-        plist = c_parts_to_py(c_parts);
+        result = c_parts_to_py(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
 
-        return plist;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
+/**
+ * @brief Identity-carrying entry point for pause().
+ */
 static PyObject *
-Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__pause_internal(Handle *self, PyObject *args, PyObject *kwargs) {
 
         PyObject *plist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
-        static char *kws[] = {"partitions", NULL};
+        static char *kws[] = {"identity", "partitions", NULL};
+        atomic_ulong_t identity;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO", kws, &identity,
+                                         &plist)) {
                 return NULL;
+        }
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
         if (!(c_parts = py_to_c_parts(plist)))
-                return NULL;
+                goto done;
 
         err = rd_kafka_pause_partitions(self->rk, c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
         if (err) {
                 cfl_PyErr_Format(err, "Failed to pause partitions: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
-        Py_RETURN_NONE;
+
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
+/**
+ * @brief Identity-carrying entry point for resume().
+ */
 static PyObject *
-Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__resume_internal(Handle *self, PyObject *args, PyObject *kwargs) {
 
         PyObject *plist;
+        PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
-        static char *kws[] = {"partitions", NULL};
+        static char *kws[] = {"identity", "partitions", NULL};
+        atomic_ulong_t identity;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO", kws, &identity,
+                                         &plist)) {
                 return NULL;
+        }
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
         if (!(c_parts = py_to_c_parts(plist)))
-                return NULL;
+                goto done;
 
         err = rd_kafka_resume_partitions(self->rk, c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
         if (err) {
                 cfl_PyErr_Format(err, "Failed to resume partitions: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
-        Py_RETURN_NONE;
+
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
-static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
+/**
+ * @brief Identity-carrying entry point for seek().
+ */
+static PyObject *Consumer__seek_internal(Handle *self, PyObject *args,
+                                         PyObject *kwargs) {
 
         TopicPartition *tp;
+        PyObject *result        = NULL;
         rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR_NO_ERROR;
-        static char *kws[]      = {"partition", NULL};
+        static char *kws[]      = {"identity", "partition", NULL};
         rd_kafka_topic_partition_list_t *seek_partitions;
         rd_kafka_topic_partition_t *rktpar;
         rd_kafka_error_t *error;
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO", kws, &identity,
+                                         (PyObject **)&tp)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
-                                         (PyObject **)&tp))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
 
         if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
                 PyErr_Format(PyExc_TypeError, "expected %s",
                              TopicPartitionType.tp_name);
-                return NULL;
+                goto done;
         }
 
         seek_partitions = rd_kafka_topic_partition_list_new(1);
@@ -855,38 +1152,53 @@ static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
                 cfl_PyErr_Format(err,
                                  "Failed to seek to offset %" CFL_PRId64 ": %s",
                                  tp->offset, rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
+/**
+ * @brief Identity-carrying entry point for get_watermark_offsets().
+ */
 static PyObject *
-Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__get_watermark_offsets_internal(Handle *self, PyObject *args,
+                                         PyObject *kwargs) {
 
         TopicPartition *tp;
+        PyObject *result = NULL;
         rd_kafka_resp_err_t err;
         double tmout = -1.0f;
         int cached   = 0;
         int64_t low = RD_KAFKA_OFFSET_INVALID, high = RD_KAFKA_OFFSET_INVALID;
-        static char *kws[] = {"partition", "timeout", "cached", NULL};
-        PyObject *rtup;
+        static char *kws[] = {"identity", "partition", "timeout", "cached",
+                              NULL};
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO|db", kws, &identity,
+                                         (PyObject **)&tp, &tmout, &cached)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|db", kws,
-                                         (PyObject **)&tp, &tmout, &cached))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
 
         if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
                 PyErr_Format(PyExc_TypeError, "expected %s",
                              TopicPartitionType.tp_name);
-                return NULL;
+                goto done;
         }
 
         if (cached) {
@@ -903,19 +1215,25 @@ Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         if (err) {
                 cfl_PyErr_Format(err, "Failed to get watermark offsets: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        rtup = PyTuple_New(2);
-        PyTuple_SetItem(rtup, 0, PyLong_FromLongLong(low));
-        PyTuple_SetItem(rtup, 1, PyLong_FromLongLong(high));
+        result = PyTuple_New(2);
+        PyTuple_SetItem(result, 0, PyLong_FromLongLong(low));
+        PyTuple_SetItem(result, 1, PyLong_FromLongLong(high));
 
-        return rtup;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
+/**
+ * @brief Identity-carrying entry point for offsets_for_times().
+ */
 static PyObject *
-Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__offsets_for_times_internal(Handle *self, PyObject *args,
+                                     PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
         PyErr_Format(PyExc_NotImplementedError,
                      "Consumer offsets_for_times require "
@@ -927,22 +1245,28 @@ Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
 #else
 
         PyObject *plist;
+        PyObject *result = NULL;
         double tmout = -1.0f;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
-        static char *kws[] = {"partitions", "timeout", NULL};
+        static char *kws[] = {"identity", "partitions", "timeout", NULL};
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "kO|d", kws, &identity,
+                                         &plist, &tmout)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws, &plist,
-                                         &tmout))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
 
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
+
         if (!(c_parts = py_to_c_parts(plist)))
-                return NULL;
+                goto done;
 
         Py_BEGIN_ALLOW_THREADS;
         err = rd_kafka_offsets_for_times(self->rk, c_parts,
@@ -953,13 +1277,15 @@ Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
                 rd_kafka_topic_partition_list_destroy(c_parts);
                 cfl_PyErr_Format(err, "Failed to get offsets: %s",
                                  rd_kafka_err2str(err));
-                return NULL;
+                goto done;
         }
 
-        plist = c_parts_to_py(c_parts);
+        result = c_parts_to_py(c_parts);
         rd_kafka_topic_partition_list_destroy(c_parts);
 
-        return plist;
+done:
+        Handle_gate_exit(self);
+        return result;
 #endif
 }
 
@@ -978,29 +1304,37 @@ Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
  * @param self Consumer handle
  * @param args Positional arguments (unused)
  * @param kwargs Keyword arguments:
+ *              - identity (unsigned long): gate identity.
  *              - timeout (float, optional): Timeout in seconds.
  *                Default: -1.0 (infinite timeout)
  * @return PyObject* Message object, None if timeout, or NULL on error
  *         (raises KeyboardInterrupt if signal detected)
  */
-static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
+static PyObject *
+Consumer__poll_internal(Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout            = -1.0f;
-        static char *kws[]      = {"timeout", NULL};
+        static char *kws[]      = {"identity", "timeout", NULL};
         rd_kafka_message_t *rkm = NULL;
-        PyObject *msgobj;
+        PyObject *result = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
         int chunk_count = 0;
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "k|d", kws, &identity,
+                                         &tmout)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                goto done;
+        }
 
         total_timeout_ms = cfl_timeout_ms(tmout);
 
@@ -1034,9 +1368,8 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
                         chunk_count++;
 
                         /* Check for signals between chunks */
-                        if (check_signals_between_chunks(self, &cs)) {
-                                return NULL;
-                        }
+                        if (check_signals_between_chunks(self, &cs))
+                                goto done;
                 }
         }
 
@@ -1045,48 +1378,71 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
                 if (rkm) {
                         rd_kafka_message_destroy(rkm);
                 }
-                return NULL;
+                goto done;
         }
 
         /* Handle the message */
-        if (!rkm)
-                Py_RETURN_NONE;
+        if (!rkm) {
+                Py_INCREF(Py_None);
+                result = Py_None;
+                goto done;
+        }
 
-        msgobj = Message_new0(self, rkm);
+        result = Message_new0(self, rkm);
 #ifdef RD_KAFKA_V_HEADERS
         /** Have to detach headers outside Message_new0 because it declares the
          * rk message as a const */
-        rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
+        rd_kafka_message_detach_headers(rkm, &((Message *)result)->c_headers);
 #endif
         rd_kafka_message_destroy(rkm);
 
-        return msgobj;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 
+/**
+ * @brief Identity-carrying entry point for memberid().
+ */
 static PyObject *
-Consumer_memberid(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__memberid_internal(Handle *self, PyObject *args) {
         char *memberid;
-        PyObject *memberidobj;
+        PyObject *result = NULL;
+        atomic_ulong_t identity;
+
+        if (!PyArg_ParseTuple(args, "k", &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         memberid = rd_kafka_memberid(self->rk);
 
-        if (!memberid)
-                Py_RETURN_NONE;
+        if (!memberid) {
+                Py_INCREF(Py_None);
+                result = Py_None;
+                goto done;
+        }
 
         if (!*memberid) {
                 rd_kafka_mem_free(self->rk, memberid);
-                Py_RETURN_NONE;
+                Py_INCREF(Py_None);
+                result = Py_None;
+                goto done;
         }
 
-        memberidobj = Py_BuildValue("s", memberid);
+        result = Py_BuildValue("s", memberid);
         rd_kafka_mem_free(self->rk, memberid);
 
-        return memberidobj;
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 /**
@@ -1103,6 +1459,7 @@ Consumer_memberid(Handle *self, PyObject *args, PyObject *kwargs) {
  * @param self Consumer handle
  * @param args Positional arguments (unused)
  * @param kwargs Keyword arguments:
+ *              - identity (unsigned long): gate identity.
  *              - num_messages (int, optional): Maximum number of messages to
  *                consume per call. Default: 1. Maximum: 1000000.
  *              - timeout (float, optional): Timeout in seconds.
@@ -1111,10 +1468,11 @@ Consumer_memberid(Handle *self, PyObject *args, PyObject *kwargs) {
  * error (raises KeyboardInterrupt if signal detected)
  */
 static PyObject *
-Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer__consume_internal(Handle *self, PyObject *args, PyObject *kwargs) {
         unsigned int num_messages = 1;
         double tmout              = -1.0f;
-        static char *kws[]        = {"num_messages", "timeout", NULL};
+        static char *kws[]        = {"identity", "num_messages", "timeout",
+                              NULL};
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
@@ -1124,20 +1482,27 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         int total_timeout_ms;
         int chunk_timeout_ms;
         int chunk_count = 0;
+        atomic_ulong_t identity;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "k|Id", kws, &identity,
+                                         &num_messages, &tmout)) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Id", kws,
-                                         &num_messages, &tmout))
+        if (!Handle_gate_enter(self, identity))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
+                Handle_gate_exit(self);
+                return NULL;
+        }
 
         if (num_messages > 1000000) {
                 PyErr_SetString(
                     PyExc_ValueError,
                     "num_messages must be between 0 and 1000000 (1M)");
+                Handle_gate_exit(self);
                 return NULL;
         }
 
@@ -1146,6 +1511,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
         if (!rkmessages) {
                 PyErr_NoMemory();
+                Handle_gate_exit(self);
                 return NULL;
         }
 
@@ -1166,6 +1532,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         cfl_PyErr_Format(
                             rd_kafka_last_error(), "%s",
                             rd_kafka_err2str(rd_kafka_last_error()));
+                        Handle_gate_exit(self);
                         return NULL;
                 }
         } else {
@@ -1190,6 +1557,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                                 cfl_PyErr_Format(
                                     rd_kafka_last_error(), "%s",
                                     rd_kafka_err2str(rd_kafka_last_error()));
+                                Handle_gate_exit(self);
                                 return NULL;
                         }
 
@@ -1203,6 +1571,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         /* Check for signals between chunks */
                         if (check_signals_between_chunks(self, &cs)) {
                                 free(rkmessages);
+                                Handle_gate_exit(self);
                                 return NULL;
                         }
                 }
@@ -1214,6 +1583,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         rd_kafka_message_destroy(rkmessages[i]);
                 }
                 free(rkmessages);
+                Handle_gate_exit(self);
                 return NULL;
         }
 
@@ -1234,15 +1604,30 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
 
         free(rkmessages);
 
+        Handle_gate_exit(self);
         return msglist;
 }
 
 
-static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
+/**
+ * @brief Identity-carrying entry point for close().
+ */
+static PyObject *Consumer__close_internal(Handle *self, PyObject *args) {
         CallState cs;
+        PyObject *result = NULL;
+        atomic_ulong_t identity;
 
-        if (!self->rk)
-                Py_RETURN_NONE;
+        if (!PyArg_ParseTuple(args, "k", &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
+
+        if (!self->rk) {
+                Py_INCREF(Py_None);
+                result = Py_None;
+                goto done;
+        }
 
         CallState_begin(self, &cs);
 
@@ -1257,56 +1642,425 @@ static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
         self->rk = NULL;
 
         if (!CallState_end(self, &cs))
-                return NULL;
+                goto done;
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
 static PyObject *Consumer_enter(Handle *self) {
+        atomic_ulong_t identity = (atomic_ulong_t)PyThread_get_thread_ident();
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
         Py_INCREF(self);
+        Handle_gate_exit(self);
         return (PyObject *)self;
 }
 
 static PyObject *Consumer_exit(Handle *self, PyObject *args) {
         PyObject *exc_type, *exc_value, *exc_traceback;
+        PyObject *result = NULL;
+        atomic_ulong_t identity = (atomic_ulong_t)PyThread_get_thread_ident();
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!PyArg_UnpackTuple(args, "__exit__", 3, 3, &exc_type, &exc_value,
                                &exc_traceback))
-                return NULL;
+                goto done;
 
-        /* Cleanup: call close() */
         if (self->rk) {
-                PyObject *result = Consumer_close(self, NULL);
-                if (!result)
-                        return NULL;
-                Py_DECREF(result);
+                PyObject *close_args = Py_BuildValue("(k)", identity);
+                PyObject *close_result;
+
+                if (!close_args)
+                        goto done;
+
+                close_result = Consumer__close_internal(self, close_args);
+                Py_DECREF(close_args);
+                if (!close_result)
+                        goto done;
+                Py_DECREF(close_result);
         }
 
-        Py_RETURN_NONE;
+        Py_INCREF(Py_None);
+        result = Py_None;
+
+done:
+        Handle_gate_exit(self);
+        return result;
 }
 
-static PyObject *Consumer_consumer_group_metadata(Handle *self,
-                                                  PyObject *ignore) {
+/**
+ * @brief Identity-carrying entry point for consumer_group_metadata().
+ */
+static PyObject *
+Consumer__consumer_group_metadata_internal(Handle *self, PyObject *args) {
         rd_kafka_consumer_group_metadata_t *cgmd;
-        PyObject *obj;
+        PyObject *result = NULL;
+        atomic_ulong_t identity;
+
+        if (!PyArg_ParseTuple(args, "k", &identity))
+                return NULL;
+
+        if (!Handle_gate_enter(self, identity))
+                return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                return NULL;
+                goto done;
         }
 
         if (!(cgmd = rd_kafka_consumer_group_metadata(self->rk))) {
                 PyErr_SetString(PyExc_RuntimeError,
                                 "Consumer group metadata not available");
-                return NULL;
+                goto done;
         }
 
-        obj = c_cgmd_to_py(cgmd);
+        result = c_cgmd_to_py(cgmd);
 
         rd_kafka_consumer_group_metadata_destroy(cgmd);
 
-        return obj; /* Possibly NULL */
+done:
+        Handle_gate_exit(self);
+        return result; /* Possibly NULL */
 }
+
+/****************************************************************************
+ *
+ *
+ * Public APIs of sync Consumer which wrap over the identity-carrying _internal
+ * methods.
+ *
+ * Every function in this section is a thin wrapper, expected to be called
+ * only by the sync Consumer (never AIOConsumer): each one passes the
+ * calling thread's own ID through to its corresponding
+ * Consumer__<method>_internal()  counterpart.
+ *
+ *
+ ****************************************************************************/
+
+/**
+ * @brief Build a new args tuple with the calling thread's own ID prepended
+ *        to `orig_args`, for a public Consumer_<method>() wrapper to call
+ *        straight through to its Consumer__<method>_internal() counterpart.
+ *        Prepended, not appended because identity is mandatory while the
+ *        Python-facing args that follow it may be optional, and
+ *        PyArg_ParseTupleAndKeywords only supports required arguments before
+ *        optional ones.
+ *        Returns a new reference, or NULL with an exception set.
+ */
+static PyObject *Consumer_prepend_thread_id(PyObject *orig_args) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        Py_ssize_t nargs       = PyTuple_GET_SIZE(orig_args);
+        Py_ssize_t i;
+        PyObject *full_args = PyTuple_New(nargs + 1);
+
+        if (!full_args)
+                return NULL;
+
+        PyTuple_SET_ITEM(full_args, 0, PyLong_FromUnsignedLong(identity));
+        if (!PyTuple_GET_ITEM(full_args, 0)) {
+                Py_DECREF(full_args);
+                return NULL;
+        }
+        for (i = 0; i < nargs; i++) {
+                PyObject *item = PyTuple_GET_ITEM(orig_args, i);
+                Py_INCREF(item);
+                PyTuple_SET_ITEM(full_args, i + 1, item);
+        }
+
+        return full_args;
+}
+
+static PyObject *Consumer_assign(Handle *self, PyObject *tlist) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("kO", identity, tlist);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__assign_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *Consumer_incremental_assign(Handle *self, PyObject *tlist) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("kO", identity, tlist);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__incremental_assign_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *Consumer_unassign(Handle *self, PyObject *ignore) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("(k)", identity);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__unassign_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *Consumer_incremental_unassign(Handle *self,
+                                               PyObject *tlist) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("kO", identity, tlist);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__incremental_unassign_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *
+Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__commit_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__subscribe_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *Consumer_unsubscribe(Handle *self, PyObject *ignore) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("(k)", identity);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__unsubscribe_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *
+Consumer_assignment(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__assignment_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__store_offsets_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_committed(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__committed_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_position(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__position_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__pause_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__resume_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__seek_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__get_watermark_offsets_internal(self, full_args,
+                                                           kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__offsets_for_times_internal(self, full_args,
+                                                       kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__poll_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *
+Consumer_memberid(Handle *self, PyObject *ignore) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("(k)", identity);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__memberid_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *
+Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *full_args = Consumer_prepend_thread_id(args);
+        PyObject *result;
+
+        if (!full_args)
+                return NULL;
+
+        result = Consumer__consume_internal(self, full_args, kwargs);
+        Py_DECREF(full_args);
+        return result;
+}
+
+static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("(k)", identity);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__close_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+static PyObject *Consumer_consumer_group_metadata(Handle *self,
+                                                  PyObject *ignore) {
+        unsigned long identity = (unsigned long)PyThread_get_thread_ident();
+        PyObject *args         = Py_BuildValue("(k)", identity);
+        PyObject *result;
+
+        if (!args)
+                return NULL;
+
+        result = Consumer__consumer_group_metadata_internal(self, args);
+        Py_DECREF(args);
+        return result;
+}
+
+/****************************************************************************
+ *
+ *
+ * End of public APIs of sync Consumer
+ *
+ *
+ ****************************************************************************/
 
 
 static PyMethodDef Consumer_methods[] = {
@@ -1671,6 +2425,56 @@ static PyMethodDef Consumer_methods[] = {
      "Context manager entry."},
     {"__exit__", (PyCFunction)Consumer_exit, METH_VARARGS,
      "Context manager exit. Automatically closes the consumer."},
+     /* Internal-only, identity-carrying entry points. Called directly by
+     * the public sync Consumer_<method>() wrappers and by AIOConsumer.
+     */
+    {"_assign_internal", (PyCFunction)Consumer__assign_internal,
+     METH_VARARGS, "Internal use only."},
+    {"_incremental_assign_internal",
+     (PyCFunction)Consumer__incremental_assign_internal, METH_VARARGS,
+     "Internal use only."},
+    {"_unassign_internal", (PyCFunction)Consumer__unassign_internal,
+     METH_VARARGS, "Internal use only."},
+    {"_incremental_unassign_internal",
+     (PyCFunction)Consumer__incremental_unassign_internal, METH_VARARGS,
+     "Internal use only."},
+    {"_commit_internal", (PyCFunction)Consumer__commit_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_subscribe_internal", (PyCFunction)Consumer__subscribe_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_unsubscribe_internal", (PyCFunction)Consumer__unsubscribe_internal,
+     METH_VARARGS, "Internal use only."},
+    {"_assignment_internal", (PyCFunction)Consumer__assignment_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_store_offsets_internal", (PyCFunction)Consumer__store_offsets_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_committed_internal", (PyCFunction)Consumer__committed_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_position_internal", (PyCFunction)Consumer__position_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_pause_internal", (PyCFunction)Consumer__pause_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_resume_internal", (PyCFunction)Consumer__resume_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_seek_internal", (PyCFunction)Consumer__seek_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_get_watermark_offsets_internal",
+     (PyCFunction)Consumer__get_watermark_offsets_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_offsets_for_times_internal",
+     (PyCFunction)Consumer__offsets_for_times_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_poll_internal", (PyCFunction)Consumer__poll_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_memberid_internal", (PyCFunction)Consumer__memberid_internal,
+     METH_VARARGS, "Internal use only."},
+    {"_consume_internal", (PyCFunction)Consumer__consume_internal,
+     METH_VARARGS | METH_KEYWORDS, "Internal use only."},
+    {"_close_internal", (PyCFunction)Consumer__close_internal, METH_VARARGS,
+     "Internal use only."},
+    {"_consumer_group_metadata_internal",
+     (PyCFunction)Consumer__consumer_group_metadata_internal, METH_VARARGS,
+     "Internal use only."},
     {NULL}};
 
 

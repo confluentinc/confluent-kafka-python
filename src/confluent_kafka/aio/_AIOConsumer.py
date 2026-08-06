@@ -59,7 +59,30 @@ class AIOConsumer:
         await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
+        # The sync consumer uses the thread ID as the identity to prevent
+        # concurrent usage of a handle across threads when calling C code,
+        # but thread ID doesn't make sense for the async consumer, since
+        # callbacks in the same task chain can end up running on a
+        # different worker thread. So instead of thread ID, we check
+        # whether an identity is already set in the current context (a
+        # re-entrant call) and reuse it; if not, we generate a new one.
+        identity = _common.get_or_generate_identity()
+
+        # Wrap blocking_task so the context variable is set to `identity`
+        # before it starts running on any of the worker threads.
+        # Wrapping is necessary because contextvars only
+        # propagate into a ThreadPoolExecutor worker thread once, when that
+        # thread's persistent Context is first established. A `.set()`
+        # done on the event-loop thread before dispatching would be
+        # invisible to later tasks reusing that same thread. Setting it
+        # inside wrapped_task instead is always visible to the call it's
+        # guarding, including any re-entrant callback (e.g. on_assign) that
+        # blocking_task triggers synchronously before returning.
+        def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
+            _common._reentry_identity_var.set(identity)
+            return blocking_task(*task_args, **task_kwargs)
+
+        return await _common.async_call(self.executor, wrapped_task, identity, *args, **kwargs)
 
     def _wrap_callback(
         self,
@@ -68,15 +91,7 @@ class AIOConsumer:
         edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
         edit_kwargs: Optional[Callable[[Any], Any]] = None,
     ) -> Callable[..., Any]:
-        def ret(*args: Any, **kwargs: Any) -> Any:
-            if edit_args:
-                args = edit_args(args)
-            if edit_kwargs:
-                kwargs = edit_kwargs(kwargs)
-            f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
-            return f.result()
-
-        return ret
+        return _common.wrap_callback(loop, callback, edit_args=edit_args, edit_kwargs=edit_kwargs)
 
     async def poll(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -94,7 +109,7 @@ class AIOConsumer:
             amortized.
 
         """
-        return await self._call(self._consumer.poll, *args, **kwargs)
+        return await self._call(self._consumer._poll_internal, *args, **kwargs)
 
     async def consume(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -107,7 +122,7 @@ class AIOConsumer:
             coordination overhead is shared across all messages in the batch,
             resulting in much better throughput compared to repeated poll() calls.
         """
-        return await self._call(self._consumer.consume, *args, **kwargs)
+        return await self._call(self._consumer._consume_internal, *args, **kwargs)
 
     def _edit_rebalance_callbacks_args(self, args: Tuple[Any, ...]) -> Tuple[Any, ...]:
         args_list = list(args)
@@ -121,52 +136,52 @@ class AIOConsumer:
                 kwargs[callback] = self._wrap_callback(
                     loop, kwargs[callback], self._edit_rebalance_callbacks_args
                 )  # noqa: E501
-        return await self._call(self._consumer.subscribe, *args, **kwargs)
+        return await self._call(self._consumer._subscribe_internal, *args, **kwargs)
 
     async def unsubscribe(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.unsubscribe, *args, **kwargs)
+        return await self._call(self._consumer._unsubscribe_internal, *args, **kwargs)
 
     async def commit(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.commit, *args, **kwargs)
+        return await self._call(self._consumer._commit_internal, *args, **kwargs)
 
     async def close(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.close, *args, **kwargs)
+        return await self._call(self._consumer._close_internal, *args, **kwargs)
 
     async def seek(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.seek, *args, **kwargs)
+        return await self._call(self._consumer._seek_internal, *args, **kwargs)
 
     async def pause(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.pause, *args, **kwargs)
+        return await self._call(self._consumer._pause_internal, *args, **kwargs)
 
     async def resume(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.resume, *args, **kwargs)
+        return await self._call(self._consumer._resume_internal, *args, **kwargs)
 
     async def store_offsets(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.store_offsets, *args, **kwargs)
+        return await self._call(self._consumer._store_offsets_internal, *args, **kwargs)
 
     async def committed(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.committed, *args, **kwargs)
+        return await self._call(self._consumer._committed_internal, *args, **kwargs)
 
     async def assign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.assign, *args, **kwargs)
+        return await self._call(self._consumer._assign_internal, *args, **kwargs)
 
     async def unassign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.unassign, *args, **kwargs)
+        return await self._call(self._consumer._unassign_internal, *args, **kwargs)
 
     async def incremental_assign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.incremental_assign, *args, **kwargs)
+        return await self._call(self._consumer._incremental_assign_internal, *args, **kwargs)
 
     async def incremental_unassign(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.incremental_unassign, *args, **kwargs)
+        return await self._call(self._consumer._incremental_unassign_internal, *args, **kwargs)
 
     async def assignment(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.assignment, *args, **kwargs)
+        return await self._call(self._consumer._assignment_internal, *args, **kwargs)
 
     async def position(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.position, *args, **kwargs)
+        return await self._call(self._consumer._position_internal, *args, **kwargs)
 
     async def consumer_group_metadata(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.consumer_group_metadata, *args, **kwargs)
+        return await self._call(self._consumer._consumer_group_metadata_internal, *args, **kwargs)
 
     async def set_sasl_credentials(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.set_sasl_credentials, *args, **kwargs)
@@ -175,7 +190,7 @@ class AIOConsumer:
         return await self._call(self._consumer.list_topics, *args, **kwargs)
 
     async def get_watermark_offsets(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.get_watermark_offsets, *args, **kwargs)
+        return await self._call(self._consumer._get_watermark_offsets_internal, *args, **kwargs)
 
     async def offsets_for_times(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.offsets_for_times, *args, **kwargs)
+        return await self._call(self._consumer._offsets_for_times_internal, *args, **kwargs)

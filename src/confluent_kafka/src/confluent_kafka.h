@@ -34,6 +34,26 @@
 #define CFL_PRId32 PRId32
 #endif
 
+#ifdef Py_GIL_DISABLED
+#define CFL_PY_GIL_DISABLED_FLAG 1
+#else
+#define CFL_PY_GIL_DISABLED_FLAG 0
+#endif
+
+/**
+ * @brief Whether the Consumer reentrancy gate applies or not.
+ *
+ *        Consumer is not thread-safe. To prevent races, gating has been
+ *        added to ensure only one thread executes a call at a time. To
+ *        preserve backward compatibility, this gating only applies to
+ *        Python versions for which wheels had not yet been published at
+ *        the time this was added. For all Python versions up to and
+ *        including 3.14 (GIL-based), this gating does not apply.
+ */
+#define CFL_CONSUMER_GATE_ENABLED                                            \
+        ((PY_VERSION_HEX >= 0x030F0000) ||                                  \
+         ((PY_VERSION_HEX >= 0x030E0000) && CFL_PY_GIL_DISABLED_FLAG))
+
 
 /**
  * @brief Minimal portable atomic-int primitives.
@@ -77,6 +97,43 @@ typedef int atomic_int_t;
  *        return 1; otherwise leave *p unchanged and return 0.
  */
 static inline int atomic_int_cas(atomic_int_t *p, int expected, int desired) {
+        return __atomic_compare_exchange_n(p, &expected, desired,
+                                           0 /* strong */, __ATOMIC_SEQ_CST,
+                                           __ATOMIC_SEQ_CST);
+}
+#endif
+
+/**
+ * @brief Same idea as atomic_int_t above, but sized to hold a
+ *        PyThread_get_thread_ident() value (unsigned long,
+ *        pointer-sized on most platforms) without truncation.
+ */
+#if defined(_MSC_VER)
+typedef volatile LONG_PTR atomic_ulong_t;
+
+#define atomic_ulong_init(p, v) (*(p) = (v))
+#define atomic_ulong_get(p)                                                   \
+        ((unsigned long)InterlockedCompareExchangePointer(                   \
+            (PVOID volatile *)(p), 0, 0))
+#define atomic_ulong_set(p, v)                                                \
+        InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
+
+static __inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+                                     unsigned long desired) {
+        return InterlockedCompareExchangePointer(
+                   (PVOID volatile *)p, (PVOID)desired, (PVOID)expected) ==
+               (PVOID)expected;
+}
+
+#else /* gcc / clang */
+typedef unsigned long atomic_ulong_t;
+
+#define atomic_ulong_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+#define atomic_ulong_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_ulong_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+
+static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+                                   unsigned long desired) {
         return __atomic_compare_exchange_n(p, &expected, desired,
                                            0 /* strong */, __ATOMIC_SEQ_CST,
                                            __ATOMIC_SEQ_CST);
@@ -330,6 +387,21 @@ typedef struct {
                         PyObject *on_commit; /* Commit callback */
                         rd_kafka_queue_t *rkqu; /* Consumer queue */
 
+#if CFL_CONSUMER_GATE_ENABLED
+                        /* The following variables ensure only one caller
+                         * is inside gated Consumer C code at a time.
+                         *
+                         * gate_owner identifies the current caller and is
+                         * either a thread ID (PyThread_get_thread_ident(),
+                         * for the sync Consumer) or an ID created by
+                         * AIOConsumer.
+                         * gate_depth counts re-entrant calls presenting the
++                        * same identity, so the gate is only released once
++                        * the outermost call exits.
+                         */
+                        atomic_ulong_t gate_owner;
+                        int gate_depth;
+#endif
                 } Consumer;
 
                 struct {

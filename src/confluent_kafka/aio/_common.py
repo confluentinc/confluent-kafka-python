@@ -14,11 +14,42 @@
 
 import asyncio
 import concurrent.futures
+import contextvars
 import functools
+import itertools
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
 T = TypeVar('T')
+
+# Internal use only. Carries the identity that AIOConsumer presents to the
+# Consumer gate on behalf of the "logical" caller currently in flight,
+# which may move across ThreadPoolExecutor worker threads (e.g. a
+# rebalance callback dispatched to one worker thread, followed by
+# a re-entrant call made from within it which gets scheduled on a different worker thread.)
+_reentry_identity_var: 'contextvars.ContextVar[int]' = contextvars.ContextVar('_reentry_identity', default=0)
+
+# Internal use only. Process-wide counter that generates the identities
+# AIOConsumer calls present to the Consumer gate.
+_gate_id_ctr = itertools.count(1)
+
+
+def get_or_generate_identity() -> int:
+    """Return the identity to present to the Consumer gate for an
+    AIOConsumer call. For re-entrant calls, the identity is fetched
+    from the current context. For top-level calls, a fresh identity
+    is generated. This method must be called on the event-loop thread,
+    before dispatching to the executor.
+
+    On Python versions where the Consumer gate is compiled out (see
+    CFL_CONSUMER_GATE_ENABLED in confluent_kafka.h), the identity is still
+    generated and passed through as usual, but remains unused by the gate.
+    """
+    identity = _reentry_identity_var.get()
+    if identity:
+        return identity
+    # TODO NOGIL: Confirm itertools.count.__next__ is thread safe
+    return next(_gate_id_ctr)
 
 
 class AsyncLogger:
@@ -37,18 +68,32 @@ def wrap_callback(
     edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
     edit_kwargs: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
 ) -> Callable[..., Any]:
+
     def ret(*args: Any, **kwargs: Any) -> Any:
         if edit_args:
             args = edit_args(args)
         if edit_kwargs:
             kwargs = edit_kwargs(kwargs)
-        f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
+
+        # Set by the enclosing call's wrapped_task before this callback
+        # trampoline fired -- see AIOConsumer._call().
+        identity = _reentry_identity_var.get()
+
+        async def _run_with_identity() -> Any:
+            _reentry_identity_var.set(identity)
+            return await callback(*args, **kwargs)
+
+        f = asyncio.run_coroutine_threadsafe(_run_with_identity(), loop)
         return f.result()
 
     return ret
 
 
-def wrap_conf_callback(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any], name: str) -> None:
+def wrap_conf_callback(
+    loop: asyncio.AbstractEventLoop,
+    conf: Dict[str, Any],
+    name: str,
+) -> None:
     if name in conf:
         cb = conf[name]
         conf[name] = wrap_callback(loop, cb)
