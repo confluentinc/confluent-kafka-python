@@ -16,29 +16,40 @@ import asyncio
 import concurrent.futures
 import contextvars
 import functools
+import itertools
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
 T = TypeVar('T')
 
-# Internal use only. Set on the event-loop-thread's context as the first
-# thing that runs inside a rebalance/on_commit callback coroutine scheduled
-# via wrap_callback()/AIOConsumer._wrap_callback(). Carries the one-shot
-# NOGIL gate token (see Handle_gate_mint_token()/Handle_gate_redeem_token()
-# in confluent_kafka.h) that a re-entrant call made from within that
-# callback (e.g. `await consumer.assign(...)` from an on_assign callback)
-# must present to be let through the gate, since it may be dispatched to a
-# different ThreadPoolExecutor worker thread than the one blocked inside
-# the callback trampoline that currently holds the gate.
-#
-# Note: contextvars do NOT propagate across a ThreadPoolExecutor submission
-# boundary (run_in_executor/executor.submit start the callable with a fresh
-# context on the worker thread). Methods that need the token must therefore
-# read it via `.get()` on the event-loop thread -- where the callback
-# coroutine actually runs -- and pass it through explicitly as a plain
-# argument into the executor call; it must never be relied upon to
-# auto-propagate to the worker thread performing the blocking C call.
-_reentry_token_var: 'contextvars.ContextVar[int]' = contextvars.ContextVar('_reentry_token', default=0)
+# Internal use only. Carries the identity that AIOConsumer presents to the
+# Consumer gate on behalf of the "logical" caller currently in flight,
+# which may move across ThreadPoolExecutor worker threads (e.g. a
+# rebalance callback dispatched to one worker thread, followed by
+# a re-entrant call made from within it which gets scheduled on a different worker thread.)
+_reentry_identity_var: 'contextvars.ContextVar[int]' = contextvars.ContextVar('_reentry_identity', default=0)
+
+# Internal use only. Process-wide counter that generates the identities
+# AIOConsumer calls present to the Consumer gate.
+_gate_id_ctr = itertools.count(1)
+
+
+def get_or_generate_identity() -> int:
+    """Return the identity to present to the Consumer gate for an
+    AIOConsumer call. For re-entrant calls, the identity is fetched
+    from the current context. For top-level calls, a fresh identity
+    is generated. This method must be called on the event-loop thread,
+    before dispatching to the executor.
+
+    On Python versions where the Consumer gate is compiled out (see
+    CFL_CONSUMER_GATE_ENABLED in confluent_kafka.h), the identity is still
+    generated and passed through as usual, but remains unused by the gate.
+    """
+    identity = _reentry_identity_var.get()
+    if identity:
+        return identity
+    # TODO NOGIL: Confirm itertools.count.__next__ is thread safe
+    return next(_gate_id_ctr)
 
 
 class AsyncLogger:
@@ -56,27 +67,7 @@ def wrap_callback(
     callback: Callable[..., Any],
     edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
     edit_kwargs: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
-    get_consumer: Optional[Callable[[], Any]] = None,
 ) -> Callable[..., Any]:
-    """Wrap a user callback so it runs on the event loop, bridged from the
-    ThreadPoolExecutor worker thread currently inside librdkafka's
-    synchronous callback trampoline (which already holds the NOGIL Consumer
-    gate on free-threaded builds).
-
-    If `get_consumer` is given, it is called (with no arguments) to obtain
-    the underlying confluent_kafka.Consumer on demand, and a one-shot gate
-    token is minted on the calling (gate-owning) thread before scheduling
-    the callback coroutine, then set on `_reentry_token_var` as the first
-    thing that runs inside it. This lets a small set of re-entrant
-    AIOConsumer methods (assign/incremental_assign/unassign/
-    incremental_unassign/commit) called from within the user's callback
-    borrow the gate even if dispatched to a different worker thread.
-    `get_consumer` is a callable rather than the Consumer instance itself
-    because this wrapping happens before the Consumer object exists (it is
-    embedded in the config dict passed to the Consumer constructor). On a
-    regular (non-free-threaded) build, or if `get_consumer` is None, minting
-    is a no-op (returns 0) and the token is simply never presented.
-    """
 
     def ret(*args: Any, **kwargs: Any) -> Any:
         if edit_args:
@@ -84,16 +75,15 @@ def wrap_callback(
         if edit_kwargs:
             kwargs = edit_kwargs(kwargs)
 
-        # Mint the token on this thread (the current gate owner) BEFORE
-        # scheduling, not inside the scheduled coroutine which will run on
-        # the event-loop thread.
-        token = get_consumer()._gate_mint_token() if get_consumer is not None else 0
+        # Set by the enclosing call's wrapped_task before this callback
+        # trampoline fired -- see AIOConsumer._call().
+        identity = _reentry_identity_var.get()
 
-        async def _run_with_token() -> Any:
-            _reentry_token_var.set(token)
+        async def _run_with_identity() -> Any:
+            _reentry_identity_var.set(identity)
             return await callback(*args, **kwargs)
 
-        f = asyncio.run_coroutine_threadsafe(_run_with_token(), loop)
+        f = asyncio.run_coroutine_threadsafe(_run_with_identity(), loop)
         return f.result()
 
     return ret
@@ -103,11 +93,10 @@ def wrap_conf_callback(
     loop: asyncio.AbstractEventLoop,
     conf: Dict[str, Any],
     name: str,
-    get_consumer: Optional[Callable[[], Any]] = None,
 ) -> None:
     if name in conf:
         cb = conf[name]
-        conf[name] = wrap_callback(loop, cb, get_consumer=get_consumer)
+        conf[name] = wrap_callback(loop, cb)
 
 
 def wrap_conf_logger(loop: asyncio.AbstractEventLoop, conf: Dict[str, Any]) -> None:
