@@ -658,6 +658,16 @@ static void AdminTypes_AddObjectsElectionType(PyObject *m) {
                                 RD_KAFKA_ELECTION_TYPE_UNCLEAN);
 }
 
+static void AdminTypes_AddObjectsShareAcknowledgeType(PyObject *m) {
+        /* rd_kafka_share_AcknowledgeType_t */
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_ACCEPT",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_ACCEPT);
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_RELEASE",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_RELEASE);
+        PyModule_AddIntConstant(m, "SHARE_ACKNOWLEDGE_TYPE_REJECT",
+                                RD_KAFKA_SHARE_ACKNOWLEDGE_TYPE_REJECT);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -679,4 +689,5 @@ void AdminTypes_AddObjects(PyObject *m) {
         AdminTypes_AddObjectsIsolationLevel(m);
         AdminTypes_AddObjectsOffsetSpec(m);
         AdminTypes_AddObjectsElectionType(m);
+        AdminTypes_AddObjectsShareAcknowledgeType(m);
 }

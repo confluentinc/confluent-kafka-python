@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import enum
 import re
 import sys
 from collections import defaultdict
@@ -13,6 +14,11 @@ def build_doctree(tree, prefix, parent):
     dict key = full class/type name (e.g, "confluent_kafka.Message.timestamp")
     value = object
     """
+    # Stop at enum members. We already see the member's docstring when we
+    # walk the enum class, and going deeper just drags in _name_/_value_/
+    # _sort_order_, which carry str/int docstrings and trip the check below.
+    if isinstance(parent, enum.Enum):
+        return
     for n in dir(parent):
         if n.startswith('__') or n == 'cimpl':
             # Skip internals and the C module (it is automatically imported

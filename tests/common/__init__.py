@@ -19,15 +19,14 @@
 import os
 import signal
 import time
+import uuid
 
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, DeserializingShareConsumer, ShareConsumer
+from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
-_TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
 
-
-def _trivup_cluster_type_kraft():
-    return _TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[_TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
+DEFAULT_BOOTSTRAP_SERVERS = 'localhost:9092'
 
 
 class TestUtils:
@@ -44,24 +43,44 @@ class TestUtils:
         time.sleep(delay_seconds)
         os.kill(os.getpid(), signal.SIGINT)
 
+    # TODO KIP-932: broker_version() previously branched on
+    # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
+    # hardcoded to '4.2.0' because share groups require >=4.2.0.
+    # Remove this method if not needed in other contexts
     @staticmethod
     def broker_version():
-        return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
+        return '4.2.0'
 
     @staticmethod
     def broker_conf():
-        broker_conf = ['transaction.state.log.replication.factor=1', 'transaction.state.log.min.isr=1']
-        if TestUtils.use_group_protocol_consumer():
-            broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
-        return broker_conf
+        return [
+            'transaction.state.log.replication.factor=1',
+            'transaction.state.log.min.isr=1',
+            # Single-broker cluster: __consumer_offsets defaults to RF=3.
+            # Required for classic and KIP-848 consumer offset commits.
+            'offsets.topic.replication.factor=1',
+            'offsets.topic.min.isr=1',
+            # KIP-932: __share_group_state topic defaults are RF=3 / min.isr=2
+            # — must be 1/1 on a single-broker test cluster.
+            'share.coordinator.state.topic.replication.factor=1',
+            'share.coordinator.state.topic.min.isr=1',
+            # KIP-932: shorten lock duration to 1s for fast redelivery tests.
+            # Both must be set: actual duration must be >= min (default min=15000).
+            'group.share.record.lock.duration.ms=1000',
+            'group.share.min.record.lock.duration.ms=1000',
+        ]
 
-    @staticmethod
-    def _broker_major_version():
-        return int(TestUtils.broker_version().split('.')[0])
-
+    # TODO KIP-932: use_kraft() used to honor the TEST_TRIVUP_CLUSTER_TYPE env
+    # var (and the now-deleted _trivup_cluster_type_kraft helper) so callers
+    # could opt into ZooKeeper. It now hardcodes True because broker 4.2.0 is
+    # KRaft-only. Callers that need ZK (e.g. tests/integration/admin/
+    # test_user_scram_credentials.py) lose their escape hatch — restore the
+    # branching, or drop the ZK code paths from those callers, when the
+    # broker-version pinning is revisited.
     @staticmethod
     def use_kraft():
-        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+        # broker_version() always returns 4.2.0, which is KRaft-only.
+        return True
 
     @staticmethod
     def use_group_protocol_consumer():
@@ -118,3 +137,178 @@ class TestConsumer(Consumer):
             super(TestConsumer, self).incremental_unassign(partitions)
         else:
             super(TestConsumer, self).unassign()
+
+
+def unique_id(prefix):
+    """Generate a topic/group id unique to this test run.
+
+    Avoids cross-test interference when running against a shared broker.
+    """
+    return f'{prefix}-{uuid.uuid4().hex[:10]}'
+
+
+def set_group_config(kafka_cluster, group_id, name, value):
+    """Set one dynamic group config via incremental_alter_configs."""
+    res = ConfigResource(
+        ConfigResource.Type.GROUP,
+        group_id,
+        incremental_configs=[
+            ConfigEntry(name, str(value), incremental_operation=AlterConfigOpType.SET),
+        ],
+    )
+    for f in kafka_cluster.admin().incremental_alter_configs([res]).values():
+        f.result()
+
+
+def poll_first_batch(consumer, timeout_s=20.0, poll_timeout_s=0.5):
+    """Return the first non-empty batch of non-error messages from a share consumer.
+
+    Polls repeatedly until at least one non-error message arrives, or until
+    timeout_s elapses. Returns the contents of a single poll() call — does not
+    accumulate across polls and does not acknowledge anything.
+
+    Use this when a test needs to inspect the first records the broker delivers
+    *before* any implicit- or explicit-ack happens. Unlike drain_share_consumers,
+    which loops poll() calls and therefore implicit-acks each prior batch on
+    every iteration, poll_first_batch returns whatever the first non-empty
+    poll() returned and stops, leaving acknowledgement to the caller.
+
+    Returns an empty list if timeout_s elapses without any non-error message.
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        batch = [msg for msg in consumer.poll(timeout=poll_timeout_s) if msg.error() is None]
+        if batch:
+            return batch
+    return []
+
+
+def drain_share_consumers(consumers, total_messages, timeout_s=20.0, poll_timeout_s=0.5, *, ack_type=None):
+    """Round-robin poll consumers until total_messages non-error messages arrive (across all consumers combined).
+
+    Returns one message list per consumer, in input order. Stops at
+    total_messages or timeout_s.
+
+    With N>2 consumers and the suite-wide 1s lock duration, drop poll_timeout_s
+    so each round finishes within the lock window — otherwise records leak to
+    other consumers and look like duplicate deliveries.
+
+    ack_type=None drains in implicit-ack mode (next poll() auto-acks the prior
+    batch; the tail batch is left unacked). Pass an AcknowledgeType to ack each
+    message inline — required when share.acknowledgement.mode=explicit.
+
+    drain doesn't auto-commit. Tests that need commit_sync to return non-empty
+    results call it themselves; everything else flushes via close().
+    """
+    received = [[] for _ in consumers]
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        for sc, bucket in zip(consumers, received):
+            for msg in sc.poll(timeout=poll_timeout_s):
+                if msg.error() is None:
+                    bucket.append(msg)
+                    if ack_type is not None:
+                        sc.acknowledge(msg, ack_type)
+        if sum(len(bucket) for bucket in received) >= total_messages:
+            break
+    return received
+
+
+def poll_ack_commit_loop(
+    consumers,
+    total_messages,
+    *,
+    ack_type=None,
+    async_commit=False,
+    poll_timeout_s=0.5,
+    commit_timeout_s=10.0,
+    deadline_s=30.0,
+):
+    """Poll a batch, ack it (if ack_type given), commit, repeat.
+
+    This mirrors the librdkafka 0176 share-consumer test: we have to
+    commit before the next poll, otherwise the acks just piggyback on
+    that poll and commit never actually sends a ShareAcknowledge RPC.
+
+    Takes a single consumer or a list of them (same shape as
+    :func:`drain_share_consumers`). For a list we round-robin one poll
+    per consumer per round and each consumer commits its own batch.
+
+    async_commit=False (default) calls commit_sync per batch and records
+    its per-partition result dict. async_commit=True calls commit_async
+    per batch (always returns None); the results list holds one None
+    per batch.
+
+    Returns ``(msgs_per_consumer, commits_per_consumer)``:
+      msgs_per_consumer:    one message list per consumer.
+      commits_per_consumer: one list of commit return values per
+                            consumer; one entry per batch that consumer
+                            committed.
+
+    Pass ``ack_type=None`` for implicit mode (commit auto-ACCEPTs the
+    last batch). Pass an AcknowledgeType for explicit mode.
+    """
+    if not isinstance(consumers, (list, tuple)):
+        consumers = [consumers]
+        unwrap = True
+    else:
+        unwrap = False
+
+    msgs_per_consumer = [[] for _ in consumers]
+    commits_per_consumer = [[] for _ in consumers]
+    deadline = time.time() + deadline_s
+    while sum(len(b) for b in msgs_per_consumer) < total_messages and time.time() < deadline:
+        any_progress = False
+        for sc, msgs, commits in zip(consumers, msgs_per_consumer, commits_per_consumer):
+            batch = [msg for msg in sc.poll(timeout=poll_timeout_s) if msg.error() is None]
+            if not batch:
+                continue
+            any_progress = True
+            if ack_type is not None:
+                for msg in batch:
+                    sc.acknowledge(msg, ack_type)
+            if async_commit:
+                commits.append(sc.commit_async())
+            else:
+                commits.append(sc.commit_sync(timeout=commit_timeout_s))
+            msgs.extend(batch)
+        if not any_progress:
+            continue  # the next poll's timeout does the waiting for us
+
+    if unwrap:
+        return msgs_per_consumer[0], commits_per_consumer[0]
+    return msgs_per_consumer, commits_per_consumer
+
+
+class TestShareConsumer(ShareConsumer):
+    """Test wrapper around ShareConsumer."""
+
+    __test__ = False  # not a pytest collection target despite the Test* prefix
+
+    def __init__(self, conf=None, **kwargs):
+        effective_conf = {
+            'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS,
+        }
+        if conf:
+            effective_conf.update(conf)
+        super().__init__(effective_conf, **kwargs)
+
+
+class TestDeserializingShareConsumer(DeserializingShareConsumer):
+    """Test wrapper around DeserializingShareConsumer.
+
+    Mirrors :class:`TestShareConsumer`: injects a default bootstrap.servers so
+    unit tests can construct an instance without a broker. Share consumers have
+    their own group protocol, so (unlike TestDeserializingConsumer) there is no
+    group.protocol fixup here.
+    """
+
+    __test__ = False  # not a pytest collection target despite the Test* prefix
+
+    def __init__(self, conf=None, **kwargs):
+        effective_conf = {
+            'bootstrap.servers': DEFAULT_BOOTSTRAP_SERVERS,
+        }
+        if conf:
+            effective_conf.update(conf)
+        super().__init__(effective_conf, **kwargs)
