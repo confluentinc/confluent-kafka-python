@@ -4948,9 +4948,10 @@ static PyObject *Admin_c_ListOffsetsResultInfos_to_py(
                         PyObject *args   = NULL;
                         PyObject *kwargs = NULL;
                         kwargs           = PyDict_New();
-                        cfl_PyDict_SetLong(kwargs, "offset",
-                                           c_topic_partition->offset);
-                        cfl_PyDict_SetLong(kwargs, "timestamp", c_timestamp);
+                        cfl_PyDict_SetLongLong(kwargs, "offset",
+                                               c_topic_partition->offset);
+                        cfl_PyDict_SetLongLong(kwargs, "timestamp",
+                                               c_timestamp);
                         cfl_PyDict_SetInt(
                             kwargs, "leader_epoch",
                             rd_kafka_topic_partition_get_leader_epoch(
@@ -5006,8 +5007,8 @@ static PyObject *Admin_c_DeletedRecords_to_py(
                         PyObject *args   = NULL;
                         PyObject *kwargs = NULL;
                         kwargs           = PyDict_New();
-                        cfl_PyDict_SetLong(kwargs, "low_watermark",
-                                           c_topic_partition->offset);
+                        cfl_PyDict_SetLongLong(kwargs, "low_watermark",
+                                               c_topic_partition->offset);
                         args = PyTuple_New(0);
                         value =
                             PyObject_Call(DeletedRecords_type, args, kwargs);

@@ -377,12 +377,20 @@ void CallState_crash(CallState *cs);
 #define cfl_PyLong_Check(o)    PyLong_Check(o)
 #define cfl_PyLong_AsLong(o)   (int)PyLong_AsLong(o)
 #define cfl_PyLong_FromLong(v) PyLong_FromLong(v)
+#define cfl_PyLong_FromLongLong(v) PyLong_FromLongLong(v)
 
 PyObject *cfl_PyObject_lookup(const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString(PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt(PyObject *dict, const char *name, int val);
+/* Marshals a C `long`, which is only 32 bits on Windows (LLP64). Do not use
+ * this for values wider than 32 bits, such as Kafka offsets, timestamps, or
+ * UUID halves -- use cfl_PyDict_SetLongLong for those. */
 void cfl_PyDict_SetLong(PyObject *dict, const char *name, long val);
+/* 64-bit-safe on every platform, including Windows. Use this for any value
+ * sourced from an int64_t, e.g. rd_kafka_topic_partition_t.offset,
+ * ListOffsets timestamps, watermark offsets, or rd_kafka_Uuid_t halves. */
+void cfl_PyDict_SetLongLong(PyObject *dict, const char *name, long long val);
 int cfl_PyObject_SetString(PyObject *o, const char *name, const char *val);
 int cfl_PyObject_SetInt(PyObject *o, const char *name, int val);
 int cfl_PyObject_GetAttr(PyObject *object,

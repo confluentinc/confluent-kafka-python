@@ -1098,7 +1098,7 @@ PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm) {
  ****************************************************************************/
 static PyObject *Uuid_most_significant_bits(Uuid *self, PyObject *ignore) {
         if (self->cUuid) {
-                return cfl_PyLong_FromLong(
+                return cfl_PyLong_FromLongLong(
                     rd_kafka_Uuid_most_significant_bits(self->cUuid));
         }
         Py_RETURN_NONE;
@@ -1106,7 +1106,7 @@ static PyObject *Uuid_most_significant_bits(Uuid *self, PyObject *ignore) {
 
 static PyObject *Uuid_least_significant_bits(Uuid *self, PyObject *ignore) {
         if (self->cUuid) {
-                return cfl_PyLong_FromLong(
+                return cfl_PyLong_FromLongLong(
                     rd_kafka_Uuid_least_significant_bits(self->cUuid));
         }
         Py_RETURN_NONE;
@@ -1958,10 +1958,10 @@ PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetLong(kwargs, "most_significant_bits",
-                           rd_kafka_Uuid_most_significant_bits(c_uuid));
-        cfl_PyDict_SetLong(kwargs, "least_significant_bits",
-                           rd_kafka_Uuid_least_significant_bits(c_uuid));
+        cfl_PyDict_SetLongLong(kwargs, "most_significant_bits",
+                               rd_kafka_Uuid_most_significant_bits(c_uuid));
+        cfl_PyDict_SetLongLong(kwargs, "least_significant_bits",
+                               rd_kafka_Uuid_least_significant_bits(c_uuid));
 
         args = PyTuple_New(0);
 
@@ -3033,6 +3033,12 @@ void cfl_PyDict_SetInt(PyObject *dict, const char *name, int val) {
 
 void cfl_PyDict_SetLong(PyObject *dict, const char *name, long val) {
         PyObject *vo = cfl_PyLong_FromLong(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
+
+void cfl_PyDict_SetLongLong(PyObject *dict, const char *name, long long val) {
+        PyObject *vo = cfl_PyLong_FromLongLong(val);
         PyDict_SetItemString(dict, name, vo);
         Py_DECREF(vo);
 }

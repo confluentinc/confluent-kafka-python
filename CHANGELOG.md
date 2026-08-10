@@ -3,6 +3,7 @@
 
 ### Fixes
 
+- Fixed `AdminClient.list_offsets()` and `AdminClient.delete_records()` returning a wrapped-around, negative offset/timestamp on Windows for values above 2^31. The 64-bit values from librdkafka were being marshalled into Python through a helper that took a C `long`, which is only 32 bits on Windows (LLP64), truncating the value; `Uuid.most_significant_bits()`/`least_significant_bits()` had the same issue. Fixes Issue [#1696](https://github.com/confluentinc/confluent-kafka-python/issues/1696).
 - Fixed memory leak in `Producer.produce()` when called with headers and raises `BufferError` (queue full) or `RuntimeError` (producer closed). The allocated `rd_headers` memory is now properly freed in error paths before returning. Fixes Issue [#2167](https://github.com/confluentinc/confluent-kafka-python/issues/2167).
 - Fixed type hinting of `KafkaError` class, `Consumer.__init()__`, `Producer.__init()__`, `Producer.produce()` and `Consumer.commit()` and introduced a script in tools directory to keep error codes up to date. Fixes Issue [#2168](https://github.com/confluentinc/confluent-kafka-python/issues/2168).
 
