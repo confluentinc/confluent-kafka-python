@@ -3,7 +3,7 @@ import io
 import sys
 from collections import deque
 from decimal import MAX_PREC, Context, Decimal
-from typing import Any, Deque, List, Set
+from typing import Any, Deque, List, Optional, Set
 
 from google.protobuf import __version__ as _protobuf_version
 from google.protobuf import (
@@ -41,7 +41,16 @@ from google.type import (
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.confluent.types import decimal_pb2
-from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+from confluent_kafka.schema_registry.serde import (
+    FieldTransform,
+    FieldType,
+    RuleConditionError,
+    RuleContext,
+    ValidationRule,
+    ValidationRuleError,
+    ValidationRuleExecutor,
+    evaluate_validation_rule,
+)
 from confluent_kafka.serialization import SerializationError
 
 __all__ = [
@@ -54,6 +63,7 @@ __all__ = [
     'transform',
     '_transform_field',
     '_set_field',
+    'validate_message',
     'get_type',
     'is_map_field',
     '_is_repeated',
@@ -296,6 +306,120 @@ def _set_field(fd: FieldDescriptor, message: Message, value: Any):
         old_value.update(value)
     else:
         setattr(message, fd.name, value)
+
+
+def validate_message(
+    executor: Optional[ValidationRuleExecutor],
+    descriptor: Optional[Descriptor],
+    message: Any,
+    fail_fast: bool = False,
+) -> List[ValidationRuleError]:
+    """
+    Walk ``message`` against ``descriptor``, evaluating every inline validation rule
+    declared in the ``confluent.Meta`` extension and collecting all failures.
+    Read-only — the message is not modified.
+
+    Two kinds of rules are evaluated:
+
+    - Message-level (``confluent.message_meta`` rules) — ``this`` is the message.
+    - Field-level (``confluent.field_meta`` rules) — ``this`` is the field value; for
+      repeated and map fields that is the whole collection. Honors the skip-on-null
+      contract: a field with explicit presence that is unset (proto3 ``optional``,
+      singular message fields, oneof members) does not have its rules invoked.
+
+    Failures are appended with their dotted-path location (e.g. ``addr.zip``,
+    ``items[3]``, ``labels["k"]``). The walk continues after each failure unless
+    ``fail_fast`` is set.
+
+    Only ``message_meta`` and ``field_meta`` rules are evaluated; rules on files,
+    enums and enum values are ignored, matching the JVM client.
+    """
+    violations: List[ValidationRuleError] = []
+    if executor is None or descriptor is None or message is None:
+        return violations
+    _validate_message(executor, descriptor, message, "", fail_fast, violations)
+    return violations
+
+
+def _validate_message(
+    executor: ValidationRuleExecutor,
+    descriptor: Descriptor,
+    message: Any,
+    path: str,
+    fail_fast: bool,
+    out: List[ValidationRuleError],
+):
+    """
+    Mirrors :func:`transform`'s dispatch shape, walking the descriptor's fields and
+    descending into message-valued fields, map values and repeated elements.
+    """
+    if descriptor is None or message is None or not isinstance(message, Message):
+        return
+    # Message-level rules: this = the message.
+    for rule in _read_message_validation_rules(descriptor):
+        evaluate_validation_rule(executor, rule, descriptor, message, path, out)
+        if fail_fast and out:
+            return
+    for fd in descriptor.fields:
+        # Skip-on-null: a field with explicit presence that is unset does not invoke
+        # the executor. Repeated/map fields have no presence and are never None.
+        if fd.has_presence and not message.HasField(fd.name):
+            continue
+        value = getattr(message, fd.name)
+        child_path = fd.name if not path else f"{path}.{fd.name}"
+        for rule in _read_field_validation_rules(fd):
+            evaluate_validation_rule(executor, rule, fd, value, child_path, out)
+            if fail_fast and out:
+                return
+        if fd.type != FieldDescriptor.TYPE_MESSAGE:
+            continue
+        if _is_map_field(fd):
+            value_fd = fd.message_type.fields_by_name['value']
+            if value_fd.type == FieldDescriptor.TYPE_MESSAGE:
+                for key, item in value.items():
+                    _validate_message(
+                        executor, value_fd.message_type, item, f'{child_path}["{key}"]', fail_fast, out
+                    )
+                    if fail_fast and out:
+                        return
+        elif _is_repeated(fd):
+            for i, item in enumerate(value):
+                _validate_message(executor, fd.message_type, item, f"{child_path}[{i}]", fail_fast, out)
+                if fail_fast and out:
+                    return
+        else:
+            _validate_message(executor, fd.message_type, value, child_path, fail_fast, out)
+            if fail_fast and out:
+                return
+
+
+def _is_map_field(fd: FieldDescriptor) -> bool:
+    """
+    True if ``fd`` is a map field.
+
+    Deliberately does not reuse :func:`is_map_field`, which reads the deprecated
+    ``Descriptor.options`` attribute — absent from the upb descriptors used by
+    protobuf >= 7, where it therefore reports False for every map field.
+    """
+    return fd.type == FieldDescriptor.TYPE_MESSAGE and fd.message_type.GetOptions().map_entry
+
+
+def _read_message_validation_rules(descriptor: Descriptor) -> List[ValidationRule]:
+    options = descriptor.GetOptions()
+    if not options.HasExtension(meta_pb2.message_meta):  # type: ignore[attr-defined]
+        return []
+    return _to_validation_rules(options.Extensions[meta_pb2.message_meta].rules)  # type: ignore[attr-defined]
+
+
+def _read_field_validation_rules(fd: FieldDescriptor) -> List[ValidationRule]:
+    options = fd.GetOptions()
+    if not options.HasExtension(meta_pb2.field_meta):  # type: ignore[attr-defined]
+        return []
+    return _to_validation_rules(options.Extensions[meta_pb2.field_meta].rules)  # type: ignore[attr-defined]
+
+
+def _to_validation_rules(rules: Any) -> List[ValidationRule]:
+    return [ValidationRule(r.name, r.doc, r.expr, r.sql) for r in rules]
 
 
 def get_type(fd: FieldDescriptor) -> FieldType:
