@@ -373,7 +373,7 @@ def _validate_message(
                 return
         if fd.type != FieldDescriptor.TYPE_MESSAGE:
             continue
-        if _is_map_field(fd):
+        if is_map_field(fd):
             value_fd = fd.message_type.fields_by_name['value']
             if value_fd.type == FieldDescriptor.TYPE_MESSAGE:
                 for key, item in value.items():
@@ -391,17 +391,6 @@ def _validate_message(
             _validate_message(executor, fd.message_type, value, child_path, fail_fast, out)
             if fail_fast and out:
                 return
-
-
-def _is_map_field(fd: FieldDescriptor) -> bool:
-    """
-    True if ``fd`` is a map field.
-
-    Deliberately does not reuse :func:`is_map_field`, which reads the deprecated
-    ``Descriptor.options`` attribute — absent from the upb descriptors used by
-    protobuf >= 7, where it therefore reports False for every map field.
-    """
-    return fd.type == FieldDescriptor.TYPE_MESSAGE and fd.message_type.GetOptions().map_entry
 
 
 def _read_message_validation_rules(descriptor: Descriptor) -> List[ValidationRule]:
@@ -459,11 +448,10 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 
 def is_map_field(fd: FieldDescriptor):
-    return (
-        fd.type == FieldDescriptor.TYPE_MESSAGE
-        and hasattr(fd.message_type, 'options')
-        and fd.message_type.options.map_entry
-    )
+    # Read the options via GetOptions() rather than the deprecated `options` attribute,
+    # which is absent from the upb descriptors used by protobuf >= 7 — where reading it
+    # made this return False for every map field.
+    return fd.type == FieldDescriptor.TYPE_MESSAGE and fd.message_type.GetOptions().map_entry
 
 
 def get_inline_tags(fd: FieldDescriptor) -> Set[str]:
