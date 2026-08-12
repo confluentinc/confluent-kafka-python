@@ -217,9 +217,7 @@ _JSON_ARRAY_OF_OBJECTS = {
 def test_json_nested_object_recurses_and_produces_dotted_path():
     schema = {
         "type": "object",
-        "properties": {
-            "inner": {"type": "object", "properties": {"x": {"type": "integer", "confluent:rules": _RULE}}}
-        },
+        "properties": {"inner": {"type": "object", "properties": {"x": {"type": "integer", "confluent:rules": _RULE}}}},
     }
     assert _json(schema, {"inner": {"x": 5}}) == ["r@$.inner.x"]
 

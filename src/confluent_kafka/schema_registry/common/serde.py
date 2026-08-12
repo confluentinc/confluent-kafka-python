@@ -393,12 +393,7 @@ class ValidationRule(object):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ValidationRule):
             return NotImplemented
-        return (
-            self.name == other.name
-            and self.doc == other.doc
-            and self.expr == other.expr
-            and self.sql == other.sql
-        )
+        return self.name == other.name and self.doc == other.doc and self.expr == other.expr and self.sql == other.sql
 
     def __hash__(self) -> int:
         return hash((self.name, self.doc, self.expr, self.sql))
@@ -434,9 +429,7 @@ class ValidationRuleError(object):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ValidationRuleError):
             return NotImplemented
-        return (
-            self.rule == other.rule and self.field_path == other.field_path and self.message == other.message
-        )
+        return self.rule == other.rule and self.field_path == other.field_path and self.message == other.message
 
     def __hash__(self) -> int:
         return hash((self.rule, self.field_path, self.message))
