@@ -1,3 +1,1 @@
-pyrsistent
 jsonschema >= 4.18.0
-orjson >= 3.10

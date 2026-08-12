@@ -1,7 +1,7 @@
 import decimal
 import logging
 from io import BytesIO
-from typing import List, Optional, Set, Union
+from typing import Any, List, Optional, Set, Union
 
 import httpx
 import referencing
@@ -23,7 +23,56 @@ __all__ = [
     'get_type',
     '_disjoint',
     'get_inline_tags',
+    '_json_loads',
+    '_json_dumps',
+    '_HAS_ORJSON',
 ]
+
+# JSON codec: prefer orjson for speed, but fall back to the stdlib json module
+# when orjson is unavailable (e.g. on free-threaded CPython builds that do not
+# yet have orjson wheels). Both implementations accept str/bytes/bytearray for
+# loads and return a str from dumps. The stdlib fallback mirrors orjson's wire
+# output (compact separators, non-ASCII preserved) so serialized bytes stay
+# consistent.
+#
+# Catch any exception (not just ImportError): orjson is a compiled extension and
+# may be present yet fail to import/initialize (ABI mismatch, broken shared lib,
+# init error raising OSError/RuntimeError/etc.). In that case we still degrade to
+# the stdlib codec rather than letting the failure break this module -- and with
+# it all JSON (de)serialization. Note `except Exception` deliberately does not
+# catch KeyboardInterrupt/SystemExit (those are BaseException).
+try:
+    import orjson
+
+    _HAS_ORJSON = True
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        return orjson.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return orjson.dumps(obj).decode("utf-8")
+
+except Exception as _orjson_exc:
+    if not isinstance(_orjson_exc, ImportError):
+        # Absence (ImportError) is the normal optional-dependency case and is
+        # silent; a present-but-broken orjson is unexpected, so surface it.
+        logging.getLogger(__name__).warning(
+            "orjson is installed but failed to import; falling back to the " "stdlib json module",
+            exc_info=True,
+        )
+
+    import json as _stdlib_json
+
+    _HAS_ORJSON = False
+
+    def _json_loads(data: Union[str, bytes, bytearray]) -> Any:
+        # json.loads accepts bytes/bytearray (auto-detecting the encoding)
+        # since Python 3.6, matching orjson.loads.
+        return _stdlib_json.loads(data)
+
+    def _json_dumps(obj: Any) -> str:
+        return _stdlib_json.dumps(obj, separators=(",", ":"), ensure_ascii=False)
+
 
 JSON_TYPE = "JSON"
 

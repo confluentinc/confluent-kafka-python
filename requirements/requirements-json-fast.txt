@@ -1,0 +1,7 @@
+# Optional performance accelerator for the JSON serializer/deserializer.
+# The JSON serdes works without it by falling back to the stdlib json module
+# (see schema_registry/common/json_schema.py); installing orjson enables the
+# faster path. Kept separate from requirements-json.txt because orjson is a
+# compiled dependency without free-threaded (cp31Xt) wheels, which would
+# otherwise make the base `json` extra uninstallable on free-threaded CPython.
+orjson >= 3.10

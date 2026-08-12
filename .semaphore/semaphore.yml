@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.14.0
+      value: v2.15.0
   prologue:
     commands:
       - checkout
@@ -179,7 +179,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - sem-version python 3.11.9
+            - sem-version python 3.11
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
@@ -203,6 +203,7 @@ blocks:
         - name: Build and Tests with 'classic' group protocol
           commands:
             - sem-version python 3.11
+            - sem-version java 17
             - pip install uv
             # use a virtualenv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
@@ -221,6 +222,7 @@ blocks:
         - name: Build, Test, and Report coverage
           commands:
             - sem-version python 3.11
+            - sem-version java 17
             - pip install uv
             # use a virtualenv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
@@ -245,6 +247,7 @@ blocks:
           commands:
             - export ARCH=arm64
             - sem-version python 3.11
+            - sem-version java 17
             - pip install uv
             # use a virtualenv
             - uv venv _venv --python "$(command -v python)" && source _venv/bin/activate
@@ -509,7 +512,7 @@ blocks:
       jobs:
         - name: Verify
           commands:
-            - sem-version python 3.11.9
+            - sem-version python 3.11
             - python -m pip install --upgrade pip pytest
             - python -m pip install -r requirements/requirements-tests-install.txt
             - artifact pull workflow artifacts

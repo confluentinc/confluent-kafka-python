@@ -16,10 +16,22 @@
 import typing
 
 from celpy import celtypes
+from google.protobuf import __version__ as _protobuf_version
 from google.protobuf import descriptor, message, message_factory
 
 from confluent_kafka.schema_registry.rules.cel import string_format
 from confluent_kafka.schema_registry.rules.cel.cel_field_presence import in_has
+
+# protobuf 7 removed the deprecated FieldDescriptor.label property in favor of the
+# is_repeated/is_required boolean properties. Track the major version so we keep
+# working on both old (<7, has .label) and new (>=7, only .is_repeated) runtimes.
+PROTOBUF_MAJOR_VERSION = int(_protobuf_version.split('.')[0])
+
+
+def _is_repeated(field: descriptor.FieldDescriptor) -> bool:
+    if PROTOBUF_MAJOR_VERSION >= 7:
+        return field.is_repeated
+    return field.label == descriptor.FieldDescriptor.LABEL_REPEATED
 
 
 class CompilationError(Exception):
@@ -136,7 +148,7 @@ def _scalar_field_value_to_cel(val: typing.Any, field: descriptor.FieldDescripto
 
 
 def _field_value_to_cel(val: typing.Any, field: descriptor.FieldDescriptor) -> celtypes.Value:
-    if field.label == descriptor.FieldDescriptor.LABEL_REPEATED:
+    if _is_repeated(field):
         if field.message_type is not None and field.message_type.GetOptions().map_entry:
             return _map_field_value_to_cel(val, field)
         return _repeated_field_value_to_cel(val, field)
@@ -146,7 +158,7 @@ def _field_value_to_cel(val: typing.Any, field: descriptor.FieldDescriptor) -> c
 def _is_empty_field(msg: message.Message, field: descriptor.FieldDescriptor) -> bool:
     if field.has_presence:
         return not _proto_message_has_field(msg, field)
-    if field.label == descriptor.FieldDescriptor.LABEL_REPEATED:
+    if _is_repeated(field):
         return len(_proto_message_get_field(msg, field)) == 0
     return _proto_message_get_field(msg, field) == field.default_value
 
@@ -178,7 +190,7 @@ def _map_field_to_cel(msg: message.Message, field: descriptor.FieldDescriptor) -
 
 
 def _field_to_cel(msg: message.Message, field: descriptor.FieldDescriptor) -> celtypes.Value:
-    if field.label == descriptor.FieldDescriptor.LABEL_REPEATED:
+    if _is_repeated(field):
         return _repeated_field_to_cel(msg, field)
     elif field.message_type is not None and not _proto_message_has_field(msg, field):
         return None
@@ -195,19 +207,15 @@ def check_field_type(field: descriptor.FieldDescriptor, expected: int, wrapper_n
 
 
 def _is_map(field: descriptor.FieldDescriptor):
-    return (
-        field.label == descriptor.FieldDescriptor.LABEL_REPEATED
-        and field.message_type is not None
-        and field.message_type.GetOptions().map_entry
-    )
+    return _is_repeated(field) and field.message_type is not None and field.message_type.GetOptions().map_entry
 
 
 def _is_list(field: descriptor.FieldDescriptor):
-    return field.label == descriptor.FieldDescriptor.LABEL_REPEATED and not _is_map(field)
+    return _is_repeated(field) and not _is_map(field)
 
 
 def _zero_value(field: descriptor.FieldDescriptor):
-    if field.message_type is not None and field.label != descriptor.FieldDescriptor.LABEL_REPEATED:
+    if field.message_type is not None and not _is_repeated(field):
         return _field_value_to_cel(message_factory.GetMessageClass(field.message_type)(), field)
     else:
         return _field_value_to_cel(field.default_value, field)

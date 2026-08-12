@@ -5,6 +5,7 @@ from collections import deque
 from decimal import MAX_PREC, Context, Decimal
 from typing import Any, Deque, List, Set
 
+from google.protobuf import __version__ as _protobuf_version
 from google.protobuf import (
     any_pb2,
     api_pb2,
@@ -55,6 +56,7 @@ __all__ = [
     '_set_field',
     'get_type',
     'is_map_field',
+    '_is_repeated',
     'get_inline_tags',
     '_disjoint',
     '_is_builtin',
@@ -89,6 +91,17 @@ else:
 
 
 PROTOBUF_TYPE = "PROTOBUF"
+
+# protobuf 7 removed the deprecated FieldDescriptor.label property in favor of the
+# is_repeated/is_required boolean properties. Track the major version so we keep
+# working on both old (<7, has .label) and new (>=7, only .is_repeated) runtimes.
+PROTOBUF_MAJOR_VERSION = int(_protobuf_version.split('.')[0])
+
+
+def _is_repeated(fd: FieldDescriptor) -> bool:
+    if PROTOBUF_MAJOR_VERSION >= 7:
+        return fd.is_repeated
+    return fd.label == FieldDescriptor.LABEL_REPEATED
 
 
 class _ContextStringIO(io.BytesIO):
@@ -260,7 +273,7 @@ def _transform_field(
         value = getattr(message, fd.name)
         if is_map_field(fd):
             value = {key: value[key] for key in value}
-        elif fd.label == FieldDescriptor.LABEL_REPEATED:
+        elif _is_repeated(fd):
             value = [item for item in value]
         new_value = transform(ctx, desc, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:

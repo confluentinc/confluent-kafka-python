@@ -15,6 +15,7 @@
 import base64
 import io
 import logging
+import threading
 import time
 from typing import Any, List, Optional, Tuple
 
@@ -58,6 +59,24 @@ ENCRYPT_ALTERNATE_KMS_KEY_IDS = "encrypt.alternate.kms.key.ids"
 
 MILLIS_IN_DAY = 24 * 60 * 60 * 1000
 
+_CONTEXT_DELIMITER = ":"
+_CONTEXT_PREFIX = _CONTEXT_DELIMITER + "."
+
+
+def _context_for(subject: Optional[str]) -> Optional[str]:
+    """
+    Returns the context parsed from the given qualified subject (of the form
+    ":.context:subject"), or None if the subject has no context prefix or is
+    explicitly qualified with the default (".") context.
+    Tenant is not handled here as it is a server-side-only concept.
+    """
+    if subject is not None and subject.startswith(_CONTEXT_PREFIX):
+        rest = subject[len(_CONTEXT_PREFIX) :]
+        ix = rest.find(_CONTEXT_DELIMITER)
+        context = subject[1 : ix + len(_CONTEXT_PREFIX)] if ix >= 0 else subject[1:]
+        return None if context == "." else context
+    return None
+
 
 class Clock(object):
     def now(self) -> int:
@@ -70,26 +89,28 @@ class EncryptionExecutor(RuleExecutor):
         self.client: Optional[DekRegistryClient] = None
         self.config: Optional[dict] = None
         self.clock = clock
+        self._lock = threading.Lock()
 
     def configure(self, client_conf: dict, rule_conf: dict):
-        if client_conf:
-            if self.client:
-                if self.client.config() != client_conf:
-                    raise RuleError("executor already configured")
-            else:
-                self.client = DekRegistryClient.new_client(client_conf)
+        with self._lock:
+            if client_conf:
+                if self.client:
+                    if self.client.config() != client_conf:
+                        raise RuleError("executor already configured")
+                else:
+                    self.client = DekRegistryClient.new_client(client_conf)
 
-        if self.config:
-            if rule_conf:
-                for key, value in rule_conf.items():
-                    v = self.config.get(key)
-                    if v is not None:
-                        if v != value:
-                            raise RuleError(f"rule config key already set: {key}")
-                    else:
-                        self.config[key] = value
-        else:
-            self.config = rule_conf if rule_conf else {}
+            if self.config:
+                if rule_conf:
+                    for key, value in rule_conf.items():
+                        v = self.config.get(key)
+                        if v is not None:
+                            if v != value:
+                                raise RuleError(f"rule config key already set: {key}")
+                        else:
+                            self.config[key] = value
+            else:
+                self.config = rule_conf if rule_conf else {}
 
     def type(self) -> str:
         return "ENCRYPT_PAYLOAD"
@@ -222,7 +243,8 @@ class EncryptionExecutorTransform(object):
         is_read = ctx.rule_mode == RuleMode.READ
         kms_type = ctx.get_parameter(ENCRYPT_KMS_TYPE)
         kms_key_id = ctx.get_parameter(ENCRYPT_KMS_KEY_ID)
-        kek_id = KekId(self._kek_name, False)
+        context = _context_for(ctx.subject)
+        kek_id = KekId(self._kek_name, False, context)
         kek = self._retrieve_kek_from_registry(kek_id)
         if kek is None:
             if is_read:
@@ -252,7 +274,7 @@ class EncryptionExecutorTransform(object):
         if self._executor.client is None:
             raise RuleError("client not configured")
         try:
-            return self._executor.client.get_kek(kek_id.name, kek_id.deleted)
+            return self._executor.client.get_kek(kek_id.name, kek_id.deleted, kek_id.context)
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 404:
                 return None
@@ -262,7 +284,7 @@ class EncryptionExecutorTransform(object):
         if self._executor.client is None:
             raise RuleError("client not configured")
         try:
-            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared)
+            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared, context=kek_id.context)
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 409:
                 return None
@@ -486,7 +508,10 @@ class AeadWrapper(aead.Aead):
 
     def _get_aead(self, config: dict, kms_type: str, kms_key_id: str) -> aead.Aead:
         kek_url = kms_type + "://" + kms_key_id
-        kms_client = self._get_kms_client(config, kek_url)
+        aead_config = dict(config)
+        if self._kek.kms_props is not None:
+            aead_config.update(self._kek.kms_props.properties)
+        kms_client = self._get_kms_client(aead_config, kek_url)
         return kms_client.get_aead(kek_url)
 
     def _get_kms_client(self, config: dict, kek_url: str) -> KmsClient:
@@ -520,8 +545,9 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
         return transform.transform
 
     def close(self):
-        if self.client is not None:
-            self.client.__exit__()
+        # Delegate to the wrapped EncryptionExecutor, which owns the client;
+        # this executor has none of its own.
+        self.executor.close()
 
     @classmethod
     def register(cls):
