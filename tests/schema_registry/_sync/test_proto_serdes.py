@@ -28,6 +28,7 @@ from confluent_kafka.schema_registry._sync.serde import (
     FALLBACK_TYPE,
     KAFKA_CLUSTER_ID,
 )
+from confluent_kafka.schema_registry.common.protobuf import is_map_field
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     AssociationCreateOrUpdateInfo,
     AssociationCreateOrUpdateRequest,
@@ -67,6 +68,7 @@ from tests.schema_registry.data.proto import (  # noqa: E402
     cycle_pb2,
     dep_pb2,
     example_pb2,
+    map_widget_pb2,
     nested_pb2,
     newerwidget_pb2,
     newwidget_pb2,
@@ -956,3 +958,57 @@ def test_associated_name_strategy_caching():
 
     result2 = deser(obj_bytes2, ser_ctx)
     assert obj2 == result2
+
+
+def test_is_map_field_identifies_map_fields():
+    # Regression: is_map_field previously read the deprecated Descriptor.options
+    # attribute, which upb (protobuf >= 7) does not expose, so it reported False for
+    # every map field and _transform_field took the repeated branch instead.
+    desc = map_widget_pb2.MapWidget.DESCRIPTOR
+    assert is_map_field(desc.fields_by_name['labels']) is True
+    assert is_map_field(desc.fields_by_name['tags']) is False
+    assert is_map_field(desc.fields_by_name['name']) is False
+
+
+def test_proto_cel_field_transform_with_map_field():
+    # A field-level domain rule on a message carrying a map field. Taking the repeated
+    # branch for a map iterated its keys and then failed in _set_field, so this used to
+    # raise; the map must survive intact while scalar and repeated fields transform.
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "typeName == 'STRING' ; value + '-suffix'",
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(
+            _schema_to_str(map_widget_pb2.MapWidget.DESCRIPTOR.file),
+            "PROTOBUF",
+            [],
+            None,
+            RuleSet(None, [rule]),
+        ),
+    )
+    obj = map_widget_pb2.MapWidget(name='widget', labels={'env': 'prod'}, tags=['a'])
+    ser = ProtobufSerializer(map_widget_pb2.MapWidget, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = ProtobufDeserializer(map_widget_pb2.MapWidget, {'use.deprecated.format': False}, client)
+    newobj = deser(obj_bytes, ser_ctx)
+    assert newobj.name == 'widget-suffix'
+    assert list(newobj.tags) == ['a-suffix']
+    # Map values are not visited by field-level rules: the field context keeps the MAP
+    # type through the recursion, so the executor skips it as non-primitive.
+    assert dict(newobj.labels) == {'env': 'prod'}
