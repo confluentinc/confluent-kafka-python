@@ -377,9 +377,7 @@ def _validate_message(
             value_fd = fd.message_type.fields_by_name['value']
             if value_fd.type == FieldDescriptor.TYPE_MESSAGE:
                 for key, item in value.items():
-                    _validate_message(
-                        executor, value_fd.message_type, item, f'{child_path}["{key}"]', fail_fast, out
-                    )
+                    _validate_message(executor, value_fd.message_type, item, f'{child_path}["{key}"]', fail_fast, out)
                     if fail_fast and out:
                         return
         elif _is_repeated(fd):

@@ -83,9 +83,7 @@ class CelValidator(ValidationRuleExecutor):
             return bool(result)
         if isinstance(result, (str, celtypes.StringType)):
             return str(result)
-        raise RuleError(
-            f"Validation rule '{name}' must return bool or string; got {type(result).__name__}"
-        )
+        raise RuleError(f"Validation rule '{name}' must return bool or string; got {type(result).__name__}")
 
     def _program(self, expr: str) -> celpy.Runner:
         prog = self._cache.get_program(expr)
