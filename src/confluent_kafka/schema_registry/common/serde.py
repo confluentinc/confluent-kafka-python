@@ -536,9 +536,8 @@ def evaluate_validation_rule(
         if result:
             out.append(ValidationRuleError(rule, path, result, None))
     else:
-        raise SerializationError(
-            f"Validation rule '{rule.name}' resolved to an unexpected type: {type(result).__name__}"
-        )
+        name = rule.name if rule.name else 'unnamed'
+        raise SerializationError(f"Validation rule '{name}' resolved to an unexpected type: {type(result).__name__}")
 
 
 class Migration(object):

@@ -188,7 +188,8 @@ def transform(
     ref = schema.get("$ref")
     if ref is not None:
         ref_schema = ref_resolver.lookup(ref)
-        return transform(ctx, ref_schema.contents, ref_registry, ref_resolver, path, message, field_transform)
+        # As above: the resolver from the lookup carries the referenced resource's base URI.
+        return transform(ctx, ref_schema.contents, ref_registry, ref_schema.resolver, path, message, field_transform)
 
     schema_type = get_type(schema)
     if schema_type == FieldType.RECORD:
@@ -343,7 +344,12 @@ def _validate_message(
     ref = schema.get("$ref")
     if ref is not None:
         ref_schema = ref_resolver.lookup(ref)
-        _validate_message(executor, ref_schema.contents, ref_registry, ref_resolver, path, message, fail_fast, out)
+        # Recurse with the resolver the lookup returned, not the original one: it is scoped
+        # to the referenced resource, so a relative $ref inside it resolves against the
+        # right base URI.
+        _validate_message(
+            executor, ref_schema.contents, ref_registry, ref_schema.resolver, path, message, fail_fast, out
+        )
         return
 
     _validate_object(executor, schema, ref_registry, ref_resolver, path, message, fail_fast, out)
