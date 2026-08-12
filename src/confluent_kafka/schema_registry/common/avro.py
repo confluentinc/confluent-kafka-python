@@ -333,26 +333,50 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
     return True
 
 
+def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) -> bool:
+    """
+    Whether ``branch_name``, taken from a wrapped or typed union value, names ``subschema``.
+
+    The value carries the branch's fullname, while the subschema may carry only its simple
+    name with the namespace inherited from an enclosing record — which is not visible here.
+    So match on the fullname first, and only then fall back to comparing simple names.
+    """
+    if isinstance(subschema, str):
+        return exact and branch_name == subschema
+    if not isinstance(subschema, dict):
+        return False
+    name = subschema.get("name")
+    if name is None:
+        return False
+    if exact:
+        if branch_name == name:
+            return True
+        namespace = subschema.get("namespace")
+        return bool(namespace) and branch_name == f"{namespace}.{name}"
+    return '.' not in name and branch_name.rsplit('.', 1)[-1] == name
+
+
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
     is_wrapped_union = isinstance(message, tuple) and len(message) == 2
     is_typed_union = isinstance(message, dict) and '-type' in message
+    if is_wrapped_union or is_typed_union:
+        if is_wrapped_union:
+            tuple_message = cast(tuple, message)
+            branch_name, payload = tuple_message[0], tuple_message[1]
+        else:
+            dict_message = cast(dict, message)
+            branch_name, payload = dict_message['-type'], dict_message
+        # Exact fullname matches win; only if none matched do simple names decide, so a
+        # union holding the same simple name in two namespaces still resolves correctly.
+        for exact in (True, False):
+            for subschema in schema:
+                if _union_branch_matches(subschema, branch_name, exact):
+                    return (subschema, payload)
+        return (None, message)
     for subschema in schema:
         try:
-            if is_wrapped_union:
-                if isinstance(subschema, dict):
-                    dict_schema = cast(dict, subschema)
-                    tuple_message = cast(tuple, message)
-                    if dict_schema["name"] == tuple_message[0]:
-                        return (dict_schema, tuple_message[1])
-            elif is_typed_union:
-                if isinstance(subschema, dict):
-                    dict_schema = cast(dict, subschema)
-                    dict_message = cast(dict, message)
-                    if dict_schema["name"] == dict_message['-type']:
-                        return (dict_schema, dict_message)
-            else:
-                validate(message, _collapse_schema(deepcopy(subschema)))
-                return (subschema, message)
+            validate(message, _collapse_schema(deepcopy(subschema)))
+            return (subschema, message)
         except:  # noqa: E722
             continue
     return (None, message)

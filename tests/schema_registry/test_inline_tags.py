@@ -83,3 +83,49 @@ def test_nested_record_inherits_the_enclosing_namespace():
         }
     )
     assert 'ns1.Inner.w' in tags
+
+
+def test_wrapped_union_resolves_by_fullname():
+    """
+    A wrapped union value carries the branch's fullname, while the subschema often carries
+    only its simple name with the namespace inherited from the enclosing record. Comparing
+    the two directly never matches, and the branch — with its rules and tags — is skipped.
+    """
+    from confluent_kafka.schema_registry.common.avro import _resolve_union
+
+    union = [
+        {'type': 'record', 'name': 'A', 'fields': [{'name': 'v', 'type': 'string'}]},
+        {'type': 'record', 'name': 'B', 'fields': [{'name': 'v', 'type': 'string'}]},
+    ]
+
+    # fullname in the value, simple name in the subschema
+    subschema, payload = _resolve_union(union, ('test.B', {'v': 'x'}))
+    assert subschema is not None and subschema['name'] == 'B'
+    assert payload == {'v': 'x'}
+
+    # the typed-dict form resolves the same way, and keeps the marker on the payload
+    subschema, payload = _resolve_union(union, {'-type': 'test.A', 'v': 'x'})
+    assert subschema is not None and subschema['name'] == 'A'
+    assert payload == {'-type': 'test.A', 'v': 'x'}
+
+    # a simple name in the value still matches
+    subschema, _ = _resolve_union(union, ('B', {'v': 'x'}))
+    assert subschema is not None and subschema['name'] == 'B'
+
+    # an unknown branch resolves to nothing
+    subschema, _ = _resolve_union(union, ('test.C', {'v': 'x'}))
+    assert subschema is None
+
+
+def test_wrapped_union_prefers_an_exact_namespace_match():
+    """
+    When two branches share a simple name in different namespaces, the fullname decides.
+    """
+    from confluent_kafka.schema_registry.common.avro import _resolve_union
+
+    union = [
+        {'type': 'record', 'name': 'Rec', 'namespace': 'a', 'fields': []},
+        {'type': 'record', 'name': 'Rec', 'namespace': 'b', 'fields': []},
+    ]
+    subschema, _ = _resolve_union(union, ('b.Rec', {}))
+    assert subschema is not None and subschema['namespace'] == 'b'
