@@ -21,6 +21,7 @@
 #
 # Usage:
 #  tests/soak/soakclient.py -i <testid> -t <topic> -r <produce-rate> -f <client-conf-file>
+#      [--share] [--explicit] [--perf]
 #
 # A unique topic should be used for each soakclient instance.
 #
@@ -29,6 +30,7 @@ import argparse
 import json
 import logging
 import os
+import random
 import resource
 import sys
 import threading
@@ -43,19 +45,34 @@ from opentelemetry import metrics
 from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, version
 from confluent_kafka.admin import AdminClient, NewTopic
 
+try:
+    from confluent_kafka import ShareConsumer
+
+    HAS_SHARE_CONSUMER = True
+except ImportError:
+    HAS_SHARE_CONSUMER = False
+
 
 class SoakRecord(object):
     """A private record type, with JSON serializer and deserializer"""
 
+    # Optional padding appended to the auto-generated name. Empty by default;
+    # __main__ sets it to ~10KB when --perf is passed so higher-throughput
+    # runs exercise realistic payload sizes without rebuilding the string on
+    # every produce_record() call.
+    _PAD: str = ""
+
     def __init__(self, msgid, name=None):
         self.msgid = msgid
         if name is None:
-            self.name = "SoakRecord nr #{}".format(self.msgid)
+            self.name = "SoakRecord nr #{}{}".format(msgid, self._PAD)
         else:
             self.name = name
 
     def serialize(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
+        # Bytes formatting is ~3-5x faster than json.dumps for this shape.
+        # name only contains JSON-safe chars so no escaping is needed.
+        return b'{"msgid":%d,"name":"%s"}' % (self.msgid, self.name.encode('ascii'))
 
     def __str__(self):
         return "SoakRecord({})".format(self.name)
@@ -68,7 +85,7 @@ class SoakRecord(object):
 
 class SoakClient(object):
     """The SoakClient consists of a Producer sending messages at
-    the given rate, and a Consumer consuming the messages.
+    the given rate, and a Consumer or ShareConsumer consuming the messages.
     Both clients print their message and error counters every 10 seconds.
     The producer and consumer run in separate background threads.
     """
@@ -134,8 +151,6 @@ class SoakClient(object):
 
     def producer_run(self):
         """Producer main loop"""
-        sleep_intvl = 1.0 / self.rate
-
         self.producer_msgid = 0
         self.dr_cnt = 0
         self.dr_err_cnt = 0
@@ -143,27 +158,59 @@ class SoakClient(object):
 
         next_status = time.time() + self.disprate
 
-        while self.run:
+        if self.perf:
+            # perf: produce in batches and pace per-batch with time.sleep
+            # instead of one produce()+blocking poll() per message. At high
+            # rates the per-message poll() floor (~hundreds of us) caps
+            # throughput well below -r; pacing a batch lets us sleep a
+            # duration the OS can actually honor. -r remains the target rate
+            # (an upper bound: if a batch takes longer than its time budget,
+            # we run as fast as we can, below -r).
+            batch = max(1, int(self.rate / 100))  # ~100 batches/sec
+            batch_intvl = batch / self.rate  # seconds budgeted per batch
 
-            # Produce a single record
-            self.produce_record()
+            while self.run:
+                t_start = time.time()
 
-            # Enforce message rate by polling until interval is exceeded.
-            now = time.time()
-            t_end = now + sleep_intvl
-            while True:
-                if now > next_status:
-                    # Print status
+                # Produce a batch of records.
+                for _ in range(batch):
+                    self.produce_record()
+
+                # Serve the producer queue (error_cb, reports) without blocking.
+                self.producer.poll(0)
+
+                if t_start > next_status:
                     self.producer_status()
-                    next_status = now + self.disprate
+                    next_status = t_start + self.disprate
 
-                remaining_time = t_end - now
-                if remaining_time < 0:
-                    remaining_time = 0
-                self.producer.poll(remaining_time)
-                if remaining_time <= 0:
-                    break
+                # Sleep off the remainder of this batch's time budget.
+                remaining_time = batch_intvl - (time.time() - t_start)
+                if remaining_time > 0:
+                    time.sleep(remaining_time)
+        else:
+            sleep_intvl = 1.0 / self.rate
+
+            while self.run:
+
+                # Produce a single record
+                self.produce_record()
+
+                # Enforce message rate by polling until interval is exceeded.
                 now = time.time()
+                t_end = now + sleep_intvl
+                while True:
+                    if now > next_status:
+                        # Print status
+                        self.producer_status()
+                        next_status = now + self.disprate
+
+                    remaining_time = t_end - now
+                    if remaining_time < 0:
+                        remaining_time = 0
+                    self.producer.poll(remaining_time)
+                    if remaining_time <= 0:
+                        break
+                    now = time.time()
 
         # Wait for outstanding messages to be delivered.
         remaining = self.producer.flush(30)
@@ -178,7 +225,7 @@ class SoakClient(object):
             self.logger.info("producer: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("producer: fatal exception: {}:\n{}".format(ex, traceback.print_exc()))
+            self.logger.fatal("producer: fatal exception: {}:\n{}".format(ex, traceback.format_exc()))
             self.run = False
 
     def consumer_status(self):
@@ -207,7 +254,7 @@ class SoakClient(object):
         self.msg_err_cnt = 0
         self.consumer_err_cnt = 0
         self.consumer_error_cb_cnt = 0
-        self.last_commited = None
+        self.last_committed = None
 
         # Keep track of high-watermarks to make sure we don't go backwards
         hwmarks = defaultdict(int)
@@ -244,12 +291,15 @@ class SoakClient(object):
                 )
                 self.msg_err_cnt += 1
                 self.incr_counter("consumer.msgerr", 1)
+                # Corrupt payload: don't count it as consumed and don't let
+                # it drive hwmark/dup logic.
+                continue
 
             self.msg_cnt += 1
             self.incr_counter("consumer.msg", 1)
 
             # end-to-end latency
-            headers = dict(msg.headers())
+            headers = dict(msg.headers() or [])
             txtime = headers.get('time', None)
             if txtime is not None:
                 latency = time.time() - float(txtime)
@@ -294,9 +344,6 @@ class SoakClient(object):
 
             hwmarks[hwkey] = msg.offset()
 
-        self.consumer.close()
-        self.consumer_status()
-
     def consumer_thread_main(self):
         """Consumer thread main function"""
         try:
@@ -305,8 +352,15 @@ class SoakClient(object):
             self.logger.info("consumer: aborted by user")
             self.run = False
         except Exception as ex:
-            self.logger.fatal("consumer: fatal exception: {}\n{}".format(ex, traceback.print_exc()))
+            self.logger.fatal("consumer: fatal exception: {}\n{}".format(ex, traceback.format_exc()))
             self.run = False
+        finally:
+            if self.consumer is not None:
+                try:
+                    self.consumer.close()
+                except Exception as ex:
+                    self.logger.warning("consumer: close failed: {}".format(ex))
+            self.consumer_status()
 
     def consumer_error_cb(self, err):
         """Consumer error callback"""
@@ -328,6 +382,191 @@ class SoakClient(object):
         self.logger.error("producer: error_cb: {}".format(err))
         self.producer_error_cb_cnt += 1
         self.incr_counter("producer.errorcb", 1)
+
+    def share_error_cb(self, err):
+        """Share consumer error callback"""
+        self.logger.error("share: error_cb: {}".format(err))
+        self.share_error_cb_cnt += 1
+        self.incr_counter("consumer.errorcb", 1)
+
+    def share_acknowledgement_commit_cb(self, offsets, exception):
+        """Ack-commit callback registered via
+        ShareConsumer.set_acknowledgement_commit_callback.
+
+        Fires from within commit_sync / commit_async / poll / close when the
+        broker returns a ShareAcknowledge response, so this is the single
+        source of truth for per-commit error visibility on both the sync and
+        async paths.
+        """
+        if exception is not None:
+            self.logger.error("share: ack commit failed for {} partition(s): {}".format(len(offsets), exception))
+            self.share_err_cnt += 1
+            self.incr_counter("consumer.error", 1)
+
+    def share_status(self):
+        """Print share consumer status"""
+        self.logger.info(
+            "share: {} messages consumed, {} duplicates, "
+            "{} missed, {} message errors, {} consumer errors, {} error_cbs".format(
+                self.share_msg_cnt,
+                self.share_msg_dup_cnt,
+                self.share_msg_miss_cnt,
+                self.share_msg_err_cnt,
+                self.share_err_cnt,
+                self.share_error_cb_cnt,
+            )
+        )
+
+    def share_run(self):
+        """Share consumer main loop"""
+        self.share_consumer.subscribe([self.topic])
+
+        # Counters are initialized in __init__ so error_cb can't hit an
+        # AttributeError if it fires before this thread starts.
+
+        # Track highest offset seen per partition. Only used in implicit
+        # mode; in explicit mode released records get redelivered
+        # non-monotonically, so dup/gap detection isn't valid.
+        hwmarks = defaultdict(int)
+
+        self.logger.info("share: running in mode={}".format(self.share_mode))
+
+        next_status = time.time() + self.disprate
+
+        while self.run:
+            now = time.time()
+            if now > next_status:
+                self.share_status()
+                next_status = now + self.disprate
+
+            try:
+                messages = self.share_consumer.poll(timeout=1.0)
+            except Exception as ex:
+                self.logger.error("share: poll exception: {}".format(ex))
+                self.share_err_cnt += 1
+                self.incr_counter("consumer.error", 1)
+                continue
+
+            if not messages:
+                continue
+
+            for msg in messages:
+                if msg.error() is not None:
+                    self.logger.error("share: error: {}".format(msg.error()))
+                    self.share_err_cnt += 1
+                    self.incr_counter("consumer.error", 1)
+                    continue
+
+                try:
+                    record = SoakRecord.deserialize(msg.value())  # noqa unused variable
+                except ValueError as ex:
+                    self.logger.info(
+                        "share: Failed to deserialize message in "
+                        "{} [{}] at offset {} (headers {}): {}".format(
+                            msg.topic(), msg.partition(), msg.offset(), msg.headers(), ex
+                        )
+                    )
+                    self.share_msg_err_cnt += 1
+                    self.incr_counter("consumer.msgerr", 1)
+                    # Corrupt payload: don't count it as consumed and don't let
+                    # it drive hwmark/dup logic.
+                    continue
+
+                self.share_msg_cnt += 1
+                self.incr_counter("consumer.msg", 1)
+
+                # end-to-end latency
+                headers = dict(msg.headers() or [])
+                txtime = headers.get('time', None)
+                if txtime is not None:
+                    latency = time.time() - float(txtime)
+                    self.set_gauge("consumer.e2e_latency", latency, tags={"partition": "{}".format(msg.partition())})
+
+                if (self.share_msg_cnt % self.disprate) == 0:
+                    self.logger.info(
+                        "share: {} messages consumed: Message {} "
+                        "[{}] at offset {} (headers {})".format(
+                            self.share_msg_cnt, msg.topic(), msg.partition(), msg.offset(), msg.headers()
+                        )
+                    )
+
+                # Track per-partition high-water mark for duplicate/gap
+                # detection. Only meaningful with implicit ack + a single share
+                # consumer: in explicit mode, released records get redelivered
+                # non-monotonically, which would drive false dup/gap counters.
+                if self.share_mode == 'implicit':
+                    hwkey = "{}-{}".format(msg.topic(), msg.partition())
+                    hw = hwmarks[hwkey]
+
+                    if hw > 0:
+                        if msg.offset() <= hw:
+                            self.logger.warning(
+                                "share: Old or duplicate message {} "
+                                "[{}] at offset {} (headers {}): wanted offset > {}".format(
+                                    msg.topic(), msg.partition(), msg.offset(), msg.headers(), hw
+                                )
+                            )
+                            self.share_msg_dup_cnt += (hw + 1) - msg.offset()
+                            self.incr_counter("consumer.msgdup", 1)
+                        elif msg.offset() > hw + 1:
+                            self.logger.warning(
+                                "share: Lost messages, now at {} "
+                                "[{}] at offset {} (headers {}): "
+                                "expected offset {}+1".format(
+                                    msg.topic(), msg.partition(), msg.offset(), msg.headers(), hw
+                                )
+                            )
+                            self.share_msg_miss_cnt += msg.offset() - (hw + 1)
+                            self.incr_counter("consumer.missedmsg", 1)
+
+                    # Only advance the mark; don't regress on an out-of-order
+                    # or duplicate delivery, otherwise the next in-order
+                    # message would be misreported as a large gap.
+                    if msg.offset() > hw:
+                        hwmarks[hwkey] = msg.offset()
+
+                # Explicit mode: ack each message with ACCEPT. Commit fires
+                # once per batch after the for-msg loop below.
+                if self.share_mode == 'explicit':
+                    try:
+                        self.share_consumer.acknowledge(msg)
+                    except KafkaException as ex:
+                        self.logger.error("share: acknowledge failed: {}".format(ex))
+                        self.share_err_cnt += 1
+                        self.incr_counter("consumer.error", 1)
+
+            if self.share_mode == 'explicit':
+                # Per-partition ack outcomes land in
+                # share_acknowledgement_commit_cb for both branches; only
+                # catch immediate call-level exceptions here.
+                use_sync = random.random() < 0.5
+                try:
+                    if use_sync:
+                        self.share_consumer.commit_sync(timeout=10.0)
+                    else:
+                        self.share_consumer.commit_async()
+                except KafkaException as ex:
+                    self.logger.error("share: commit_{} exception: {}".format("sync" if use_sync else "async", ex))
+                    self.share_err_cnt += 1
+                    self.incr_counter("consumer.error", 1)
+
+    def share_thread_main(self):
+        """Share consumer thread main function"""
+        try:
+            self.share_run()
+        except KeyboardInterrupt:
+            self.logger.info("share: aborted by user")
+            self.run = False
+        except Exception as ex:
+            self.logger.fatal("share: fatal exception: {}\n{}".format(ex, traceback.format_exc()))
+            self.run = False
+        finally:
+            if self.share_consumer is not None:
+                try:
+                    self.share_consumer.close()
+                except Exception as ex:
+                    self.logger.warning("share: close failed: {}".format(ex))
+            self.share_status()
 
     def rtt_stats(self, d):
         """Extract broker rtt statistics from the stats dict in @param d"""
@@ -394,7 +633,7 @@ class SoakClient(object):
             else:
                 raise
 
-    def __init__(self, testid, topic, rate, conf):
+    def __init__(self, testid, topic, rate, conf, enable_share=False, share_mode='implicit', perf=False):
         """SoakClient constructor. conf is the client configuration"""
         self.topic = topic
         self.rate = rate
@@ -402,6 +641,8 @@ class SoakClient(object):
         self.run = True
         self.stats_cnt = {'producer': 0, 'consumer': 0}
         self.start_time = time.time()
+        self.share_mode = share_mode
+        self.perf = perf
 
         # OTEL instruments
         self.counters = {}
@@ -446,50 +687,114 @@ class SoakClient(object):
             return out
 
         # Create topic (might already exist)
-        aconf = filter_config(conf, ["consumer.", "producer."], "admin.")
+        aconf = filter_config(conf, ["consumer.", "producer.", "share."], "admin.")
         aconf['client.id'] = self.testid
         self.create_topic(self.topic, aconf)
 
         #
-        # Create Producer and Consumer, each running in its own thread.
+        # Create Producer and Consumer/ShareConsumer, each in its own thread.
+        # All clients are constructed BEFORE any thread starts so a failure
+        # here can't leave the producer running with no consumer draining.
         #
+
+        # Fail fast if share requested but not available in this build.
+        if enable_share and not HAS_SHARE_CONSUMER:
+            raise RuntimeError("ShareConsumer requested but not available in this confluent_kafka build.")
+
         conf['stats_cb'] = self.stats_cb
         conf['statistics.interval.ms'] = 120000
 
         # Producer
-        pconf = filter_config(conf, ["consumer.", "admin."], "producer.")
+        pconf = filter_config(conf, ["consumer.", "admin.", "share."], "producer.")
         pconf['error_cb'] = self.producer_error_cb
         pconf['client.id'] = self.testid
         self.producer = Producer(pconf)
-
-        # Consumer
-        cconf = filter_config(conf, ["producer.", "admin."], "consumer.")
-        cconf['error_cb'] = self.consumer_error_cb
-        cconf['on_commit'] = self.consumer_commit_cb
-        self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
-        cconf['client.id'] = self.testid
-        self.consumer = Consumer(cconf)
-
-        # Initialize some counters to zero to make them appear in the metrics
-        self.incr_counter("consumer.error", 0)
-        self.incr_counter("consumer.msgdup", 0)
         self.incr_counter("producer.errorcb", 0)
 
-        # Create and start producer thread
+        self.consumer = None
+        self.consumer_thread = None
+        self.share_consumer = None
+        self.share_thread = None
+
+        if enable_share:
+            sconf = filter_config(conf, ["consumer.", "producer.", "admin."], "share.")
+            sconf['error_cb'] = self.share_error_cb
+            sconf['client.id'] = self.testid
+            # Share consumer rejects `enable.partition.eof` (added in librdkafka
+            # v2.15.0-RC1). The flag was set on the parent conf for the regular
+            # Consumer; strip it before creating ShareConsumer.
+            sconf.pop('enable.partition.eof', None)
+
+            # In explicit mode, switch the consumer's ack policy. Default is
+            # implicit (next poll auto-acks); without this flip, calls to
+            # acknowledge() return _STATE because the message is already acked.
+            if self.share_mode == 'explicit':
+                sconf['share.acknowledgement.mode'] = 'explicit'
+
+            # Set a share-specific group.id unless the operator supplied one
+            # via `share.group.id` in the config (filter_config strips the
+            # prefix, so it lands in sconf['group.id']).
+            if 'group.id' not in sconf:
+                sconf['group.id'] = 'soakclient-share-{}-{}-{}'.format(
+                    self.hostname, version(), sys.version.split(' ')[0]
+                )
+
+            # Zero share counters *before* constructing the consumer so
+            # error_cb (which touches share_error_cb_cnt) can't hit
+            # AttributeError if it fires during construction.
+            self.share_msg_cnt = 0
+            self.share_msg_dup_cnt = 0
+            self.share_msg_miss_cnt = 0
+            self.share_msg_err_cnt = 0
+            self.share_err_cnt = 0
+            self.share_error_cb_cnt = 0
+
+            self.logger.info("share: using group.id {}".format(sconf['group.id']))
+            self.share_consumer = ShareConsumer(sconf)
+            # Register the ack-commit callback: covers per-partition results
+            # for both commit_sync and commit_async, replacing manual result
+            # inspection on the sync path.
+            self.share_consumer.set_acknowledgement_commit_callback(self.share_acknowledgement_commit_cb)
+
+            # Initialize counters to zero
+            self.incr_counter("consumer.error", 0)
+            self.incr_counter("consumer.msgdup", 0)
+            self.incr_counter("consumer.msgerr", 0)
+            self.incr_counter("consumer.errorcb", 0)
+        else:
+            # Consumer
+            cconf = filter_config(conf, ["producer.", "admin.", "share."], "consumer.")
+            cconf['error_cb'] = self.consumer_error_cb
+            cconf['on_commit'] = self.consumer_commit_cb
+            self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
+            cconf['client.id'] = self.testid
+            self.consumer = Consumer(cconf)
+
+            # Initialize some counters to zero to make them appear in the metrics
+            self.incr_counter("consumer.error", 0)
+            self.incr_counter("consumer.msgdup", 0)
+
+        # All clients constructed. Start threads together.
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
         self.producer_thread.start()
 
-        # Create and start consumer thread
-        self.consumer_thread = threading.Thread(target=self.consumer_thread_main)
-        self.consumer_thread.start()
+        if enable_share:
+            self.share_thread = threading.Thread(target=self.share_thread_main)
+            self.share_thread.start()
+        else:
+            self.consumer_thread = threading.Thread(target=self.consumer_thread_main)
+            self.consumer_thread.start()
 
     def terminate(self):
-        """Terminate Producer and Consumer"""
+        """Terminate Producer and Consumer/Share Consumer"""
         soak.logger.info("Terminating (ran for {}s)".format(time.time() - self.start_time))
         self.run = False
         # Wait for background threads to finish.
         self.producer_thread.join()
-        self.consumer_thread.join()
+        if self.share_thread is not None:
+            self.share_thread.join()
+        else:
+            self.consumer_thread.join()
 
         # Final resource usage
         soak.get_rusage()
@@ -576,8 +881,37 @@ if __name__ == '__main__':
     parser.add_argument(
         '-f', dest='conffile', type=argparse.FileType('r'), help='Configuration file (configprop=value format)'
     )
+    parser.add_argument(
+        '--share', dest='share', action='store_true', default=False, help='Enable share consumer thread'
+    )
+    parser.add_argument(
+        '--explicit',
+        dest='explicit',
+        action='store_true',
+        default=False,
+        help='Share consumer: per-msg ACCEPT + alternating commit_async/sync (requires --share)',
+    )
+    parser.add_argument(
+        '--perf',
+        dest='perf',
+        action='store_true',
+        default=False,
+        help='High-throughput mode: ~10KB payloads and batched producer pacing',
+    )
 
     args = parser.parse_args()
+
+    share_mode = 'explicit' if args.explicit else 'implicit'
+
+    if share_mode == 'explicit' and not args.share:
+        parser.error('--explicit requires --share')
+
+    if args.perf and not args.share:
+        parser.error('--perf requires --share')
+
+    # Enable ~10KB payload padding for perf runs. Built once at class load.
+    if args.perf:
+        SoakRecord._PAD = (" SoakRecord nr #0" * 600)[:10200]
 
     conf = dict()
     if args.conffile is not None:
@@ -606,7 +940,15 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.testid, args.topic, args.rate, conf)
+    soak = SoakClient(
+        args.testid,
+        args.topic,
+        args.rate,
+        conf,
+        enable_share=args.share,
+        share_mode=share_mode,
+        perf=args.perf,
+    )
 
     # Get initial resource usage
     soak.get_rusage()
@@ -622,7 +964,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         soak.logger.info("Interrupted by user")
     except Exception as ex:
-        soak.logger.error("Fatal exception {}\n{}".format(ex, traceback.print_exc()))
+        soak.logger.error("Fatal exception {}\n{}".format(ex, traceback.format_exc()))
 
     # Terminate
     soak.terminate()

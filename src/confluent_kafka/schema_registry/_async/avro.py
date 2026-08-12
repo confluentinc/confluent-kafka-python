@@ -14,6 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio as _locks
 import io
 import json
 from typing import Any, Callable, Coroutine, Dict, Optional, Union, cast
@@ -45,8 +46,10 @@ from confluent_kafka.schema_registry.serde import (
     AsyncBaseSerializer,
     ParsedSchemaCache,
     SchemaId,
+    clear_original_key,
+    set_original_key,
 )
-from confluent_kafka.serialization import SerializationContext, SerializationError
+from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 
 __all__ = [
     '_resolve_named_schema',
@@ -236,6 +239,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
     __slots__ = [
         '_known_subjects',
+        '_known_subjects_lock',
         '_parsed_schema',
         '_schema',
         '_schema_id',
@@ -281,6 +285,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         self._schema_id: Optional[SchemaId] = None
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._known_subjects: set[str] = set()
+        self._known_subjects_lock = _locks.Lock()
         self._parsed_schemas = ParsedSchemaCache()
 
         if to_dict is not None and not callable(to_dict):
@@ -371,6 +376,8 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -380,6 +387,18 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         return self.__serialize(obj, ctx)
 
     async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        try:
+            if obj is None:
+                return None
+            return await self.__serialize_impl(obj, ctx)
+        finally:
+            # Track the key for use when serializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(obj)
+            else:
+                clear_original_key()
+
+    async def __serialize_impl(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -408,25 +427,35 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             else self._subject_name_func(ctx, self._schema_name)
         )
         latest_schema = await self._get_reader_schema(subject) if subject else None
+        # schema_id is kept as a local variable (rather than read back from self._schema_id)
+        # so that concurrent __serialize calls on a shared serializer instance can't clobber
+        # each other's result between this point and where it's used below.
+        schema_id = self._schema_id
         if latest_schema is not None:
-            self._schema_id = SchemaId(AVRO_TYPE, latest_schema.schema_id, latest_schema.guid)
+            schema_id = SchemaId(AVRO_TYPE, latest_schema.schema_id, latest_schema.guid)
+            self._schema_id = schema_id
         elif subject is not None and subject not in self._known_subjects:
             # Check to ensure this schema has been registered under subject_name.
-            if self._auto_register:
-                # The schema name will always be the same. We can't however register
-                # a schema without a subject so we set the schema_id here to handle
-                # the initial registration.
-                registered_schema = await self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
-            else:
-                registered_schema = await self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
+            async with self._known_subjects_lock:
+                if subject not in self._known_subjects:
+                    if self._auto_register:
+                        # The schema name will always be the same. We can't however register
+                        # a schema without a subject so we set the schema_id here to handle
+                        # the initial registration.
+                        registered_schema = await self._registry.register_schema_full_response(
+                            subject, self._schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
+                    else:
+                        registered_schema = await self._registry.lookup_schema(
+                            subject, self._schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
 
-            self._known_subjects.add(subject)
+                    self._known_subjects.add(subject)
+                    self._schema_id = schema_id
+                else:
+                    schema_id = self._schema_id
 
         value: Any
         parsed_schema: Any
@@ -478,7 +507,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
                 )
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
@@ -659,6 +688,8 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -668,6 +699,20 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         return self.__deserialize(data, ctx)
 
     async def __deserialize(
+        self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
+    ) -> Union[dict, object, None]:
+        try:
+            if data is None:
+                return None
+            return await self.__deserialize_impl(data, ctx)
+        finally:
+            # Track the key for use when deserializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(data)
+            else:
+                clear_original_key()
+
+    async def __deserialize_impl(
         self, data: Optional[bytes], ctx: Optional[SerializationContext] = None
     ) -> Union[dict, object, None]:
         """
@@ -734,7 +779,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
         if ctx is not None and subject is not None:
             payload = self._execute_rules_with_phase(
-                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None, data
             )
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
@@ -780,7 +825,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         if ctx is not None and subject is not None:
             inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
             obj_dict = self._execute_rules(
-                ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, inline_tags, field_transformer
+                ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, inline_tags, field_transformer, data
             )
 
         if self._from_dict is not None:
