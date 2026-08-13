@@ -14,11 +14,12 @@
 
 import asyncio
 import concurrent.futures
-import contextvars
 import functools
 import itertools
 import logging
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
+
+from confluent_kafka import cimpl
 
 T = TypeVar('T')
 
@@ -27,7 +28,8 @@ T = TypeVar('T')
 # which may move across ThreadPoolExecutor worker threads (e.g. a
 # rebalance callback dispatched to one worker thread, followed by
 # a re-entrant call made from within it which gets scheduled on a different worker thread.)
-_reentry_identity_var: 'contextvars.ContextVar[int]' = contextvars.ContextVar('_reentry_identity', default=0)
+#
+_reentry_identity_var = cimpl._reentry_identity_var
 
 # Internal use only. Process-wide counter that generates the identities
 # AIOConsumer calls present to the Consumer gate.
