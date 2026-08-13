@@ -458,16 +458,17 @@ def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema
             _get_inline_tags_recursively(ns, name, schema.get("values"), tags)
         elif schema_type == 'record':
             record_name = schema.get("name")
+            record_ns: str
             if record_name is not None and '.' in record_name:
                 # A name containing a dot is already a fullname; Avro ignores any
                 # namespace attribute for it.
                 record_ns = _implied_namespace(record_name) or ''
             else:
-                record_ns = schema.get("namespace")
-                if record_ns is None:
-                    record_ns = _implied_namespace(name)
-                if record_ns is None:
-                    record_ns = ns
+                namespace_attr = schema.get("namespace")
+                if namespace_attr is not None:
+                    record_ns = namespace_attr
+                else:
+                    record_ns = _implied_namespace(name) or ns
                 # The namespace is a prefix to prepend, not a prefix to test for: a record
                 # named 'foobar' in namespace 'foo' is 'foo.foobar', not 'foobar'.
                 if record_name is not None and record_ns != '':
