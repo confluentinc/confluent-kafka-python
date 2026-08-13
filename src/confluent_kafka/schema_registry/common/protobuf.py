@@ -363,7 +363,8 @@ def _set_field(fd: FieldDescriptor, message: Message, value: Any):
 
 # Keyed by (registered schema descriptor, runtime descriptor): whether a message with that
 # runtime descriptor has to be re-read through the schema's before rules can bind `this` to
-# it. See _needs_schema_view.
+# it. The answer is no only for a class that describes the same fields as the registered
+# schema; a class that has fallen behind it re-reads every record. See _needs_schema_view.
 _SCHEMA_VIEW_NEEDED: Dict[Tuple[Descriptor, Descriptor], bool] = {}
 
 
@@ -403,10 +404,13 @@ def validate_message(
     # caller's class calls something else. Protobuf pairs fields by number on the wire, so
     # re-reading the message through the registered descriptor produces exactly that view.
     #
-    # Re-reading is only worth its cost when the two descriptors actually present values
-    # differently, which is decided once per descriptor pair (see _needs_schema_view) rather
-    # than per record: a generated class that matches the registered schema has a distinct
-    # descriptor object but the same fields, so no re-read happens at all.
+    # Whether that is needed is decided once per descriptor pair (see _needs_schema_view)
+    # rather than per record. A generated class describing the same fields as the registered
+    # schema skips it entirely, even though the two descriptors are distinct objects. A class
+    # that has fallen behind the schema does not: under use.latest.version the schema may
+    # declare a field the class has never heard of, and a rule that binds `this` can read the
+    # schema's default for it, so those producers re-read every record. That cost is the price
+    # of evaluating rules in the schema's terms, not an accident.
     schema_message = None
     if _needs_schema_view(descriptor, message.DESCRIPTOR):
         schema_message = message_factory.GetMessageClass(descriptor)()
@@ -437,6 +441,14 @@ def _needs_schema_view(descriptor: Descriptor, runtime_descriptor: Descriptor) -
     producer's field on the producer's message, which the walk reads directly, so a schema
     that only moved a field into or out of a oneof needs no re-read.
 
+    A field the schema declares and the caller's class does not *does* count, which means a
+    class running behind the registered schema - the use.latest.version case - re-reads every
+    record. Only an exact match skips the re-read. Narrowing that to the rules that could
+    actually observe the added field is possible but not simple: a rule binding ``this`` at
+    any ancestor can traverse into the field, and a field-level rule on a message-valued field
+    binds ``this`` to a type that need not declare rules of its own, so a per-descriptor test
+    for message-level rules would be wrong in both directions.
+
     Memoized per descriptor pair: both are stable for the lifetime of a serializer, so this
     is one dict lookup per record rather than a tree comparison. The set of pairs a process
     sees is bounded by the message types it serializes.
@@ -457,8 +469,13 @@ def _presents_same_values(
     """
     Whether the two descriptors present every field they share - paired by number, which is
     how protobuf identifies a field - under the same name, type and label, recursively
-    through message-valued fields. Fields only one of them declares are ignored: the walk
-    visits the intersection either way.
+    through message-valued fields.
+
+    A field the registered schema declares and the caller's does not counts as a difference:
+    adding a field is a compatible change, and a message-level rule may reference the added
+    field expecting the schema's default for it, which only a message read through the schema
+    can supply. Fields only the caller declares are ignored - no rule can name them, and the
+    walk skips them.
 
     ``visited`` holds the descriptor pairs already compared, so a self-referential message
     type terminates.
@@ -469,6 +486,9 @@ def _presents_same_values(
         # contributes no new disagreement.
         return True
     visited.add(pair)
+    for schema_fd in descriptor.fields:
+        if runtime_descriptor.fields_by_number.get(schema_fd.number) is None:
+            return False
     for runtime_fd in runtime_descriptor.fields:
         schema_fd = descriptor.fields_by_number.get(runtime_fd.number)
         if schema_fd is None:

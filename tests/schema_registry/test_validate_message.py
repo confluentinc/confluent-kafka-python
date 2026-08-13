@@ -431,6 +431,58 @@ def test_protobuf_schema_field_missing_from_message_class_is_skipped():
     assert fired(violations) == ["ageNotInsane@", "agePositive@age", "nameNotEmpty@name"]
 
 
+class _ReadsAdded(ValidationRuleExecutor):
+    """
+    Stands in for a message-level rule authored as ``this.added == ''``: it can only read the
+    added field if the message it is handed declares it.
+    """
+
+    def execute(self, rule: ValidationRule, schema: Any, message: Any) -> Any:
+        if not isinstance(message, Message):
+            return True
+        fd = message.DESCRIPTOR.fields_by_name.get("added")
+        if fd is None:
+            return f"expected the schema's added field, got {[f.name for f in message.DESCRIPTOR.fields]}"
+        return getattr(message, "added") == ""
+
+
+def _added_field_descriptor():
+    """
+    ValidationPerson with an extra field the generated class does not have, and a
+    message-level rule that reads it - the use.latest.version case where the registered
+    schema has evolved past the message class.
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    validation_widget_pb2.DESCRIPTOR.CopyToProto(fdp)
+    person = next(m for m in fdp.message_type if m.name == "ValidationPerson")
+    added = person.field.add()
+    added.name = "added"
+    added.number = 99
+    added.type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    added.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    rules = person.options.Extensions[meta_pb2.message_meta].rules
+    del rules[:]
+    rule = rules.add()
+    rule.name = "m"
+    rule.expr = "this.added == ''"
+
+    pool = DescriptorPool()
+    _add_widget_deps(pool)
+    fdp.name = "added_field_validation_widget.proto"
+    return pool.Add(fdp).message_types_by_name["ValidationPerson"]
+
+
+def test_protobuf_field_only_the_schema_declares_is_visible_to_message_rules():
+    # Adding a field is the most ordinary compatible change there is, so the registered schema
+    # can declare one the producer's class has never heard of - and a message-level rule can
+    # reference it, expecting the schema's default. The rule's environment comes from the value
+    # it is handed, so that only works if the message is read through the schema: a field with
+    # no counterpart is itself a reason to re-read, even when every shared field agrees.
+    message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
+    violations = validate_protobuf(_ReadsAdded(), _added_field_descriptor(), message, False)
+    assert fired(violations) == []
+
+
 def _add_widget_deps(pool: DescriptorPool) -> None:
     added = set()
 
