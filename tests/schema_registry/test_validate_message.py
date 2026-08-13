@@ -26,7 +26,11 @@ from typing import Any, List
 
 import pytest
 from fastavro.schema import parse_schema
+from google.protobuf import descriptor_pb2
+from google.protobuf.descriptor_pool import DescriptorPool
 from referencing import Registry, Resource
+
+from confluent_kafka.schema_registry.confluent import meta_pb2
 
 from confluent_kafka.schema_registry.common.avro import validate_message as validate_avro
 from confluent_kafka.schema_registry.common.json_schema import DEFAULT_SPEC
@@ -264,6 +268,30 @@ def test_json_reference_schema_resolves_and_fires_rule():
     assert _json(schema, {"inner": {"x": 5}}) == ["r@$.inner.x"]
 
 
+def test_json_multi_type_schema_is_never_mutated():
+    # Narrowing a type array to the branch the message satisfies must not touch the
+    # schema, which is parsed once and shared across concurrent serializations. The
+    # executor observes it mid-walk, when a temporary narrowing would still be in place.
+    schema = {
+        "type": ["object", "null"],
+        "properties": {"x": {"type": "integer", "confluent:rules": _RULE}},
+    }
+    observed = []
+
+    class _Observer(ValidationRuleExecutor):
+        def execute(self, rule: ValidationRule, subschema: Any, message: Any) -> Any:
+            observed.append(schema["type"])
+            return False
+
+    resource = Resource.from_contents(schema, default_specification=DEFAULT_SPEC)
+    registry = Registry().with_resource("", resource)
+    violations = validate_json(_Observer(), schema, registry, registry.resolver(), {"x": 5}, False)
+
+    assert fired(violations) == ["r@$.x"]
+    assert observed == [["object", "null"]]
+    assert schema["type"] == ["object", "null"]
+
+
 def test_json_object_level_rule_fires_at_root():
     schema = {
         "type": "object",
@@ -350,3 +378,47 @@ def test_protobuf_map_field_descends_into_message_values_with_keyed_path():
 def test_protobuf_message_and_field_rules_both_fire():
     message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
     assert _proto(message) == ["ageNotInsane@", "agePositive@age", "nameNotEmpty@name"]
+
+
+def _evolved_person_descriptor():
+    """
+    The ValidationPerson descriptor with an extra rule-carrying field the generated
+    class does not have, standing in for a registered schema that has evolved past
+    the message class in use (the use.latest.version case).
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    validation_widget_pb2.DESCRIPTOR.CopyToProto(fdp)
+    person = next(m for m in fdp.message_type if m.name == "ValidationPerson")
+    added = person.field.add()
+    added.name = "nickname"
+    added.number = 99
+    added.type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    added.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    rule = added.options.Extensions[meta_pb2.field_meta].rules.add()
+    rule.name = "nicknameNotEmpty"
+    rule.expr = "size(this) > 0"
+
+    pool = DescriptorPool()
+    added_files = set()
+
+    def add_deps(file_descriptor):
+        for dep in file_descriptor.dependencies:
+            add_deps(dep)
+            if dep.name in added_files:
+                continue
+            added_files.add(dep.name)
+            dep_proto = descriptor_pb2.FileDescriptorProto()
+            dep.CopyToProto(dep_proto)
+            pool.Add(dep_proto)
+
+    add_deps(validation_widget_pb2.DESCRIPTOR)
+    fdp.name = "evolved_validation_widget.proto"
+    return pool.Add(fdp).message_types_by_name["ValidationPerson"]
+
+
+def test_protobuf_schema_field_missing_from_message_class_is_skipped():
+    # The walk is driven by the message's own fields: the schema's extra field has no
+    # counterpart to read, and validating must not fail because of it.
+    message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
+    violations = validate_protobuf(ALWAYS_FAIL, _evolved_person_descriptor(), message, False)
+    assert fired(violations) == ["ageNotInsane@", "agePositive@age", "nameNotEmpty@name"]

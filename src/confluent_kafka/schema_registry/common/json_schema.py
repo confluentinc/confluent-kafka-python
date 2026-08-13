@@ -140,14 +140,10 @@ def transform(
     field_ctx = ctx.current_field()
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
-    original_type = schema.get("type")
-    if isinstance(original_type, list) and len(original_type) > 0:
+    if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
         subschema = _validate_subtypes(schema, message, ref_registry)
-        try:
-            if subschema is not None:
-                return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
-        finally:
-            schema["type"] = original_type  # restore original type
+        if subschema is not None:
+            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     all_of = schema.get("allOf")
     any_of = schema.get("anyOf")
     one_of = schema.get("oneOf")
@@ -286,14 +282,10 @@ def _validate_message(
     if message is None or schema is None or isinstance(schema, bool):
         return
 
-    original_type = schema.get("type")
-    if isinstance(original_type, list) and len(original_type) > 0:
+    if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
         subschema = _validate_subtypes(schema, message, ref_registry)
-        try:
-            if subschema is not None:
-                _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
-        finally:
-            schema["type"] = original_type  # restore original type
+        if subschema is not None:
+            _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
         return
 
     all_of = schema.get("allOf")
@@ -409,21 +401,26 @@ def _read_validation_rules(schema: JsonSchema) -> List[ValidationRule]:
 def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -> Optional[JsonSchema]:
     """
     Validate the message against the subtypes.
+
+    Each candidate type is tried on a shallow copy of the schema, so the parsed
+    schema - which is cached and shared across concurrent serializations - is never
+    mutated, not even temporarily.
+
     Args:
         schema: The schema to validate the message against.
         message: The message to validate.
         registry: The registry to use for the validation.
     Returns:
-        The validated schema if the message is valid against the subtypes, otherwise None.
+        A copy of the schema narrowed to the matching type, otherwise None.
     """
     schema_type = schema.get("type")
     if not isinstance(schema_type, list) or len(schema_type) == 0:
         return None
     for typ in schema_type:
-        schema["type"] = typ
+        subschema = {**schema, "type": typ}
         try:
-            validate(instance=message, schema=schema, registry=registry)
-            return schema
+            validate(instance=message, schema=subschema, registry=registry)
+            return subschema
         except ValidationError:
             pass
     return None
