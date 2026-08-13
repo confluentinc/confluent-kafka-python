@@ -3,7 +3,7 @@ import io
 import sys
 from collections import deque
 from decimal import MAX_PREC, Context, Decimal
-from typing import Any, Deque, List, Optional, Set
+from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
 from google.protobuf import __version__ as _protobuf_version
 from google.protobuf import (
@@ -22,7 +22,7 @@ from google.protobuf import (
 from google.protobuf.descriptor import Descriptor, FieldDescriptor, FileDescriptor
 from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
-from google.protobuf.message import DecodeError, Message
+from google.protobuf.message import DecodeError, EncodeError, Message
 from google.type import (
     calendar_period_pb2,
     color_pb2,
@@ -361,6 +361,12 @@ def _set_field(fd: FieldDescriptor, message: Message, value: Any):
         setattr(message, fd.name, value)
 
 
+# Keyed by (registered schema descriptor, runtime descriptor): whether a message with that
+# runtime descriptor has to be re-read through the schema's before rules can bind `this` to
+# it. See _needs_schema_view.
+_SCHEMA_VIEW_NEEDED: Dict[Tuple[Descriptor, Descriptor], bool] = {}
+
+
 def validate_message(
     executor: Optional[ValidationRuleExecutor],
     descriptor: Optional[Descriptor],
@@ -390,18 +396,94 @@ def validate_message(
     violations: List[ValidationRuleError] = []
     if executor is None or descriptor is None or message is None:
         return violations
-    # Re-read the message through the registered schema's descriptor. Protobuf pairs fields
-    # by number on the wire, so this carries every value across a rename, and it means a
-    # message-level rule binds `this` to a message whose fields the rule's own environment -
-    # built from the same schema - can resolve. Without it, `this.renamed` reads a missing
-    # field and a valid message is rejected.
-    runtime_descriptor = message.DESCRIPTOR
-    if runtime_descriptor is not descriptor:
+    # The walk is driven by the caller's message throughout: it decides which fields exist,
+    # which are absent, and what the values are. A rule that binds `this` to a message needs
+    # one more thing - a view of that message in the schema's terms, since a rule's CEL
+    # environment is built from the schema and `this.renamed` cannot read a field the
+    # caller's class calls something else. Protobuf pairs fields by number on the wire, so
+    # re-reading the message through the registered descriptor produces exactly that view.
+    #
+    # Re-reading is only worth its cost when the two descriptors actually present values
+    # differently, which is decided once per descriptor pair (see _needs_schema_view) rather
+    # than per record: a generated class that matches the registered schema has a distinct
+    # descriptor object but the same fields, so no re-read happens at all.
+    schema_message = None
+    if _needs_schema_view(descriptor, message.DESCRIPTOR):
         schema_message = message_factory.GetMessageClass(descriptor)()
-        schema_message.ParseFromString(message.SerializeToString())
-        message = schema_message
-    _validate_message(executor, descriptor, message, "", fail_fast, violations, runtime_descriptor)
+        try:
+            schema_message.ParseFromString(message.SerializeToString())
+        except (DecodeError, EncodeError, UnicodeDecodeError) as e:
+            # The bytes the producer is about to write cannot be read through the registered
+            # schema, so a consumer reading with that schema could not read them either - a
+            # bytes field carrying non-UTF-8 data against a schema that declares a string,
+            # for instance, which is a compatible change. Fail in the channel the caller
+            # already handles rather than leaking a protobuf DecodeError, and name the type
+            # so it is searchable.
+            raise SerializationError(
+                f"Could not read message {descriptor.full_name} through the registered schema: {e}"
+            ) from e
+    _validate_message(executor, descriptor, message, "", fail_fast, violations, schema_message)
     return violations
+
+
+def _needs_schema_view(descriptor: Descriptor, runtime_descriptor: Descriptor) -> bool:
+    """
+    Whether a message whose runtime descriptor is ``runtime_descriptor`` has to be re-read
+    through ``descriptor`` before rules can bind ``this`` to it - true when the two disagree
+    about any field a rule could observe: its name, its type, or whether it is repeated, at
+    any depth.
+
+    Presence deliberately does not count. Whether an unset field is absent is decided by the
+    producer's field on the producer's message, which the walk reads directly, so a schema
+    that only moved a field into or out of a oneof needs no re-read.
+
+    Memoized per descriptor pair: both are stable for the lifetime of a serializer, so this
+    is one dict lookup per record rather than a tree comparison. The set of pairs a process
+    sees is bounded by the message types it serializes.
+    """
+    if runtime_descriptor is descriptor:
+        return False
+    key = (descriptor, runtime_descriptor)
+    needed = _SCHEMA_VIEW_NEEDED.get(key)
+    if needed is None:
+        needed = not _presents_same_values(descriptor, runtime_descriptor, set())
+        _SCHEMA_VIEW_NEEDED[key] = needed
+    return needed
+
+
+def _presents_same_values(
+    descriptor: Descriptor, runtime_descriptor: Descriptor, visited: Set[str]
+) -> bool:
+    """
+    Whether the two descriptors present every field they share - paired by number, which is
+    how protobuf identifies a field - under the same name, type and label, recursively
+    through message-valued fields. Fields only one of them declares are ignored: the walk
+    visits the intersection either way.
+
+    ``visited`` holds the descriptor pairs already compared, so a self-referential message
+    type terminates.
+    """
+    pair = f"{descriptor.full_name} {runtime_descriptor.full_name}"
+    if pair in visited:
+        # Already compared on another path, or cycling back to it. Either way this pair
+        # contributes no new disagreement.
+        return True
+    visited.add(pair)
+    for runtime_fd in runtime_descriptor.fields:
+        schema_fd = descriptor.fields_by_number.get(runtime_fd.number)
+        if schema_fd is None:
+            continue
+        if (
+            schema_fd.name != runtime_fd.name
+            or schema_fd.type != runtime_fd.type
+            or _is_repeated(schema_fd) != _is_repeated(runtime_fd)
+        ):
+            return False
+        if runtime_fd.type == FieldDescriptor.TYPE_MESSAGE and not _presents_same_values(
+            schema_fd.message_type, runtime_fd.message_type, visited
+        ):
+            return False
+    return True
 
 
 def _validate_message(
@@ -411,77 +493,122 @@ def _validate_message(
     path: str,
     fail_fast: bool,
     out: List[ValidationRuleError],
-    runtime_descriptor: Optional[Descriptor] = None,
+    schema_message: Optional[Any] = None,
 ):
     """
     Mirrors :func:`transform`'s dispatch shape, walking the message's fields and
     descending into message-valued fields, map values and repeated elements.
 
-    The message arrives in the schema's terms - :func:`validate_message` re-reads it
-    through the registered schema's descriptor - so values and names are the schema's.
-    ``runtime_descriptor`` names the fields the caller's message class actually declares:
-    with ``use.latest.version`` the registered schema may have more, and those are left to
-    the schema's own validation rather than being reported against a message that could
-    never carry them. It is also what the transform walk visits, so both walks cover the
-    same fields.
+    The walk is driven by the caller's ``message``: it decides which fields exist, which are
+    absent, and what the values are. Each field is paired to ``descriptor`` by number, which
+    is how protobuf identifies a field, and the schema's field supplies the rules and the name
+    used in the reported path. Fields the schema does not declare are skipped, so the walk
+    visits the intersection - the same fields the transform walk visits.
+
+    ``schema_message`` is the same message read through ``descriptor``, or ``None`` when the
+    two descriptors present it identically. It is used only where a rule binds ``this`` to a
+    message, which is the one place the schema's field names matter.
     """
     if descriptor is None or message is None or not isinstance(message, Message):
         return
-    # Message-level rules: this = the message.
+    # Message-level rules: this = the message, read as the schema names it.
     for rule in _read_message_validation_rules(descriptor):
-        evaluate_validation_rule(executor, rule, descriptor, message, path, out)
+        evaluate_validation_rule(
+            executor,
+            rule,
+            descriptor,
+            message if schema_message is None else schema_message,
+            path,
+            out,
+        )
         if fail_fast and out:
             return
     for fd in message.DESCRIPTOR.fields:
-        runtime_fd = fd if runtime_descriptor is None else runtime_descriptor.fields_by_number.get(fd.number)
-        if runtime_fd is None:
-            # The caller's message class cannot carry this field, so there is no value of
-            # its own to report against - the same fields the transform walk visits.
+        schema_fd = descriptor.fields_by_number.get(fd.number)
+        if schema_fd is None:
+            # The registered schema does not declare this field, so it carries no rules and
+            # nothing below it can either.
             continue
         # Skip-on-null: a field with explicit presence that is unset does not invoke
         # the executor. Repeated/map fields have no presence and are never None.
+        #
+        # Both halves are read from the caller's message: whether an unset field counts as
+        # absent is decided by the class that wrote it, not by the registered schema, and the
+        # two can disagree - moving a field into or out of a oneof is a compatible change.
         if fd.has_presence and not message.HasField(fd.name):
             continue
         value = getattr(message, fd.name)
-        child_path = fd.name if not path else f"{path}.{fd.name}"
-        for rule in _read_field_validation_rules(fd):
-            evaluate_validation_rule(executor, rule, fd, value, child_path, out)
+        # The path names the field as the registered schema does, which is what a rule refers
+        # to; the value is still read through the caller's field.
+        child_path = schema_fd.name if not path else f"{path}.{schema_fd.name}"
+        # Where a schema view exists, every value comes from it, not just message-valued
+        # ones: the two descriptors can disagree about representation as well as naming.
+        # bytes and string are interchangeable at the same number - a compatible change -
+        # and a rule authored as `this == 'hello'` cannot match a bytes value. Reading the
+        # field is cheap next to the re-read that already happened.
+        schema_value = None if schema_message is None else getattr(schema_message, schema_fd.name)
+        for rule in _read_field_validation_rules(schema_fd):
+            evaluate_validation_rule(
+                executor,
+                rule,
+                schema_fd,
+                value if schema_value is None else schema_value,
+                child_path,
+                out,
+            )
             if fail_fast and out:
                 return
-        if fd.type != FieldDescriptor.TYPE_MESSAGE:
+        if fd.type != FieldDescriptor.TYPE_MESSAGE or schema_fd.type != FieldDescriptor.TYPE_MESSAGE:
             continue
-        # The nested walk gets the runtime side of the same field, so it too visits only
-        # what the caller's class can carry.
-        nested_runtime = (
-            None
-            if runtime_descriptor is None or runtime_fd.type != FieldDescriptor.TYPE_MESSAGE
-            else runtime_fd.message_type
-        )
         if is_map_field(fd):
             value_fd = fd.message_type.fields_by_name['value']
-            nested_runtime_value = (
-                None if nested_runtime is None else nested_runtime.fields_by_name['value'].message_type
-            )
-            if value_fd.type == FieldDescriptor.TYPE_MESSAGE:
+            schema_value_fd = schema_fd.message_type.fields_by_name['value']
+            if (
+                value_fd.type == FieldDescriptor.TYPE_MESSAGE
+                and schema_value_fd.type == FieldDescriptor.TYPE_MESSAGE
+            ):
                 for key, item in value.items():
+                    # Map values pair by key rather than position.
+                    schema_item = (
+                        schema_value[key]
+                        if schema_value is not None and key in schema_value
+                        else None
+                    )
                     _validate_message(
                         executor,
-                        value_fd.message_type,
+                        schema_value_fd.message_type,
                         item,
                         f'{child_path}["{key}"]',
                         fail_fast,
                         out,
-                        nested_runtime_value,
+                        schema_item,
                     )
                     if fail_fast and out:
                         return
         elif _is_repeated(fd):
             for i, item in enumerate(value):
-                _validate_message(executor, fd.message_type, item, f"{child_path}[{i}]", fail_fast, out, nested_runtime)
+                # Both lists came from the same bytes, so they line up; the guard is for
+                # safety.
+                schema_item = (
+                    schema_value[i]
+                    if schema_value is not None and i < len(schema_value)
+                    else None
+                )
+                _validate_message(
+                    executor,
+                    schema_fd.message_type,
+                    item,
+                    f"{child_path}[{i}]",
+                    fail_fast,
+                    out,
+                    schema_item,
+                )
                 if fail_fast and out:
                     return
         else:
-            _validate_message(executor, fd.message_type, value, child_path, fail_fast, out, nested_runtime)
+            _validate_message(
+                executor, schema_fd.message_type, value, child_path, fail_fast, out, schema_value
+            )
             if fail_fast and out:
                 return
 

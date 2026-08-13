@@ -26,11 +26,13 @@ from typing import Any, List
 
 import pytest
 from fastavro.schema import parse_schema
-from google.protobuf import descriptor_pb2
+from google.protobuf import descriptor_pb2, message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
+from google.protobuf.message import Message
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import MessageField, SerializationContext
+from confluent_kafka.serialization import SerializationError
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
 
 from confluent_kafka.schema_registry.common.avro import validate_message as validate_avro
@@ -427,6 +429,192 @@ def test_protobuf_schema_field_missing_from_message_class_is_skipped():
     message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
     violations = validate_protobuf(ALWAYS_FAIL, _evolved_person_descriptor(), message, False)
     assert fired(violations) == ["ageNotInsane@", "agePositive@age", "nameNotEmpty@name"]
+
+
+def _add_widget_deps(pool: DescriptorPool) -> None:
+    added = set()
+
+    def add(file_descriptor):
+        for dep in file_descriptor.dependencies:
+            add(dep)
+            if dep.name in added:
+                return
+            added.add(dep.name)
+            dep_proto = descriptor_pb2.FileDescriptorProto()
+            dep.CopyToProto(dep_proto)
+            pool.Add(dep_proto)
+
+    add(validation_widget_pb2.DESCRIPTOR)
+
+
+def _renamed_nested_descriptor():
+    """
+    The widget schema with the nested types' fields renamed, standing in for a registered
+    schema whose names have moved on from the generated classes. Renaming a field at the same
+    number is a compatible change, so the values still pair up.
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    validation_widget_pb2.DESCRIPTOR.CopyToProto(fdp)
+    for message_name, field_name in (("ValidationInner", "x"), ("ValidationItem", "v")):
+        message = next(m for m in fdp.message_type if m.name == message_name)
+        field = next(f for f in message.field if f.name == field_name)
+        field.name = f"renamed_{field_name}"
+        field.json_name = field.name
+    # Give the singular nested type a message-level rule too, so `this` is bound to a message
+    # on the singular, repeated and map paths alike.
+    inner = next(m for m in fdp.message_type if m.name == "ValidationInner")
+    rule = inner.options.Extensions[meta_pb2.message_meta].rules.add()
+    rule.name = "innerRule"
+    rule.expr = "this.renamed_x > 0"
+
+    pool = DescriptorPool()
+    _add_widget_deps(pool)
+    fdp.name = "renamed_nested_validation_widget.proto"
+    return pool.Add(fdp).message_types_by_name["ValidationOuter"]
+
+
+class _SchemaNamed(ValidationRuleExecutor):
+    """
+    Stands in for a CEL environment built from the registered schema: it can only read the
+    value if the message it is handed names its fields the way the schema does. Non-message
+    values carry no names, so they always pass.
+    """
+
+    def execute(self, rule: ValidationRule, schema: Any, message: Any) -> Any:
+        if not isinstance(message, Message):
+            return True
+        renamed = [f for f in message.DESCRIPTOR.fields if f.name.startswith("renamed_")]
+        if not renamed:
+            return f"expected the schema's names, got {[f.name for f in message.DESCRIPTOR.fields]}"
+        return getattr(message, renamed[0].name) > 0
+
+
+def test_protobuf_nested_message_rules_see_schema_names_under_a_rename():
+    # A rule that binds `this` to a nested message needs that message in the schema's terms,
+    # not just the top-level one - on the singular, repeated and map paths alike. The repeated
+    # elements also have to be paired positionally: only the second one violates.
+    message = validation_widget_pb2.ValidationOuter(
+        inner=validation_widget_pb2.ValidationInner(x=5),
+        items=[
+            validation_widget_pb2.ValidationItem(v=1),
+            validation_widget_pb2.ValidationItem(v=-5),
+        ],
+        labels={"a": validation_widget_pb2.ValidationItem(v=2)},
+    )
+    violations = validate_protobuf(_SchemaNamed(), _renamed_nested_descriptor(), message, False)
+    assert fired(violations) == ["itemRule@items[1]"]
+
+
+def _proto2_required_descriptor(name: str):
+    """
+    A proto2 message with a required field and a rule on another. Built into a fresh pool each
+    call, so two calls produce distinct descriptor objects describing the same fields.
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name = name
+    fdp.package = "test"
+    fdp.syntax = "proto2"
+    fdp.dependency.append("confluent/meta.proto")
+    message = fdp.message_type.add()
+    message.name = "Proto2Required"
+    required = message.field.add()
+    required.name = "a"
+    required.number = 1
+    required.type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    required.label = descriptor_pb2.FieldDescriptorProto.LABEL_REQUIRED
+    optional = message.field.add()
+    optional.name = "b"
+    optional.number = 2
+    optional.type = descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    optional.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    rule = optional.options.Extensions[meta_pb2.field_meta].rules.add()
+    rule.name = "r"
+    rule.expr = "true"
+
+    pool = DescriptorPool()
+    _add_widget_deps(pool)
+    return pool.Add(fdp).message_types_by_name["Proto2Required"]
+
+
+def test_protobuf_descriptors_that_agree_are_not_re_read():
+    # A generated class's descriptor is never the same object as the one built from the
+    # registered schema, so an identity check alone would re-read every record. When the two
+    # describe the same fields there is nothing to gain from it - and something to lose:
+    # re-reading has to serialize the message first, which a proto2 message missing a required
+    # field cannot do.
+    producer_descriptor = _proto2_required_descriptor("producer_proto2.proto")
+    schema_descriptor = _proto2_required_descriptor("registered_proto2.proto")
+    message = message_factory.GetMessageClass(producer_descriptor)()
+    message.b = "set"
+    assert not message.IsInitialized(), "the fixture must be missing its required field"
+
+    violations = validate_protobuf(ALWAYS_FAIL, schema_descriptor, message, False)
+    assert fired(violations) == ["r@b"]
+
+
+def _payload_descriptor(name: str, field_type: int):
+    """A one-field message whose type is the caller's choice, with a rule on that field."""
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name = name
+    fdp.package = "test"
+    fdp.syntax = "proto3"
+    fdp.dependency.append("confluent/meta.proto")
+    message = fdp.message_type.add()
+    message.name = "Payload"
+    field = message.field.add()
+    field.name = "payload"
+    field.number = 1
+    field.type = field_type
+    field.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+    rule = field.options.Extensions[meta_pb2.field_meta].rules.add()
+    rule.name = "r"
+    rule.expr = "true"
+
+    pool = DescriptorPool()
+    _add_widget_deps(pool)
+    return pool.Add(fdp).message_types_by_name["Payload"]
+
+
+class _StringValued(ValidationRuleExecutor):
+    """Stands in for a rule authored as ``this == 'hello'`` against the registered schema."""
+
+    def execute(self, rule: ValidationRule, schema: Any, message: Any) -> Any:
+        return message == "hello"
+
+
+def test_protobuf_scalar_field_rule_sees_the_schemas_representation():
+    # bytes and string are interchangeable at the same number - a compatible change - so a
+    # producer can write bytes against a schema that declares a string. The rule is authored
+    # against the schema, so it has to be handed the string: naming is not the only thing the
+    # schema's view fixes.
+    producer_descriptor = _payload_descriptor(
+        "producer_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
+    )
+    schema_descriptor = _payload_descriptor(
+        "registered_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    )
+    message = message_factory.GetMessageClass(producer_descriptor)()
+    message.payload = b"hello"
+
+    violations = validate_protobuf(_StringValued(), schema_descriptor, message, False)
+    assert fired(violations) == []
+
+
+def test_protobuf_message_unreadable_through_the_schema_raises_serialization_error():
+    # bytes -> string is a compatible change, so a producer writing non-UTF-8 bytes can meet a
+    # registered schema that declares a string. Those bytes cannot be read through it, and the
+    # failure has to arrive as a SerializationError rather than a raw protobuf DecodeError.
+    producer_descriptor = _payload_descriptor(
+        "producer_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
+    )
+    schema_descriptor = _payload_descriptor(
+        "registered_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING
+    )
+    message = message_factory.GetMessageClass(producer_descriptor)()
+    message.payload = b"\xff\xfe"
+
+    with pytest.raises(SerializationError, match="test.Payload"):
+        validate_protobuf(ALWAYS_FAIL, schema_descriptor, message, False)
 
 
 def test_json_transform_visits_every_scalar_type():
