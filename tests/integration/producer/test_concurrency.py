@@ -678,3 +678,46 @@ class TestReentrantDeliveryCallback:
         ), f"expected all {expected_total} reentrantly-produced messages delivered, got {len(second_delivered)}"
 
         producer.close()
+
+    def test_delivery_callback_reentrant_produce_during_close_does_not_truncate_flush(self, kafka_cluster):
+        """A delivery callback fired from close()'s own internal flush
+        calls produce() again. Handle_enter_rk_use() must let
+        this reentrant call through (it's the same thread that's running
+        close()'s flush) instead of rejecting it."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_reentrant_produce_during_close")
+        producer = kafka_cluster.producer(
+            {'error_cb': prefixed_error_cb('test_delivery_callback_reentrant_produce_during_close')}
+        )
+
+        first_delivered = []
+        second_delivered = []
+        errors = []
+
+        def on_second_delivery(err, msg):
+            if err:
+                errors.append(err)
+            else:
+                second_delivered.append(msg)
+
+        def on_first_delivery(err, msg):
+            if err:
+                errors.append(err)
+                return
+            first_delivered.append(msg)
+            producer.produce(topic, value=b'reentrant-during-close', on_delivery=on_second_delivery)
+
+        producer.produce(topic, value=b'original', on_delivery=on_first_delivery)
+        # Deliberately no poll()/flush() here -- close()'s own internal
+        # flush must be what dispatches the delivery callback.
+        assert len(producer) == 1, "the original message must still be queued when close() is called"
+
+        result = producer.close()
+
+        print(
+            f"{called_by()}: close()={result}, first_delivered={len(first_delivered)}, "
+            f"second_delivered={len(second_delivered)}, errors={errors}"
+        )
+        assert result is True, "close() must complete cleanly despite the reentrant produce() from its callback"
+        assert not errors, f"unexpected delivery errors: {errors}"
+        assert len(first_delivered) == 1, "the original message must be delivered"
+        assert len(second_delivered) == 1, "the reentrantly-produced message must itself be delivered"

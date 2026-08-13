@@ -3326,14 +3326,20 @@ int CallState_end(Handle *h, CallState *cs) {
  *          Handle is closed/closing (nothing to undo).
  */
 int Handle_enter_rk_use(Handle *h) {
-        if (atomic_int_get(&h->closing) || !h->rk) {
+        unsigned long self_tid = PyThread_get_thread_ident();
+
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
                 return 0;
         }
         atomic_int_inc(&h->active_calls);
         /* close() may have started between our check above and the
          * increment; re-check now that we're counted. */
-        if (atomic_int_get(&h->closing) || !h->rk) {
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
                 atomic_int_dec(&h->active_calls);
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
                 return 0;

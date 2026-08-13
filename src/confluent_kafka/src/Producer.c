@@ -595,6 +595,12 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
+        /* Record which thread won, so Handle_enter_rk_use() can let a
+         * reentrant call through if (and only if) it's this same thread --
+         * i.e. close()'s own delivery callback, fired synchronously from
+         * inside the flush() call below, calling back into the Producer. */
+        atomic_ulong_set(&self->closing_thread, PyThread_get_thread_ident());
+
         /* Signal in-flight calls to stop, and wait for them to finish
          * using self->rk before destroying it -- see Handle_enter_rk_use().
          * New calls will see `closing` and fail with ERR_MSG_PRODUCER_CLOSED. */
@@ -611,6 +617,7 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
                         /* Abort the attempt: rk was never touched, so
                          * reopen the gate for a future close() attempt.
                          */
+                        atomic_ulong_set(&self->closing_thread, 0);
                         atomic_int_set(&self->closing, 0);
                         return NULL;
                 }
@@ -1088,6 +1095,8 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
+        /* TODO NOGIL: closing rejects this mandatory abort even from an
+         * unrelated thread once close() has started. Revisit. */
         if (!Handle_enter_rk_use(self))
                 return NULL;
 
