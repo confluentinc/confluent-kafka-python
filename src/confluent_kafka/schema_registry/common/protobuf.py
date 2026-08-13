@@ -265,9 +265,11 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
         # Driven by the runtime message's fields, each matched by name to the
         # schema-side descriptor, which is the one carrying the inline tags. The two
         # can differ under use.latest.version, and only the runtime field can be read
-        # off the message.
+        # off the message. The schema field is resolved by number, not by name: protobuf
+        # identifies a field by its number, and renaming a field at the same number is a
+        # compatible change, so the registered schema's name for a field can differ.
         for fd in message.DESCRIPTOR.fields:
-            schema_fd = descriptor.fields_by_name.get(fd.name)
+            schema_fd = descriptor.fields_by_number.get(fd.number)
             if schema_fd is None:
                 # No schema field means no tags, so no transform applies to it.
                 continue
@@ -290,10 +292,15 @@ def _transform_field(
     field_transform: FieldTransform,
 ):
     try:
-        # Tags come from the schema-side field descriptor; presence and the value
-        # itself can only be read through the runtime one.
-        ctx.enter_field(message, fd.full_name, fd.name, get_type(fd), get_inline_tags(schema_fd))
-        if fd.containing_oneof is not None and not message.HasField(fd.name):
+        # Names and tags come from the schema-side field descriptor - rules and metadata
+        # tags are written against the registered schema; presence and the value itself
+        # can only be read through the runtime one.
+        ctx.enter_field(message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd))
+        # Skip-on-null, as in the validation walk: a field with explicit presence that is
+        # unset has no value to transform, and writing one back would materialize it -
+        # turning an absent message or unset optional scalar into a present one carrying a
+        # transformed default. has_presence covers oneof members too.
+        if fd.has_presence and not message.HasField(fd.name):
             return
         value = getattr(message, fd.name)
         if is_map_field(fd):
@@ -412,7 +419,9 @@ def _validate_message(
         if fail_fast and out:
             return
     for fd in message.DESCRIPTOR.fields:
-        schema_fd = descriptor.fields_by_name.get(fd.name)
+        # Resolved by number, as in transform: a field renamed at the same number is a
+        # compatible change, so the registered schema's name for it can differ.
+        schema_fd = descriptor.fields_by_number.get(fd.number)
         if schema_fd is None:
             # The schema does not know this field, so it declares no rules for it.
             continue
@@ -421,7 +430,8 @@ def _validate_message(
         if fd.has_presence and not message.HasField(fd.name):
             continue
         value = getattr(message, fd.name)
-        child_path = fd.name if not path else f"{path}.{fd.name}"
+        # Paths and names come from the registered schema, which is what a rule refers to.
+        child_path = schema_fd.name if not path else f"{path}.{schema_fd.name}"
         for rule in _read_field_validation_rules(schema_fd):
             evaluate_validation_rule(executor, rule, schema_fd, value, child_path, out)
             if fail_fast and out:

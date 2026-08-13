@@ -23,7 +23,11 @@ nested, repeated and map-valued messages.
 
 from typing import Any
 
+from google.protobuf import descriptor_pb2
+from google.protobuf.descriptor_pool import DescriptorPool
+
 from confluent_kafka.schema_registry import MessageField, SerializationContext
+from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.common.protobuf import transform
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
 from confluent_kafka.schema_registry.serde import RuleContext
@@ -32,8 +36,8 @@ from .data.proto import validation_widget_pb2
 from .test_validate_message import _evolved_person_descriptor
 
 
-def _rule_context() -> RuleContext:
-    rule = Rule("t", None, RuleKind.TRANSFORM, RuleMode.WRITE, "TEST", None, None, None, None, None, False)
+def _rule_context(tags: Any = None) -> RuleContext:
+    rule = Rule("t", None, RuleKind.TRANSFORM, RuleMode.WRITE, "TEST", tags, None, None, None, None, False)
     return RuleContext(
         None,
         SerializationContext("topic", MessageField.VALUE),
@@ -85,3 +89,65 @@ def test_transform_ignores_schema_fields_absent_from_the_message_class():
 
     assert message.age == 31
     assert message.name == "ALICE"
+
+
+def test_transform_leaves_absent_fields_absent():
+    # A field with explicit presence that is unset has nothing to transform, and writing a
+    # value back would materialize it: an absent message or unset optional scalar would
+    # become present, carrying a transformed default.
+    message = validation_widget_pb2.ValidationOuter(tags=["t"])
+    transform(_rule_context(), message.DESCRIPTOR, message, _bump)
+
+    assert not message.HasField('inner'), 'the absent message was materialized'
+    assert not message.HasField('maybe'), 'the unset optional scalar was materialized'
+    # The fields that are present are still transformed.
+    assert list(message.tags) == ["T"]
+
+
+def _renamed_person_descriptor():
+    """
+    ValidationPerson with field 2 renamed and tagged, standing in for a registered schema
+    whose field names have moved on from the generated class (a compatible change, since
+    protobuf identifies a field by its number).
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    validation_widget_pb2.DESCRIPTOR.CopyToProto(fdp)
+    person = next(m for m in fdp.message_type if m.name == "ValidationPerson")
+    renamed = next(f for f in person.field if f.number == 2)
+    renamed.name = "renamed"
+    renamed.json_name = "renamed"
+    renamed.options.Extensions[meta_pb2.field_meta].tags.append("PII")
+
+    pool = DescriptorPool()
+    added_files = set()
+
+    def add_deps(file_descriptor):
+        for dep in file_descriptor.dependencies:
+            add_deps(dep)
+            if dep.name in added_files:
+                continue
+            added_files.add(dep.name)
+            dep_proto = descriptor_pb2.FileDescriptorProto()
+            dep.CopyToProto(dep_proto)
+            pool.Add(dep_proto)
+
+    add_deps(validation_widget_pb2.DESCRIPTOR)
+    fdp.name = "renamed_validation_widget.proto"
+    return pool.Add(fdp).message_types_by_name["ValidationPerson"]
+
+
+def test_transform_resolves_renamed_fields_by_number():
+    # Renaming a field at the same number is a compatible change, so resolving the schema
+    # field by name would find nothing and silently skip it - leaving a tagged field
+    # untransformed. The name reported to the rule is the registered schema's.
+    visited = []
+
+    def field_transform(ctx, field_ctx, value):
+        visited.append(field_ctx.name)
+        return value.upper() if isinstance(value, str) else value
+
+    message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
+    transform(_rule_context(['PII']), _renamed_person_descriptor(), message, field_transform)
+
+    assert message.name == "ALICE", 'the tagged field was not transformed'
+    assert visited == ['renamed'], f'expected the registered name, got {visited}'
