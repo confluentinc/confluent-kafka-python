@@ -141,14 +141,36 @@ class FieldType(str, Enum):
 
 
 class FieldContext(object):
-    __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags']
+    """
+    The field a transform is being applied to.
 
-    def __init__(self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Set[str]):
+    ``name`` and ``full_name`` are the *registered schema's* names for the field, since that
+    is what a rule refers to, while ``containing_message`` is the caller's own message. Those
+    two can disagree: renaming a field at the same number is a compatible change, so under
+    use.latest.version the schema may call a field something the producer's class does not.
+    Anything that needs the field itself must therefore go through ``field_descriptor``
+    rather than looking ``name`` up on the containing message.
+    """
+
+    __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags', 'field_descriptor']
+
+    def __init__(
+        self,
+        containing_message: Any,
+        full_name: str,
+        name: str,
+        field_type: FieldType,
+        tags: Set[str],
+        field_descriptor: Any = None,
+    ):
         self.containing_message = containing_message
         self.full_name = full_name
         self.name = name
         self.field_type = field_type
         self.tags = tags
+        # The producer's own handle on the field, for formats that have one: a protobuf
+        # FieldDescriptor. None for Avro and JSON Schema, whose walks carry no such object.
+        self.field_descriptor = field_descriptor
 
     def is_primitive(self) -> bool:
         return self.field_type in (
@@ -238,11 +260,17 @@ class RuleContext(object):
         return self._field_contexts[-1]
 
     def enter_field(
-        self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Optional[Set[str]]
+        self,
+        containing_message: Any,
+        full_name: str,
+        name: str,
+        field_type: FieldType,
+        tags: Optional[Set[str]],
+        field_descriptor: Any = None,
     ) -> FieldContext:
         all_tags = set(tags if tags is not None else self._get_inline_tags(full_name))
         all_tags.update(self.get_tags(full_name))
-        field_context = FieldContext(containing_message, full_name, name, field_type, all_tags)
+        field_context = FieldContext(containing_message, full_name, name, field_type, all_tags, field_descriptor)
         self._field_contexts.append(field_context)
         return field_context
 

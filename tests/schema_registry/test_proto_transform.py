@@ -27,9 +27,11 @@ from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
 
 from confluent_kafka.schema_registry import MessageField, SerializationContext
+from confluent_kafka.schema_registry.schema_registry_client import Schema
 from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.common.protobuf import transform
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
+from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
 from confluent_kafka.schema_registry.serde import RuleContext
 
 from .data.proto import validation_widget_pb2
@@ -151,3 +153,37 @@ def test_transform_resolves_renamed_fields_by_number():
 
     assert message.name == "ALICE", 'the tagged field was not transformed'
     assert visited == ['renamed'], f'expected the registered name, got {visited}'
+
+
+def _cel_rule_context(expr: str, tags: Any) -> RuleContext:
+    rule = Rule("t", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", tags, None, expr, None, None, False)
+    # The CEL executor reads the target schema for its type and cache key only, so the text
+    # does not matter here.
+    target = Schema("", "PROTOBUF")
+    return RuleContext(
+        None,
+        SerializationContext("topic", MessageField.VALUE),
+        None,
+        target,
+        "topic-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        {},
+        None,
+    )
+
+
+def test_cel_field_rule_runs_on_a_renamed_field():
+    # The field context reports the registered schema's name for the field, since that is what
+    # a rule refers to - but the producer's message knows the field under its own name. An
+    # executor that resolved the reported name against the message would raise before the rule
+    # ran, so the walk carries the producer's own field descriptor for the value conversion.
+    message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
+    ctx = _cel_rule_context("name == 'renamed' ; value + '-x'", ['PII'])
+    field_transform = CelFieldExecutor().new_transform(ctx)
+
+    transform(ctx, _renamed_person_descriptor(), message, field_transform)
+
+    assert message.name == "Alice-x"
