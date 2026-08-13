@@ -295,8 +295,12 @@ def _transform_field(
     try:
         # Names and tags come from the schema-side field descriptor - rules and metadata
         # tags are written against the registered schema; presence and the value itself
-        # can only be read through the runtime one.
-        ctx.enter_field(message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd))
+        # can only be read through the runtime one, which is carried along so that an
+        # executor needing the field itself does not have to look the schema's name up on
+        # the caller's message, where a compatible rename means it is not found.
+        ctx.enter_field(
+            message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd), fd
+        )
         # Skip-on-null, as in the validation walk: a field with explicit presence that is
         # unset has no value to transform, and writing one back would materialize it -
         # turning an absent message or unset optional scalar into a present one carrying a
