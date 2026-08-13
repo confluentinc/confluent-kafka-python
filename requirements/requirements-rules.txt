@@ -12,4 +12,7 @@ hvac
 jsonata-python
 # Dependency of cel-python.  Use version 6 due to https://github.com/yaml/pyyaml/issues/601
 pyyaml>=6.0.0
-tink
+# Request the gcpkms extra rather than listing its contents: tink 1.16.0 added
+# google-crc32c/pyasn1/pyasn1-modules to that extra, and a hand-maintained copy of
+# the list silently goes stale (the gcpkms import then fails at import time).
+tink[gcpkms]
