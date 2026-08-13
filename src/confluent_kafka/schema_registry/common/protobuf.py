@@ -3,7 +3,7 @@ import io
 import sys
 from collections import deque
 from decimal import MAX_PREC, Context, Decimal
-from typing import Any, Deque, List, Set
+from typing import Any, Deque, List, Optional, Set
 
 from google.protobuf import __version__ as _protobuf_version
 from google.protobuf import (
@@ -20,6 +20,7 @@ from google.protobuf import (
     wrappers_pb2,
 )
 from google.protobuf.descriptor import Descriptor, FieldDescriptor, FileDescriptor
+from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.message import DecodeError, Message
 from google.type import (
@@ -41,7 +42,16 @@ from google.type import (
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.confluent.types import decimal_pb2
-from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+from confluent_kafka.schema_registry.serde import (
+    FieldTransform,
+    FieldType,
+    RuleConditionError,
+    RuleContext,
+    ValidationRule,
+    ValidationRuleError,
+    ValidationRuleExecutor,
+    evaluate_validation_rule,
+)
 from confluent_kafka.serialization import SerializationError
 
 __all__ = [
@@ -54,6 +64,7 @@ __all__ = [
     'transform',
     '_transform_field',
     '_set_field',
+    'validate_message',
     'get_type',
     'is_map_field',
     '_is_repeated',
@@ -252,8 +263,18 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
     if isinstance(message, dict):
         return {key: transform(ctx, descriptor, value, field_transform) for key, value in message.items()}
     if isinstance(message, Message):
-        for fd in descriptor.fields:
-            _transform_field(ctx, fd, descriptor, message, field_transform)
+        # Driven by the runtime message's fields, each matched by name to the
+        # schema-side descriptor, which is the one carrying the inline tags. The two
+        # can differ under use.latest.version, and only the runtime field can be read
+        # off the message. The schema field is resolved by number, not by name: protobuf
+        # identifies a field by its number, and renaming a field at the same number is a
+        # compatible change, so the registered schema's name for a field can differ.
+        for fd in message.DESCRIPTOR.fields:
+            schema_fd = descriptor.fields_by_number.get(fd.number)
+            if schema_fd is None:
+                # No schema field means no tags, so no transform applies to it.
+                continue
+            _transform_field(ctx, fd, schema_fd, descriptor, message, field_transform)
         return message
     field_ctx = ctx.current_field()
     if field_ctx is not None:
@@ -264,18 +285,30 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
 
 
 def _transform_field(
-    ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor, message: Message, field_transform: FieldTransform
+    ctx: RuleContext,
+    fd: FieldDescriptor,
+    schema_fd: FieldDescriptor,
+    desc: Descriptor,
+    message: Message,
+    field_transform: FieldTransform,
 ):
     try:
-        ctx.enter_field(message, fd.full_name, fd.name, get_type(fd), get_inline_tags(fd))
-        if fd.containing_oneof is not None and not message.HasField(fd.name):
+        # Names and tags come from the schema-side field descriptor - rules and metadata
+        # tags are written against the registered schema; presence and the value itself
+        # can only be read through the runtime one.
+        ctx.enter_field(message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd))
+        # Skip-on-null, as in the validation walk: a field with explicit presence that is
+        # unset has no value to transform, and writing one back would materialize it -
+        # turning an absent message or unset optional scalar into a present one carrying a
+        # transformed default. has_presence covers oneof members too.
+        if fd.has_presence and not message.HasField(fd.name):
             return
         value = getattr(message, fd.name)
         if is_map_field(fd):
             value = {key: value[key] for key in value}
         elif _is_repeated(fd):
             value = [item for item in value]
-        new_value = transform(ctx, desc, value, field_transform)
+        new_value = transform(ctx, _child_descriptor(schema_fd, desc), value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
@@ -285,17 +318,190 @@ def _transform_field(
         ctx.exit_field()
 
 
+def _child_descriptor(schema_fd: FieldDescriptor, desc: Descriptor) -> Descriptor:
+    """
+    The descriptor to walk a field's value with: the field's own message type for
+    message-valued fields (a map's value type, since Python surfaces a map as a dict
+    of values rather than a list of entries), and otherwise the containing descriptor,
+    whose walk lands on the leaf branch and applies the transform.
+    """
+    if schema_fd.type != FieldDescriptor.TYPE_MESSAGE:
+        return desc
+    if is_map_field(schema_fd):
+        value_fd = schema_fd.message_type.fields_by_name['value']
+        return value_fd.message_type if value_fd.type == FieldDescriptor.TYPE_MESSAGE else desc
+    return schema_fd.message_type
+
+
+def _is_message_map(fd: FieldDescriptor) -> bool:
+    return is_map_field(fd) and fd.message_type.fields_by_name['value'].type == FieldDescriptor.TYPE_MESSAGE
+
+
 def _set_field(fd: FieldDescriptor, message: Message, value: Any):
     if isinstance(value, list):
         message.ClearField(fd.name)
         old_value = getattr(message, fd.name)
         old_value.extend(value)
     elif isinstance(value, dict):
-        message.ClearField(fd.name)
         old_value = getattr(message, fd.name)
-        old_value.update(value)
+        if _is_message_map(fd):
+            # A map of messages rejects update(); the walk transformed each entry in
+            # place, so copying onto the live entry is a no-op unless the transform
+            # handed back a different message.
+            for key, item in value.items():
+                old_value[key].CopyFrom(item)
+        else:
+            message.ClearField(fd.name)
+            getattr(message, fd.name).update(value)
+    elif isinstance(value, Message):
+        # Message fields cannot be assigned; CopyFrom is a no-op when the walk
+        # transformed the nested message in place and handed back the same object.
+        getattr(message, fd.name).CopyFrom(value)
     else:
         setattr(message, fd.name, value)
+
+
+def validate_message(
+    executor: Optional[ValidationRuleExecutor],
+    descriptor: Optional[Descriptor],
+    message: Any,
+    fail_fast: bool = False,
+) -> List[ValidationRuleError]:
+    """
+    Walk ``message`` against ``descriptor``, evaluating every inline validation rule
+    declared in the ``confluent.Meta`` extension and collecting all failures.
+    Read-only — the message is not modified.
+
+    Two kinds of rules are evaluated:
+
+    - Message-level (``confluent.message_meta`` rules) — ``this`` is the message.
+    - Field-level (``confluent.field_meta`` rules) — ``this`` is the field value; for
+      repeated and map fields that is the whole collection. Honors the skip-on-null
+      contract: a field with explicit presence that is unset (proto3 ``optional``,
+      singular message fields, oneof members) does not have its rules invoked.
+
+    Failures are appended with their dotted-path location (e.g. ``addr.zip``,
+    ``items[3]``, ``labels["k"]``). The walk continues after each failure unless
+    ``fail_fast`` is set.
+
+    Only ``message_meta`` and ``field_meta`` rules are evaluated; rules on files,
+    enums and enum values are ignored, matching the JVM client.
+    """
+    violations: List[ValidationRuleError] = []
+    if executor is None or descriptor is None or message is None:
+        return violations
+    # Re-read the message through the registered schema's descriptor. Protobuf pairs fields
+    # by number on the wire, so this carries every value across a rename, and it means a
+    # message-level rule binds `this` to a message whose fields the rule's own environment -
+    # built from the same schema - can resolve. Without it, `this.renamed` reads a missing
+    # field and a valid message is rejected.
+    runtime_descriptor = message.DESCRIPTOR
+    if runtime_descriptor is not descriptor:
+        schema_message = message_factory.GetMessageClass(descriptor)()
+        schema_message.ParseFromString(message.SerializeToString())
+        message = schema_message
+    _validate_message(executor, descriptor, message, "", fail_fast, violations, runtime_descriptor)
+    return violations
+
+
+def _validate_message(
+    executor: ValidationRuleExecutor,
+    descriptor: Descriptor,
+    message: Any,
+    path: str,
+    fail_fast: bool,
+    out: List[ValidationRuleError],
+    runtime_descriptor: Optional[Descriptor] = None,
+):
+    """
+    Mirrors :func:`transform`'s dispatch shape, walking the message's fields and
+    descending into message-valued fields, map values and repeated elements.
+
+    The message arrives in the schema's terms - :func:`validate_message` re-reads it
+    through the registered schema's descriptor - so values and names are the schema's.
+    ``runtime_descriptor`` names the fields the caller's message class actually declares:
+    with ``use.latest.version`` the registered schema may have more, and those are left to
+    the schema's own validation rather than being reported against a message that could
+    never carry them. It is also what the transform walk visits, so both walks cover the
+    same fields.
+    """
+    if descriptor is None or message is None or not isinstance(message, Message):
+        return
+    # Message-level rules: this = the message.
+    for rule in _read_message_validation_rules(descriptor):
+        evaluate_validation_rule(executor, rule, descriptor, message, path, out)
+        if fail_fast and out:
+            return
+    for fd in message.DESCRIPTOR.fields:
+        runtime_fd = fd if runtime_descriptor is None else runtime_descriptor.fields_by_number.get(fd.number)
+        if runtime_fd is None:
+            # The caller's message class cannot carry this field, so there is no value of
+            # its own to report against - the same fields the transform walk visits.
+            continue
+        # Skip-on-null: a field with explicit presence that is unset does not invoke
+        # the executor. Repeated/map fields have no presence and are never None.
+        if fd.has_presence and not message.HasField(fd.name):
+            continue
+        value = getattr(message, fd.name)
+        child_path = fd.name if not path else f"{path}.{fd.name}"
+        for rule in _read_field_validation_rules(fd):
+            evaluate_validation_rule(executor, rule, fd, value, child_path, out)
+            if fail_fast and out:
+                return
+        if fd.type != FieldDescriptor.TYPE_MESSAGE:
+            continue
+        # The nested walk gets the runtime side of the same field, so it too visits only
+        # what the caller's class can carry.
+        nested_runtime = (
+            None
+            if runtime_descriptor is None or runtime_fd.type != FieldDescriptor.TYPE_MESSAGE
+            else runtime_fd.message_type
+        )
+        if is_map_field(fd):
+            value_fd = fd.message_type.fields_by_name['value']
+            nested_runtime_value = (
+                None if nested_runtime is None else nested_runtime.fields_by_name['value'].message_type
+            )
+            if value_fd.type == FieldDescriptor.TYPE_MESSAGE:
+                for key, item in value.items():
+                    _validate_message(
+                        executor,
+                        value_fd.message_type,
+                        item,
+                        f'{child_path}["{key}"]',
+                        fail_fast,
+                        out,
+                        nested_runtime_value,
+                    )
+                    if fail_fast and out:
+                        return
+        elif _is_repeated(fd):
+            for i, item in enumerate(value):
+                _validate_message(executor, fd.message_type, item, f"{child_path}[{i}]", fail_fast, out, nested_runtime)
+                if fail_fast and out:
+                    return
+        else:
+            _validate_message(executor, fd.message_type, value, child_path, fail_fast, out, nested_runtime)
+            if fail_fast and out:
+                return
+
+
+def _read_message_validation_rules(descriptor: Descriptor) -> List[ValidationRule]:
+    options = descriptor.GetOptions()
+    if not options.HasExtension(meta_pb2.message_meta):  # type: ignore[attr-defined]
+        return []
+    return _to_validation_rules(options.Extensions[meta_pb2.message_meta].rules)  # type: ignore[attr-defined]
+
+
+def _read_field_validation_rules(fd: FieldDescriptor) -> List[ValidationRule]:
+    options = fd.GetOptions()
+    if not options.HasExtension(meta_pb2.field_meta):  # type: ignore[attr-defined]
+        return []
+    return _to_validation_rules(options.Extensions[meta_pb2.field_meta].rules)  # type: ignore[attr-defined]
+
+
+def _to_validation_rules(rules: Any) -> List[ValidationRule]:
+    return [ValidationRule(r.name, r.doc, r.expr, r.sql) for r in rules]
 
 
 def get_type(fd: FieldDescriptor) -> FieldType:
@@ -335,11 +541,10 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 
 def is_map_field(fd: FieldDescriptor):
-    return (
-        fd.type == FieldDescriptor.TYPE_MESSAGE
-        and hasattr(fd.message_type, 'options')
-        and fd.message_type.options.map_entry
-    )
+    # Read the options via GetOptions() rather than the deprecated `options` attribute,
+    # which is absent from the upb descriptors used by protobuf >= 7 — where reading it
+    # made this return False for every map field.
+    return fd.type == FieldDescriptor.TYPE_MESSAGE and fd.message_type.GetOptions().map_entry
 
 
 def get_inline_tags(fd: FieldDescriptor) -> Set[str]:
