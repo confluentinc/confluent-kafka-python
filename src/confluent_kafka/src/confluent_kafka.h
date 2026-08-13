@@ -83,6 +83,29 @@ static inline int atomic_int_cas(atomic_int_t *p, int expected, int desired) {
 }
 #endif
 
+/**
+ * @brief Same idea as atomic_int_t above, but sized to hold a
+ *        PyThread_get_thread_ident() value (unsigned long,
+ *        pointer-sized on most platforms) without truncation.
+ */
+#if defined(_MSC_VER)
+typedef volatile LONG_PTR atomic_ulong_t;
+
+#define atomic_ulong_init(p, v) (*(p) = (v))
+#define atomic_ulong_get(p)                                                   \
+        ((unsigned long)InterlockedCompareExchangePointer(                   \
+            (PVOID volatile *)(p), 0, 0))
+#define atomic_ulong_set(p, v)                                                \
+        InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
+
+#else /* gcc / clang */
+typedef unsigned long atomic_ulong_t;
+
+#define atomic_ulong_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+#define atomic_ulong_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_ulong_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+#endif
+
 
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
@@ -298,6 +321,7 @@ typedef struct {
          */
         atomic_int_t active_calls;
         atomic_int_t closing;
+        atomic_ulong_t closing_thread;
 
         union {
                 /**
