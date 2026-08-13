@@ -30,12 +30,11 @@ from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
 from referencing import Registry, Resource
 
-from confluent_kafka.schema_registry.confluent import meta_pb2
-
 from confluent_kafka.schema_registry.common.avro import validate_message as validate_avro
 from confluent_kafka.schema_registry.common.json_schema import DEFAULT_SPEC
 from confluent_kafka.schema_registry.common.json_schema import validate_message as validate_json
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
+from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.serde import (
     ValidationRule,
     ValidationRuleError,
