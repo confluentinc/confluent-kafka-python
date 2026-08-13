@@ -779,6 +779,7 @@ static CFL_UNUSED CFL_INLINE int check_signals_between_chunks(Handle *self,
  ****************************************************************************/
 
 extern PyTypeObject ConsumerType;
+extern PyObject *Consumer_reentry_identity_var;
 
 
 /****************************************************************************
