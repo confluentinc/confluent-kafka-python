@@ -30,12 +30,18 @@ from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
 from referencing import Registry, Resource
 
+from confluent_kafka.schema_registry import MessageField, SerializationContext
+from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
+
 from confluent_kafka.schema_registry.common.avro import validate_message as validate_avro
 from confluent_kafka.schema_registry.common.json_schema import DEFAULT_SPEC
+from confluent_kafka.schema_registry.common.json_schema import transform as transform_json
 from confluent_kafka.schema_registry.common.json_schema import validate_message as validate_json
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
 from confluent_kafka.schema_registry.confluent import meta_pb2
+from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import (
+    RuleContext,
     ValidationRule,
     ValidationRuleError,
     ValidationRuleExecutor,
@@ -421,3 +427,91 @@ def test_protobuf_schema_field_missing_from_message_class_is_skipped():
     message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
     violations = validate_protobuf(ALWAYS_FAIL, _evolved_person_descriptor(), message, False)
     assert fired(violations) == ["ageNotInsane@", "agePositive@age", "nameNotEmpty@name"]
+
+
+def test_json_transform_visits_every_scalar_type():
+    # The transform walk - unlike the validation walk, which dispatches structurally -
+    # dispatches on the FieldType a schema type name maps to, so a mapping that names a type
+    # JSON Schema does not have would silently skip those fields: no transform, no error.
+    # Go had exactly that bug with "int" instead of "integer".
+    schema = {
+        "type": "object",
+        "properties": {
+            "s": {"type": "string"},
+            "i": {"type": "integer"},
+            "n": {"type": "number"},
+            "b": {"type": "boolean"},
+        },
+    }
+    visited = []
+
+    def field_transform(ctx, field_ctx, value):
+        visited.append(field_ctx.name)
+        return value
+
+    resource = Resource.from_contents(schema, default_specification=DEFAULT_SPEC)
+    registry = Registry().with_resource("", resource)
+    rule = Rule("t", None, RuleKind.TRANSFORM, RuleMode.WRITE, "TEST", None, None, None, None, None, False)
+    ctx = RuleContext(
+        None,
+        SerializationContext("topic", MessageField.VALUE),
+        None,
+        None,
+        "topic-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        {},
+        None,
+    )
+    message = {"s": "x", "i": 1, "n": 1.5, "b": True}
+
+    transform_json(ctx, schema, registry, registry.resolver(), "$", message, field_transform)
+
+    assert sorted(visited) == ["b", "i", "n", "s"], f'a scalar type was skipped: {visited}'
+
+
+def _renamed_person_descriptor_with_message_rule():
+    """
+    ValidationPerson with field 2 renamed and a message-level rule that refers to the new
+    name, standing in for a registered schema whose field names have moved on from the
+    generated class.
+    """
+    fdp = descriptor_pb2.FileDescriptorProto()
+    validation_widget_pb2.DESCRIPTOR.CopyToProto(fdp)
+    person = next(m for m in fdp.message_type if m.name == "ValidationPerson")
+    renamed = next(f for f in person.field if f.number == 2)
+    renamed.name = "renamed"
+    renamed.json_name = "renamed"
+    del person.options.Extensions[meta_pb2.message_meta].rules[:]
+    rule = person.options.Extensions[meta_pb2.message_meta].rules.add()
+    rule.name = "nameIsAlice"
+    rule.expr = "this.renamed == 'Alice'"
+
+    pool = DescriptorPool()
+    added_files = set()
+
+    def add_deps(file_descriptor):
+        for dep in file_descriptor.dependencies:
+            add_deps(dep)
+            if dep.name in added_files:
+                continue
+            added_files.add(dep.name)
+            dep_proto = descriptor_pb2.FileDescriptorProto()
+            dep.CopyToProto(dep_proto)
+            pool.Add(dep_proto)
+
+    add_deps(validation_widget_pb2.DESCRIPTOR)
+    fdp.name = "renamed_message_rule_widget.proto"
+    return pool.Add(fdp).message_types_by_name["ValidationPerson"]
+
+
+def test_protobuf_message_level_rule_sees_schema_names():
+    # A message-level rule binds `this` to the message and its CEL environment is built from
+    # the registered schema, so the message it evaluates has to be in the schema's terms too.
+    # Otherwise a rule written against a renamed field reads a missing field and rejects a
+    # valid message.
+    message = validation_widget_pb2.ValidationPerson(age=30, name="Alice")
+    violations = validate_protobuf(CelValidator(), _renamed_person_descriptor_with_message_rule(), message, False)
+    assert fired(violations) == [], f'the rule was evaluated against the wrong names: {violations}'
