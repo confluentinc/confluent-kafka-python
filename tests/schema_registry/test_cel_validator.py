@@ -228,3 +228,48 @@ def test_int_values_still_bind_as_cel_ints(validator, expr, value, expected):
 def test_values_bind_to_their_own_cel_type(value, cel_type):
     # Pins the dispatch order directly: bool must not be captured by the int branch.
     assert type(_value_to_cel(value)) is cel_type
+
+
+# CEL's `has()` reports protobuf presence, which protobuf tracks three ways: explicit for
+# `optional`, oneof members and messages; non-empty for repeated and map fields; and
+# difference-from-default for a proto3 scalar with implicit presence. The last of these used
+# to report set unconditionally, because the key was always in the bound map - so `has()` was
+# true even for a field the producer never wrote. Go, Java, JS and .NET all report false, as
+# does every protovalidate implementation.
+@pytest.mark.parametrize("expr", [
+    "has(this.age)",     # implicit-presence scalar
+    "has(this.name)",    # implicit-presence string
+])
+def test_has_is_false_for_unset_implicit_presence_fields(validator, expr):
+    msg = validation_widget_pb2.ValidationPerson(age=0, name="")
+    assert validator.execute(rule(expr), msg.DESCRIPTOR, msg) is False
+
+
+@pytest.mark.parametrize("expr", ["has(this.age)", "has(this.name)"])
+def test_has_is_true_once_written(validator, expr):
+    msg = validation_widget_pb2.ValidationPerson(age=5, name="x")
+    assert validator.execute(rule(expr), msg.DESCRIPTOR, msg) is True
+
+
+# A field still reads as its default outside has(), which is why the key cannot simply be
+# omitted from the bound map.
+@pytest.mark.parametrize("expr", ["this.age == 0", "this.name == ''"])
+def test_unset_fields_still_read_as_their_default(validator, expr):
+    msg = validation_widget_pb2.ValidationPerson(age=0, name="")
+    assert validator.execute(rule(expr), msg.DESCRIPTOR, msg) is True
+
+
+@pytest.mark.parametrize("expr", [
+    "has(this.inner)",   # message: explicit presence
+    "has(this.items)",   # repeated: non-empty
+    "has(this.labels)",  # map: non-empty
+])
+def test_has_covers_every_presence_shape(validator, expr):
+    empty = validation_widget_pb2.ValidationOuter()
+    assert validator.execute(rule(expr), empty.DESCRIPTOR, empty) is False
+
+    populated = validation_widget_pb2.ValidationOuter()
+    populated.inner.x = 1
+    populated.items.add(v=1)
+    populated.labels["a"].v = 1
+    assert validator.execute(rule(expr), populated.DESCRIPTOR, populated) is True

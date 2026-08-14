@@ -88,10 +88,15 @@ class MessageType(celtypes.MapType):
 
     def __getitem__(self, name):
         field = self.desc.fields_by_name[name]
-        if field.has_presence and not self.msg.HasField(name):
+        if not _is_set(self.msg, field):
             if in_has():
+                # `has()` reads presence off the key, so an unset field has to look
+                # absent - including a proto3 scalar with no explicit presence, where
+                # protobuf calls a default value unset.
                 raise KeyError()
-            else:
+            if field.has_presence:
+                # Outside `has()` an unset field reads as its default rather than as
+                # whatever the message object holds.
                 return _zero_value(field)
         return super().__getitem__(name)
 
@@ -123,6 +128,26 @@ _TYPE_TO_CTOR = {
     descriptor.FieldDescriptor.TYPE_SFIXED32: celtypes.IntType,
     descriptor.FieldDescriptor.TYPE_SFIXED64: celtypes.IntType,
 }
+
+
+def _is_set(msg: message.Message, field: descriptor.FieldDescriptor) -> bool:
+    """
+    Whether ``field`` counts as set on ``msg``, by protobuf's own definition - which is
+    what CEL's ``has()`` reports.
+
+    Three cases, because protobuf tracks presence three ways:
+
+    * A repeated field or map has no presence of its own; it is set when it is non-empty.
+    * A field with explicit presence - ``optional``, a oneof member, a message - is set
+      when ``HasField`` says so.
+    * A proto3 scalar with implicit presence is set when it differs from its default.
+      ``HasField`` raises for these, which is why they cannot share the branch above.
+    """
+    if _is_repeated(field):
+        return len(_proto_message_get_field(msg, field)) > 0
+    if field.has_presence:
+        return _proto_message_has_field(msg, field)
+    return _proto_message_get_field(msg, field) != field.default_value
 
 
 def _proto_message_has_field(msg: message.Message, field: descriptor.FieldDescriptor) -> typing.Any:
