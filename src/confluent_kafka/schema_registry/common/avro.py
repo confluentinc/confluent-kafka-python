@@ -340,6 +340,11 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
     The value carries the branch's fullname, while the subschema may carry only its simple
     name with the namespace inherited from an enclosing record — which is not visible here.
     So match on the fullname first, and only then fall back to comparing simple names.
+
+    The fallback is only for a subschema whose namespace is inherited, and so absent here.
+    A subschema that declares its own namespace has a fullname that the exact pass already
+    decided; comparing its simple name as well would let a value naming another namespace
+    match it, picking a branch the value does not name.
     """
     if isinstance(subschema, str):
         return exact and branch_name == subschema
@@ -353,7 +358,9 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
             return True
         namespace = subschema.get("namespace")
         return bool(namespace) and branch_name == f"{namespace}.{name}"
-    return '.' not in name and branch_name.rsplit('.', 1)[-1] == name
+    return ('.' not in name
+            and not subschema.get("namespace")
+            and branch_name.rsplit('.', 1)[-1] == name)
 
 
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:

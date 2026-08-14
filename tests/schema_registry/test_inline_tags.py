@@ -129,3 +129,30 @@ def test_wrapped_union_prefers_an_exact_namespace_match():
     ]
     subschema, _ = _resolve_union(union, ('b.Rec', {}))
     assert subschema is not None and subschema['namespace'] == 'b'
+
+
+def test_wrapped_union_does_not_match_a_declared_namespace_by_simple_name():
+    """
+    The simple-name fallback exists for a subschema whose namespace is inherited from the
+    enclosing record, and so is not visible on the subschema. A subschema that declares its
+    own namespace has a fullname, so only that fullname may match it.
+    """
+    from confluent_kafka.schema_registry.common.avro import _resolve_union
+
+    declared = [
+        {'type': 'record', 'name': 'Rec', 'namespace': 'a', 'fields': []},
+        {'type': 'record', 'name': 'Rec', 'namespace': 'b', 'fields': []},
+    ]
+    # A namespace no branch declares names no branch, rather than the first same-named one.
+    subschema, _ = _resolve_union(declared, ('c.Rec', {}))
+    assert subschema is None
+
+    # With one branch declaring a namespace and one inheriting it, a value naming the
+    # inherited namespace resolves to the inheriting branch, not to the declared one.
+    mixed = [
+        {'type': 'record', 'name': 'Rec', 'namespace': 'a', 'fields': []},
+        {'type': 'record', 'name': 'Rec', 'fields': [{'name': 'v', 'type': 'string'}]},
+    ]
+    subschema, payload = _resolve_union(mixed, ('b.Rec', {'v': 'x'}))
+    assert subschema is not None and 'namespace' not in subschema
+    assert payload == {'v': 'x'}
