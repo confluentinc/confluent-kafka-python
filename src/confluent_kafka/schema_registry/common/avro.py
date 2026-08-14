@@ -358,9 +358,7 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
             return True
         namespace = subschema.get("namespace")
         return bool(namespace) and branch_name == f"{namespace}.{name}"
-    return ('.' not in name
-            and not subschema.get("namespace")
-            and branch_name.rsplit('.', 1)[-1] == name)
+    return '.' not in name and not subschema.get("namespace") and branch_name.rsplit('.', 1)[-1] == name
 
 
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
