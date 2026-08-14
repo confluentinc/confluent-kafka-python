@@ -5,12 +5,23 @@ import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-from typing import Dict, Optional, Set, Tuple, Union, cast
+from typing import Dict, List, Optional, Set, Tuple, Union, cast
 
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
-from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+from confluent_kafka.schema_registry.serde import (
+    VALIDATION_RULES_PROP,
+    FieldTransform,
+    FieldType,
+    RuleConditionError,
+    RuleContext,
+    ValidationRule,
+    ValidationRuleError,
+    ValidationRuleExecutor,
+    evaluate_validation_rule,
+    parse_validation_rules,
+)
 
 from .schema_registry_client import RuleKind, Schema
 
@@ -22,6 +33,7 @@ __all__ = [
     'parse_schema_with_repo',
     'transform',
     '_transform_field',
+    'validate_message',
     'get_type',
     '_disjoint',
     '_resolve_union',
@@ -164,6 +176,115 @@ def _transform_field(ctx: RuleContext, schema: dict, field: dict, message: dict,
         ctx.exit_field()
 
 
+def validate_message(
+    executor: Optional[ValidationRuleExecutor],
+    schema: Optional[AvroSchema],
+    message: AvroMessage,
+    fail_fast: bool = False,
+) -> List[ValidationRuleError]:
+    """
+    Walk ``message`` against ``schema``, evaluating every inline ``confluent:rules``
+    CHECK constraint encountered and collecting all failures. Read-only — the message
+    is not modified.
+
+    Two kinds of rules are evaluated:
+
+    - Record-level (``confluent:rules`` on a record schema) — ``this`` is the record.
+    - Field-level (``confluent:rules`` on a record's field) — ``this`` is the field
+      value. Honors the skip-on-null contract: a field that is absent or null does
+      not have its rules invoked.
+
+    Failures (rules evaluating to False, returning a non-empty string, or raising
+    during evaluation) are appended with their dotted-path location (e.g.
+    ``addr.zip``, ``tags[3]``, ``scores["foo"]``). The walk continues after each
+    failure so callers see the full set rather than only the first, unless
+    ``fail_fast`` is set.
+    """
+    violations: List[ValidationRuleError] = []
+    if executor is None or schema is None or message is None:
+        return violations
+    _validate_message(executor, schema, message, "", fail_fast, violations)
+    return violations
+
+
+def _validate_message(
+    executor: ValidationRuleExecutor,
+    schema: AvroSchema,
+    message: AvroMessage,
+    path: str,
+    fail_fast: bool,
+    out: List[ValidationRuleError],
+):
+    """
+    Mirrors :func:`transform`'s dispatch shape: each call takes a (schema, message)
+    pair and dispatches on the schema type.
+    """
+    if schema is None:
+        return
+    if isinstance(schema, list):
+        if message is None:
+            return
+        subschema, submessage = _resolve_union(schema, message)
+        if subschema is None or subschema == 'null':
+            return
+        _validate_message(executor, subschema, submessage, path, fail_fast, out)
+        return
+    if isinstance(schema, dict):
+        schema_type = schema.get("type")
+        if schema_type == 'array':
+            if not isinstance(message, list):
+                log.warning("Incompatible message type for array schema")
+                return
+            for i, item in enumerate(message):
+                _validate_message(executor, schema["items"], item, f"{path}[{i}]", fail_fast, out)
+                if fail_fast and out:
+                    return
+            return
+        elif schema_type == 'map':
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for map schema")
+                return
+            for key, value in message.items():
+                _validate_message(executor, schema["values"], value, f'{path}["{key}"]', fail_fast, out)
+                if fail_fast and out:
+                    return
+            return
+        elif schema_type == 'record':
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for record schema")
+                return
+            # Record-level rules: this = the record value.
+            for rule in _read_validation_rules(schema):
+                evaluate_validation_rule(executor, rule, schema, message, path, out)
+                if fail_fast and out:
+                    return
+            for field in schema["fields"]:
+                name = field["name"]
+                field_schema = field["type"]
+                child_path = name if not path else f"{path}.{name}"
+                value = message.get(name)
+                # Skip-on-null: an absent or null field value does not invoke the
+                # executor. The recursion below still runs but no-ops for None.
+                if value is not None:
+                    for rule in _read_validation_rules(field):
+                        evaluate_validation_rule(executor, rule, field_schema, value, child_path, out)
+                        if fail_fast and out:
+                            return
+                _validate_message(executor, field_schema, value, child_path, fail_fast, out)
+                if fail_fast and out:
+                    return
+            return
+    # primitive leaf — field-level rules were evaluated by the parent record case
+
+
+def _read_validation_rules(source: dict) -> List[ValidationRule]:
+    """
+    Read the ``confluent:rules`` property off a record schema or a field. fastavro
+    preserves unknown schema properties, so both are plain dicts.
+    """
+    return parse_validation_rules(source.get(VALIDATION_RULES_PROP))
+
+
 def get_type(schema: AvroSchema) -> FieldType:
     if isinstance(schema, list):
         return FieldType.COMBINED
@@ -212,26 +333,57 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
     return True
 
 
+def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) -> bool:
+    """
+    Whether ``branch_name``, taken from a wrapped or typed union value, names ``subschema``.
+
+    The value carries the branch's fullname, while the subschema may carry only its simple
+    name with the namespace inherited from an enclosing record — which is not visible here.
+    So match on the fullname first, and only then fall back to comparing simple names.
+
+    The fallback is only for a subschema whose namespace is inherited, and so absent here.
+    A subschema that declares its own namespace has a fullname that the exact pass already
+    decided; comparing its simple name as well would let a value naming another namespace
+    match it, picking a branch the value does not name.
+    """
+    if isinstance(subschema, str):
+        return exact and branch_name == subschema
+    if not isinstance(subschema, dict):
+        return False
+    name = subschema.get("name")
+    if name is None:
+        return False
+    if exact:
+        if branch_name == name:
+            return True
+        namespace = subschema.get("namespace")
+        return bool(namespace) and branch_name == f"{namespace}.{name}"
+    return ('.' not in name
+            and not subschema.get("namespace")
+            and branch_name.rsplit('.', 1)[-1] == name)
+
+
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
     is_wrapped_union = isinstance(message, tuple) and len(message) == 2
     is_typed_union = isinstance(message, dict) and '-type' in message
+    if is_wrapped_union or is_typed_union:
+        if is_wrapped_union:
+            tuple_message = cast(tuple, message)
+            branch_name, payload = tuple_message[0], tuple_message[1]
+        else:
+            dict_message = cast(dict, message)
+            branch_name, payload = dict_message['-type'], dict_message
+        # Exact fullname matches win; only if none matched do simple names decide, so a
+        # union holding the same simple name in two namespaces still resolves correctly.
+        for exact in (True, False):
+            for subschema in schema:
+                if _union_branch_matches(subschema, branch_name, exact):
+                    return (subschema, payload)
+        return (None, message)
     for subschema in schema:
         try:
-            if is_wrapped_union:
-                if isinstance(subschema, dict):
-                    dict_schema = cast(dict, subschema)
-                    tuple_message = cast(tuple, message)
-                    if dict_schema["name"] == tuple_message[0]:
-                        return (dict_schema, tuple_message[1])
-            elif is_typed_union:
-                if isinstance(subschema, dict):
-                    dict_schema = cast(dict, subschema)
-                    dict_message = cast(dict, message)
-                    if dict_schema["name"] == dict_message['-type']:
-                        return (dict_schema, dict_message)
-            else:
-                validate(message, _collapse_schema(deepcopy(subschema)))
-                return (subschema, message)
+            validate(message, _collapse_schema(deepcopy(subschema)))
+            return (subschema, message)
         except:  # noqa: E722
             continue
     return (None, message)
@@ -312,15 +464,22 @@ def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema
         elif schema_type == 'map':
             _get_inline_tags_recursively(ns, name, schema.get("values"), tags)
         elif schema_type == 'record':
-            record_ns = schema.get("namespace")
             record_name = schema.get("name")
-            if record_ns is None:
-                record_ns = _implied_namespace(name)
-            if record_ns is None:
-                record_ns = ns
-            # Ensure record_name is not None and doesn't already have namespace prefix
-            if record_name is not None and record_ns != '' and not record_name.startswith(record_ns):
-                record_name = f"{record_ns}.{record_name}"
+            record_ns: str
+            if record_name is not None and '.' in record_name:
+                # A name containing a dot is already a fullname; Avro ignores any
+                # namespace attribute for it.
+                record_ns = _implied_namespace(record_name) or ''
+            else:
+                namespace_attr = schema.get("namespace")
+                if namespace_attr is not None:
+                    record_ns = namespace_attr
+                else:
+                    record_ns = _implied_namespace(name) or ns
+                # The namespace is a prefix to prepend, not a prefix to test for: a record
+                # named 'foobar' in namespace 'foo' is 'foo.foobar', not 'foobar'.
+                if record_name is not None and record_ns != '':
+                    record_name = f"{record_ns}.{record_name}"
             fields = schema["fields"]
             for field in fields:
                 field_tags = field.get("confluent:tags")
