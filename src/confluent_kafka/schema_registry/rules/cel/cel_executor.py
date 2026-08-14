@@ -140,12 +140,15 @@ def _value_to_cel(msg: Any) -> Any:
         return celtypes.StringType(msg)
     elif isinstance(msg, bytes):
         return celtypes.BytesType(msg)
+    # bool before int: bool is a subclass of int, so testing int first would bind every
+    # boolean as a CEL int and leave this branch unreachable - `this`, `!this` and
+    # `this == true` all fail against an int.
+    elif isinstance(msg, bool):
+        return celtypes.BoolType(msg)
     elif isinstance(msg, int):
         return celtypes.IntType(msg)
     elif isinstance(msg, float):
         return celtypes.DoubleType(msg)
-    elif isinstance(msg, bool):
-        return celtypes.BoolType(msg)
     elif isinstance(msg, datetime.datetime):
         # this impl differs from the other clients
         return celtypes.TimestampType(msg)

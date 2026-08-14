@@ -25,6 +25,9 @@ import pytest
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
+from celpy import celtypes
+
+from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule
 
@@ -176,3 +179,44 @@ def test_programs_are_cached_per_expression(validator):
         validator.execute(rule("this >= 0"), None, value)
     validator.execute(rule("this <= 100"), None, 1)
     assert len(validator._cache.programs) == 2
+
+
+# bool is a subclass of int in Python, so a dispatch that tests int first binds every
+# boolean as a CEL int. Nothing about a bool then works: `this` returns an int the walker
+# rejects, and every boolean operator fails to find an overload.
+@pytest.mark.parametrize("expr,value,expected", [
+    ("this", True, True),
+    ("this", False, False),
+    ("!this", False, True),
+    ("!this", True, False),
+    ("this == true", True, True),
+    ("this != false", True, True),
+    ("this ? 'y' : 'n'", False, "n"),
+])
+def test_bool_values_bind_as_cel_bools(validator, expr, value, expected):
+    assert validator.execute(rule(expr), None, value) == expected
+
+
+# The int branch has to keep working: it is the one bool was being captured by.
+@pytest.mark.parametrize("expr,value,expected", [
+    ("this > 0", 1, True),
+    ("this == 1", 1, True),
+    ("this % 2 == 1", 1, True),
+    ("this < 0", -1, True),
+])
+def test_int_values_still_bind_as_cel_ints(validator, expr, value, expected):
+    assert validator.execute(rule(expr), None, value) == expected
+
+
+@pytest.mark.parametrize("value,cel_type", [
+    (True, celtypes.BoolType),
+    (False, celtypes.BoolType),
+    (1, celtypes.IntType),
+    (0, celtypes.IntType),
+    (1.5, celtypes.DoubleType),
+    ("s", celtypes.StringType),
+    (b"s", celtypes.BytesType),
+])
+def test_values_bind_to_their_own_cel_type(value, cel_type):
+    # Pins the dispatch order directly: bool must not be captured by the int branch.
+    assert type(_value_to_cel(value)) is cel_type
