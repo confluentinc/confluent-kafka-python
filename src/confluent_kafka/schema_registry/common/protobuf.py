@@ -13,6 +13,7 @@ from google.protobuf import (
     duration_pb2,
     empty_pb2,
     field_mask_pb2,
+    message_factory,
     source_context_pb2,
     struct_pb2,
     timestamp_pb2,
@@ -20,7 +21,6 @@ from google.protobuf import (
     wrappers_pb2,
 )
 from google.protobuf.descriptor import Descriptor, FieldDescriptor, FileDescriptor
-from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.message import DecodeError, EncodeError, Message
 from google.type import (
@@ -298,9 +298,7 @@ def _transform_field(
         # can only be read through the runtime one, which is carried along so that an
         # executor needing the field itself does not have to look the schema's name up on
         # the caller's message, where a compatible rename means it is not found.
-        ctx.enter_field(
-            message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd), fd
-        )
+        ctx.enter_field(message, schema_fd.full_name, schema_fd.name, get_type(fd), get_inline_tags(schema_fd), fd)
         # Skip-on-null, as in the validation walk: a field with explicit presence that is
         # unset has no value to transform, and writing one back would materialize it -
         # turning an absent message or unset optional scalar into a present one carrying a
@@ -467,9 +465,7 @@ def _needs_schema_view(descriptor: Descriptor, runtime_descriptor: Descriptor) -
     return needed
 
 
-def _presents_same_values(
-    descriptor: Descriptor, runtime_descriptor: Descriptor, visited: Set[str]
-) -> bool:
+def _presents_same_values(descriptor: Descriptor, runtime_descriptor: Descriptor, visited: Set[str]) -> bool:
     """
     Whether the two descriptors present every field they share - paired by number, which is
     how protobuf identifies a field - under the same name, type and label, recursively
@@ -587,17 +583,10 @@ def _validate_message(
         if is_map_field(fd):
             value_fd = fd.message_type.fields_by_name['value']
             schema_value_fd = schema_fd.message_type.fields_by_name['value']
-            if (
-                value_fd.type == FieldDescriptor.TYPE_MESSAGE
-                and schema_value_fd.type == FieldDescriptor.TYPE_MESSAGE
-            ):
+            if value_fd.type == FieldDescriptor.TYPE_MESSAGE and schema_value_fd.type == FieldDescriptor.TYPE_MESSAGE:
                 for key, item in value.items():
                     # Map values pair by key rather than position.
-                    schema_item = (
-                        schema_value[key]
-                        if schema_value is not None and key in schema_value
-                        else None
-                    )
+                    schema_item = schema_value[key] if schema_value is not None and key in schema_value else None
                     _validate_message(
                         executor,
                         schema_value_fd.message_type,
@@ -613,11 +602,7 @@ def _validate_message(
             for i, item in enumerate(value):
                 # Both lists came from the same bytes, so they line up; the guard is for
                 # safety.
-                schema_item = (
-                    schema_value[i]
-                    if schema_value is not None and i < len(schema_value)
-                    else None
-                )
+                schema_item = schema_value[i] if schema_value is not None and i < len(schema_value) else None
                 _validate_message(
                     executor,
                     schema_fd.message_type,
@@ -630,9 +615,7 @@ def _validate_message(
                 if fail_fast and out:
                     return
         else:
-            _validate_message(
-                executor, schema_fd.message_type, value, child_path, fail_fast, out, schema_value
-            )
+            _validate_message(executor, schema_fd.message_type, value, child_path, fail_fast, out, schema_value)
             if fail_fast and out:
                 return
 

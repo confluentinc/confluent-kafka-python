@@ -32,9 +32,6 @@ from google.protobuf.message import Message
 from referencing import Registry, Resource
 
 from confluent_kafka.schema_registry import MessageField, SerializationContext
-from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
-
 from confluent_kafka.schema_registry.common.avro import validate_message as validate_avro
 from confluent_kafka.schema_registry.common.json_schema import DEFAULT_SPEC
 from confluent_kafka.schema_registry.common.json_schema import transform as transform_json
@@ -42,12 +39,14 @@ from confluent_kafka.schema_registry.common.json_schema import validate_message 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
 from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
+from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
 from confluent_kafka.schema_registry.serde import (
     RuleContext,
     ValidationRule,
     ValidationRuleError,
     ValidationRuleExecutor,
 )
+from confluent_kafka.serialization import SerializationError
 
 from .data.proto import validation_widget_pb2
 
@@ -639,12 +638,8 @@ def test_protobuf_scalar_field_rule_sees_the_schemas_representation():
     # producer can write bytes against a schema that declares a string. The rule is authored
     # against the schema, so it has to be handed the string: naming is not the only thing the
     # schema's view fixes.
-    producer_descriptor = _payload_descriptor(
-        "producer_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
-    )
-    schema_descriptor = _payload_descriptor(
-        "registered_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING
-    )
+    producer_descriptor = _payload_descriptor("producer_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES)
+    schema_descriptor = _payload_descriptor("registered_text.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
     message = message_factory.GetMessageClass(producer_descriptor)()
     message.payload = b"hello"
 
@@ -656,12 +651,8 @@ def test_protobuf_message_unreadable_through_the_schema_raises_serialization_err
     # bytes -> string is a compatible change, so a producer writing non-UTF-8 bytes can meet a
     # registered schema that declares a string. Those bytes cannot be read through it, and the
     # failure has to arrive as a SerializationError rather than a raw protobuf DecodeError.
-    producer_descriptor = _payload_descriptor(
-        "producer_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES
-    )
-    schema_descriptor = _payload_descriptor(
-        "registered_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING
-    )
+    producer_descriptor = _payload_descriptor("producer_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_BYTES)
+    schema_descriptor = _payload_descriptor("registered_payload.proto", descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
     message = message_factory.GetMessageClass(producer_descriptor)()
     message.payload = b"\xff\xfe"
 

@@ -27,11 +27,10 @@ from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
 
 from confluent_kafka.schema_registry import MessageField, SerializationContext
-from confluent_kafka.schema_registry.schema_registry_client import Schema
-from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.common.protobuf import transform
-from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode
+from confluent_kafka.schema_registry.confluent import meta_pb2
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
+from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.serde import RuleContext
 
 from .data.proto import validation_widget_pb2
