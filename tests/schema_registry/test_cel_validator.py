@@ -23,6 +23,8 @@ import datetime
 
 import pytest
 from celpy import celtypes
+from google.protobuf import descriptor_pb2, message_factory, wrappers_pb2
+from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
@@ -279,3 +281,79 @@ def test_has_covers_every_presence_shape(validator, expr):
     populated.items.add(v=1)
     populated.labels["a"].v = 1
     assert validator.execute(rule(expr), populated.DESCRIPTOR, populated) is True
+
+
+def _wrapped_descriptor():
+    """
+    A message with one field of each wrapper type, built here rather than added to the
+    checked-in widget schema: the generated module predates the current protoc, so
+    regenerating it to add fields would rewrite the whole file.
+    """
+    pool = DescriptorPool()
+    for dep in (wrappers_pb2.DESCRIPTOR,):
+        dep_proto = descriptor_pb2.FileDescriptorProto()
+        dep.CopyToProto(dep_proto)
+        pool.Add(dep_proto)
+
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name = "wrapped.proto"
+    fdp.package = "test"
+    fdp.syntax = "proto3"
+    fdp.dependency.append(wrappers_pb2.DESCRIPTOR.name)
+    msg = fdp.message_type.add()
+    msg.name = "Wrapped"
+    for number, (name, type_name) in enumerate(
+        [
+            ("name", ".google.protobuf.StringValue"),
+            ("count", ".google.protobuf.Int64Value"),
+            ("active", ".google.protobuf.BoolValue"),
+        ],
+        start=1,
+    ):
+        field = msg.field.add()
+        field.name = name
+        field.number = number
+        field.type = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+        field.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+        field.type_name = type_name
+    return pool.Add(fdp).message_types_by_name["Wrapped"]
+
+
+# A wrapper carries null-or-value rather than the zero value an ordinary message carries -
+# which is the whole reason to declare a field as one - so an unset wrapper reads as null.
+# Unwrapping its default instead gave "" or 0, erasing the distinction the field exists for.
+# cel-go, cel-java and cel-cpp all answer null here, and so now do the Rust and Python
+# clients, the two that build the message as a map rather than handing it to the engine.
+@pytest.mark.parametrize(
+    "expr",
+    ["this.name == null", "this.count == null", "this.active == null"],
+)
+def test_unset_wrapper_fields_read_as_null(validator, expr):
+    descriptor = _wrapped_descriptor()
+    empty = message_factory.GetMessageClass(descriptor)()
+    assert validator.execute(rule(expr), descriptor, empty) is True
+
+
+def test_unset_wrapper_is_not_its_unwrapped_default(validator):
+    # The string case shows the point directly: an unset StringValue is no longer the empty
+    # string its default unwrapped to. The numeric wrappers are pinned by the `== null` test
+    # above instead, because celpy raises rather than answering false for `null == <int>` -
+    # its own equality, and true of the bare expression `null == 0` as much as of a field.
+    descriptor = _wrapped_descriptor()
+    empty = message_factory.GetMessageClass(descriptor)()
+    assert validator.execute(rule("this.name == ''"), descriptor, empty) is False
+    assert validator.execute(rule("has(this.count)"), descriptor, empty) is False
+
+
+def test_written_wrapper_is_the_value_it_holds(validator):
+    descriptor = _wrapped_descriptor()
+    written = message_factory.GetMessageClass(descriptor)()
+    written.name.value = "a"
+    written.count.value = 7
+    written.active.value = True
+    for expr in ("this.name == 'a'", "this.count == 7", "this.active"):
+        assert validator.execute(rule(expr), descriptor, written) is True
+    # and presence is unchanged either way
+    assert validator.execute(rule("has(this.name)"), descriptor, written) is True
+    empty = message_factory.GetMessageClass(descriptor)()
+    assert validator.execute(rule("has(this.name)"), descriptor, empty) is False

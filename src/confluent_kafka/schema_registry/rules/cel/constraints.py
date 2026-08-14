@@ -71,6 +71,11 @@ _MSG_TYPE_URL_TO_CTOR = {
     "google.protobuf.BoolValue": unwrap,
 }
 
+# The wrapper types, which are exactly the ones that stand for the value they hold. A wrapper
+# carries null-or-value rather than the zero value an ordinary message carries - that is the
+# reason to declare a field as one - so an unset wrapper reads as null. See _zero_value.
+_WRAPPER_TYPES = frozenset(name for name, ctor in _MSG_TYPE_URL_TO_CTOR.items() if ctor is unwrap)
+
 
 class MessageType(celtypes.MapType):
     msg: message.Message
@@ -241,6 +246,12 @@ def _is_list(field: descriptor.FieldDescriptor):
 
 def _zero_value(field: descriptor.FieldDescriptor):
     if field.message_type is not None and not _is_repeated(field):
+        # An unset wrapper is null, not the value its default would unwrap to. Reading it as
+        # "" or 0 would erase the only distinction the type exists to carry - the producer
+        # saying "no value" as opposed to "empty". cel-go, cel-java and cel-cpp all answer
+        # null here, the last of them once protovalidate turns on empty-wrapper unboxing.
+        if field.message_type.full_name in _WRAPPER_TYPES:
+            return None
         return _field_value_to_cel(message_factory.GetMessageClass(field.message_type)(), field)
     else:
         return _field_value_to_cel(field.default_value, field)
