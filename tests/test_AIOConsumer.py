@@ -61,15 +61,16 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_call_method_executor_usage(self, mock_consumer, mock_common, basic_config):
         """Test that _call method properly uses ThreadPoolExecutor for
-        async-to-sync bridging, prepending the identity presented to the
-        Consumer gate as blocking_task's leading argument."""
+        async-to-sync bridging, setting the identity presented to the
+        Consumer gate on the reentry ContextVar before invoking it."""
         mock_common.get_or_generate_identity.return_value = 42
         consumer = AIOConsumer(basic_config, max_workers=2)
 
         mock_method = Mock(return_value="test_result")
         result = await consumer._call(mock_method, "arg1", kwarg1="value1")
 
-        mock_method.assert_called_once_with(42, "arg1", kwarg1="value1")
+        mock_method.assert_called_once_with("arg1", kwarg1="value1")
+        mock_common._reentry_identity_var.set.assert_called_once_with(42)
         assert result == "test_result"
 
     @pytest.mark.asyncio
@@ -78,7 +79,7 @@ class TestAIOConsumer:
         consumer = AIOConsumer(basic_config, max_workers=2)
 
         mock_message = Mock()
-        mock_consumer.return_value._poll_internal.return_value = mock_message
+        mock_consumer.return_value.poll.return_value = mock_message
 
         result = await consumer.poll(timeout=1.0)
 
@@ -90,7 +91,7 @@ class TestAIOConsumer:
         consumer = AIOConsumer(basic_config, max_workers=2)
 
         mock_messages = [Mock(), Mock()]
-        mock_consumer.return_value._consume_internal.return_value = mock_messages
+        mock_consumer.return_value.consume.return_value = mock_messages
 
         result = await consumer.consume(num_messages=2, timeout=1.0)
 
@@ -105,7 +106,7 @@ class TestAIOConsumer:
             pass
 
         await consumer.subscribe(['test-topic'], on_assign=on_assign)
-        mock_consumer.return_value._subscribe_internal.assert_called_once()
+        mock_consumer.return_value.subscribe.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_operations(self, mock_consumer, mock_common, basic_config):
@@ -115,9 +116,9 @@ class TestAIOConsumer:
         mock_message = Mock()
         mock_partitions = [TopicPartition('test', 0)]
         mock_metadata = Mock()
-        mock_consumer.return_value._poll_internal.return_value = mock_message
-        mock_consumer.return_value._assignment_internal.return_value = mock_partitions
-        mock_consumer.return_value._consumer_group_metadata_internal.return_value = mock_metadata
+        mock_consumer.return_value.poll.return_value = mock_message
+        mock_consumer.return_value.assignment.return_value = mock_partitions
+        mock_consumer.return_value.consumer_group_metadata.return_value = mock_metadata
 
         tasks = [
             asyncio.create_task(consumer.poll(timeout=1.0)),
@@ -131,7 +132,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_concurrent_operations_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test concurrent async operations handle errors gracefully."""
-        mock_consumer.return_value._poll_internal.side_effect = [
+        mock_consumer.return_value.poll.side_effect = [
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
         ]
@@ -155,7 +156,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_network_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test AIOConsumer handles network errors gracefully."""
-        mock_consumer.return_value._poll_internal.side_effect = KafkaException(
+        mock_consumer.return_value.poll.side_effect = KafkaException(
             KafkaError(KafkaError._TRANSPORT, "Network timeout")
         )
 

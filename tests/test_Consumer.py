@@ -513,9 +513,13 @@ def test_callback_exception_no_system_error():
     stats_called = []
 
     def stats_cb_that_raises(stats_json):
-        """Stats callback that raises an exception"""
+        """Stats callback that raises an exception, but only the first
+        time -- statistics.interval.ms fires independently of consume(),
+        so a later call (e.g. during close()'s own internal polling) must
+        not raise again and turn the unguarded close() below flaky."""
         stats_called.append(stats_json)
-        raise RuntimeError("Test exception from stats_cb")
+        if len(stats_called) == 1:
+            raise RuntimeError("Test exception from stats_cb")
 
     consumer2 = TestConsumer(
         {
