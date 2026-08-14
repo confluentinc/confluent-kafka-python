@@ -144,6 +144,10 @@ def test_close_races_produce_batch():
 def test_close_races_init_transactions():
     """close() concurrent with init_transactions() on another thread."""
 
+    # TODO NOGIL: move to tests/integration -- init_transactions() needs a
+    # real transaction coordinator to reach the race being tested; against
+    # the unreachable localhost:9092 used here it fails with a genuine
+    # _TIMED_OUT KafkaException instead of the expected RuntimeError.
     def worker(producer, stop_event):
         while not stop_event.is_set():
             try:
@@ -186,6 +190,10 @@ def test_close_races_commit_transaction():
 def test_close_races_abort_transaction():
     """close() concurrent with abort_transaction() on another thread."""
 
+    # TODO NOGIL: move to tests/integration -- abort_transaction() needs a
+    # real transaction coordinator to reach the race being tested; against
+    # the unreachable localhost:9092 used here it fails with a genuine
+    # _STATE KafkaException instead of the expected RuntimeError.
     def worker(producer, stop_event):
         while not stop_event.is_set():
             try:

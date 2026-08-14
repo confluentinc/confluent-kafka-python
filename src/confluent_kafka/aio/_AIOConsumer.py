@@ -59,7 +59,30 @@ class AIOConsumer:
         await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
+        # The sync consumer uses the thread ID as the identity to prevent
+        # concurrent usage of a handle across threads when calling C code,
+        # but thread ID doesn't make sense for the async consumer, since
+        # callbacks in the same task chain can end up running on a
+        # different worker thread. So instead of thread ID, we check
+        # whether an identity is already set in the current context (a
+        # re-entrant call) and reuse it; if not, we generate a new one.
+        identity = _common.get_or_generate_identity()
+
+        # Wrap blocking_task so the context variable is set to `identity`
+        # before it starts running on any of the worker threads.
+        # Wrapping is necessary because contextvars only
+        # propagate into a ThreadPoolExecutor worker thread once, when that
+        # thread's persistent Context is first established. A `.set()`
+        # done on the event-loop thread before dispatching would be
+        # invisible to later tasks reusing that same thread. Setting it
+        # inside wrapped_task instead is always visible to the call it's
+        # guarding, including any re-entrant callback (e.g. on_assign) that
+        # blocking_task triggers synchronously before returning.
+        def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
+            _common._reentry_identity_var.set(identity)
+            return blocking_task(*task_args, **task_kwargs)
+
+        return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
 
     def _wrap_callback(
         self,
@@ -68,15 +91,7 @@ class AIOConsumer:
         edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
         edit_kwargs: Optional[Callable[[Any], Any]] = None,
     ) -> Callable[..., Any]:
-        def ret(*args: Any, **kwargs: Any) -> Any:
-            if edit_args:
-                args = edit_args(args)
-            if edit_kwargs:
-                kwargs = edit_kwargs(kwargs)
-            f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
-            return f.result()
-
-        return ret
+        return _common.wrap_callback(loop, callback, edit_args=edit_args, edit_kwargs=edit_kwargs)
 
     async def poll(self, *args: Any, **kwargs: Any) -> Any:
         """
