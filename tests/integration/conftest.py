@@ -17,6 +17,8 @@
 #
 
 import os
+import sys
+import sysconfig
 
 import pytest
 
@@ -24,6 +26,18 @@ from tests.common import TestUtils
 from tests.integration.cluster_fixture import ByoFixture, TrivupFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
+
+
+def consumer_gate_enabled():
+    """Mirrors CFL_CONSUMER_GATE_ENABLED (see confluent_kafka.h). This is a
+    compile-time condition: the Consumer reentrancy gate is only compiled into
+    the C extension for Python versions 3.15+ or 3.14 built without GIL.
+    So tests asserting ConcurrentModificationException must be skipped there."""
+    if sys.version_info >= (3, 15):
+        return True
+    if sys.version_info >= (3, 14):
+        return bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+    return False
 
 
 def create_trivup_cluster(conf={}):
