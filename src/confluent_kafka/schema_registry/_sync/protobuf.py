@@ -43,6 +43,7 @@ from confluent_kafka.schema_registry.common.protobuf import (
     _schema_to_str,
     _str_to_proto,
     transform,
+    validate_message,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -52,6 +53,7 @@ from confluent_kafka.schema_registry.serde import (
     BaseSerializer,
     ParsedSchemaCache,
     SchemaId,
+    ValidationRulesExecution,
     clear_original_key,
     set_original_key,
 )
@@ -250,6 +252,9 @@ class ProtobufSerializer(BaseSerializer):
         'reference.subject.name.strategy': reference_subject_name_strategy,
         'schema.id.serializer': prefix_schema_id_serializer,
         'use.deprecated.format': False,
+        'validation.rules.execution': ValidationRulesExecution.DISABLED,
+        'validation.rules.fail.fast': False,
+        'validation.rules.executor': None,
     }
 
     def __init_impl(
@@ -316,6 +321,8 @@ class ProtobufSerializer(BaseSerializer):
         )
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
+
+        self.configure_validation_rules(conf_copy)
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
@@ -503,10 +510,19 @@ class ProtobufSerializer(BaseSerializer):
             def field_transformer(rule_ctx, field_transform, msg):
                 return transform(rule_ctx, desc, msg, field_transform)  # noqa: E731
 
+            if self._validation_enabled(ValidationRulesExecution.BEFORE_DOMAIN_RULES):
+                self._validate_inline_rules(desc, message)
+
             if ctx is not None and subject is not None:
                 message = self._execute_rules(
                     ctx, subject, RuleMode.WRITE, None, latest_schema.schema, message, None, field_transformer
                 )
+
+            if self._validation_enabled(ValidationRulesExecution.AFTER_DOMAIN_RULES):
+                self._validate_inline_rules(desc, message)
+        elif self._validation_enabled():
+            # No domain rules run on this path, so before/after collapse to one point.
+            self._validate_inline_rules(message.DESCRIPTOR, message)
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
@@ -520,6 +536,15 @@ class ProtobufSerializer(BaseSerializer):
                 )
 
             return self._schema_id_serializer(buffer, ctx, schema_id)
+
+    def _validate_inline_rules(self, desc: Descriptor, message: Message) -> None:
+        """
+        Evaluate the descriptor's inline validation rules against ``message``, raising
+        a single SerializationError listing every violation found.
+        """
+        self._raise_validation_violations(
+            validate_message(self._validation_rule_executor, desc, message, self._validation_rules_fail_fast)
+        )
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
