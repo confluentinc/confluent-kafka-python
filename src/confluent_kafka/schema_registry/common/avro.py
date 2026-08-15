@@ -344,7 +344,9 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
     The fallback is only for a subschema whose namespace is inherited, and so absent here.
     A subschema that declares its own namespace has a fullname that the exact pass already
     decided; comparing its simple name as well would let a value naming another namespace
-    match it, picking a branch the value does not name.
+    match it, picking a branch the value does not name. For the same reason the exact pass
+    matches the fullname alone: a namespaced record is named ``namespace.name``, so its bare
+    name names it no more than it names a same-named record in another namespace.
     """
     if isinstance(subschema, str):
         return exact and branch_name == subschema
@@ -354,10 +356,11 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
     if name is None:
         return False
     if exact:
-        if branch_name == name:
-            return True
         namespace = subschema.get("namespace")
-        return bool(namespace) and branch_name == f"{namespace}.{name}"
+        # namespace.name when a namespace is declared, else the name as written - which may
+        # already be a fullname (Avro allows "a.Rec" in the name field itself).
+        fullname = f"{namespace}.{name}" if namespace else name
+        return branch_name == fullname
     return '.' not in name and not subschema.get("namespace") and branch_name.rsplit('.', 1)[-1] == name
 
 

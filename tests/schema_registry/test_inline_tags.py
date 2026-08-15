@@ -156,3 +156,28 @@ def test_wrapped_union_does_not_match_a_declared_namespace_by_simple_name():
     subschema, payload = _resolve_union(mixed, ('b.Rec', {'v': 'x'}))
     assert subschema is not None and 'namespace' not in subschema
     assert payload == {'v': 'x'}
+
+
+def test_wrapped_union_does_not_match_a_declared_namespace_by_bare_name():
+    """
+    A namespaced record is named ``namespace.name``; its bare name names it no more than it
+    names a same-named record in another namespace. So a bare simple name matches neither of
+    two namespaced branches, rather than selecting the first - the exact pass requires the
+    fullname, just as the simple-name fallback does.
+    """
+    from confluent_kafka.schema_registry.common.avro import _resolve_union
+
+    declared = [
+        {'type': 'record', 'name': 'Rec', 'namespace': 'a', 'fields': []},
+        {'type': 'record', 'name': 'Rec', 'namespace': 'b', 'fields': []},
+    ]
+    subschema, _ = _resolve_union(declared, ('Rec', {}))
+    assert subschema is None
+
+    # A record with no namespace is still matched by its bare name - that is its fullname.
+    bare = [
+        {'type': 'record', 'name': 'A', 'fields': []},
+        {'type': 'record', 'name': 'B', 'fields': []},
+    ]
+    subschema, _ = _resolve_union(bare, ('B', {}))
+    assert subschema is not None and subschema['name'] == 'B'
