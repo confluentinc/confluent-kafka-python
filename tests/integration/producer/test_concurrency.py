@@ -569,12 +569,22 @@ class TestReentrantDeliveryCallback:
 
         producer.close()
 
-    def test_delivery_callback_calling_poll_does_not_crash_or_hang(self, kafka_cluster):
-        """A delivery callback calling poll() again, reentrantly, on the
-        same thread that's already inside the outer poll() that invoked it."""
+    def test_delivery_callback_calling_poll_succeeds_with_single_message_in_flight(self, kafka_cluster):
+        """A delivery callback reentrantly calling poll() succeeds without
+        raising, when there is only one message in flight.
+
+        Deliberately scoped to a single message: reentrant poll()/flush()
+        calls corrupt a shared per-thread TLS slot (CallState_resume never
+        restores what CallState_get consumed), and a second, nested
+        delivery dispatch on the same thread while that slot is stale hits
+        a NULL pointer."""
         topic = kafka_cluster.create_topic_and_wait_propogation("test_reentrant_poll_from_callback")
         producer = kafka_cluster.producer(
-            {'error_cb': prefixed_error_cb('test_delivery_callback_calling_poll_does_not_crash_or_hang')}
+            {
+                'error_cb': prefixed_error_cb(
+                    'test_delivery_callback_calling_poll_succeeds_with_single_message_in_flight'
+                )
+            }
         )
 
         delivered = []
