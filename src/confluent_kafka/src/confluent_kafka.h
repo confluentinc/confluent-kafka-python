@@ -68,7 +68,6 @@
 #if defined(_MSC_VER)
 typedef volatile LONG atomic_int_t;
 
-#define atomic_int_init(p, v) (*(p) = (v))
 #define atomic_int_inc(p) InterlockedIncrement((p))
 #define atomic_int_dec(p) InterlockedDecrement((p))
 #define atomic_int_get(p) InterlockedCompareExchange((p), 0, 0)
@@ -86,7 +85,6 @@ static __inline int atomic_int_cas(atomic_int_t *p, LONG expected,
 #else /* gcc / clang */
 typedef int atomic_int_t;
 
-#define atomic_int_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 #define atomic_int_inc(p) __atomic_add_fetch((p), 1, __ATOMIC_SEQ_CST)
 #define atomic_int_dec(p) __atomic_sub_fetch((p), 1, __ATOMIC_SEQ_CST)
 #define atomic_int_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
@@ -104,14 +102,14 @@ static inline int atomic_int_cas(atomic_int_t *p, int expected, int desired) {
 #endif
 
 /**
- * @brief Same idea as atomic_int_t above, but sized to hold a
- *        PyThread_get_thread_ident() value (unsigned long,
- *        pointer-sized on most platforms) without truncation.
+ * @brief Same idea as atomic_int_t above, but for unsigned long values:
+ *        a PyThread_get_thread_ident() result, or a Consumer gate identity.
+ *
+ * @warning Values must fit an unsigned long, which is 32-bit on Windows.
  */
 #if defined(_MSC_VER)
 typedef volatile LONG_PTR atomic_ulong_t;
 
-#define atomic_ulong_init(p, v) (*(p) = (v))
 #define atomic_ulong_get(p)                                                   \
         ((unsigned long)InterlockedCompareExchangePointer(                   \
             (PVOID volatile *)(p), 0, 0))
@@ -128,7 +126,6 @@ static __inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 #else /* gcc / clang */
 typedef unsigned long atomic_ulong_t;
 
-#define atomic_ulong_init(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 #define atomic_ulong_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_ulong_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 
@@ -401,7 +398,7 @@ typedef struct {
 +                        * the outermost call exits.
                          */
                         atomic_ulong_t gate_owner;
-                        int gate_depth;
+                        atomic_int_t gate_depth;
 #endif
                 } Consumer;
 

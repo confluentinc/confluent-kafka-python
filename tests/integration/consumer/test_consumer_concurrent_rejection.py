@@ -187,11 +187,11 @@ def test_close_rejected_while_poll_in_progress(kafka_cluster):
 
 
 def test_gate_rejects_different_methods_colliding(kafka_cluster):
-    """Two different gated methods colliding, neither is poll(): one thread
-    calls a synchronous commit() (blocks on a real broker round-trip while
-    holding the gate), another thread calls assign() concurrently, released
-    at the same instant via a Barrier. Confirms rejection isn't specific to
-    poll()'s long, easily-tunable gate hold."""
+    """Two different gated methods colliding: a synchronous
+    commit() (blocks on a real broker round-trip while holding the gate,
+    releasing the GIL but not the gate) is started first, then assign() --
+    a fast, local call -- is started right after. Confirms rejection isn't
+    specific to poll()'s long, easily-tunable gate hold."""
     topic = kafka_cluster.create_topic_and_wait_propogation("test_different_methods_colliding")
     kafka_cluster.seed_topic(topic, value_source=[b'hello'])
 
@@ -202,13 +202,11 @@ def test_gate_rejects_different_methods_colliding(kafka_cluster):
     partitions = consumer.assignment()
     assert partitions
 
-    barrier = threading.Barrier(2)
     commit_error = None
     assign_error = None
 
     def do_commit():
         nonlocal commit_error
-        barrier.wait()
         try:
             consumer.commit(message=msg, asynchronous=False)
         except Exception as e:
@@ -216,7 +214,6 @@ def test_gate_rejects_different_methods_colliding(kafka_cluster):
 
     def do_assign():
         nonlocal assign_error
-        barrier.wait()
         try:
             consumer.assign(partitions)
         except Exception as e:
@@ -230,19 +227,13 @@ def test_gate_rejects_different_methods_colliding(kafka_cluster):
     t_assign.join()
 
     print(f"commit_error={commit_error}, assign_error={assign_error}")
-    errors = [e for e in (commit_error, assign_error) if e is not None]
+    assert commit_error is None, f"commit() unexpectedly rejected: {commit_error!r}"
+    assert isinstance(
+        assign_error, ConcurrentModificationException
+    ), f"expected assign() to be rejected with ConcurrentModificationException, got: {assign_error!r}"
 
-    # Depending on real thread-scheduling timing, either call could win the
-    # race to claim the gate first -- what matters is that they don't BOTH
-    # succeed, and any rejection is the right exception type.
-    assert len(errors) <= 1, f"expected at most one rejection, got: commit={commit_error}, assign={assign_error}"
-    if errors:
-        assert isinstance(
-            errors[0], ConcurrentModificationException
-        ), f"expected ConcurrentModificationException, got: {errors[0]!r}"
-
-    # The consumer must remain usable afterward -- verify with a real
-    # poll() that actually fetches a fresh message.
+    # The consumer must remain usable afterward.
+    # Verify with a real poll() that actually fetches a message.
     kafka_cluster.seed_topic(topic, value_source=[b'world'])
     msg2 = consumer.poll(5)
     print(f"final poll after colliding calls: {msg2.value() if msg2 else None}")

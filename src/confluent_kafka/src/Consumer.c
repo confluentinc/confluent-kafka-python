@@ -61,28 +61,26 @@ static int Handle_gate_enter(Handle *h) {
         (void)h;
         return 1;
 #else
-        atomic_ulong_t identity;
-        PyObject *value = NULL;
+        unsigned long identity = 0;
+        PyObject *value        = NULL;
 
         if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) ==
             -1)
                 return 0;
 
+        if (value && PyLong_Check(value))
+                identity = PyLong_AsUnsignedLong(value);
+        Py_XDECREF(value);
+
         /* 0 is never a legitimate identity (neither a real thread ID nor a
          * generated AIOConsumer identity), so treat it the same as "not set".
          */
-        if (value && PyLong_Check(value) &&
-            PyLong_AsUnsignedLong(value) != 0) {
-                identity = (atomic_ulong_t)PyLong_AsUnsignedLong(value);
-                Py_DECREF(value);
-        } else {
-                Py_XDECREF(value);
-                identity = (atomic_ulong_t)PyThread_get_thread_ident();
-        }
+        if (identity == 0)
+                identity = (unsigned long)PyThread_get_thread_ident();
 
         if (atomic_ulong_cas(&h->u.Consumer.gate_owner, 0, identity)) {
                 /* Gate was unowned: we now own it. */
-                h->u.Consumer.gate_depth = 1;
+                atomic_int_set(&h->u.Consumer.gate_depth, 1);
                 return 1;
         }
 
@@ -90,7 +88,7 @@ static int Handle_gate_enter(Handle *h) {
                 /* Re-entrant call presenting the same identity that already
                  * owns the gate.
                  */
-                h->u.Consumer.gate_depth++;
+                atomic_int_inc(&h->u.Consumer.gate_depth);
                 return 1;
         }
 
@@ -113,8 +111,10 @@ static void Handle_gate_exit(Handle *h) {
 #if !CFL_CONSUMER_GATE_ENABLED
         (void)h;
 #else
-        h->u.Consumer.gate_depth--;
-        if (h->u.Consumer.gate_depth == 0)
+        int depth = atomic_int_dec(&h->u.Consumer.gate_depth);
+        assert(depth >= 0);
+
+        if (depth == 0)
                 atomic_ulong_set(&h->u.Consumer.gate_owner, 0);
 #endif
 }
@@ -1368,7 +1368,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                               NULL};
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
-        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
+        rd_kafka_queue_t *rkqu;
         CallState cs;
         Py_ssize_t i, n = 0;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
@@ -1398,6 +1398,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
+        rkqu = self->u.Consumer.rkqu;
         total_timeout_ms = cfl_timeout_ms(tmout);
 
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
