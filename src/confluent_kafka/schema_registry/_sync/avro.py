@@ -37,6 +37,7 @@ from confluent_kafka.schema_registry.common.avro import (
     get_inline_tags,
     parse_schema_with_repo,
     transform,
+    validate_message,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -45,6 +46,7 @@ from confluent_kafka.schema_registry.serde import (
     BaseSerializer,
     ParsedSchemaCache,
     SchemaId,
+    ValidationRulesExecution,
     clear_original_key,
     set_original_key,
 )
@@ -258,6 +260,9 @@ class AvroSerializer(BaseSerializer):
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate.strict': False,
         'validate.strict.allow.default': False,
+        'validation.rules.execution': ValidationRulesExecution.DISABLED,
+        'validation.rules.fail.fast': False,
+        'validation.rules.executor': None,
     }
 
     def __init_impl(
@@ -336,6 +341,8 @@ class AvroSerializer(BaseSerializer):
         self._strict_allow_default = cast(bool, conf_copy.pop('validate.strict.allow.default'))
         if not isinstance(self._strict_allow_default, bool):
             raise ValueError("validate.strict.allow.default must be a boolean value")
+
+        self.configure_validation_rules(conf_copy)
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
@@ -470,6 +477,9 @@ class AvroSerializer(BaseSerializer):
             def field_transformer(rule_ctx, field_transform, msg):
                 return transform(rule_ctx, expanded_parsed_schema, msg, field_transform)  # noqa: E731
 
+            if self._validation_enabled(ValidationRulesExecution.BEFORE_DOMAIN_RULES):
+                self._validate_inline_rules(expanded_parsed_schema, value)
+
             value = self._execute_rules(
                 ctx,
                 subject,
@@ -480,8 +490,14 @@ class AvroSerializer(BaseSerializer):
                 get_inline_tags(parsed_schema),
                 field_transformer,
             )
+
+            if self._validation_enabled(ValidationRulesExecution.AFTER_DOMAIN_RULES):
+                self._validate_inline_rules(expanded_parsed_schema, value)
         else:
             parsed_schema = self._parsed_schema
+            # No domain rules run on this path, so before/after collapse to one point.
+            if self._validation_enabled():
+                self._validate_inline_rules(expand_schema(parsed_schema), value)
 
         with _ContextStringIO() as fo:
             # Check if it's a simple bytes type
@@ -504,6 +520,15 @@ class AvroSerializer(BaseSerializer):
                 )
 
             return self._schema_id_serializer(buffer, ctx, schema_id)
+
+    def _validate_inline_rules(self, schema: AvroSchema, value: Any) -> None:
+        """
+        Evaluate the schema's inline validation rules against ``value``, raising a
+        single SerializationError listing every violation found.
+        """
+        self._raise_validation_violations(
+            validate_message(self._validation_rule_executor, schema, value, self._validation_rules_fail_fast)
+        )
 
     def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
