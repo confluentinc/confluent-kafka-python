@@ -17,7 +17,7 @@
 
 import asyncio as _locks
 import io
-from typing import Any, Callable, Coroutine, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union, cast
 
 from google.protobuf import descriptor_pb2, json_format
 from google.protobuf.descriptor import Descriptor, FileDescriptor
@@ -56,12 +56,20 @@ from confluent_kafka.schema_registry.serde import (
     clear_original_key,
     set_original_key,
 )
-from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
+from confluent_kafka.serialization import (
+    DeserializerBuilder,
+    MessageField,
+    SerializationContext,
+    SerializationError,
+    SerializerBuilder,
+)
 
 __all__ = [
     '_resolve_named_schema',
     'AsyncProtobufSerializer',
+    'AsyncProtobufSerializerBuilder',
     'AsyncProtobufDeserializer',
+    'AsyncProtobufDeserializerBuilder',
 ]
 
 
@@ -543,6 +551,128 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         return fd_proto, pool
 
 
+class AsyncProtobufSerializerBuilder(SerializerBuilder):
+    """
+    Builds an :py:class:`AsyncProtobufSerializer` for a serializing producer.
+
+    Pass one to a producer through the ``key.serializer.builder`` or
+    ``value.serializer.builder`` configuration property and it constructs the
+    Schema Registry client and the serializer for you, and lets the producer
+    supply the Kafka cluster id to the serializer::
+
+        producer = SerializingProducer({
+            'bootstrap.servers': brokers,
+            'value.serializer.builder': ProtobufSerializerBuilder(
+                schema_registry_config={'url': schema_registry_url},
+                message_type=User,
+            ),
+        })
+
+    Every value also has a setter, each returning the builder so they chain::
+
+        ProtobufSerializerBuilder().set_schema_registry_config(conf).set_message_type(User)
+
+    The message type is required; the rest are optional.
+
+    See :py:class:`AsyncProtobufSerializer` for what the individual values mean.
+    """
+
+    def __init__(
+        self,
+        schema_registry_config: Optional[dict] = None,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
+        message_type: Optional[Message] = None,
+        serializer_config: Optional[dict] = None,
+        rule_config: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None,
+        serializer_init: Optional[Callable[['AsyncProtobufSerializer'], None]] = None,
+    ) -> None:
+        self._schema_registry_conf = schema_registry_config
+        self._schema_registry_client = schema_registry_client
+        self._msg_type = message_type
+        self._serializer_conf = serializer_config
+        self._rule_conf = rule_config
+        self._rule_registry = rule_registry
+        self._serializer_init = serializer_init
+
+    def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AsyncProtobufSerializerBuilder':
+        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        self._schema_registry_conf = schema_registry_conf
+        return self
+
+    def set_schema_registry_client(
+        self, schema_registry_client: AsyncSchemaRegistryClient
+    ) -> 'AsyncProtobufSerializerBuilder':
+        """An existing Schema Registry client to use, instead of building one."""
+        self._schema_registry_client = schema_registry_client
+        return self
+
+    def set_message_type(self, msg_type: Message) -> 'AsyncProtobufSerializerBuilder':
+        """The protobuf message class this serializer accepts. Required."""
+        self._msg_type = msg_type
+        return self
+
+    def set_serializer_config(self, serializer_conf: dict) -> 'AsyncProtobufSerializerBuilder':
+        """Serializer configuration, e.g. ``{'auto.register.schemas': False}``."""
+        self._serializer_conf = serializer_conf
+        return self
+
+    def set_rule_config(self, rule_conf: dict) -> 'AsyncProtobufSerializerBuilder':
+        """Configuration passed to the rule executors and actions."""
+        self._rule_conf = rule_conf
+        return self
+
+    def set_rule_registry(self, rule_registry: RuleRegistry) -> 'AsyncProtobufSerializerBuilder':
+        """Rule registry to use instead of the global one."""
+        self._rule_registry = rule_registry
+        return self
+
+    def set_serializer_init(
+        self, serializer_init: Callable[['AsyncProtobufSerializer'], None]
+    ) -> 'AsyncProtobufSerializerBuilder':
+        """
+        Callable invoked with the serializer once built, for any setup that the
+        other setters do not cover.
+        """
+        self._serializer_init = serializer_init
+        return self
+
+    def build(  # type: ignore[override]
+        self, conf: Dict[str, Any], is_key: bool
+    ) -> Coroutine[Any, Any, Tuple['AsyncProtobufSerializer', Dict[str, Any]]]:
+        """
+        Build the serializer. See :py:func:`SerializerBuilder.build`.
+
+        No Schema Registry property is read from the client configuration today,
+        so it is handed back unchanged.
+
+        Raises:
+            ValueError: If no message type was set.
+        """
+        return self.__build(conf, is_key)
+
+    async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncProtobufSerializer', Dict[str, Any]]:
+        if self._msg_type is None:
+            raise ValueError("Protobuf serializer requires a message type; call set_message_type()")
+
+        client = self._schema_registry_client
+        if client is None and self._schema_registry_conf is not None:
+            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
+
+        serializer = await AsyncProtobufSerializer(
+            self._msg_type,
+            client,
+            self._serializer_conf,
+            self._rule_conf,
+            self._rule_registry,
+        )
+
+        if self._serializer_init is not None:
+            self._serializer_init(serializer)
+
+        return serializer, dict(conf)
+
+
 @asyncinit
 class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     """
@@ -855,3 +985,125 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             if len(msg_index) == 1:
                 return path, msg
             return self._get_message_desc_proto(path, msg, msg_index[1:])
+
+
+class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
+    """
+    Builds an :py:class:`AsyncProtobufDeserializer` for a deserializing consumer.
+
+    The deserializing counterpart of :py:class:`AsyncProtobufSerializerBuilder`.
+    Pass one to a consumer through the ``key.deserializer.builder`` or
+    ``value.deserializer.builder`` configuration property::
+
+        consumer = DeserializingConsumer[None, User]({
+            'bootstrap.servers': brokers,
+            'group.id': group,
+            'value.deserializer.builder': ProtobufDeserializerBuilder(
+                schema_registry_config={'url': schema_registry_url},
+                message_type=User,
+            ),
+        })
+
+    Every value also has a setter, each returning the builder so they chain::
+
+        ProtobufDeserializerBuilder().set_schema_registry_config(conf).set_message_type(User)
+
+    The message type is required; the rest are optional.
+
+    See :py:class:`AsyncProtobufDeserializer` for what the individual values mean.
+    """
+
+    def __init__(
+        self,
+        schema_registry_config: Optional[dict] = None,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
+        message_type: Optional[Message] = None,
+        deserializer_config: Optional[dict] = None,
+        rule_config: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None,
+        deserializer_init: Optional[Callable[['AsyncProtobufDeserializer'], None]] = None,
+    ) -> None:
+        self._schema_registry_conf = schema_registry_config
+        self._schema_registry_client = schema_registry_client
+        self._msg_type = message_type
+        self._deserializer_conf = deserializer_config
+        self._rule_conf = rule_config
+        self._rule_registry = rule_registry
+        self._deserializer_init = deserializer_init
+
+    def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AsyncProtobufDeserializerBuilder':
+        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        self._schema_registry_conf = schema_registry_conf
+        return self
+
+    def set_schema_registry_client(
+        self, schema_registry_client: AsyncSchemaRegistryClient
+    ) -> 'AsyncProtobufDeserializerBuilder':
+        """An existing Schema Registry client to use, instead of building one."""
+        self._schema_registry_client = schema_registry_client
+        return self
+
+    def set_message_type(self, msg_type: Message) -> 'AsyncProtobufDeserializerBuilder':
+        """The protobuf message class this deserializer returns. Required."""
+        self._msg_type = msg_type
+        return self
+
+    def set_deserializer_config(self, deserializer_conf: dict) -> 'AsyncProtobufDeserializerBuilder':
+        """Deserializer configuration, e.g. ``{'use.deprecated.format': False}``."""
+        self._deserializer_conf = deserializer_conf
+        return self
+
+    def set_rule_config(self, rule_conf: dict) -> 'AsyncProtobufDeserializerBuilder':
+        """Configuration passed to the rule executors and actions."""
+        self._rule_conf = rule_conf
+        return self
+
+    def set_rule_registry(self, rule_registry: RuleRegistry) -> 'AsyncProtobufDeserializerBuilder':
+        """Rule registry to use instead of the global one."""
+        self._rule_registry = rule_registry
+        return self
+
+    def set_deserializer_init(
+        self, deserializer_init: Callable[['AsyncProtobufDeserializer'], None]
+    ) -> 'AsyncProtobufDeserializerBuilder':
+        """
+        Callable invoked with the deserializer once built, for any setup that
+        the other setters do not cover.
+        """
+        self._deserializer_init = deserializer_init
+        return self
+
+    def build(  # type: ignore[override]
+        self, conf: Dict[str, Any], is_key: bool
+    ) -> Coroutine[Any, Any, Tuple['AsyncProtobufDeserializer', Dict[str, Any]]]:
+        """
+        Build the deserializer. See :py:func:`DeserializerBuilder.build`.
+
+        No Schema Registry property is read from the client configuration today,
+        so it is handed back unchanged.
+
+        Raises:
+            ValueError: If no message type was set.
+        """
+        return self.__build(conf, is_key)
+
+    async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncProtobufDeserializer', Dict[str, Any]]:
+        if self._msg_type is None:
+            raise ValueError("Protobuf deserializer requires a message type; call set_message_type()")
+
+        client = self._schema_registry_client
+        if client is None and self._schema_registry_conf is not None:
+            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
+
+        deserializer = await AsyncProtobufDeserializer(
+            self._msg_type,
+            self._deserializer_conf,
+            client,
+            self._rule_conf,
+            self._rule_registry,
+        )
+
+        if self._deserializer_init is not None:
+            self._deserializer_init(deserializer)
+
+        return deserializer, dict(conf)

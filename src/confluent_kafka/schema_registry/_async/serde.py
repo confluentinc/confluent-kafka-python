@@ -337,6 +337,41 @@ class AsyncBaseSerde(object):
         self._subject_name_func = AsyncAssociatedNameStrategy()
         self._strategy_accepts_client = True
 
+    def needs_cluster_id(self) -> bool:
+        """
+        Whether this serde needs to be told the Kafka cluster id.
+
+        Only the associated subject name strategy uses the cluster id, as the
+        resource namespace of its association lookups, and only when it was not
+        configured explicitly through KAFKA_CLUSTER_ID. Since that strategy is
+        the default, most serdes constructed by a builder will answer True.
+
+        Returns:
+            bool: True when the cluster id is needed and has not been configured.
+        """
+        if not isinstance(self._subject_name_func, AsyncAssociatedNameStrategy):
+            return False
+
+        return not (self._subject_name_conf or {}).get(KAFKA_CLUSTER_ID)
+
+    def set_cluster_id(self, cluster_id: str) -> None:
+        """
+        Supply the Kafka cluster id the client is connected to.
+
+        Called by the client during construction, before any record is
+        serialized, so no lookup can have been cached under the wildcard
+        namespace yet. An explicitly configured cluster id always wins.
+
+        Args:
+            cluster_id (str): Id of the cluster the client is connected to.
+        """
+        if not self.needs_cluster_id():
+            return
+
+        conf = dict(self._subject_name_conf or {})
+        conf[KAFKA_CLUSTER_ID] = cluster_id
+        self._subject_name_conf = conf
+
     async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = await self._registry.get_schema(self._use_schema_id, subject, fmt)

@@ -430,6 +430,62 @@ const char list_topics_doc[] = PyDoc_STR(
     " :raises: KafkaException\n");
 
 
+PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
+        CallState cs;
+        PyObject *result   = NULL;
+        char *c_cluster_id = NULL;
+        double tmout       = -1.0f;
+        static char *kws[] = {"timeout", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
+                return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
+                return NULL;
+        }
+
+        CallState_begin(self, &cs);
+
+        c_cluster_id = rd_kafka_clusterid(self->rk, cfl_timeout_ms(tmout));
+
+        if (!CallState_end(self, &cs)) {
+                /* Exception raised */
+                if (c_cluster_id != NULL)
+                        rd_kafka_mem_free(self->rk, c_cluster_id);
+                return NULL;
+        }
+
+        if (c_cluster_id == NULL) {
+                cfl_PyErr_Format(
+                    RD_KAFKA_RESP_ERR__TIMED_OUT,
+                    "Failed to retrieve cluster id: %s. The broker must "
+                    "support KIP-78 (>= 0.10.1) for the cluster id to be "
+                    "available.",
+                    rd_kafka_err2str(RD_KAFKA_RESP_ERR__TIMED_OUT));
+                return NULL;
+        }
+
+        result = cfl_PyUnistr(_FromString(c_cluster_id));
+
+        rd_kafka_mem_free(self->rk, c_cluster_id);
+
+        return result;
+}
+
+const char cluster_id_doc[] = PyDoc_STR(
+    ".. py:function:: cluster_id([timeout=-1])\n"
+    "\n"
+    " Request the cluster id from the cluster.\n"
+    " The cluster id is retrieved from the broker metadata, which requires a "
+    "broker version >= 0.10.0.\n"
+    "\n"
+    " :param float timeout: The maximum response time before timing out, or -1 "
+    "for infinite timeout.\n"
+    " :rtype: str\n"
+    " :raises: KafkaException\n");
+
+
 static PyObject *
 c_group_members_to_py(Handle *self,
                       const struct rd_kafka_group_member_info *c_members,

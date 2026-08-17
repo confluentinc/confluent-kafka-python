@@ -1657,6 +1657,8 @@ static PyMethodDef Consumer_methods[] = {
      "\n"},
     {"list_topics", (PyCFunction)list_topics, METH_VARARGS | METH_KEYWORDS,
      list_topics_doc},
+    {"cluster_id", (PyCFunction)cluster_id, METH_VARARGS | METH_KEYWORDS,
+     cluster_id_doc},
     {"consumer_group_metadata", (PyCFunction)Consumer_consumer_group_metadata,
      METH_NOARGS,
      ".. py:function:: consumer_group_metadata()\n"

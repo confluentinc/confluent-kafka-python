@@ -502,6 +502,27 @@ static PyObject *Message_key(Message *self, PyObject *ignore) {
                 Py_RETURN_NONE;
 }
 
+
+/**
+ * @brief Typed view of the value slot for deserializing clients.
+ *
+ * DeserializingConsumer replaces the value with the deserialized object,
+ * so this reads the same slot as Message_value(). It exists so the type
+ * stubs can declare it as the generic V while value() keeps its
+ * bytes-oriented signature for the raw clients.
+ */
+static PyObject *Message_deserialized_value(Message *self, PyObject *ignore) {
+        return Message_value(self, ignore);
+}
+
+
+/**
+ * @brief Typed view of the key slot. See Message_deserialized_value().
+ */
+static PyObject *Message_deserialized_key(Message *self, PyObject *ignore) {
+        return Message_key(self, ignore);
+}
+
 static PyObject *Message_topic(Message *self, PyObject *ignore) {
         if (self->topic) {
                 Py_INCREF(self->topic);
@@ -667,6 +688,30 @@ static PyMethodDef Message_methods[] = {
     {"key", (PyCFunction)Message_key, METH_NOARGS,
      "  :returns: message key or None if not available.\n"
      "  :rtype: str|bytes or None\n"
+     "\n"},
+    {"deserialized_value", (PyCFunction)Message_deserialized_value,
+     METH_NOARGS,
+     "  Retrieve the deserialized message value.\n"
+     "\n"
+     "  This returns the very same object as :py:func:`value`. On a message\n"
+     "  produced by :py:class:`DeserializingConsumer` that is the deserialized\n"
+     "  object; on any other message it is the raw payload. Prefer this\n"
+     "  accessor when consuming with a deserializer: it is annotated with the\n"
+     "  consumer's value type, whereas :py:func:`value` stays typed as bytes\n"
+     "  for the benefit of the raw clients.\n"
+     "\n"
+     "  :returns: deserialized message value (payload) or None if not "
+     "available.\n"
+     "  :rtype: object or None\n"
+     "\n"},
+    {"deserialized_key", (PyCFunction)Message_deserialized_key, METH_NOARGS,
+     "  Retrieve the deserialized message key.\n"
+     "\n"
+     "  See :py:func:`deserialized_value`; this is the key counterpart and\n"
+     "  returns the same object as :py:func:`key`.\n"
+     "\n"
+     "  :returns: deserialized message key or None if not available.\n"
+     "  :rtype: object or None\n"
      "\n"},
     {"topic", (PyCFunction)Message_topic, METH_NOARGS,
      "  :returns: topic name or None if not available.\n"

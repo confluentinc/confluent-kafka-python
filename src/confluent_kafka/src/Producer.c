@@ -1231,6 +1231,8 @@ static PyMethodDef Producer_methods[] = {
      "\n"},
     {"list_topics", (PyCFunction)list_topics, METH_VARARGS | METH_KEYWORDS,
      list_topics_doc},
+    {"cluster_id", (PyCFunction)cluster_id, METH_VARARGS | METH_KEYWORDS,
+     cluster_id_doc},
     {"init_transactions", (PyCFunction)Producer_init_transactions, METH_VARARGS,
      ".. py:function: init_transactions([timeout])\n"
      "\n"

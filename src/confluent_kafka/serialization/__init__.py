@@ -17,13 +17,14 @@
 #
 import struct as _struct
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from confluent_kafka._types import HeadersType
 from confluent_kafka.error import KafkaException
 
 __all__ = [
     'Deserializer',
+    'DeserializerBuilder',
     'IntegerDeserializer',
     'IntegerSerializer',
     'DoubleDeserializer',
@@ -34,6 +35,7 @@ __all__ = [
     'SerializationContext',
     'SerializationError',
     'Serializer',
+    'SerializerBuilder',
 ]
 
 
@@ -138,6 +140,37 @@ class Serializer(object):
 
         raise NotImplementedError
 
+    def needs_cluster_id(self) -> bool:
+        """
+        Whether this serializer needs the Kafka cluster id to be supplied
+        before it can serialize.
+
+        A serializer that resolves subjects through the Schema Registry
+        *associated* subject name strategy uses the cluster id as the resource
+        namespace. When it was not configured explicitly,
+        :py:class:`SerializingProducer` fetches it from the broker and hands it
+        over via :py:func:`set_cluster_id`.
+
+        Returns:
+            bool: False for serializers that do not need it, which is the
+            default and covers every serializer in this module.
+        """
+
+        return False
+
+    def set_cluster_id(self, cluster_id: str) -> None:
+        """
+        Supply the Kafka cluster id.
+
+        Only called when :py:func:`needs_cluster_id` returns True. The default
+        implementation does nothing.
+
+        Args:
+            cluster_id (str): Id of the cluster the client is connected to.
+        """
+
+        pass
+
 
 class Deserializer(object):
     """
@@ -191,6 +224,111 @@ class Deserializer(object):
 
         Returns:
             object if data is not None, otherwise None
+        """
+
+        raise NotImplementedError
+
+    def needs_cluster_id(self) -> bool:
+        """
+        Whether this deserializer needs the Kafka cluster id to be supplied
+        before it can deserialize.
+
+        See :py:func:`Serializer.needs_cluster_id`; the id is supplied by
+        :py:class:`DeserializingConsumer`.
+
+        Returns:
+            bool: False for deserializers that do not need it, which is the
+            default and covers every deserializer in this module.
+        """
+
+        return False
+
+    def set_cluster_id(self, cluster_id: str) -> None:
+        """
+        Supply the Kafka cluster id.
+
+        Only called when :py:func:`needs_cluster_id` returns True. The default
+        implementation does nothing.
+
+        Args:
+            cluster_id (str): Id of the cluster the client is connected to.
+        """
+
+        pass
+
+
+class SerializerBuilder(object):
+    """
+    Extensible class from which all Serializer builders derive.
+
+    A builder defers construction of a :py:class:`Serializer` until the client
+    is created, which lets it take the client's own configuration into account
+    and lets the client own the serializer's lifecycle. Pass one to
+    :py:class:`SerializingProducer` through the ``key.serializer.builder`` or
+    ``value.serializer.builder`` configuration property instead of constructing
+    a serializer yourself.
+
+    Builders for Protobuf, JSON Schema and Avro with Confluent Schema Registry
+    integration are supplied out-of-the-box in the
+    ``confluent_kafka.schema_registry`` namespace.
+
+    Note:
+        This class is not directly instantiable. The derived classes must be
+        used instead.
+    """
+
+    __slots__: List[str] = []
+
+    def build(self, conf: Dict[str, Any], is_key: bool) -> Tuple[Serializer, Dict[str, Any]]:
+        """
+        Build the serializer.
+
+        Args:
+            conf (dict): Client configuration. A builder may consume properties
+                of its own from it; whatever it does not consume must be
+                returned so the client can be configured with it.
+
+            is_key (bool): True when building the serializer for message keys,
+                False for message values.
+
+        Returns:
+            tuple: The built :py:class:`Serializer` and the configuration left
+            over for the client.
+        """
+
+        raise NotImplementedError
+
+
+class DeserializerBuilder(object):
+    """
+    Extensible class from which all Deserializer builders derive.
+
+    The deserializing counterpart of :py:class:`SerializerBuilder`. Pass one to
+    :py:class:`DeserializingConsumer` through the ``key.deserializer.builder``
+    or ``value.deserializer.builder`` configuration property.
+
+    Note:
+        This class is not directly instantiable. The derived classes must be
+        used instead.
+    """
+
+    __slots__: List[str] = []
+
+    def build(self, conf: Dict[str, Any], is_key: bool) -> Tuple[Deserializer, Dict[str, Any]]:
+        """
+        Build the deserializer.
+
+        Args:
+            conf (dict): Client configuration. A builder may consume properties
+                of its own from it; whatever it does not consume must be
+                returned so the client can be configured with it.
+
+            is_key (bool): True when building the deserializer for message keys,
+                False for message values.
+
+        Returns:
+            tuple: The built :py:class:`Deserializer` and the configuration left
+            over for the client.
         """
 
         raise NotImplementedError

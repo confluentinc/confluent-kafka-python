@@ -17,7 +17,7 @@
 import io
 import json
 import threading as _locks
-from typing import Any, Callable, Dict, Optional, Union, cast
+from typing import Any, Callable, Dict, Optional, Tuple, Union, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 from fastavro.schema import expand_schema
@@ -48,12 +48,20 @@ from confluent_kafka.schema_registry.serde import (
     clear_original_key,
     set_original_key,
 )
-from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
+from confluent_kafka.serialization import (
+    DeserializerBuilder,
+    MessageField,
+    SerializationContext,
+    SerializationError,
+    SerializerBuilder,
+)
 
 __all__ = [
     '_resolve_named_schema',
     'AvroSerializer',
+    'AvroSerializerBuilder',
     'AvroDeserializer',
+    'AvroDeserializerBuilder',
 ]
 
 
@@ -522,6 +530,128 @@ class AvroSerializer(BaseSerializer):
         return parsed_schema
 
 
+class AvroSerializerBuilder(SerializerBuilder):
+    """
+    Builds an :py:class:`AvroSerializer` for a serializing producer.
+
+    Pass one to a producer through the ``key.serializer.builder`` or
+    ``value.serializer.builder`` configuration property and it constructs the
+    Schema Registry client and the serializer for you, and lets the producer
+    supply the Kafka cluster id to the serializer::
+
+        producer = SerializingProducer({
+            'bootstrap.servers': brokers,
+            'value.serializer.builder': AvroSerializerBuilder(
+                schema_registry_config={'url': schema_registry_url},
+                schema=schema_str,
+            ),
+        })
+
+    Every value also has a setter, each returning the builder so they chain::
+
+        AvroSerializerBuilder().set_schema_registry_config(conf).set_schema(schema_str)
+
+    All values are optional: the serde's own defaults apply to whatever is not
+    set, though a Schema Registry client or its configuration is needed in
+    practice.
+
+    See :py:class:`AvroSerializer` for what the individual values mean.
+    """
+
+    def __init__(
+        self,
+        schema_registry_config: Optional[dict] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        schema: Union[str, Schema, None] = None,
+        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        serializer_config: Optional[dict] = None,
+        rule_config: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None,
+        serializer_init: Optional[Callable[['AvroSerializer'], None]] = None,
+    ) -> None:
+        self._schema_registry_conf = schema_registry_config
+        self._schema_registry_client = schema_registry_client
+        self._schema_str = schema
+        self._to_dict = to_dict
+        self._serializer_conf = serializer_config
+        self._rule_conf = rule_config
+        self._rule_registry = rule_registry
+        self._serializer_init = serializer_init
+
+    def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AvroSerializerBuilder':
+        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        self._schema_registry_conf = schema_registry_conf
+        return self
+
+    def set_schema_registry_client(self, schema_registry_client: SchemaRegistryClient) -> 'AvroSerializerBuilder':
+        """An existing Schema Registry client to use, instead of building one."""
+        self._schema_registry_client = schema_registry_client
+        return self
+
+    def set_schema(self, schema_str: Union[str, Schema]) -> 'AvroSerializerBuilder':
+        """The writer schema, as an Avro schema string or a :py:class:`Schema`."""
+        self._schema_str = schema_str
+        return self
+
+    def set_to_dict(self, to_dict: Callable[[object, SerializationContext], dict]) -> 'AvroSerializerBuilder':
+        """Callable converting the object being serialized to a dict."""
+        self._to_dict = to_dict
+        return self
+
+    def set_serializer_config(self, serializer_conf: dict) -> 'AvroSerializerBuilder':
+        """Serializer configuration, e.g. ``{'auto.register.schemas': False}``."""
+        self._serializer_conf = serializer_conf
+        return self
+
+    def set_rule_config(self, rule_conf: dict) -> 'AvroSerializerBuilder':
+        """Configuration passed to the rule executors and actions."""
+        self._rule_conf = rule_conf
+        return self
+
+    def set_rule_registry(self, rule_registry: RuleRegistry) -> 'AvroSerializerBuilder':
+        """Rule registry to use instead of the global one."""
+        self._rule_registry = rule_registry
+        return self
+
+    def set_serializer_init(self, serializer_init: Callable[['AvroSerializer'], None]) -> 'AvroSerializerBuilder':
+        """
+        Callable invoked with the serializer once built, for any setup that the
+        other setters do not cover.
+        """
+        self._serializer_init = serializer_init
+        return self
+
+    def build(  # type: ignore[override]
+        self, conf: Dict[str, Any], is_key: bool
+    ) -> Tuple['AvroSerializer', Dict[str, Any]]:
+        """
+        Build the serializer. See :py:func:`SerializerBuilder.build`.
+
+        No Schema Registry property is read from the client configuration today,
+        so it is handed back unchanged.
+        """
+        return self.__build(conf, is_key)
+
+    def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AvroSerializer', Dict[str, Any]]:
+        client = self._schema_registry_client
+        if client is None and self._schema_registry_conf is not None:
+            client = SchemaRegistryClient(self._schema_registry_conf)
+
+        serializer = AvroSerializer(
+            client,
+            self._schema_str,
+            self._to_dict,
+            self._serializer_conf,
+            self._rule_conf,
+            self._rule_registry,
+        )
+
+        if self._serializer_init is not None:
+            self._serializer_init(serializer)
+
+        return serializer, dict(conf)
+
+
 class AvroDeserializer(BaseDeserializer):
     """
     Deserializer for Avro binary encoded data with Confluent Schema Registry
@@ -841,3 +971,135 @@ class AvroDeserializer(BaseDeserializer):
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
+
+
+class AvroDeserializerBuilder(DeserializerBuilder):
+    """
+    Builds an :py:class:`AvroDeserializer` for a deserializing consumer.
+
+    The deserializing counterpart of :py:class:`AvroSerializerBuilder`.
+    Pass one to a consumer through the ``key.deserializer.builder`` or
+    ``value.deserializer.builder`` configuration property::
+
+        consumer = DeserializingConsumer[str, User]({
+            'bootstrap.servers': brokers,
+            'group.id': group,
+            'value.deserializer.builder': AvroDeserializerBuilder(
+                schema_registry_config={'url': schema_registry_url},
+                from_dict=dict_to_user,
+            ),
+        })
+
+    Every value also has a setter, each returning the builder so they chain::
+
+        AvroDeserializerBuilder().set_schema_registry_config(conf).set_from_dict(dict_to_user)
+
+    All values are optional: the serde's own defaults apply to whatever is not
+    set, though a Schema Registry client or its configuration is needed in
+    practice.
+
+    See :py:class:`AvroDeserializer` for what the individual values mean.
+    """
+
+    def __init__(
+        self,
+        schema_registry_config: Optional[dict] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        schema: Union[str, Schema, None] = None,
+        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        return_record_name: bool = False,
+        deserializer_config: Optional[dict] = None,
+        rule_config: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None,
+        deserializer_init: Optional[Callable[['AvroDeserializer'], None]] = None,
+    ) -> None:
+        self._schema_registry_conf = schema_registry_config
+        self._schema_registry_client = schema_registry_client
+        self._schema_str = schema
+        self._from_dict = from_dict
+        self._return_record_name = return_record_name
+        self._deserializer_conf = deserializer_config
+        self._rule_conf = rule_config
+        self._rule_registry = rule_registry
+        self._deserializer_init = deserializer_init
+
+    def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AvroDeserializerBuilder':
+        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        self._schema_registry_conf = schema_registry_conf
+        return self
+
+    def set_schema_registry_client(self, schema_registry_client: SchemaRegistryClient) -> 'AvroDeserializerBuilder':
+        """An existing Schema Registry client to use, instead of building one."""
+        self._schema_registry_client = schema_registry_client
+        return self
+
+    def set_schema(self, schema_str: Union[str, Schema]) -> 'AvroDeserializerBuilder':
+        """The reader schema, as an Avro schema string or a :py:class:`Schema`."""
+        self._schema_str = schema_str
+        return self
+
+    def set_from_dict(self, from_dict: Callable[[dict, SerializationContext], object]) -> 'AvroDeserializerBuilder':
+        """Callable converting the deserialized dict to the object handed to the application."""
+        self._from_dict = from_dict
+        return self
+
+    def set_return_record_name(self, return_record_name: bool) -> 'AvroDeserializerBuilder':
+        """Whether to return a (record name, record) tuple rather than the record alone."""
+        self._return_record_name = return_record_name
+        return self
+
+    def set_deserializer_config(self, deserializer_conf: dict) -> 'AvroDeserializerBuilder':
+        """Deserializer configuration, e.g. ``{'use.latest.version': True}``."""
+        self._deserializer_conf = deserializer_conf
+        return self
+
+    def set_rule_config(self, rule_conf: dict) -> 'AvroDeserializerBuilder':
+        """Configuration passed to the rule executors and actions."""
+        self._rule_conf = rule_conf
+        return self
+
+    def set_rule_registry(self, rule_registry: RuleRegistry) -> 'AvroDeserializerBuilder':
+        """Rule registry to use instead of the global one."""
+        self._rule_registry = rule_registry
+        return self
+
+    def set_deserializer_init(
+        self, deserializer_init: Callable[['AvroDeserializer'], None]
+    ) -> 'AvroDeserializerBuilder':
+        """
+        Callable invoked with the deserializer once built, for any setup that
+        the other setters do not cover.
+        """
+        self._deserializer_init = deserializer_init
+        return self
+
+    def build(  # type: ignore[override]
+        self, conf: Dict[str, Any], is_key: bool
+    ) -> Tuple['AvroDeserializer', Dict[str, Any]]:
+        """
+        Build the deserializer. See :py:func:`DeserializerBuilder.build`.
+
+        No Schema Registry property is read from the client configuration today,
+        so it is handed back unchanged.
+        """
+        return self.__build(conf, is_key)
+
+    def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AvroDeserializer', Dict[str, Any]]:
+        client = self._schema_registry_client
+        if client is None and self._schema_registry_conf is not None:
+            client = SchemaRegistryClient(self._schema_registry_conf)
+
+        deserializer = AvroDeserializer(
+            client,
+            self._schema_str,
+            self._from_dict,
+            self._return_record_name,
+            self._deserializer_conf,
+            self._rule_conf,
+            self._rule_registry,
+        )
+
+        if self._deserializer_init is not None:
+            self._deserializer_init(deserializer)
+
+        return deserializer, dict(conf)
