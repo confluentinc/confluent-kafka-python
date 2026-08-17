@@ -53,6 +53,7 @@ PyObject *KafkaException;
  * KafkaException. */
 PyObject *IllegalStateException;
 PyObject *ConcurrentModificationException;
+PyObject *Consumer_reentry_identity_var;
 
 
 /****************************************************************************
@@ -4014,7 +4015,8 @@ static PyObject *_init_cimpl(void) {
 
         /* Subclass RuntimeError, not KafkaException. These carry a plain
          * message string (str(exc)), not a KafkaError — the type conveys the
-         * code. Only the share consumer raises these today. */
+         * code. IllegalStateException is raised only by the share consumer;
+         * ConcurrentModificationException also by the Consumer gate. */
         IllegalStateException = PyErr_NewExceptionWithDoc(
             "cimpl.IllegalStateException",
             "Raised by ShareConsumer when an operation is attempted in an "
@@ -4030,8 +4032,9 @@ static PyObject *_init_cimpl(void) {
 
         ConcurrentModificationException = PyErr_NewExceptionWithDoc(
             "cimpl.ConcurrentModificationException",
-            "Raised by ShareConsumer when it is accessed concurrently from "
-            "more than one thread.\n"
+            "Raised by ShareConsumer or Consumer when it is accessed concurrently from "
+            "more than one thread. For Consumer, this applies on Python 3.15+ and "
+            "on free-threaded 3.14.\n"
             "\n"
             "Subclass of :py:class:`RuntimeError`; ``str(exception)`` is "
             "the error message.\n"
@@ -4040,6 +4043,21 @@ static PyObject *_init_cimpl(void) {
         Py_INCREF(ConcurrentModificationException);
         PyModule_AddObject(m, "ConcurrentModificationException",
                            ConcurrentModificationException);
+
+        /* ContextVar carrying the identity AIOConsumer presents to the
+         * Consumer gate for the current call -- see Handle_gate_enter()
+         * in Consumer.c and confluent_kafka.aio._common. */
+        PyObject *zero = PyLong_FromLong(0);
+        if (!zero)
+                return NULL;
+        Consumer_reentry_identity_var =
+            PyContextVar_New("reentry_identity", zero);
+        Py_DECREF(zero);
+        if (!Consumer_reentry_identity_var)
+                return NULL;
+        Py_INCREF(Consumer_reentry_identity_var);
+        PyModule_AddObject(m, "_reentry_identity_var",
+                           Consumer_reentry_identity_var);
 
         PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE",
                                 RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
