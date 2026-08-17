@@ -16,16 +16,33 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Generic, Optional
+
+if TYPE_CHECKING:
+    # PEP 696 defaults, so an unparameterized SerializingProducer(conf) still
+    # infers as before instead of erroring with "Need type annotation". They
+    # only mean anything to a type checker, and type checkers always have
+    # typing_extensions available, so the runtime below keeps plain TypeVars
+    # and this costs no dependency on any Python version.
+    from typing_extensions import TypeVar
+
+    K = TypeVar("K", default=Any)
+    V = TypeVar("V", default=Any)
+else:
+    from typing import TypeVar
+
+    K = TypeVar("K")
+    V = TypeVar("V")
 
 from confluent_kafka.cimpl import Producer as _ProducerImpl
 
+from ._serde_builder import pop_serdes, propagate_cluster_id
 from ._types import DeliveryCallback, HeadersType
 from .error import KeySerializationError, ValueSerializationError
 from .serialization import MessageField, SerializationContext
 
 
-class SerializingProducer(_ProducerImpl):
+class SerializingProducer(_ProducerImpl, Generic[K, V]):
     """
     A high level Kafka producer with serialization capabilities.
 
@@ -38,17 +55,25 @@ class SerializingProducer(_ProducerImpl):
 
     Additional configuration properties:
 
-    +-------------------------+---------------------+-----------------------------------------------------+
-    | Property Name           | Type                | Description                                         |
-    +=========================+=====================+=====================================================+
-    |                         |                     | Callable(obj, SerializationContext) -> bytes        |
-    | ``key.serializer``      | callable            |                                                     |
-    |                         |                     | Serializer used for message keys.                   |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(obj, SerializationContext) -> bytes        |
-    | ``value.serializer``    | callable            |                                                     |
-    |                         |                     | Serializer used for message values.                 |
-    +-------------------------+---------------------+-----------------------------------------------------+
+    +------------------------------+---------------------+------------------------------------------------+
+    | Property Name                | Type                | Description                                    |
+    +==============================+=====================+================================================+
+    |                              |                     | Callable(obj, SerializationContext) -> bytes   |
+    | ``key.serializer``           | callable            |                                                |
+    |                              |                     | Serializer used for message keys.              |
+    +------------------------------+---------------------+------------------------------------------------+
+    |                              |                     | Callable(obj, SerializationContext) -> bytes   |
+    | ``value.serializer``         | callable            |                                                |
+    |                              |                     | Serializer used for message values.            |
+    +------------------------------+---------------------+------------------------------------------------+
+    |                              |                     | SerializerBuilder building the key serializer, |
+    | ``key.serializer.builder``   | SerializerBuilder   | as an alternative to passing a ready-made one  |
+    |                              |                     | in ``key.serializer``.                         |
+    +------------------------------+---------------------+------------------------------------------------+
+    |                              |                     | SerializerBuilder building the value           |
+    | ``value.serializer.builder`` | SerializerBuilder   | serializer, as an alternative to passing a     |
+    |                              |                     | ready-made one in ``value.serializer``.        |
+    +------------------------------+---------------------+------------------------------------------------+
 
     Serializers for string, integer and double (:py:class:`StringSerializer`, :py:class:`IntegerSerializer`
     and :py:class:`DoubleSerializer`) are supplied out-of-the-box in the ``confluent_kafka.serialization``
@@ -56,7 +81,24 @@ class SerializingProducer(_ProducerImpl):
 
     Serializers for Protobuf, JSON Schema and Avro (:py:class:`ProtobufSerializer`, :py:class:`JSONSerializer`
     and :py:class:`AvroSerializer`) with Confluent Schema Registry integration are supplied out-of-the-box
-    in the ``confluent_kafka.schema_registry`` namespace.
+    in the ``confluent_kafka.schema_registry`` namespace, each with a matching builder
+    (:py:class:`AvroSerializerBuilder` and friends) that constructs the Schema Registry client for you::
+
+        producer = SerializingProducer({
+            'bootstrap.servers': brokers,
+            'value.serializer.builder': AvroSerializerBuilder()
+                .set_schema_registry_config({'url': schema_registry_url})
+                .set_schema(schema_str),
+        })
+
+    A builder is also what allows a serializer to be given the Kafka cluster id: serializers that need
+    it (those resolving subjects through the Schema Registry associated subject name strategy without an
+    explicit ``subject.name.strategy.kafka.cluster.id``) have it fetched from the broker and supplied
+    during construction.
+
+    The class is generic in the key and value types accepted by :py:func:`produce`, so
+    ``SerializingProducer[str, User]`` type checks the objects handed to it. Left unparameterized both
+    are Any, as before.
 
     See Also:
         - The :ref:`Configuration Guide <pythonclient_configuration>` for in depth information on how to configure the client.
@@ -66,21 +108,25 @@ class SerializingProducer(_ProducerImpl):
 
     Args:
         conf (producer): SerializingProducer configuration.
+
+    Raises:
+        ValueError: If a serializer and its builder are both configured.
     """  # noqa E501
 
     def __init__(self, conf: Dict[str, Any]) -> None:
-        conf_copy = conf.copy()
-
-        self._key_serializer = conf_copy.pop('key.serializer', None)
-        self._value_serializer = conf_copy.pop('value.serializer', None)
+        self._key_serializer, self._value_serializer, conf_copy = pop_serdes(
+            conf, 'key.serializer', 'value.serializer'
+        )
 
         super(SerializingProducer, self).__init__(conf_copy)
+
+        propagate_cluster_id(self, [self._key_serializer, self._value_serializer])
 
     def produce(  # type: ignore[override]
         self,
         topic: str,
-        key: Any = None,
-        value: Any = None,
+        key: Optional[K] = None,
+        value: Optional[V] = None,
         partition: int = -1,
         on_delivery: Optional[DeliveryCallback] = None,
         timestamp: int = 0,
@@ -136,19 +182,28 @@ class SerializingProducer(_ProducerImpl):
             KafkaException: For all other errors
         """
 
+        key_bytes: Any = key
+        value_bytes: Any = value
+
         ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:
             try:
-                key = self._key_serializer(key, ctx)
+                key_bytes = self._key_serializer(key, ctx)
             except Exception as se:
                 raise KeySerializationError(se)
         ctx.field = MessageField.VALUE
         if self._value_serializer is not None:
             try:
-                value = self._value_serializer(value, ctx)
+                value_bytes = self._value_serializer(value, ctx)
             except Exception as se:
                 raise ValueSerializationError(se)
 
         super(SerializingProducer, self).produce(
-            topic, value, key, headers=headers, partition=partition, timestamp=timestamp, on_delivery=on_delivery
+            topic,
+            value_bytes,
+            key_bytes,
+            headers=headers,
+            partition=partition,
+            timestamp=timestamp,
+            on_delivery=on_delivery,
         )
