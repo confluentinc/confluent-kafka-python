@@ -9,6 +9,19 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - Add Python 3.14t wheels (#2352)
 - Producer `close()` now aborts any open transaction (#2347)
 - Async IO Consumer's default worker pool size has been increased from 2 to 100 (#2347)
+- Add support for CPython free-threading (PEP 703) to enable true multi-core parallel execution in No-GIL environments (#2347)
+- `SerializingProducer` and `DeserializingConsumer` accept a *serde builder*
+  when not passing a ready-made serde, through the new `key.serializer.builder` /
+  `value.serializer.builder` and `key.deserializer.builder` /
+  `value.deserializer.builder` configuration properties (#).
+- Serdes that resolve subjects through the Schema Registry *associated* subject
+  name strategy are now given the Kafka cluster id automatically (#).
+- New `Producer.cluster_id()` and `Consumer.cluster_id()`, returning the id of
+  the cluster the client is connected to (#).
+- New `Message.deserialized_key()` and `Message.deserialized_value()`, which
+  return the same objects as `key()` and `value()` but are typed with the
+  deserialized types on a `DeserializingConsumer`. `SerializingProducer` and
+  `DeserializingConsumer` are now generic in their key and value types (#).
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
