@@ -25,7 +25,7 @@ from uuid import uuid1
 
 import pytest
 
-from confluent_kafka.aio._AIOConsumer import AIOConsumer
+from tests.common import TestAIOConsumer
 
 
 def called_by():
@@ -42,7 +42,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
     )
     if conf:
         consumer_conf.update(conf)
-    return AIOConsumer(consumer_conf, max_workers=2)
+    return TestAIOConsumer(consumer_conf, max_workers=2)
 
 
 async def test_on_assign_default_fallback_without_calling_assign(kafka_cluster):
@@ -96,7 +96,7 @@ async def test_shared_executor_across_aio_consumers(kafka_cluster):
                 'enable.auto.commit': False,
             }
         )
-        return AIOConsumer(consumer_conf, executor=shared_executor)
+        return TestAIOConsumer(consumer_conf, executor=shared_executor)
 
     consumer_a = make_consumer(topic_a)
     consumer_b = make_consumer(topic_b)
@@ -168,7 +168,7 @@ async def test_async_context_manager_closes_on_exit(kafka_cluster):
         }
     )
 
-    async with AIOConsumer(consumer_conf, max_workers=2) as consumer:
+    async with TestAIOConsumer(consumer_conf, max_workers=2) as consumer:
         await consumer.subscribe([topic])
         msg = await consumer.poll(10)
         assert msg is not None

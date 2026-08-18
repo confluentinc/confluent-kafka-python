@@ -27,7 +27,7 @@ from uuid import uuid1
 import pytest
 
 from confluent_kafka import ConcurrentModificationException
-from confluent_kafka.aio._AIOConsumer import AIOConsumer
+from tests.common import TestAIOConsumer
 from tests.integration.conftest import consumer_gate_enabled
 
 pytestmark = pytest.mark.skipif(
@@ -47,7 +47,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
     )
     if conf:
         consumer_conf.update(conf)
-    return AIOConsumer(consumer_conf, max_workers=2)
+    return TestAIOConsumer(consumer_conf, max_workers=2)
 
 
 async def test_gate_rejects_concurrent_non_reentrant_calls(kafka_cluster):
@@ -142,12 +142,11 @@ async def test_gate_rejects_top_level_call_during_reentrant_call(kafka_cluster):
     loop of re-entrant incremental_assign()/incremental_unassign() calls,
     each legitimately borrowing the gate by presenting the identity poll()
     generated -- every one of them must succeed. Meanwhile, a genuinely
-    independent top-level commit() launched from a separate task, sometime
-    while that loop is still running, presents its own different identity
-    and must collide with poll()'s -- it must be rejected with
+    independent top-level commit() launched from a separate task, while
+    poll() is still in progress, presents its own different identity and
+    must collide with poll()'s -- it must be rejected with
     ConcurrentModificationException."""
     topic = kafka_cluster.create_topic_and_wait_propogation("test_gate_rejects_top_level_during_reentrant")
-    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
 
     consumer = await _new_aio_consumer(kafka_cluster, {'partition.assignment.strategy': 'cooperative-sticky'})
 
@@ -160,19 +159,24 @@ async def test_gate_rejects_top_level_call_during_reentrant_call(kafka_cluster):
             await consumer.incremental_unassign(partitions)
             loop_results.append(i)
         # Leave the partitions actually assigned so poll() can deliver the
-        # seeded message.
+        # message seeded below once the collision has happened.
         await consumer.incremental_assign(partitions)
 
     await consumer.subscribe([topic], on_assign=on_assign)
 
-    poll_task = asyncio.create_task(consumer.poll(10))
-    # Launch the colliding top-level call while the on_assign loop is
-    # (almost certainly) still running -- it fires synchronously as the
-    # very first thing inside poll(), before poll() can return a message.
-    await asyncio.sleep(0.2)
-    commit_task = asyncio.create_task(consumer.commit(asynchronous=False))
+    async def seed_after_collision():
+        # Seed a message so poll_task can find it
+        # and return instead of waiting out its full timeout.
+        await asyncio.sleep(0.2)
+        kafka_cluster.seed_topic(topic, value_source=[b'hello'])
 
-    poll_result, commit_result = await asyncio.gather(poll_task, commit_task, return_exceptions=True)
+    poll_task = asyncio.create_task(consumer.poll(10))
+    # A short, deterministic head start for poll_task to reach the gate first.
+    await asyncio.sleep(0.05)
+    commit_task = asyncio.create_task(consumer.commit(asynchronous=False))
+    seed_task = asyncio.create_task(seed_after_collision())
+
+    poll_result, commit_result, _ = await asyncio.gather(poll_task, commit_task, seed_task, return_exceptions=True)
 
     print(
         f"loop_results={len(loop_results)}/{n_iterations}, " f"poll_result={poll_result}, commit_result={commit_result}"
