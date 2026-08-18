@@ -261,6 +261,7 @@ class TestAIOConsumer:
         finally:
             executor.shutdown(wait=True)
 
+<<<<<<< HEAD
     @pytest.mark.asyncio
     async def test_call_acquires_and_releases_invocation_lock(self, mock_consumer, basic_config):
         """_call() must hold the current invocation's lock (as wrap_callback
