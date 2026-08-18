@@ -29,7 +29,7 @@ import inspect
 from uuid import uuid1
 
 from confluent_kafka import TopicPartition
-from confluent_kafka.aio._AIOConsumer import AIOConsumer
+from tests.common import TestAIOConsumer
 
 
 def called_by():
@@ -46,7 +46,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
     )
     if conf:
         consumer_conf.update(conf)
-    return AIOConsumer(consumer_conf, max_workers=2)
+    return TestAIOConsumer(consumer_conf, max_workers=2)
 
 
 async def test_on_assign_calls_assign_from_callback(kafka_cluster):
@@ -143,7 +143,7 @@ async def test_on_revoke_calls_unassign_from_callback(kafka_cluster):
 
     async def on_revoke(consumer, partitions):
         revoke_called.append(partitions)
-        await consumer.unassign()
+        await consumer.unassign(partitions)
 
     await consumer.subscribe([topic], on_revoke=on_revoke)
 
@@ -172,7 +172,7 @@ async def test_on_revoke_calls_unassign_from_close_callback(kafka_cluster):
 
     async def on_revoke(consumer, partitions):
         revoke_called.append(partitions)
-        await consumer.unassign()
+        await consumer.unassign(partitions)
 
     await consumer.subscribe([topic], on_revoke=on_revoke)
 
@@ -402,7 +402,7 @@ async def test_store_offsets_calls_store_offsets_from_callback(kafka_cluster):
         if msg is not None:
             result = await consumer.store_offsets(message=msg)
             store_offsets_results.append(result)
-        await consumer.unassign()
+        await consumer.unassign(partitions)
 
     await consumer.subscribe([topic], on_assign=on_assign, on_revoke=on_revoke)
 
@@ -540,7 +540,7 @@ async def test_on_lost_calls_unassign_from_callback(kafka_cluster):
 
     async def on_lost(consumer, partitions):
         lost_called.append(partitions)
-        await consumer.unassign()
+        await consumer.unassign(partitions)
 
     await consumer.subscribe([topic], on_revoke=on_revoke, on_lost=on_lost)
 

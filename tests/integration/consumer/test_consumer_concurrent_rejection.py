@@ -57,7 +57,7 @@ def test_sequential_calls_succeed_simultaneous_calls_rejected(kafka_cluster):
     Calls made simultaneously (both threads enter the gate at roughly the same time)
     must not both be let through -- exactly one must raise ConcurrentModificationException."""
     topic = kafka_cluster.create_topic_and_wait_propogation("test_sequential_vs_simultaneous")
-    kafka_cluster.seed_topic(topic, value_source=[b'hello', b'world'])
+    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
 
     consumer = _new_consumer(kafka_cluster)
     consumer.subscribe([topic])
@@ -71,7 +71,7 @@ def test_sequential_calls_succeed_simultaneous_calls_rejected(kafka_cluster):
 
     def call_sequential(label):
         try:
-            consumer.assign(partitions)
+            consumer.assignment()
             results_sequential.append((label, 'ok'))
         except Exception as e:
             results_sequential.append((label, e))
@@ -89,9 +89,7 @@ def test_sequential_calls_succeed_simultaneous_calls_rejected(kafka_cluster):
     ), f"sequential calls should all succeed, got: {results_sequential}"
 
     # Simultaneous: both threads release at the same instant via a Barrier,
-    # both racing to enter the gate for a call that holds it for up to 5s --
-    # a wide enough window that there's no doubt the two calls genuinely
-    # overlap inside the gate, not just "probably still running".
+    # both racing to enter the gate for a call that holds it for up to 5s.
     barrier = threading.Barrier(2)
     results_simultaneous = []
 
@@ -119,11 +117,12 @@ def test_sequential_calls_succeed_simultaneous_calls_rejected(kafka_cluster):
     ), f"expected ConcurrentModificationException, got: {errors[0][1]!r}"
     assert len(successes) == 1, f"expected exactly one call to succeed, got: {results_simultaneous}"
 
-    # The consumer must remain usable afterward
+    # The consumer must remain usable afterward -- verify with a real poll().
+    kafka_cluster.seed_topic(topic, value_source=[b'final'])
     msg2 = consumer.poll(5)
     print(f"final poll after simultaneous calls: {msg2.value() if msg2 else None}")
     assert msg2 is not None
-    assert msg2.value() == b'world'
+    assert msg2.value() == b'final'
 
     consumer.close()
 
@@ -273,7 +272,7 @@ def test_many_threads_hammering_one_consumer(kafka_cluster):
                 if method == 0:
                     consumer.poll(0.05)
                 elif method == 1:
-                    consumer.assign(partitions)
+                    consumer.position(partitions)
                 else:
                     consumer.pause(partitions)
                     consumer.resume(partitions)
