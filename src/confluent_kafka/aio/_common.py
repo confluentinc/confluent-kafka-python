@@ -118,7 +118,6 @@ def wrap_callback(
             # Tasks the callback spawns inherit this identity, so calls back into the
             # Consumer must be awaited one at a time -- concurrent ones (gather,
             # or an un-awaited create_task) would all be let through the gate.
-            # TODO NOGIL: Add support for concurrent and un-awaited calls
             with ReentryIdentity.active(identity):
                 return await callback(*args, **kwargs)
 
