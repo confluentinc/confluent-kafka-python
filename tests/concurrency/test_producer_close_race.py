@@ -33,34 +33,32 @@ ITERATIONS = 10
 
 def _race_close_against(worker, conf=None, num_workers=1):
     """
-    Run `worker(producer, stop_event)` on `num_workers` other threads while
-    calling close() from the main thread, repeated `iterations` times
-    against a fresh Producer each time. Every close() call (the main
-    thread's, once per iteration) must return True.
+    Run `worker(producer)` on `num_workers` other threads while calling
+    close() from the main thread, repeated `iterations` times against a
+    fresh Producer each time. Every close() call (the main thread's, once
+    per iteration) must return True.
     """
     errors = []
     close_results = []
 
     for i in range(ITERATIONS):
         producer = Producer(conf or _PRODUCER_CONF)
-        stop_event = threading.Event()
         start_barrier = threading.Barrier(num_workers + 1)
 
         def run_worker():
             try:
                 start_barrier.wait()
-                worker(producer, stop_event)
+                worker(producer)
             except Exception as e:  # noqa: BLE001 - want to see any exception, not just crashes
                 errors.append((i, e))
 
-        threads = [threading.Thread(target=run_worker) for _ in range(num_workers)]
+        threads = [threading.Thread(target=run_worker, daemon=True) for _ in range(num_workers)]
         for t in threads:
             t.start()
 
         start_barrier.wait()
         close_results.append(producer.close())
 
-        stop_event.set()
         for t in threads:
             t.join(timeout=10)
         assert all(not t.is_alive() for t in threads), f"iteration {i}: a worker thread did not finish after close()"
@@ -69,22 +67,21 @@ def _race_close_against(worker, conf=None, num_workers=1):
     assert all(close_results), f"not every close() call returned True: {close_results}"
 
 
-def _worker_produce(producer, stop_event):
-    while not stop_event.is_set():
+def _worker_produce(producer):
+    while True:
         try:
             producer.produce('mytopic', value=b'x')
-        except RuntimeError:
-            # Expected once close() has fully completed on this thread's
-            # view of self->rk; anything other than a clean RuntimeError
-            # (e.g. a segfault) is the bug this test is trying to catch.
+        except RuntimeError as e:
+            assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
             break
 
 
-def _worker_poll(producer, stop_event):
-    while not stop_event.is_set():
+def _worker_poll(producer):
+    while True:
         try:
             producer.poll(0)
-        except RuntimeError:
+        except RuntimeError as e:
+            assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
             break
 
 
@@ -115,11 +112,12 @@ def test_close_races_poll():
 def test_close_races_flush():
     """close() concurrent with flush() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.flush(0.01)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker)
@@ -129,12 +127,13 @@ def test_close_races_flush():
 def test_close_races_produce_batch():
     """close() concurrent with produce_batch() on another thread."""
 
-    def worker(producer, stop_event):
+    def worker(producer):
         messages = [{'value': b'x'}, {'value': b'y'}]
-        while not stop_event.is_set():
+        while True:
             try:
                 producer.produce_batch('mytopic', messages)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker)
@@ -144,11 +143,12 @@ def test_close_races_produce_batch():
 def test_close_races_init_transactions():
     """close() concurrent with init_transactions() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.init_transactions(0.05)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
@@ -158,11 +158,12 @@ def test_close_races_init_transactions():
 def test_close_races_begin_transaction():
     """close() concurrent with begin_transaction() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.begin_transaction()
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
@@ -172,11 +173,12 @@ def test_close_races_begin_transaction():
 def test_close_races_commit_transaction():
     """close() concurrent with commit_transaction() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.commit_transaction(0.05)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
@@ -186,11 +188,12 @@ def test_close_races_commit_transaction():
 def test_close_races_abort_transaction():
     """close() concurrent with abort_transaction() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.abort_transaction(0.05)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
@@ -200,17 +203,18 @@ def test_close_races_abort_transaction():
 def test_close_races_send_offsets_to_transaction():
     """close() concurrent with send_offsets_to_transaction() on another thread."""
 
-    def worker(producer, stop_event):
+    def worker(producer):
         # consumer_group_metadata() doesn't need a live broker connection.
         consumer = Consumer({'group.id': 'test-producer-close-race', 'socket.timeout.ms': 10})
         metadata = consumer.consumer_group_metadata()
         consumer.close()
 
         offsets = [TopicPartition('mytopic', 0, 1)]
-        while not stop_event.is_set():
+        while True:
             try:
                 producer.send_offsets_to_transaction(offsets, metadata, 0.05)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
@@ -220,11 +224,12 @@ def test_close_races_send_offsets_to_transaction():
 def test_close_races_purge():
     """close() concurrent with purge() on another thread."""
 
-    def worker(producer, stop_event):
-        while not stop_event.is_set():
+    def worker(producer):
+        while True:
             try:
                 producer.purge()
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
 
     _race_close_against(worker)
@@ -246,7 +251,11 @@ def test_close_races_close():
             start_barrier.wait()
             all_results.append(producer.close())
 
-        threads = [threading.Thread(target=worker) for _ in range(num_workers)]
+        # Daemon: if close() itself ever hangs (e.g. a deadlock), the
+        # process must still be able to exit right after the assertion
+        # below fires instead of hanging until the outer
+        # subprocess_isolated timeout.
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(num_workers)]
         for t in threads:
             t.start()
 
