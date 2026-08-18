@@ -197,6 +197,7 @@ async def test_gate_waits_for_top_level_call_during_reentrant_call(kafka_cluster
         commit_result, BaseException
     ), f"expected the independent top-level commit() call to wait and then succeed, got: {commit_result}"
 
+<<<<<<< HEAD
     # Verify commit() actually persisted the offset to the broker.
     partitions = await consumer.assignment()
     assert partitions

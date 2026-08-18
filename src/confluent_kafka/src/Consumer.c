@@ -100,7 +100,6 @@ static int Handle_gate_enter(Handle *h) {
                 /* Someone else holds the gate: wait for it. */
                 CallState cs;
                 CallState_begin(h, &cs);
-                /* TODO NOGIL: Create function for below */
 #ifdef _WIN32
                 Sleep(1);
 #else

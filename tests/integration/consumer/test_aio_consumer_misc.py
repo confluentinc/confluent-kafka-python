@@ -44,7 +44,6 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
         consumer_conf.update(conf)
     return TestAIOConsumer(consumer_conf)
 
-
 async def test_on_assign_default_fallback_without_calling_assign(kafka_cluster):
     """on_assign callback that does *not* call assign()/incremental_assign()
     itself: librdkafka performs the fallback assign automatically. No
