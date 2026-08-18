@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import concurrent.futures
+import itertools
 from unittest.mock import Mock, patch
 
 import pytest
 
-from confluent_kafka import KafkaError, KafkaException, TopicPartition
+from confluent_kafka import KafkaError, KafkaException, TopicPartition, cimpl
+from confluent_kafka.aio import _common
 from confluent_kafka.aio._AIOConsumer import AIOConsumer
 
 
@@ -60,13 +62,17 @@ class TestAIOConsumer:
 
     @pytest.mark.asyncio
     async def test_call_method_executor_usage(self, mock_consumer, mock_common, basic_config):
-        """Test that _call method properly uses ThreadPoolExecutor for async-to-sync bridging."""
+        """Test that _call method properly uses ThreadPoolExecutor for
+        async-to-sync bridging, setting the identity presented to the
+        Consumer gate on the reentry ContextVar before invoking it."""
+        mock_common.ReentryIdentity.get_or_generate.return_value = 42
         consumer = AIOConsumer(basic_config, max_workers=2)
 
         mock_method = Mock(return_value="test_result")
         result = await consumer._call(mock_method, "arg1", kwarg1="value1")
 
         mock_method.assert_called_once_with("arg1", kwarg1="value1")
+        mock_common.ReentryIdentity.active.assert_called_once_with(42)
         assert result == "test_result"
 
     @pytest.mark.asyncio
@@ -74,7 +80,6 @@ class TestAIOConsumer:
         """Test successful message polling."""
         consumer = AIOConsumer(basic_config, max_workers=2)
 
-        # Mock the sync poll() method
         mock_message = Mock()
         mock_consumer.return_value.poll.return_value = mock_message
 
@@ -87,7 +92,6 @@ class TestAIOConsumer:
         """Test successful message consumption."""
         consumer = AIOConsumer(basic_config, max_workers=2)
 
-        # Mock the sync consume() method
         mock_messages = [Mock(), Mock()]
         mock_consumer.return_value.consume.return_value = mock_messages
 
@@ -104,8 +108,6 @@ class TestAIOConsumer:
             pass
 
         await consumer.subscribe(['test-topic'], on_assign=on_assign)
-
-        # Verify subscribe was called (callback wrapping is implementation detail)
         mock_consumer.return_value.subscribe.assert_called_once()
 
     @pytest.mark.asyncio
@@ -113,9 +115,12 @@ class TestAIOConsumer:
         """Test concurrent async operations."""
         consumer = AIOConsumer(basic_config, max_workers=3)
 
-        mock_consumer.return_value.poll.return_value = Mock()
-        mock_consumer.return_value.assignment.return_value = [TopicPartition('test', 0)]
-        mock_consumer.return_value.consumer_group_metadata.return_value = Mock()
+        mock_message = Mock()
+        mock_partitions = [TopicPartition('test', 0)]
+        mock_metadata = Mock()
+        mock_consumer.return_value.poll.return_value = mock_message
+        mock_consumer.return_value.assignment.return_value = mock_partitions
+        mock_consumer.return_value.consumer_group_metadata.return_value = mock_metadata
 
         tasks = [
             asyncio.create_task(consumer.poll(timeout=1.0)),
@@ -124,13 +129,11 @@ class TestAIOConsumer:
         ]
 
         results = await asyncio.gather(*tasks)
-        assert len(results) == 3
-        assert all(result is not None for result in results)
+        assert results == [mock_message, mock_partitions, mock_metadata]
 
     @pytest.mark.asyncio
     async def test_concurrent_operations_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test concurrent async operations handle errors gracefully."""
-        # Mock: 2 poll calls fail
         mock_consumer.return_value.poll.side_effect = [
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
@@ -171,3 +174,130 @@ class TestAIOConsumer:
         """Test AIOConsumer handles network errors gracefully."""
         async with AIOConsumer(basic_config) as _:
             pass
+
+    # The tests below cover AIOConsumer's re-entrancy support.
+
+    @pytest.mark.asyncio
+    async def test_call_presents_nonzero_identity_to_blocking_task(self, mock_consumer, basic_config):
+        """_call() must set a real, nonzero identity on the reentry
+        ContextVar before invoking blocking_task on the worker thread."""
+        consumer = AIOConsumer(basic_config, max_workers=2)
+        seen = []
+
+        def blocking_task():
+            seen.append(cimpl._reentry_identity_var.get())
+            return "ok"
+
+        result = await consumer._call(blocking_task)
+
+        assert result == "ok"
+        assert seen == [seen[0]] and seen[0] != 0
+
+    @pytest.mark.asyncio
+    async def test_call_generates_different_identities_for_independent_calls(self, mock_consumer, basic_config):
+        """Two independent (non-nested) _call() invocations must each
+        present their own fresh identity to the gate."""
+        consumer = AIOConsumer(basic_config, max_workers=2)
+        seen = []
+
+        def blocking_task():
+            seen.append(cimpl._reentry_identity_var.get())
+
+        await consumer._call(blocking_task)
+        await consumer._call(blocking_task)
+
+        assert len(seen) == 2
+        assert seen[0] != 0 and seen[1] != 0
+        assert seen[0] != seen[1]
+
+    @pytest.mark.asyncio
+    async def test_reentrant_call_from_wrapped_callback_reuses_enclosing_identity(self, mock_consumer, basic_config):
+        """A rebalance callback fired synchronously from inside a blocking
+        call must see the enclosing call's identity, and a re-entrant _call()
+        made from within that callback must reuse it too."""
+        consumer = AIOConsumer(basic_config, max_workers=2)
+        seen = {}
+
+        async def on_assign(c, partitions):
+            seen['callback'] = cimpl._reentry_identity_var.get()
+            await consumer._call(lambda: seen.setdefault('reentrant', cimpl._reentry_identity_var.get()))
+
+        loop = asyncio.get_event_loop()
+        wrapped = consumer._wrap_callback(loop, on_assign, consumer._edit_rebalance_callbacks_args)
+
+        def outer_blocking_task():
+            seen['outer'] = cimpl._reentry_identity_var.get()
+            # Simulate librdkafka invoking the rebalance callback
+            # synchronously from inside the blocking call, on this same
+            # worker thread.
+            wrapped(None, [])
+
+        await consumer._call(outer_blocking_task)
+
+        assert seen['outer'] != 0
+        assert seen['callback'] == seen['outer'], "callback should see the enclosing call's identity"
+        assert seen['reentrant'] == seen['outer'], "re-entrant call from the callback must reuse the same identity"
+
+    @pytest.mark.asyncio
+    async def test_identity_does_not_leak_into_recycled_worker_thread(self, mock_consumer, basic_config):
+        """Regression test: _call()'s wrapped_task must reset the reentry
+        identity when it's done, not just set it."""
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            consumer = AIOConsumer(basic_config, executor=executor)
+
+            await consumer._call(lambda: None)
+
+            # Submitted directly to the same single-worker executor,
+            # bypassing _call()/ReentryIdentity entirely, to force reuse of
+            # the same OS thread _call() just used.
+            leaked = await asyncio.get_event_loop().run_in_executor(executor, cimpl._reentry_identity_var.get)
+            assert leaked == 0, f"identity leaked into the worker thread's persistent context: {leaked}"
+        finally:
+            executor.shutdown(wait=True)
+
+
+class TestReentryIdentity:
+    """Unit tests for confluent_kafka.aio._common.ReentryIdentity: the
+    identity AIOConsumer presents to the Consumer gate."""
+
+    def test_get_or_generate_returns_nonzero_and_distinct_identities(self):
+        """Two independent (non-nested) top-level calls must each get their
+        own fresh, nonzero identity -- 0 means "not set" to the gate."""
+        a = _common.ReentryIdentity.get_or_generate()
+        b = _common.ReentryIdentity.get_or_generate()
+        assert a != 0 and b != 0
+        assert a != b
+
+    def test_active_sets_current_reuses_for_get_or_generate_then_resets_on_exit(self):
+        """active() must, for the duration of its block: (1) make the
+        identity visible via current(), and (2) have get_or_generate()
+        reuse it rather than generating a fresh one -- this is what lets a
+        re-entrant call present the same identity through the gate. Once
+        the block exits, it must reset the ContextVar rather than just
+        setting it."""
+        assert _common.ReentryIdentity.current() == 0
+        with _common.ReentryIdentity.active(4242):
+            assert _common.ReentryIdentity.current() == 4242
+            assert _common.ReentryIdentity.get_or_generate() == 4242
+        assert _common.ReentryIdentity.current() == 0
+
+    def test_active_nesting_restores_outer_identity(self):
+        with _common.ReentryIdentity.active(11):
+            with _common.ReentryIdentity.active(22):
+                assert _common.ReentryIdentity.current() == 22
+            assert _common.ReentryIdentity.current() == 11
+        assert _common.ReentryIdentity.current() == 0
+
+    def test_generated_identity_stays_within_unsigned_long_mask(self, monkeypatch):
+        """The gate stores an identity in a C unsigned long, 32-bit on
+        Windows, so generated identities must always fit -- verified here
+        by forcing the counter to the edge of that range and confirming it
+        wraps instead of overflowing."""
+        monkeypatch.setattr(_common.ReentryIdentity, '_ctr', itertools.count(0xFFFFFFFE))
+        seen = [_common.ReentryIdentity.get_or_generate() for _ in range(5)]
+        assert all(0 < i <= 0xFFFFFFFF for i in seen), seen
+        # 0xFFFFFFFF + 1 wraps to 0, remapped to 1 (0 means unset); the next
+        # draw masks to 1 too (0x100000001 & 0xFFFFFFFF == 1), so 1 appears
+        # twice at the wrap before the sequence continues from 2.
+        assert seen == [0xFFFFFFFE, 0xFFFFFFFF, 1, 1, 2], seen
