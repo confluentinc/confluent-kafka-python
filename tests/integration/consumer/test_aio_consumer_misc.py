@@ -152,7 +152,6 @@ async def test_call_after_close_raises(kafka_cluster):
     with pytest.raises(RuntimeError, match="Consumer closed"):
         await consumer.close()
 
-
 async def test_async_context_manager_closes_on_exit(kafka_cluster):
     """The consumer must be usable inside the ctx manager block,
     and __aexit__ must actually close it -- confirmed by a subsequent call
