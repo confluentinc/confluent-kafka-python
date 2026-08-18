@@ -2431,7 +2431,8 @@ int wait_for_oauth_token_set(Handle *h) {
         int max_wait_sec       = 10;
         int retry_interval_sec = 1; /* Check every 1 sec */
         int elapsed_sec        = 0;
-        while (!h->oauth_token_set && elapsed_sec < max_wait_sec) {
+        while (!atomic_int_get(&h->oauth_token_set) &&
+               elapsed_sec < max_wait_sec) {
                 CallState cs;
                 CallState_begin(h, &cs);
 #ifdef _WIN32
@@ -2443,7 +2444,7 @@ int wait_for_oauth_token_set(Handle *h) {
                 elapsed_sec += retry_interval_sec;
         }
 
-        if (!h->oauth_token_set) {
+        if (!atomic_int_get(&h->oauth_token_set)) {
                 /* Token timeout. Don't tear down here — each _init knows
                  * whether to call rd_kafka_destroy() or
                  * rd_kafka_share_destroy() for what it allocated. */
@@ -2529,7 +2530,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);
                 goto fail;
         }
-        h->oauth_token_set = 1;
+        atomic_int_set(&h->oauth_token_set, 1);
         goto done;
 
 fail:
@@ -3313,6 +3314,46 @@ int CallState_end(Handle *h, CallState *cs) {
         return 1;
 }
 
+
+/**
+ * @brief Mark self->rk as in-use by the calling thread, so that close()
+ *        (running concurrently on another thread) will wait for us before
+ *        destroying it. Must be called before CallState_begin().
+ *
+ * @returns 1 if self->rk is safe to use (active_calls has been
+ *          incremented; caller must call Handle_exit_rk_use() on every
+ *          return path), or 0 with ERR_MSG_PRODUCER_CLOSED set if the
+ *          Handle is closed/closing (nothing to undo).
+ */
+int Handle_enter_rk_use(Handle *h) {
+        unsigned long self_tid = PyThread_get_thread_ident();
+
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return 0;
+        }
+        atomic_int_inc(&h->active_calls);
+        /* close() may have started between our check above and the
+         * increment; re-check now that we're counted. */
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                atomic_int_dec(&h->active_calls);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return 0;
+        }
+        return 1;
+}
+
+/**
+ * @brief Counterpart to Handle_enter_rk_use(): call on every return path
+ *        after a successful Handle_enter_rk_use().
+ */
+void Handle_exit_rk_use(Handle *h) {
+        atomic_int_dec(&h->active_calls);
+}
 
 /**
  * @brief Get the current thread's CallState and re-locks the GIL.
