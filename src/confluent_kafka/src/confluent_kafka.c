@@ -53,6 +53,7 @@ PyObject *KafkaException;
  * KafkaException. */
 PyObject *IllegalStateException;
 PyObject *ConcurrentModificationException;
+PyObject *Consumer_reentry_identity_var;
 
 
 /****************************************************************************
@@ -4040,6 +4041,21 @@ static PyObject *_init_cimpl(void) {
         Py_INCREF(ConcurrentModificationException);
         PyModule_AddObject(m, "ConcurrentModificationException",
                            ConcurrentModificationException);
+
+        /* ContextVar carrying the identity AIOConsumer presents to the
+         * Consumer gate for the current call -- see Handle_gate_enter()
+         * in Consumer.c and confluent_kafka.aio._common. */
+        PyObject *zero = PyLong_FromLong(0);
+        if (!zero)
+                return NULL;
+        Consumer_reentry_identity_var =
+            PyContextVar_New("reentry_identity", zero);
+        Py_DECREF(zero);
+        if (!Consumer_reentry_identity_var)
+                return NULL;
+        Py_INCREF(Consumer_reentry_identity_var);
+        PyModule_AddObject(m, "_reentry_identity_var",
+                           Consumer_reentry_identity_var);
 
         PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE",
                                 RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
