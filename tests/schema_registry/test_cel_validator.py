@@ -28,6 +28,7 @@ from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2
 from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule
@@ -144,6 +145,18 @@ def test_protobuf_map_field_binds_a_map(validator):
     message = validation_widget_pb2.ValidationOuter(labels={"a": validation_widget_pb2.ValidationItem(v=1)})
     fd = message.DESCRIPTOR.fields_by_name["labels"]
     assert validator.execute(rule("'a' in this"), fd, message.labels) is True
+
+
+# A ``confluent.type.Decimal`` proto field is bound into CEL as a celpy MessageType wrapper
+# (the same shape produced whether the Decimal is the whole message or a nested field), so
+# ``decimal(...)`` must unwrap it and dispatch the ``decimals.*`` operators against it. This
+# mirrors the JVM client's CelValidatorDecimalTest, which reads a ``confluent.type.Decimal``
+# field via ``decimal(this)``.
+def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
+    # 12.34 = unscaled 1234 (0x04D2) at scale 2.
+    d = decimal_pb2.Decimal(value=(1234).to_bytes(2, "big"), scale=2)
+    assert validator.execute(rule("decimals.gt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is True
+    assert validator.execute(rule("decimals.lt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is False
 
 
 # --------------------------------------------------------------------------------------
