@@ -33,23 +33,18 @@ from celpy import celtypes
 
 try:
     from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+        from_proto_decimal as _from_proto_decimal,
+    )
     _PROTO_DECIMAL_CLS: typing.Any = decimal_pb2.Decimal
 except ImportError:
     _PROTO_DECIMAL_CLS = None
+    _from_proto_decimal = None  # type: ignore[assignment]
 
 
 # 38-digit precision with HALF_UP rounding — matches Flink/PostgreSQL NUMERIC
 # division.
 _DIV_CONTEXT = decimal.Context(prec=38, rounding=decimal.ROUND_HALF_UP)
-
-
-def _from_proto_decimal(d: typing.Any) -> Decimal:
-    """Decode a confluent.type.Decimal proto message into a Decimal."""
-    value = d.value
-    scale = int(d.scale)
-    if not value:
-        return Decimal(0).scaleb(-scale)
-    return Decimal(int.from_bytes(value, "big", signed=True)).scaleb(-scale)
 
 
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
@@ -97,6 +92,13 @@ def _decimal(*args: typing.Any) -> Decimal:
     if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == \
             "confluent.type.Decimal":
         return _from_proto_decimal(v)
+    # celpy binds a proto-message field into CEL as a MessageType wrapper (a MapType that
+    # keeps the underlying message on ``.msg``), so `decimal(message.decField)` for a
+    # confluent.type.Decimal field arrives here rather than as a raw message. Unwrap it.
+    proto_msg = getattr(v, "msg", None)
+    if proto_msg is not None and getattr(
+            getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal":
+        return _from_proto_decimal(proto_msg)
     if isinstance(v, bool):
         # bool is a subclass of int in Python; reject before the int arm.
         raise celpy.CELEvalError("decimal: cannot convert bool to Decimal")
