@@ -46,9 +46,9 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
 async def test_gate_waits_for_concurrent_non_reentrant_calls(kafka_cluster):
     """Two independent, non-re-entrant calls on the same AIOConsumer at the
     same time: one long poll() (holding the gate for its full timeout) and
-    one assign() launched shortly after, from a separate task, while the
-    poll() is still in flight. assign() must wait for poll() to release the
-    gate, then succeed. The consumer must remain usable afterward."""
+    one position() launched shortly after, from a separate task, while the
+    poll() is still in flight. position() must wait for poll() to release
+    the gate, then succeed. The consumer must remain usable afterward."""
     topic = kafka_cluster.create_topic_and_wait_propogation("test_gate_waits_concurrent")
     kafka_cluster.seed_topic(topic, value_source=[b'hello'])
 
@@ -60,7 +60,7 @@ async def test_gate_waits_for_concurrent_non_reentrant_calls(kafka_cluster):
     await consumer.subscribe([topic], on_assign=on_assign)
 
     # Get the assignment so we have a real TopicPartition to pass to the
-    # colliding assign() call below.
+    # colliding position() call below.
     msg = await consumer.poll(10)
     assert msg is not None
     partitions = await consumer.assignment()
@@ -68,25 +68,25 @@ async def test_gate_waits_for_concurrent_non_reentrant_calls(kafka_cluster):
 
     poll_task = asyncio.create_task(consumer.poll(2))
     # Give poll() a moment to actually enter the gate on its worker thread
-    # before launching the colliding call. Unlike a bare thread Event, this
-    # is a real yield of the event loop, giving poll_task's chain (task ->
-    # executor dispatch -> C-level gate entry) time to actually run.
+    # before launching the colliding call.
     await asyncio.sleep(0.2)
     t0 = time.time()
-    assign_task = asyncio.create_task(consumer.assign(partitions))
+    position_task = asyncio.create_task(consumer.position(partitions))
 
-    poll_result, assign_result = await asyncio.gather(poll_task, assign_task, return_exceptions=True)
-    assign_elapsed = time.time() - t0
+    poll_result, position_result = await asyncio.gather(poll_task, position_task, return_exceptions=True)
+    position_elapsed = time.time() - t0
 
-    print(f"poll_result={poll_result}, assign_result={assign_result}, assign_elapsed={assign_elapsed:.2f}")
+    print(f"poll_result={poll_result}, position_result={position_result}, position_elapsed={position_elapsed:.2f}")
     assert not isinstance(poll_result, BaseException), f"poll_task unexpectedly raised: {poll_result}"
     assert not isinstance(
-        assign_result, BaseException
-    ), f"expected assign_task to wait and then succeed, got: {assign_result}"
-    # assign_task started ~0.2s in; poll_task releases the gate at ~2.0s, so
-    # it must have actually waited rather than slipping through immediately.
-    assert assign_elapsed >= 1.0, (
-        f"assign_task returned in {assign_elapsed:.2f}s -- too fast to have " f"actually waited for poll()'s gate hold"
+        position_result, BaseException
+    ), f"expected position_task to wait and then succeed, got: {position_result}"
+    # position_task started ~0.2s in; poll_task releases the gate at ~2.0s,
+    # so it must have actually waited rather than slipping through
+    # immediately.
+    assert position_elapsed >= 1.0, (
+        f"position_task returned in {position_elapsed:.2f}s -- too fast to "
+        f"have actually waited for poll()'s gate hold"
     )
 
     # The consumer must still be usable afterward.

@@ -181,7 +181,7 @@ def test_close_waits_for_poll_then_succeeds(kafka_cluster):
 
     def stats_cb(json_str):
         nonlocal cb_elapsed
-        if not cb_fired.is_set():
+        if poll_start is not None and not cb_fired.is_set():
             cb_elapsed = time.time() - poll_start
             cb_fired.set()
 
