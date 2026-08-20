@@ -40,6 +40,7 @@ async def _new_aio_producer(kafka_cluster, conf=None, **kwargs):
     return AIOProducer(producer_conf, **kwargs)
 
 
+<<<<<<< HEAD
 def _read_committed_consumer(kafka_cluster, topic):
     """A read_committed consumer, subscribed and ready to drain a topic."""
     consumer_conf = kafka_cluster.client_conf()
@@ -415,7 +416,6 @@ class TestCallbackReentrancy:
         )
 
         try:
-
             async def wait_for_error_cb():
                 for _ in range(100):
                     await producer.poll(0.2)
@@ -464,6 +464,7 @@ class TestCallbackReentrancy:
             assert reentrant_produce_results, "the reentrant produce() call from inside stats_cb never completed"
         finally:
             await producer.close()
+<<<<<<< HEAD
 
 
 class TestAsyncTransactions:
