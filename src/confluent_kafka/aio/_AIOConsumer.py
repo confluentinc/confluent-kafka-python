@@ -31,7 +31,7 @@ class AIOConsumer:
     def __init__(
         self,
         consumer_conf: Dict[str, Any],
-        max_workers: int = 2,
+        max_workers: int = 100,
         executor: Optional[concurrent.futures.Executor] = None,
     ) -> None:
         if executor is not None:
@@ -59,7 +59,18 @@ class AIOConsumer:
         await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
+        # Resolved here, on the event-loop thread, so a re-entrant call reuses
+        # the enclosing call's identity -- see _common.ReentryIdentity.
+        identity = _common.ReentryIdentity.get_or_generate()
+
+        # Presented from inside wrapped_task so it is visible to the call it
+        # guards, including any re-entrant callback (e.g. on_assign) that
+        # blocking_task triggers synchronously before returning.
+        def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
+            with _common.ReentryIdentity.active(identity):
+                return blocking_task(*task_args, **task_kwargs)
+
+        return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
 
     def _wrap_callback(
         self,
@@ -68,15 +79,7 @@ class AIOConsumer:
         edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
         edit_kwargs: Optional[Callable[[Any], Any]] = None,
     ) -> Callable[..., Any]:
-        def ret(*args: Any, **kwargs: Any) -> Any:
-            if edit_args:
-                args = edit_args(args)
-            if edit_kwargs:
-                kwargs = edit_kwargs(kwargs)
-            f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
-            return f.result()
-
-        return ret
+        return _common.wrap_callback(loop, callback, edit_args=edit_args, edit_kwargs=edit_kwargs)
 
     async def poll(self, *args: Any, **kwargs: Any) -> Any:
         """
