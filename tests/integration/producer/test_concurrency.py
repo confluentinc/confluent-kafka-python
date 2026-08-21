@@ -520,6 +520,75 @@ class TestTransactionalProducerConcurrency:
         successes = [k for k, v in results.items() if v is True]
         assert len(successes) == 1, f"expected exactly one of commit/abort to succeed, got: {results}"
 
+    def test_multiple_independent_transactional_producers_concurrent(self, kafka_cluster):
+        """Several producer instances, each with its own distinct
+        transactional.id, running a full init/begin/produce/commit
+        lifecycle concurrently on separate threads must not interfere with
+        each other -- every producer's transaction should complete and
+        commit independently, and none should block or corrupt another's."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_txn_multiple_independent_producers")
+        num_producers = 6
+        messages_per_producer = 20
+        errors = []
+
+        def worker(producer_id):
+            try:
+                producer = kafka_cluster.producer(
+                    {
+                        'transactional.id': f'test-txn-independent-{producer_id}-{uuid1()}',
+                        'error_cb': prefixed_error_cb(
+                            f'test_multiple_independent_transactional_producers_concurrent-{producer_id}'
+                        ),
+                    }
+                )
+                producer.init_transactions()
+                producer.begin_transaction()
+                for i in range(messages_per_producer):
+                    producer.produce(topic, value=f'producer-{producer_id}-msg-{i}'.encode())
+                producer.commit_transaction()
+                producer.flush()
+            except Exception as e:  # noqa: BLE001 - want to see any exception, not just crashes
+                errors.append((producer_id, e))
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(num_producers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        print(f"{called_by()}: {num_producers} independent producers finished, errors={errors}")
+        assert all(not t.is_alive() for t in threads), "a producer thread did not finish"
+        assert not errors, f"unexpected exceptions from independent transactional producers: {errors}"
+
+        consumer_conf = kafka_cluster.client_conf()
+        consumer_conf.update(
+            {
+                'group.id': str(uuid1()),
+                'auto.offset.reset': 'earliest',
+                'enable.auto.commit': False,
+                'enable.partition.eof': True,
+                'isolation.level': 'read_committed',
+            }
+        )
+        consumer = TestConsumer(consumer_conf)
+        consumer.subscribe([topic])
+
+        msg_cnt = 0
+        eof_reached = False
+        while not eof_reached:
+            msg = consumer.poll(timeout=10.0)
+            assert msg is not None, "timed out waiting for messages"
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    eof_reached = True
+                    continue
+                raise KafkaException(msg.error())
+            msg_cnt += 1
+        consumer.close()
+
+        print(f"{called_by()}: consumed msg_cnt={msg_cnt}")
+        assert msg_cnt == num_producers * messages_per_producer
+
 
 class TestReentrantDeliveryCallback:
     """Delivery callbacks run synchronously inside poll()/flush() on
