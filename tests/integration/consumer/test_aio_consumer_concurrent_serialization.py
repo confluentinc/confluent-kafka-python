@@ -40,7 +40,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
     )
     if conf:
         consumer_conf.update(conf)
-    return TestAIOConsumer(consumer_conf, max_workers=3)
+    return TestAIOConsumer(consumer_conf)
 
 
 async def test_gate_waits_for_concurrent_non_reentrant_calls(kafka_cluster):
@@ -194,7 +194,15 @@ async def test_gate_waits_for_top_level_call_during_reentrant_call(kafka_cluster
         commit_result, BaseException
     ), f"expected the independent top-level commit() call to wait and then succeed, got: {commit_result}"
 
-    result = await consumer.assignment()
-    assert result
+    # Verify commit() actually persisted the offset to the broker.
+    partitions = await consumer.assignment()
+    assert partitions
+    committed = await consumer.committed(partitions)
+    expected_offset = poll_result.offset() + 1
+    assert committed[0].offset == expected_offset, (
+        f"expected committed offset {expected_offset} (poll_result's offset + 1), "
+        f"got {committed[0].offset} -- commit() may have returned successfully "
+        f"without actually persisting to the broker"
+    )
 
     await consumer.close()

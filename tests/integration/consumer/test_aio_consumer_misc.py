@@ -42,7 +42,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
     )
     if conf:
         consumer_conf.update(conf)
-    return TestAIOConsumer(consumer_conf, max_workers=2)
+    return TestAIOConsumer(consumer_conf)
 
 
 async def test_on_assign_default_fallback_without_calling_assign(kafka_cluster):

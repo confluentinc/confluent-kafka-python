@@ -31,7 +31,7 @@ class AIOConsumer:
     def __init__(
         self,
         consumer_conf: Dict[str, Any],
-        max_workers: int = 2,
+        max_workers: int = 100,
         executor: Optional[concurrent.futures.Executor] = None,
     ) -> None:
         if executor is not None:
