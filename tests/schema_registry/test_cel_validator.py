@@ -193,10 +193,34 @@ def test_variant_functions_over_parsed_json(validator, expr):
     assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
 
 
+# An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
+# in common/avro.py), which then flows into CEL through variant(this).
+def test_avro_variant_field_into_cel(validator):
+    import io
+
+    import fastavro
+
+    import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
+
+    schema = fastavro.parse_schema({
+        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
+        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+    })
+    value, metadata = vu.VariantBuilder().build('{"name":"alice","age":30}')
+    buf = io.BytesIO()
+    fastavro.schemaless_writer(buf, schema, vu.Variant(value, metadata))
+    buf.seek(0)
+    decoded = fastavro.schemaless_reader(buf, schema)
+    assert isinstance(decoded, vu.Variant)
+    assert validator.execute(
+        rule("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"),
+        None, decoded) is True
+
+
 # A confluent.type.Variant proto field is bound into CEL as a celpy MessageType wrapper;
 # variant(...) must unwrap it, mirroring the decimal test above and the JVM client.
-def test_variant_reads_a_confluent_type_variant_message(validator):
-    value, metadata = vu.VariantBuilder().build('{"name":"alice"}')
+def test_proto_variant_field_into_cel(validator):
+    value, metadata = vu.VariantBuilder().build('{"name":"alice","age":30}')
     v = variant_pb2.Variant(value=value, metadata=metadata)
     expr = "variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"
     assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True
