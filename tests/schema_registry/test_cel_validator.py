@@ -28,7 +28,8 @@ from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.types import variant_utils as vu
 from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule
@@ -157,6 +158,54 @@ def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
     d = decimal_pb2.Decimal(value=(1234).to_bytes(2, "big"), scale=2)
     assert validator.execute(rule("decimals.gt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is True
     assert validator.execute(rule("decimals.lt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is False
+
+
+# --------------------------------------------------------------------------------------
+# Variant CEL functions
+# --------------------------------------------------------------------------------------
+
+_VARIANT_JSON = (
+    '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
+
+
+# `this` is bound to a JSON string; variants.parseJson(this) turns it into a Variant, then
+# the variants.* accessors navigate and extract. Covers the null model (absent vs
+# variant-null), path/field/index navigation, typed extraction, and toJson.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "variants.type(variants.parseJson(this)) == 'object'",
+        "variants.as(variants.field(variants.parseJson(this), 'name'), 'string') == 'alice'",
+        "variants.as(variants.field(variants.parseJson(this), 'age'), 'int') == 30",
+        # Absent (missing field) vs present-but-variant-null (explicit JSON null).
+        "variants.field(variants.parseJson(this), 'missing') == null",
+        "variants.isNull(variants.field(variants.parseJson(this), 'explicit'))",
+        "!variants.isNull(variants.field(variants.parseJson(this), 'missing'))",
+        "variants.as(variants.path(variants.parseJson(this), '$.nested.x'), 'int') == 1",
+        "variants.as(variants.index("
+        "variants.field(variants.parseJson(this), 'scores'), 2), 'int') == 30",
+        # tryAs returns CEL null on a type mismatch (age is not a string).
+        "variants.tryAs(variants.field(variants.parseJson(this), 'age'), 'string') == null",
+        "variants.toJson(variants.field(variants.parseJson(this), 'nested')) == '{\"x\":1}'",
+    ],
+)
+def test_variant_functions_over_parsed_json(validator, expr):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
+# A confluent.type.Variant proto field is bound into CEL as a celpy MessageType wrapper;
+# variant(...) must unwrap it, mirroring the decimal test above and the JVM client.
+def test_variant_reads_a_confluent_type_variant_message(validator):
+    value, metadata = vu.VariantBuilder().build('{"name":"alice"}')
+    v = variant_pb2.Variant(value=value, metadata=metadata)
+    expr = "variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True
+
+
+# A string is rejected by variant(...) with a redirect to parseJson.
+def test_variant_rejects_string_input(validator):
+    with pytest.raises(RuleError, match="Could not execute"):
+        validator.execute(rule("variants.type(variant(this)) == 'object'"), None, "not-a-variant")
 
 
 # --------------------------------------------------------------------------------------

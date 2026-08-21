@@ -181,6 +181,7 @@ def make_extra_funcs(locale: str) -> typing.Dict[str, celpy.CELFunction]:
     # extended-type modules aren't needed.
     from confluent_kafka.schema_registry.rules.cel.decimal_funcs import DECIMAL_FUNCS
     from confluent_kafka.schema_registry.rules.cel.timestamp_funcs import TIMESTAMP_FUNCS
+    from confluent_kafka.schema_registry.rules.cel.variant_funcs import VARIANT_FUNCS
 
     string_fmt = string_format.StringFormat(locale)
     funcs: typing.Dict[str, celpy.CELFunction] = {
@@ -195,10 +196,10 @@ def make_extra_funcs(locale: str) -> typing.Dict[str, celpy.CELFunction]:
         "isHostname": is_hostname,
         "isUuid": is_uuid,
     }
-    # Extended types — decimal/timestamp (variant is intentionally out of v1
-    # scope for the Python client).
+    # Extended types — decimal / timestamp / variant.
     funcs.update(DECIMAL_FUNCS)
     funcs.update(TIMESTAMP_FUNCS)
+    funcs.update(VARIANT_FUNCS)
     return funcs
 
 
