@@ -21,11 +21,13 @@ Integration tests for AIOProducer.
 import asyncio
 import inspect
 import threading
+from uuid import uuid1
 
 import pytest
 
 from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.aio import AIOProducer
+from tests.common import TestConsumer
 
 
 def called_by():
@@ -36,6 +38,44 @@ async def _new_aio_producer(kafka_cluster, conf=None, **kwargs):
     producer_conf = kafka_cluster.client_conf(conf or {})
     kwargs.setdefault('buffer_timeout', 0)  # deterministic tests: no background auto-flush unless asked for
     return AIOProducer(producer_conf, **kwargs)
+
+
+def _read_committed_consumer(kafka_cluster, topic):
+    """A read_committed consumer, subscribed and ready to drain a topic."""
+    consumer_conf = kafka_cluster.client_conf()
+    consumer_conf.update(
+        {
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': False,
+            'enable.partition.eof': True,
+            'isolation.level': 'read_committed',
+        }
+    )
+    consumer = TestConsumer(consumer_conf)
+    consumer.subscribe([topic])
+    return consumer
+
+
+def _drain_committed(consumer):
+    """Consume until EOF on every assigned partition, returning the count of
+    non-error messages seen (i.e. records visible under read_committed)."""
+    msg_cnt = 0
+    eof = {}
+    while True:
+        msg = consumer.poll(timeout=10.0)
+        assert msg is not None, "timed out waiting for messages"
+        topic, partition = msg.topic(), msg.partition()
+        if msg.error():
+            if msg.error().code() == KafkaError._PARTITION_EOF:
+                eof[(topic, partition)] = True
+                if len(eof) >= len(consumer.assignment()):
+                    break
+                continue
+            raise KafkaException(msg.error())
+        eof.pop((topic, partition), None)
+        msg_cnt += 1
+    return msg_cnt
 
 
 class TestBasicAsyncProduce:
@@ -70,8 +110,7 @@ class TestBasicAsyncProduce:
         try:
             n = 300
             futures = [
-                await producer.produce(topics[i % len(topics)], key=str(i), value=str(i).encode())
-                for i in range(n)
+                await producer.produce(topics[i % len(topics)], key=str(i), value=str(i).encode()) for i in range(n)
             ]
             await producer.flush()
             msgs = await asyncio.gather(*futures)
@@ -373,6 +412,7 @@ class TestCallbackReentrancy:
         )
 
         try:
+
             async def wait_for_error_cb():
                 for _ in range(100):
                     await producer.poll(0.2)
@@ -421,3 +461,246 @@ class TestCallbackReentrancy:
             assert reentrant_produce_results, "the reentrant produce() call from inside stats_cb never completed"
         finally:
             await producer.close()
+
+
+class TestAsyncTransactions:
+    """AIOProducer's transactional API related test cases"""
+
+    async def test_basic_transaction_lifecycle(self, kafka_cluster):
+        """Baseline happy path: init -> begin -> produce -> commit, verified
+        with a real read_committed consumer."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_basic")
+        producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-basic-{uuid1()}'})
+
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+
+            n = 20
+            futures = [await producer.produce(topic, value=f'v{i}'.encode()) for i in range(n)]
+            # commit_transaction() flushes internally before it actually commits.
+            # Run it as a background task so that internal flush resolves the futures below before the
+            # transaction is actually committed.
+            commit_task = asyncio.ensure_future(producer.commit_transaction())
+            msgs = await asyncio.gather(*futures)
+            await commit_task
+
+            consumer = _read_committed_consumer(kafka_cluster, topic)
+            msg_cnt = _drain_committed(consumer)
+            consumer.close()
+
+            print(f"{called_by()}: delivered={len(msgs)}, visible_after_commit={msg_cnt}")
+            assert len(msgs) == n
+            assert msg_cnt == n
+        finally:
+            await producer.close()
+
+    async def test_concurrent_calls_to_same_transaction_api(self, kafka_cluster):
+        """Two coroutines both awaiting commit_transaction() at once: exactly
+        one succeeds, the other must fail specifically with _PREV_IN_PROGRESS."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_same_api_race")
+        producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-same-api-{uuid1()}'})
+
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+            await producer.produce(topic, value=b'msg')
+            await producer.flush()
+
+            results = await asyncio.gather(
+                producer.commit_transaction(), producer.commit_transaction(), return_exceptions=True
+            )
+
+            print(f"{called_by()}: results={results}")
+            successes = [r for r in results if not isinstance(r, Exception)]
+            errors = [r for r in results if isinstance(r, Exception)]
+            assert len(successes) == 1, f"expected exactly one successful commit, got: {results}"
+            assert len(errors) == 1, f"expected exactly one error result, got: {results}"
+            assert isinstance(errors[0], KafkaException), f"unexpected error type: {errors[0]!r}"
+            assert errors[0].args[0].code() == KafkaError._PREV_IN_PROGRESS, (
+                f"expected the losing call to fail with _PREV_IN_PROGRESS (proof the two calls "
+                f"genuinely overlapped on separate threads), got: {errors[0]}"
+            )
+        finally:
+            await producer.close()
+
+    async def test_concurrent_calls_to_different_transaction_apis(self, kafka_cluster):
+        """One coroutine commits while another aborts at the same time:
+        exactly one of the two succeeds, and the loser must fail specifically
+        with _CONFLICT."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_diff_api_race")
+        producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-diff-api-{uuid1()}'})
+
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+            await producer.produce(topic, value=b'msg')
+            await producer.flush()
+
+            results = await asyncio.gather(
+                producer.commit_transaction(), producer.abort_transaction(), return_exceptions=True
+            )
+
+            print(f"{called_by()}: results={results}")
+            successes = [r for r in results if not isinstance(r, Exception)]
+            errors = [r for r in results if isinstance(r, Exception)]
+            assert len(successes) == 1, f"expected exactly one of commit/abort to succeed, got: {results}"
+            assert len(errors) == 1, f"expected exactly one error result, got: {results}"
+            assert isinstance(errors[0], KafkaException), f"unexpected error type: {errors[0]!r}"
+            assert errors[0].args[0].code() == KafkaError._CONFLICT, (
+                f"expected the losing call to fail with _CONFLICT (proof the two calls "
+                f"genuinely overlapped on separate threads), got: {errors[0]}"
+            )
+        finally:
+            await producer.close()
+
+    async def test_concurrent_produce_races_commit_boundary(self, kafka_cluster):
+        """Multiple coroutines concurrently calling produce(), which queue
+        into AIOProducer's own internal batch buffer, not directly into
+        librdkafka, while another coroutine calls commit_transaction().
+        Every produced message's future must resolve to exactly one of:
+        delivered and visible after commit, or a clean error -- never
+        silently missing, never double-counted. There is no lock guarding the buffer
+        (see _producer_batch_processor.py); this relies entirely on asyncio's cooperative
+        scheduling to keep buffer bookkeeping race-free, which is exactly what this test
+        exercises."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_buffer_boundary")
+        producer = await _new_aio_producer(
+            kafka_cluster, {'transactional.id': f'test-aio-txn-buffer-boundary-{uuid1()}'}, batch_size=10
+        )
+
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+
+            num_workers = 8
+            messages_per_worker = 15
+
+            async def produce_worker(worker_id):
+                return [
+                    await producer.produce(topic, value=f'w{worker_id}-m{i}'.encode())
+                    for i in range(messages_per_worker)
+                ]
+
+            produce_task = asyncio.gather(*(produce_worker(i) for i in range(num_workers)))
+            commit_task = asyncio.ensure_future(producer.commit_transaction())
+
+            all_futures_by_worker, _ = await asyncio.gather(produce_task, commit_task)
+            all_futures = [f for worker_futures in all_futures_by_worker for f in worker_futures]
+
+            results = await asyncio.gather(*all_futures, return_exceptions=True)
+            succeeded = [r for r in results if not isinstance(r, Exception)]
+            failed = [r for r in results if isinstance(r, Exception)]
+
+            consumer = _read_committed_consumer(kafka_cluster, topic)
+            msg_cnt = _drain_committed(consumer)
+            consumer.close()
+
+            print(f"{called_by()}: succeeded={len(succeeded)}, failed={len(failed)}, visible_after_commit={msg_cnt}")
+            assert msg_cnt == len(succeeded), (
+                f"every future that resolved successfully must be visible after commit: "
+                f"{msg_cnt} visible vs {len(succeeded)} succeeded futures"
+            )
+        finally:
+            await producer.close()
+
+    async def test_direct_thread_produce_during_open_transaction(self, kafka_cluster):
+        """Raw OS threads producing directly on aio_producer._producer
+        (bypassing AIOProducer's own buffer entirely) while the event loop
+        drives the transaction lifecycle through the executor on the same
+        underlying rk -- produce() must be safe from any thread while a
+        transaction is open, exactly as for the bare sync Producer (see
+        TestSharedProducerAcrossThreads above)."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_direct_thread_produce")
+        producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-direct-{uuid1()}'})
+
+        direct_delivered = []
+        direct_errors = []
+        num_threads = 4
+        messages_per_thread = 25
+
+        def direct_worker(thread_id):
+            def on_delivery(err, msg):
+                if err:
+                    direct_errors.append(err)
+                else:
+                    direct_delivered.append(msg)
+
+            for i in range(messages_per_thread):
+                producer._producer.produce(topic, value=f'direct-{thread_id}-{i}'.encode(), on_delivery=on_delivery)
+                producer._producer.poll(0)
+
+        threads = [threading.Thread(target=direct_worker, args=(i,), daemon=True) for i in range(num_threads)]
+
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+
+            for t in threads:
+                t.start()
+
+            while any(t.is_alive() for t in threads):
+                await asyncio.sleep(0.05)
+
+            for t in threads:
+                t.join(timeout=30)
+            assert all(not t.is_alive() for t in threads), "a direct-produce thread did not finish"
+
+            await producer.commit_transaction()
+
+            for _ in range(100):
+                await producer.poll(0.1)
+                if len(direct_delivered) + len(direct_errors) == num_threads * messages_per_thread:
+                    break
+
+            print(f"{called_by()}: direct_delivered={len(direct_delivered)}, direct_errors={direct_errors}")
+            assert (
+                not direct_errors
+            ), f"unexpected errors from direct produce() during open transaction: {direct_errors}"
+            assert len(direct_delivered) == num_threads * messages_per_thread
+
+            consumer = _read_committed_consumer(kafka_cluster, topic)
+            msg_cnt = _drain_committed(consumer)
+            consumer.close()
+
+            print(f"{called_by()}: visible_after_commit={msg_cnt}")
+            assert msg_cnt == num_threads * messages_per_thread
+        finally:
+            await producer.close()
+
+    async def test_close_races_commit_transaction(self, kafka_cluster):
+        """close() concurrent with commit_transaction() via the executor.
+        Unlike the sync Producer, close() never calls the underlying Producer's
+        own close() -- so the only real interaction between the two here is contention
+        for the shared ThreadPoolExecutor. That means only two outcomes are legitimate:
+        either commit_transaction()'s work gets submitted before
+        executor.shutdown() takes effect and the commit genuinely
+        completes (verified below via a real read_committed consumer), or
+        it's submitted after and fails with the stdlib RuntimeError
+        ThreadPoolExecutor raises for exactly that case."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_close_races_commit")
+        producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-close-commit-{uuid1()}'})
+
+        await producer.init_transactions()
+        await producer.begin_transaction()
+        await producer.produce(topic, value=b'msg')
+
+        commit_result, close_result = await asyncio.wait_for(
+            asyncio.gather(producer.commit_transaction(), producer.close(), return_exceptions=True),
+            timeout=30,
+        )
+
+        print(f"{called_by()}: commit_result={commit_result!r}, close_result={close_result!r}")
+
+        assert not isinstance(close_result, Exception), f"close() unexpectedly raised: {close_result!r}"
+
+        if isinstance(commit_result, Exception):
+            assert isinstance(commit_result, RuntimeError) and 'shutdown' in str(commit_result), (
+                f"commit_transaction() failed with an unexpected error -- only the executor's "
+                f"post-shutdown RuntimeError is legitimate for this race, got: {commit_result!r}"
+            )
+        else:
+            consumer = _read_committed_consumer(kafka_cluster, topic)
+            msg_cnt = _drain_committed(consumer)
+            consumer.close()
+            assert msg_cnt == 1, f"commit_transaction() reported success but the message isn't visible: {msg_cnt}"
