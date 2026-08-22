@@ -63,6 +63,14 @@ __all__ = [
     'clear_original_key',
     'RuleError',
     'RuleConditionError',
+    'ValidationRulesExecution',
+    'ValidationRule',
+    'ValidationRuleError',
+    'ValidationRuleExecutor',
+    'VALIDATION_RULES_PROP',
+    'parse_validation_rules',
+    'default_validation_rule_executor',
+    'evaluate_validation_rule',
     'Migration',
     'ParsedSchemaCache',
     'SchemaId',
@@ -133,14 +141,36 @@ class FieldType(str, Enum):
 
 
 class FieldContext(object):
-    __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags']
+    """
+    The field a transform is being applied to.
 
-    def __init__(self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Set[str]):
+    ``name`` and ``full_name`` are the *registered schema's* names for the field, since that
+    is what a rule refers to, while ``containing_message`` is the caller's own message. Those
+    two can disagree: renaming a field at the same number is a compatible change, so under
+    use.latest.version the schema may call a field something the producer's class does not.
+    Anything that needs the field itself must therefore go through ``field_descriptor``
+    rather than looking ``name`` up on the containing message.
+    """
+
+    __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags', 'field_descriptor']
+
+    def __init__(
+        self,
+        containing_message: Any,
+        full_name: str,
+        name: str,
+        field_type: FieldType,
+        tags: Set[str],
+        field_descriptor: Any = None,
+    ):
         self.containing_message = containing_message
         self.full_name = full_name
         self.name = name
         self.field_type = field_type
         self.tags = tags
+        # The producer's own handle on the field, for formats that have one: a protobuf
+        # FieldDescriptor. None for Avro and JSON Schema, whose walks carry no such object.
+        self.field_descriptor = field_descriptor
 
     def is_primitive(self) -> bool:
         return self.field_type in (
@@ -230,11 +260,17 @@ class RuleContext(object):
         return self._field_contexts[-1]
 
     def enter_field(
-        self, containing_message: Any, full_name: str, name: str, field_type: FieldType, tags: Optional[Set[str]]
+        self,
+        containing_message: Any,
+        full_name: str,
+        name: str,
+        field_type: FieldType,
+        tags: Optional[Set[str]],
+        field_descriptor: Any = None,
     ) -> FieldContext:
         all_tags = set(tags if tags is not None else self._get_inline_tags(full_name))
         all_tags.update(self.get_tags(full_name))
-        field_context = FieldContext(containing_message, full_name, name, field_type, all_tags)
+        field_context = FieldContext(containing_message, full_name, name, field_type, all_tags, field_descriptor)
         self._field_contexts.append(field_context)
         return field_context
 
@@ -350,6 +386,186 @@ class RuleConditionError(RuleError):
             return f"Rule expr failed: {rule.expr}"
         else:
             return f"Rule failed: {rule.name}"
+
+
+class ValidationRulesExecution(str, Enum):
+    """
+    When inline validation rules run, relative to domain rule transformations.
+    """
+
+    DISABLED = 'DISABLED'
+    BEFORE_DOMAIN_RULES = 'BEFORE_DOMAIN_RULES'
+    AFTER_DOMAIN_RULES = 'AFTER_DOMAIN_RULES'
+
+
+class ValidationRule(object):
+    """
+    An inline validation rule (a CHECK constraint) declared on a schema, either
+    on a record/message/object or on one of its fields.
+    """
+
+    __slots__ = ['name', 'doc', 'expr', 'sql']
+
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        doc: Optional[str] = None,
+        expr: Optional[str] = None,
+        sql: Optional[str] = None,
+    ):
+        self.name = name
+        self.doc = doc
+        self.expr = expr
+        self.sql = sql
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, ValidationRule):
+            return NotImplemented
+        return self.name == other.name and self.doc == other.doc and self.expr == other.expr and self.sql == other.sql
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.doc, self.expr, self.sql))
+
+    def __repr__(self) -> str:
+        return f"ValidationRule{{name={self.name}, doc={self.doc}, expr={self.expr}, sql={self.sql}}}"
+
+
+class ValidationRuleError(object):
+    """
+    A single inline validation rule failure, located at ``field_path`` within the
+    message that was validated.
+    """
+
+    __slots__ = ['rule', 'field_path', 'message', 'cause']
+
+    def __init__(
+        self,
+        rule: ValidationRule,
+        field_path: Optional[str] = None,
+        message: Optional[str] = None,
+        cause: Optional[Exception] = None,
+    ):
+        self.rule = rule
+        self.field_path = field_path
+        #: Optional dynamic error message returned by the rule itself — set when the
+        #: rule expression returned a non-empty string explaining the failure (e.g.
+        #: ``x > 0 ? '' : 'x must be positive'``). None when the failure was a plain
+        #: False or a CEL evaluation error.
+        self.message = message
+        self.cause = cause
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, ValidationRuleError):
+            return NotImplemented
+        return self.rule == other.rule and self.field_path == other.field_path and self.message == other.message
+
+    def __hash__(self) -> int:
+        return hash((self.rule, self.field_path, self.message))
+
+    def __str__(self) -> str:
+        path = self.field_path if self.field_path else '<root>'
+        name = self.rule.name if self.rule is not None and self.rule.name else 'unnamed'
+        # Prefer the dynamic message returned by the rule itself; fall back to the
+        # rule's authored doc / SQL / CEL expression in that order.
+        if self.message:
+            detail: Any = self.message
+        elif self.rule is not None and self.rule.doc:
+            detail = self.rule.doc
+        elif self.rule is not None and self.rule.sql:
+            detail = self.rule.sql
+        else:
+            detail = self.rule.expr if self.rule is not None else None
+        result = f"{path}: {name}: {detail}"
+        if self.cause is not None:
+            result += f" (caused by: {self.cause})"
+        return result
+
+    def __repr__(self) -> str:
+        return f"ValidationRuleError({self})"
+
+
+class ValidationRuleExecutor(metaclass=abc.ABCMeta):
+    """
+    Evaluates a single inline validation rule against a value.
+
+    Implementations return either a bool (False meaning the rule failed) or a str
+    (non-empty meaning the rule failed, with that string as the failure message).
+    """
+
+    @abc.abstractmethod
+    def execute(self, rule: ValidationRule, schema: Any, message: Any) -> Any:
+        raise NotImplementedError()
+
+
+#: Schema property (Avro) / keyword (JSON Schema) holding inline validation rules.
+VALIDATION_RULES_PROP = 'confluent:rules'
+
+
+def parse_validation_rules(prop_value: Any) -> List[ValidationRule]:
+    """
+    Parse the ``confluent:rules`` property value — a list of dicts with name/doc/expr/sql
+    keys. Missing or malformed entries are ignored, yielding an empty list.
+    """
+    if not isinstance(prop_value, list):
+        return []
+    rules = []
+    for entry in prop_value:
+        if isinstance(entry, dict):
+            rules.append(
+                ValidationRule(
+                    entry.get('name'),
+                    entry.get('doc'),
+                    entry.get('expr'),
+                    entry.get('sql'),
+                )
+            )
+    return rules
+
+
+def default_validation_rule_executor() -> ValidationRuleExecutor:
+    """
+    Instantiate the default validation rule executor, the CEL-backed one. Imported
+    lazily because the CEL dependencies are an optional extra.
+    """
+    try:
+        from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
+    except ImportError as e:
+        raise ValueError(
+            "The default validation rule executor requires the CEL dependencies; install "
+            "them with `pip install confluent-kafka[rules]`, or set "
+            "validation.rules.executor to a ValidationRuleExecutor instance."
+        ) from e
+    return CelValidator()
+
+
+def evaluate_validation_rule(
+    executor: ValidationRuleExecutor,
+    rule: ValidationRule,
+    schema: Any,
+    value: Any,
+    path: str,
+    out: List[ValidationRuleError],
+):
+    """
+    Evaluate one inline validation rule, appending a ValidationRuleError to ``out``
+    when it fails. A rule that raises RuleError is itself recorded as a violation so
+    the walk can continue; a rule resolving to something other than a bool or str is
+    a programming error and propagates.
+    """
+    try:
+        result = executor.execute(rule, schema, value)
+    except RuleError as e:
+        out.append(ValidationRuleError(rule, path, None, e))
+        return
+    if isinstance(result, bool):
+        if result is False:
+            out.append(ValidationRuleError(rule, path, None, None))
+    elif isinstance(result, str):
+        if result:
+            out.append(ValidationRuleError(rule, path, result, None))
+    else:
+        name = rule.name if rule.name else 'unnamed'
+        raise SerializationError(f"Validation rule '{name}' resolved to an unexpected type: {type(result).__name__}")
 
 
 class Migration(object):
