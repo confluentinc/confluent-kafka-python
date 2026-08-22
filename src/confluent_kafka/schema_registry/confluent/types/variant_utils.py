@@ -541,7 +541,7 @@ class Variant:
             parts = []
             for i in range(self.num_object_fields()):
                 key, child = self.get_field_at_index(i)
-                parts.append(json.dumps(key) + ":" + child.to_json())
+                parts.append(json.dumps(key, ensure_ascii=False) + ":" + child.to_json())
             return "{" + ",".join(parts) + "}"
         if t == VariantType.ARRAY:
             parts = [self.get_element_at_index(i).to_json()
@@ -552,7 +552,7 @@ class Variant:
         if t == VariantType.BOOLEAN:
             return "true" if self.get_boolean() else "false"
         if t == VariantType.STRING:
-            return json.dumps(self.get_string())
+            return json.dumps(self.get_string(), ensure_ascii=False)
         if t in (VariantType.BYTE, VariantType.SHORT, VariantType.INT, VariantType.LONG):
             return str(self.get_long())
         if t == VariantType.FLOAT:
