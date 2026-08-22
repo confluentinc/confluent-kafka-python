@@ -247,6 +247,22 @@ def _format_double(d: float) -> str:
     return repr(d)
 
 
+def _format_float(f: float) -> str:
+    """A JSON number rendering of a 32-bit float. Emits the shortest decimal that round-trips
+    to the SAME float32 (matching Java ``Float.toString`` / Apache Arrow) rather than the
+    f64-shortest string produced by widening then formatting as a double. Integral values
+    render as ``N.0``; mirrors :func:`_format_double`'s non-finite handling."""
+    if f != f or f in (float("inf"), float("-inf")):
+        raise VariantError("cannot render non-finite float as JSON")
+    if f == int(f) and abs(f) < 1e16:
+        return "%d.0" % int(f)
+    for p in range(1, 10):
+        s = "%.*g" % (p, f)
+        if struct.unpack("<f", struct.pack("<f", float(s)))[0] == f:
+            return repr(float(s))
+    return repr(f)
+
+
 # ---------------------------------------------------------------------------
 # Variant reader.
 # ---------------------------------------------------------------------------
@@ -540,7 +556,7 @@ class Variant:
         if t in (VariantType.BYTE, VariantType.SHORT, VariantType.INT, VariantType.LONG):
             return str(self.get_long())
         if t == VariantType.FLOAT:
-            return _format_double(self.get_float())
+            return _format_float(self.get_float())
         if t == VariantType.DOUBLE:
             return _format_double(self.get_double())
         if t in (VariantType.DECIMAL4, VariantType.DECIMAL8, VariantType.DECIMAL16):
