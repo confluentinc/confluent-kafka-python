@@ -240,6 +240,30 @@ def test_to_json_roundtrip_structure():
     assert vu.parse_json(src).to_json() == '{"a":1,"b":[true,null,"x"],"c":{"d":2}}'
 
 
+def test_to_json_non_ascii_string_is_raw_utf8():
+    # Cross-language contract: non-ASCII must pass through raw (no \\uXXXX escapes),
+    # matching Java/Rust/JS/C++. Control chars and quotes are still escaped.
+    for text, expected in [
+        ("café", '"café"'),          # café -> raw, not "café"
+        ("日本語", '"日本語"'),  # 日本語 -> raw
+        ('a"b', '"a\\"b"'),                     # quote still escaped
+        ("a\tb\nc", '"a\\tb\\nc"'),             # control chars still escaped
+    ]:
+        b = vu.VariantBuilder()
+        b.append_string(text)
+        rendered = b.build().to_json()
+        assert rendered == expected
+        assert "\\u" not in rendered.replace("\\\\u", "")
+
+    # Non-ASCII object keys must also pass through raw.
+    b = vu.VariantBuilder()
+    b.start_object()
+    b.append_key("café")
+    b.append_string("résumé")
+    b.end_object()
+    assert b.build().to_json() == '{"café":"résumé"}'
+
+
 # --------------------------------------------------------------------------------------
 # malformed input
 # --------------------------------------------------------------------------------------
