@@ -322,6 +322,34 @@ class Variant:
             raise VariantError("variant is not a boolean")
         return type_info == TRUE
 
+    def get_byte(self) -> int:
+        """8-bit integer (``INT1`` only) - mirrors Java ``getByte``. Wider integer widths
+        raise; use :meth:`get_short`/:meth:`get_int`/:meth:`get_long` for those."""
+        _, type_info = self._primitive_info()
+        if type_info == INT1:
+            return _read_long(self.value, self.pos + 1, 1, signed=True)
+        raise VariantError("variant is not a byte-width integer")
+
+    def get_short(self) -> int:
+        """16-bit integer, widening from ``INT1`` (byte) - mirrors Java ``getShort``."""
+        _, type_info = self._primitive_info()
+        if type_info == INT1:
+            return _read_long(self.value, self.pos + 1, 1, signed=True)
+        if type_info == INT2:
+            return _read_long(self.value, self.pos + 1, 2, signed=True)
+        raise VariantError("variant is not a short-width integer")
+
+    def get_int(self) -> int:
+        """32-bit integer, widening from ``INT1``/``INT2`` - mirrors Java ``getInt``."""
+        _, type_info = self._primitive_info()
+        if type_info == INT1:
+            return _read_long(self.value, self.pos + 1, 1, signed=True)
+        if type_info == INT2:
+            return _read_long(self.value, self.pos + 1, 2, signed=True)
+        if type_info == INT4:
+            return _read_long(self.value, self.pos + 1, 4, signed=True)
+        raise VariantError("variant is not an int-width integer")
+
     def get_long(self) -> int:
         """Raw integer for any integer-backed type (byte/short/int/long, date days,
         timestamp micros, time micros, timestamp-nanos) - mirrors Java ``getLong``."""
@@ -337,15 +365,23 @@ class Variant:
             return _read_long(self.value, self.pos + 1, 8, signed=True)
         raise VariantError("variant is not an integer-backed type")
 
-    def get_double(self) -> float:
+    def get_float(self) -> float:
+        """32-bit float (``FLOAT`` only, exact) - mirrors Java ``getFloat``. Note the
+        returned Python ``float`` is 64-bit, but the value is decoded from 4 bytes."""
         _, type_info = self._primitive_info()
         if type_info == FLOAT:
             _check_index(self.pos + 4, len(self.value))
             return struct.unpack("<f", self.value[self.pos + 1:self.pos + 5])[0]
+        raise VariantError("variant is not a float")
+
+    def get_double(self) -> float:
+        """64-bit double (``DOUBLE`` only, exact) - mirrors Java ``getDouble``. Does not
+        widen a ``FLOAT``; use :meth:`get_float` for that."""
+        _, type_info = self._primitive_info()
         if type_info == DOUBLE:
             _check_index(self.pos + 8, len(self.value))
             return struct.unpack("<d", self.value[self.pos + 1:self.pos + 9])[0]
-        raise VariantError("variant is not a float/double")
+        raise VariantError("variant is not a double")
 
     def get_decimal(self) -> decimal.Decimal:
         _, type_info = self._primitive_info()
@@ -426,7 +462,7 @@ class Variant:
         data_start = offset_start + (num_fields + 1) * offset_size
         return num_fields, offset_size, offset_start, data_start
 
-    def num_object_elements(self) -> int:
+    def num_object_fields(self) -> int:
         return self._object_info()[0]
 
     def num_array_elements(self) -> int:
@@ -487,7 +523,7 @@ class Variant:
         t = self.get_type()
         if t == VariantType.OBJECT:
             parts = []
-            for i in range(self.num_object_elements()):
+            for i in range(self.num_object_fields()):
                 key, child = self.get_field_at_index(i)
                 parts.append(json.dumps(key) + ":" + child.to_json())
             return "{" + ",".join(parts) + "}"
@@ -503,7 +539,9 @@ class Variant:
             return json.dumps(self.get_string())
         if t in (VariantType.BYTE, VariantType.SHORT, VariantType.INT, VariantType.LONG):
             return str(self.get_long())
-        if t in (VariantType.FLOAT, VariantType.DOUBLE):
+        if t == VariantType.FLOAT:
+            return _format_double(self.get_float())
+        if t == VariantType.DOUBLE:
             return _format_double(self.get_double())
         if t in (VariantType.DECIMAL4, VariantType.DECIMAL8, VariantType.DECIMAL16):
             # Fixed-point (never scientific), matching Java's toPlainString contract.
@@ -548,16 +586,31 @@ def to_json_string(variant: Variant) -> str:
 
 def parse_json(json_str: str) -> Variant:
     """Parse a JSON string into a Variant, matching Java ``VariantUtils.fromJsonNode``."""
-    value, metadata = VariantBuilder().build(json_str)
+    builder = VariantBuilder()
+    # Default float parsing (no parse_float=Decimal): a JSON fractional number becomes a
+    # Python float and is written as a DOUBLE, matching a default Jackson ObjectMapper.
+    builder._process_parsed_json(json.loads(json_str))
+    value, metadata = builder._finalize()
     return Variant(value, metadata)
 
 
 # ---------------------------------------------------------------------------
-# Variant builder (JSON -> Variant), ported from Spark's VariantBuilder.
+# Variant builder, ported from Spark's VariantBuilder and exposed as a flat
+# streaming writer (arrow-dotnet ``VariantValueWriter`` shape): a single object
+# with an internal nesting stack. Each scalar/container append fills the "current
+# slot" - the root, the next array element, or the current object field's value
+# (after :meth:`append_key`). Object fields are sorted by key on :meth:`end_object`
+# (canonical form); the metadata dictionary accumulates every key seen.
 #
-# Number handling follows Java VariantUtils.fromJsonNode (default Jackson ObjectMapper):
-# a JSON fractional number becomes a DOUBLE (never a decimal); an integer becomes the
-# smallest int1/2/4/8 that fits, or a scale-0 decimal when wider than 64 bits.
+# The same internal machinery drives :func:`parse_json`: :meth:`_process_parsed_json`
+# walks a parsed JSON tree using the same low-level writers and object/array
+# finishers, so a programmatic build is byte-identical to ``parse_json`` of an
+# equivalent value.
+#
+# Number handling in the JSON path follows Java VariantUtils.fromJsonNode (default
+# Jackson ObjectMapper): a JSON fractional number becomes a DOUBLE (never a decimal);
+# an integer becomes the smallest int1/2/4/8 that fits, or a scale-0 decimal when
+# wider than 64 bits.
 # ---------------------------------------------------------------------------
 
 class _FieldEntry:
@@ -569,8 +622,35 @@ class _FieldEntry:
         self.offset = offset
 
 
+class _ObjectContext:
+    """Nesting-stack frame for an in-progress object."""
+    __slots__ = ("start", "fields", "pending_key", "pending_id", "has_pending_key")
+
+    def __init__(self, start: int):
+        self.start = start
+        self.fields: List[_FieldEntry] = []
+        self.pending_key: Optional[str] = None
+        self.pending_id = 0
+        self.has_pending_key = False
+
+
+class _ArrayContext:
+    """Nesting-stack frame for an in-progress array."""
+    __slots__ = ("start", "offsets")
+
+    def __init__(self, start: int):
+        self.start = start
+        self.offsets: List[int] = []
+
+
 class VariantBuilder:
-    """Builds Variant (value, metadata) bytes from parsed JSON."""
+    """A flat streaming writer for Variant values, with an internal nesting stack.
+
+    Scalars (``append_*``) and containers (``start_object``/``start_array``) each fill
+    the current slot: the root, the next array element, or the value of the current
+    object field (set with :meth:`append_key`). Call :meth:`build` to obtain the
+    finished :class:`Variant`.
+    """
 
     DEFAULT_SIZE_LIMIT = 16 * 1024 * 1024
 
@@ -579,13 +659,188 @@ class VariantBuilder:
         self.dictionary = {}
         self.dictionary_keys: List[bytes] = []
         self.size_limit = size_limit
+        self._stack: List[Any] = []
+        self._root_written = False
 
-    def build(self, json_str: str) -> Tuple[bytes, bytes]:
-        # Default float parsing (no parse_float=Decimal): a JSON fractional number becomes a
-        # Python float and is written as a DOUBLE, matching a default Jackson ObjectMapper.
-        parsed = json.loads(json_str)
-        self._process_parsed_json(parsed)
+    # -- public streaming API ----------------------------------------------
 
+    def build(self) -> Variant:
+        """Finalize and return the built :class:`Variant`. Raises if a container is
+        still open or nothing has been written."""
+        if self._stack:
+            raise VariantError("cannot build with an open container")
+        if not self._root_written:
+            raise VariantError("cannot build an empty variant")
+        value, metadata = self._finalize()
+        return Variant(value, metadata)
+
+    def append_null(self) -> None:
+        self._before_append()
+        self._append_null()
+
+    def append_boolean(self, b: bool) -> None:
+        self._before_append()
+        self._append_boolean(bool(b))
+
+    def append_byte(self, value: int) -> None:
+        """Append an 8-bit integer (``INT1``)."""
+        self._before_append()
+        self._write_fixed_int(INT1, value, 1)
+
+    def append_short(self, value: int) -> None:
+        """Append a 16-bit integer (``INT2``)."""
+        self._before_append()
+        self._write_fixed_int(INT2, value, 2)
+
+    def append_int(self, value: int) -> None:
+        """Append a 32-bit integer (``INT4``)."""
+        self._before_append()
+        self._write_fixed_int(INT4, value, 4)
+
+    def append_long(self, value: int) -> None:
+        """Append a 64-bit integer (``INT8``)."""
+        self._before_append()
+        self._write_fixed_int(INT8, value, 8)
+
+    def append_float(self, value: float) -> None:
+        """Append a 32-bit float (``FLOAT``)."""
+        self._before_append()
+        self._check_capacity(1 + 4)
+        self.value.append(self._primitive_header(FLOAT))
+        self.value.extend(struct.pack("<f", value))
+
+    def append_double(self, value: float) -> None:
+        """Append a 64-bit double (``DOUBLE``)."""
+        self._before_append()
+        self._append_double(value)
+
+    def append_decimal(self, unscaled: Any, scale: Optional[int] = None) -> None:
+        """Append a decimal. Either ``append_decimal(unscaled_big_endian_bytes, scale)``
+        with a big-endian two's-complement unscaled value, or the native overload
+        ``append_decimal(decimal.Decimal)`` (scale taken from the value)."""
+        self._before_append()
+        if isinstance(unscaled, (bytes, bytearray)):
+            if scale is None:
+                raise VariantError("scale is required when appending a decimal from bytes")
+            unscaled_int = int.from_bytes(bytes(unscaled), byteorder="big", signed=True)
+            self._write_decimal(unscaled_int, scale)
+        elif isinstance(unscaled, decimal.Decimal):
+            if scale is not None:
+                raise VariantError("scale must not be given with a Decimal value")
+            self._append_decimal(unscaled)
+        elif isinstance(unscaled, int):
+            if scale is None:
+                raise VariantError("scale is required when appending an unscaled integer")
+            self._write_decimal(unscaled, scale)
+        else:
+            raise VariantError("invalid append_decimal arguments")
+
+    def append_string(self, s: str) -> None:
+        self._before_append()
+        self._append_string(s)
+
+    def append_binary(self, data: bytes) -> None:
+        self._before_append()
+        data = bytes(data)
+        self._check_capacity(1 + U32_SIZE + len(data))
+        self.value.append(self._primitive_header(BINARY))
+        self.value.extend(len(data).to_bytes(U32_SIZE, byteorder="little"))
+        self.value.extend(data)
+
+    def append_uuid(self, value: Any) -> None:
+        """Append a UUID. Accepts a :class:`uuid.UUID` or 16 big-endian bytes."""
+        self._before_append()
+        if isinstance(value, uuid_mod.UUID):
+            raw = value.bytes  # big-endian
+        else:
+            raw = bytes(value)
+        if len(raw) != UUID_SIZE:
+            raise VariantError("uuid must be 16 bytes")
+        self._check_capacity(1 + UUID_SIZE)
+        self.value.append(self._primitive_header(UUID))
+        self.value.extend(raw)
+
+    def append_date(self, days_since_epoch: int) -> None:
+        self._before_append()
+        self._write_fixed_int(DATE, days_since_epoch, 4)
+
+    def append_time(self, micros_since_midnight: int) -> None:
+        """Append a ``TIME`` (TIME_NTZ) as microseconds since midnight."""
+        self._before_append()
+        self._write_fixed_int(TIME, micros_since_midnight, 8)
+
+    def append_timestamp_tz(self, micros: int) -> None:
+        self._before_append()
+        self._write_fixed_int(TIMESTAMP, micros, 8)
+
+    def append_timestamp_ntz(self, micros: int) -> None:
+        self._before_append()
+        self._write_fixed_int(TIMESTAMP_NTZ, micros, 8)
+
+    def append_timestamp_nanos_tz(self, nanos: int) -> None:
+        self._before_append()
+        self._write_fixed_int(TIMESTAMP_NANOS, nanos, 8)
+
+    def append_timestamp_nanos_ntz(self, nanos: int) -> None:
+        self._before_append()
+        self._write_fixed_int(TIMESTAMP_NANOS_NTZ, nanos, 8)
+
+    def start_object(self) -> None:
+        self._before_append()
+        self._stack.append(_ObjectContext(len(self.value)))
+
+    def append_key(self, key: str) -> None:
+        if not self._stack or not isinstance(self._stack[-1], _ObjectContext):
+            raise VariantError("append_key called outside of an object")
+        ctx = self._stack[-1]
+        if ctx.has_pending_key:
+            raise VariantError("append_key called twice without an intervening value")
+        ctx.pending_key = key
+        ctx.pending_id = self._add_key(key)
+        ctx.has_pending_key = True
+
+    def end_object(self) -> None:
+        if not self._stack or not isinstance(self._stack[-1], _ObjectContext):
+            raise VariantError("end_object without a matching start_object")
+        ctx = self._stack.pop()
+        if ctx.has_pending_key:
+            raise VariantError("end_object with a dangling append_key (no value)")
+        self._finish_writing_object(ctx.start, ctx.fields)
+
+    def start_array(self) -> None:
+        self._before_append()
+        self._stack.append(_ArrayContext(len(self.value)))
+
+    def end_array(self) -> None:
+        if not self._stack or not isinstance(self._stack[-1], _ArrayContext):
+            raise VariantError("end_array without a matching start_array")
+        ctx = self._stack.pop()
+        self._finish_writing_array(ctx.start, ctx.offsets)
+
+    # -- current-slot bookkeeping ------------------------------------------
+
+    def _before_append(self) -> None:
+        """Register the slot that the value about to be written will occupy, recording its
+        offset in the enclosing container (or marking the root as written)."""
+        if not self._stack:
+            if self._root_written:
+                raise VariantError("cannot append multiple root values")
+            self._root_written = True
+            return
+        ctx = self._stack[-1]
+        if isinstance(ctx, _ObjectContext):
+            if not ctx.has_pending_key:
+                raise VariantError("a value in an object must follow append_key")
+            ctx.fields.append(
+                _FieldEntry(ctx.pending_key, ctx.pending_id, len(self.value) - ctx.start))
+            ctx.pending_key = None
+            ctx.has_pending_key = False
+        else:  # _ArrayContext
+            ctx.offsets.append(len(self.value) - ctx.start)
+
+    # -- metadata finalization ---------------------------------------------
+
+    def _finalize(self) -> Tuple[bytes, bytes]:
         num_keys = len(self.dictionary_keys)
         dictionary_string_size = sum(len(k) for k in self.dictionary_keys)
         max_size = max(dictionary_string_size, num_keys)
@@ -609,6 +864,8 @@ class VariantBuilder:
         for key in self.dictionary_keys:
             metadata.extend(key)
         return bytes(self.value), bytes(metadata)
+
+    # -- internal JSON-tree driver (used by parse_json) --------------------
 
     def _process_parsed_json(self, parsed: Any) -> None:
         if isinstance(parsed, dict):
@@ -712,32 +969,43 @@ class VariantBuilder:
             return False
         return True
 
-    def _append_decimal(self, d: decimal.Decimal) -> None:
+    def _write_fixed_int(self, type_code: int, value: int, width: int) -> None:
+        """Write a fixed-width signed little-endian integer primitive."""
+        self._check_capacity(1 + width)
+        try:
+            payload = int(value).to_bytes(width, byteorder="little", signed=True)
+        except OverflowError:
+            raise VariantError("integer value out of range for a %d-byte width" % width)
+        self.value.append(self._primitive_header(type_code))
+        self.value.extend(payload)
+
+    def _write_decimal(self, unscaled: int, scale: int) -> None:
+        """Write a decimal primitive from an unscaled integer and scale, choosing the
+        smallest of DECIMAL4/8/16 that fits."""
+        if scale < 0:
+            raise VariantError("cannot encode decimal with negative scale")
         self._check_capacity(2 + 16)
+        precision = len(str(abs(unscaled)))
+        if scale <= MAX_DECIMAL4_PRECISION and precision <= MAX_DECIMAL4_PRECISION:
+            code, width = DECIMAL4, 4
+        elif scale <= MAX_DECIMAL8_PRECISION and precision <= MAX_DECIMAL8_PRECISION:
+            code, width = DECIMAL8, 8
+        elif scale <= MAX_DECIMAL16_PRECISION and precision <= MAX_DECIMAL16_PRECISION:
+            code, width = DECIMAL16, 16
+        else:
+            raise VariantError("decimal exceeds maximum precision (38)")
+        self.value.append(self._primitive_header(code))
+        self.value.append(scale)
+        self.value.extend(unscaled.to_bytes(width, byteorder="little", signed=True))
+
+    def _append_decimal(self, d: decimal.Decimal) -> None:
         sign, digits, exponent = d.as_tuple()
         if not isinstance(exponent, int):
             raise VariantError("cannot encode non-finite decimal")
-        precision = len(digits)
-        scale = -exponent
-        if scale < 0:
-            raise VariantError("cannot encode decimal with negative scale")
         unscaled = int("".join(map(str, digits)) or "0")
         if sign:
             unscaled = -unscaled
-        if scale <= MAX_DECIMAL4_PRECISION and precision <= MAX_DECIMAL4_PRECISION:
-            self.value.append(self._primitive_header(DECIMAL4))
-            self.value.append(scale)
-            self.value.extend(unscaled.to_bytes(4, byteorder="little", signed=True))
-        elif scale <= MAX_DECIMAL8_PRECISION and precision <= MAX_DECIMAL8_PRECISION:
-            self.value.append(self._primitive_header(DECIMAL8))
-            self.value.append(scale)
-            self.value.extend(unscaled.to_bytes(8, byteorder="little", signed=True))
-        elif scale <= MAX_DECIMAL16_PRECISION and precision <= MAX_DECIMAL16_PRECISION:
-            self.value.append(self._primitive_header(DECIMAL16))
-            self.value.append(scale)
-            self.value.extend(unscaled.to_bytes(16, byteorder="little", signed=True))
-        else:
-            raise VariantError("decimal exceeds maximum precision (38)")
+        self._write_decimal(unscaled, -exponent)
 
     def _append_double(self, f: float) -> None:
         self._check_capacity(1 + 8)

@@ -244,7 +244,7 @@ def _variant_as(o: typing.Any, type_str: str, null_on_error: bool) -> typing.Any
             return celtypes.IntType(v.get_long())
     elif type_str == "double":
         if t == VariantType.FLOAT:
-            return celtypes.DoubleType(float(v.get_double()))
+            return celtypes.DoubleType(float(v.get_float()))
         if t == VariantType.DOUBLE:
             return celtypes.DoubleType(v.get_double())
     elif type_str == "boolean":
