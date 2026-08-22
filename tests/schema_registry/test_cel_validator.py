@@ -206,7 +206,8 @@ def test_avro_variant_field_into_cel(validator):
         "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
         "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
     })
-    value, metadata = vu.VariantBuilder().build('{"name":"alice","age":30}')
+    built = vu.parse_json('{"name":"alice","age":30}')
+    value, metadata = built.value, built.metadata
     buf = io.BytesIO()
     fastavro.schemaless_writer(buf, schema, vu.Variant(value, metadata))
     buf.seek(0)
@@ -220,7 +221,8 @@ def test_avro_variant_field_into_cel(validator):
 # A confluent.type.Variant proto field is bound into CEL as a celpy MessageType wrapper;
 # variant(...) must unwrap it, mirroring the decimal test above and the JVM client.
 def test_proto_variant_field_into_cel(validator):
-    value, metadata = vu.VariantBuilder().build('{"name":"alice","age":30}')
+    built = vu.parse_json('{"name":"alice","age":30}')
+    value, metadata = built.value, built.metadata
     v = variant_pb2.Variant(value=value, metadata=metadata)
     expr = "variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"
     assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True

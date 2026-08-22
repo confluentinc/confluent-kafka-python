@@ -54,7 +54,7 @@ def test_parse_json_navigation_and_scalars():
     v = vu.parse_json(
         '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
     assert v.get_type() == VariantType.OBJECT
-    assert v.num_object_elements() == 5
+    assert v.num_object_fields() == 5
     assert v.get_field_by_key("name").get_string() == "alice"
     assert v.get_field_by_key("age").get_long() == 30
     assert v.get_field_by_key("scores").get_element_at_index(2).get_long() == 30
@@ -134,7 +134,42 @@ def test_integer_widths_read_as_long():
 
 def test_float_and_double():
     assert prim(vu.DOUBLE, struct.pack("<d", 2.5)).get_double() == 2.5
-    assert prim(vu.FLOAT, struct.pack("<f", 1.5)).get_double() == 1.5
+    assert prim(vu.FLOAT, struct.pack("<f", 1.5)).get_float() == 1.5
+
+
+def test_narrowed_integer_getters():
+    # get_byte accepts only INT1.
+    assert prim(vu.INT1, struct.pack("<b", -5)).get_byte() == -5
+    # get_short widens INT1 -> INT2.
+    assert prim(vu.INT1, struct.pack("<b", -5)).get_short() == -5
+    assert prim(vu.INT2, struct.pack("<h", -300)).get_short() == -300
+    # get_int widens INT1/INT2 -> INT4.
+    assert prim(vu.INT1, struct.pack("<b", -5)).get_int() == -5
+    assert prim(vu.INT2, struct.pack("<h", -300)).get_int() == -300
+    assert prim(vu.INT4, struct.pack("<i", 100000)).get_int() == 100000
+
+
+def test_narrowed_integer_getters_reject_wider():
+    # get_byte rejects anything wider than INT1.
+    with pytest.raises(VariantError):
+        prim(vu.INT2, struct.pack("<h", 1)).get_byte()
+    # get_short rejects INT4.
+    with pytest.raises(VariantError):
+        prim(vu.INT4, struct.pack("<i", 1)).get_short()
+    # get_int rejects INT8.
+    with pytest.raises(VariantError):
+        prim(vu.INT8, struct.pack("<q", 1)).get_int()
+
+
+def test_get_double_rejects_float():
+    # get_double is now exact DOUBLE-only and must not widen a FLOAT.
+    with pytest.raises(VariantError):
+        prim(vu.FLOAT, struct.pack("<f", 1.5)).get_double()
+
+
+def test_get_float_rejects_double():
+    with pytest.raises(VariantError):
+        prim(vu.DOUBLE, struct.pack("<d", 2.5)).get_float()
 
 
 def test_boolean_and_binary_and_uuid():
@@ -225,3 +260,100 @@ def test_wrong_getter_raises():
         prim(vu.TRUE).get_string()
     with pytest.raises(VariantError):
         prim(vu.NULL).get_long()
+
+
+# --------------------------------------------------------------------------------------
+# VariantBuilder (flat streaming writer)
+# --------------------------------------------------------------------------------------
+
+
+def test_builder_matches_parse_json_byte_for_byte():
+    # A big integer wider than 64 bits parses as a scale-0 DECIMAL16 - the one decimal
+    # form parse_json emits - so the programmatic decimal append can match it exactly.
+    big = 10 ** 20
+    src = (
+        '{"id":42,"name":"hello","active":true,"score":3.5,'
+        '"amount":%d,"missing":null,"nums":[1,2,3],"nested":{"a":1}}' % big
+    )
+
+    b = vu.VariantBuilder()
+    b.start_object()
+    b.append_key("id")
+    b.append_byte(42)                      # parse_json encodes 42 as INT1
+    b.append_key("name")
+    b.append_string("hello")
+    b.append_key("active")
+    b.append_boolean(True)
+    b.append_key("score")
+    b.append_double(3.5)
+    b.append_key("amount")
+    b.append_decimal((big).to_bytes(9, byteorder="big", signed=True), 0)
+    b.append_key("missing")
+    b.append_null()
+    b.append_key("nums")
+    b.start_array()
+    b.append_byte(1)
+    b.append_byte(2)
+    b.append_byte(3)
+    b.end_array()
+    b.append_key("nested")
+    b.start_object()
+    b.append_key("a")
+    b.append_byte(1)
+    b.end_object()
+    b.end_object()
+    built = b.build()
+
+    parsed = vu.parse_json(src)
+
+    # Canonical-equivalence via JSON.
+    assert built.to_json() == parsed.to_json()
+    # Byte-identical value + metadata.
+    assert built.value == parsed.value
+    assert built.metadata == parsed.metadata
+
+
+def test_builder_native_decimal_overload_matches_bytes_overload():
+    b1 = vu.VariantBuilder()
+    b1.append_decimal(decimal.Decimal("1.50"))
+    b2 = vu.VariantBuilder()
+    b2.append_decimal((150).to_bytes(2, byteorder="big", signed=True), 2)
+    assert b1.build().value == b2.build().value
+    assert b1.build().to_json() == "1.50"
+
+
+def test_builder_root_scalar():
+    b = vu.VariantBuilder()
+    b.append_long(1234567890123)
+    v = b.build()
+    assert v.get_type() == VariantType.LONG
+    assert v.get_long() == 1234567890123
+    assert v.to_json() == "1234567890123"
+
+
+def test_builder_append_key_outside_object_raises():
+    b = vu.VariantBuilder()
+    with pytest.raises(VariantError):
+        b.append_key("x")
+
+
+def test_builder_value_without_key_in_object_raises():
+    b = vu.VariantBuilder()
+    b.start_object()
+    with pytest.raises(VariantError):
+        b.append_long(1)
+
+
+def test_builder_build_with_open_container_raises():
+    b = vu.VariantBuilder()
+    b.start_array()
+    b.append_long(1)
+    with pytest.raises(VariantError):
+        b.build()
+
+
+def test_builder_unbalanced_end_raises():
+    b = vu.VariantBuilder()
+    b.start_object()
+    with pytest.raises(VariantError):
+        b.end_array()
