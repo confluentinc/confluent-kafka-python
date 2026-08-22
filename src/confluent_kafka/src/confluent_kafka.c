@@ -96,9 +96,9 @@ static PyObject *KafkaError_code(KafkaError *self, PyObject *ignore) {
 
 static PyObject *KafkaError_str(KafkaError *self, PyObject *ignore) {
         if (self->str)
-                return cfl_PyUnistr(_FromString(self->str));
+                return cfl_PyUnistr_FromStringSafe(self->str);
         else
-                return cfl_PyUnistr(_FromString(rd_kafka_err2str(self->code)));
+                return cfl_PyUnistr_FromStringSafe(rd_kafka_err2str(self->code));
 }
 
 static PyObject *KafkaError_name(KafkaError *self, PyObject *ignore) {
@@ -136,7 +136,7 @@ static PyObject *KafkaError_reduce(KafkaError *self,
             cfl_PyObject_lookup("confluent_kafka.cimpl", "KafkaError");
 
         if (self->str) {
-                reason = cfl_PyUnistr(_FromString(self->str));
+                reason = cfl_PyUnistr_FromStringSafe(self->str);
         } else {
                 reason = NULL;
         }
