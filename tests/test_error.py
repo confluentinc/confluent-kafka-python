@@ -64,3 +64,12 @@ def test_new_produce_error_custom_message():
     assert pe.code == KafkaError._KEY_SERIALIZATION
     assert pe.name == u'_KEY_SERIALIZATION'
     assert pe.args[0].str() == "Unable to serialize key"
+
+
+def test_kafka_error_non_ascii_str():
+    msg = u"Ошибка: недопустимое значение"
+    err = KafkaError(KafkaError._KEY_SERIALIZATION, msg)
+
+    assert err.str() == msg
+    assert msg in str(err)
+    assert repr(err)
