@@ -2817,12 +2817,12 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         static const char MARKER_KEY[] =
             "sasl.oauthbearer.metadata.authentication.type";
-        static const char MARKER_VALUE[]      = "aws_iam";
-        static const char METHOD_KEY[]        = "sasl.oauthbearer.method";
+        static const char MARKER_VALUE[] = "aws_iam";
+        static const char METHOD_KEY[] = "sasl.oauthbearer.method";
         static const char METHOD_OIDC_VALUE[] = "oidc";
-        static const char CONFIG_KEY[]        = "sasl.oauthbearer.config";
-        static const char EXTENSIONS_KEY[]    = "sasl.oauthbearer.extensions";
-        static const char OAUTH_CB_KEY[]      = "oauth_cb";
+        static const char CONFIG_KEY[] = "sasl.oauthbearer.config";
+        static const char EXTENSIONS_KEY[] = "sasl.oauthbearer.extensions";
+        static const char OAUTH_CB_KEY[] = "oauth_cb";
         static const char AUTOWIRE_MODULE[] =
             "confluent_kafka._oauthbearer.aws.aws_autowire";
         static const char CREATE_HANDLER[] = "create_handler";
@@ -2852,8 +2852,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         const char *marker_c;
         const char *method_c;
 
-        /* Explicit oauth_cb wins: nothing to autowire, regardless of the
-         * marker. */
+        /* Explicit oauth_cb wins: nothing to autowire, regardless of the marker. */
         cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
         if (cb && cb != Py_None) {
                 return 0;
@@ -2873,7 +2872,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return 0;
         }
 
-        method   = PyDict_GetItemString(confdict, METHOD_KEY);
+        method = PyDict_GetItemString(confdict, METHOD_KEY);
         method_c = (method && PyUnicode_Check(method))
                        ? PyUnicode_AsUTF8(method)
                        : NULL;
@@ -2920,8 +2919,8 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         if (!func) {
                 return -1;
         }
-        callback = PyObject_CallFunction(func, "OO", cfg_str,
-                                         ext_str ? ext_str : Py_None);
+        callback = PyObject_CallFunction(
+            func, "OO", cfg_str, ext_str ? ext_str : Py_None);
         Py_DECREF(func);
         if (!callback) {
                 return -1;
