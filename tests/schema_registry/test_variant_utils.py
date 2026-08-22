@@ -331,6 +331,20 @@ def test_builder_root_scalar():
     assert v.to_json() == "1234567890123"
 
 
+def test_float_renders_float32_shortest():
+    # Bug #7: the FLOAT case widened the f64 through the double formatter, emitting the
+    # f64-shortest string (e.g. "0.10000000149011612") instead of the float32-shortest
+    # string ("0.1") that Java Float.toString / Apache Arrow produce.
+    def render(f):
+        b = vu.VariantBuilder()
+        b.append_float(f)
+        return b.build().to_json()
+
+    assert render(0.1) == "0.1"
+    assert render(0.3) == "0.3"
+    assert render(2.0) == "2.0"  # integer ".0" preserved
+
+
 def test_builder_append_key_outside_object_raises():
     b = vu.VariantBuilder()
     with pytest.raises(VariantError):
