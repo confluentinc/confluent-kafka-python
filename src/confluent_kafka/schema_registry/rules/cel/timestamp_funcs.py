@@ -29,6 +29,15 @@ pattern. We can't extend stdlib ``timestamp(...)`` with a ``(dyn)`` overload
 because ``(dyn)`` and ``(string)`` would overlap per the CEL signature-overlap
 rule on conformant impls (cel-java/go/cpp); for cross-client parity Python
 also uses the namespaced form even though celpy itself has no overlap check.
+
+We also override the stdlib ``timestamp(...)`` name itself, purely to add the
+``int -> timestamp`` overload that every other CEL implementation declares
+(cel-java's ``int64_to_timestamp``, plus Go/C++/C#): a bare ``timestamp(1234)``
+is epoch **seconds**. celpy's base ``timestamp`` is ``TimestampType`` itself,
+which accepts a ``datetime``, a ``str``, or an int *plus at least two more
+args* (datetime components) but rejects a lone int -- so without this override
+a single-int call errors on Python only. The override delegates every other
+form to the base implementation unchanged.
 """
 
 import datetime
@@ -43,6 +52,18 @@ try:
     from google.protobuf.timestamp_pb2 import Timestamp as _ProtoTimestamp
 except ImportError:  # pragma: no cover
     _ProtoTimestamp = None  # type: ignore[assignment]
+
+# celpy's stdlib ``timestamp`` binding. Registering our own "timestamp" entry
+# *replaces* it (``Activation.functions`` is a ChainMap where local functions
+# shadow the base ones), so we capture the base callable here and delegate to it
+# for every form it already handles.
+try:
+    from celpy.evaluation import base_functions as _base_functions
+
+    _BASE_TIMESTAMP: typing.Callable[..., celtypes.TimestampType] = _base_functions.get(
+        "timestamp", celtypes.TimestampType)
+except ImportError:  # pragma: no cover
+    _BASE_TIMESTAMP = celtypes.TimestampType
 
 
 _UNIT_MILLIS = "millis"
@@ -137,7 +158,10 @@ def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
     if isinstance(v, (str, celtypes.StringType)):
         # Delegate to celpy's stdlib timestamp parser for RFC 3339 strings.
         return celtypes.TimestampType(str(v))
-    if isinstance(v, bool):
+    # ``celtypes.BoolType`` subclasses ``int``, *not* ``bool`` (its MRO is
+    # BoolType -> int -> object), so it has to be named explicitly here or a CEL
+    # bool falls through to the raw-int branch below and gets the wrong message.
+    if isinstance(v, (bool, celtypes.BoolType)):
         raise celpy.CELEvalError("timestamp.of: cannot convert bool to Timestamp")
     if isinstance(v, (int, celtypes.IntType)):
         raise celpy.CELEvalError(
@@ -149,6 +173,34 @@ def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
         f"timestamp.of: cannot convert {type(v).__name__} to Timestamp")
 
 
+def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
+    """CEL stdlib ``timestamp(...)`` plus the missing ``int`` -> epoch-seconds overload.
+
+    Everything the base implementation already handles is forwarded to it
+    verbatim -- the ``str`` (lenient RFC 3339) form, the ``datetime`` /
+    ``TimestampType`` form, and crucially the *datetime components* form
+    (``timestamp(2009, 2, 13)``), which is an int in the first position with two
+    or more further args. Only a single int argument is handled here, as epoch
+    seconds, matching cel-java's ``int64_to_timestamp`` and Go/C++/C#.
+    """
+    if len(args) == 1:
+        v = args[0]
+        # BoolType subclasses int (see _timestamp_of), so reject bools before the
+        # int check -- otherwise ``timestamp(true)`` would silently mean epoch 1.
+        if isinstance(v, (bool, celtypes.BoolType)):
+            raise celpy.CELEvalError("timestamp: cannot convert bool to Timestamp")
+        # ``Datetime`` is not an int subclass, but check it first anyway so the
+        # datetime/TimestampType path stays entirely the base implementation's.
+        if not isinstance(v, Datetime) and isinstance(v, (int, celtypes.IntType)):
+            try:
+                return _from_epoch(int(v), _UNIT_SECONDS)
+            except (OverflowError, ValueError, OSError) as e:
+                raise celpy.CELEvalError(
+                    f"timestamp: epoch seconds value out of range: {int(v)}") from e
+    return _BASE_TIMESTAMP(*args)
+
+
 TIMESTAMP_FUNCS: typing.Dict[str, celpy.CELFunction] = {
+    "timestamp": _timestamp,
     "timestamp.of": _timestamp_of,
 }
