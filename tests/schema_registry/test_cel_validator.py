@@ -21,6 +21,7 @@ Tests for CelValidator — the per-rule CEL semantics, independent of any walker
 
 import datetime
 
+import celpy
 import pytest
 from celpy import celtypes
 from google.protobuf import descriptor_pb2, message_factory, wrappers_pb2
@@ -418,6 +419,68 @@ def test_variant_parse_json_empty_raises(validator, src):
 )
 def test_timestamp_of_floors_with_exact_integer_arithmetic(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
+
+
+def test_timestamp_of_bool_reports_bool_not_unitless_int(validator):
+    # celtypes.BoolType subclasses int (MRO: BoolType -> int -> object) and *not*
+    # bool, so a plain ``isinstance(v, bool)`` guard never fires for a CEL bool and
+    # the value used to be misreported as a unitless raw int.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule("timestamp.of(true) == timestamp(1)"), None, 1)
+    assert "cannot convert bool" in str(excinfo.value.__cause__)
+
+
+# --------------------------------------------------------------------------------------
+# stdlib timestamp(...) — the single-int epoch-seconds overload every other client has
+# --------------------------------------------------------------------------------------
+
+
+# celpy binds ``timestamp`` straight to celtypes.TimestampType, which accepts a
+# datetime, a string, or an int followed by *at least two more* args (datetime
+# components) — but rejects a lone int. cel-java (int64_to_timestamp), Go, C++ and C#
+# all read a single int as epoch SECONDS, so the client registers its own "timestamp"
+# that adds that overload and delegates every other form to the base implementation.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # The regression: a bare int is epoch seconds.
+        'timestamp(1700000000) == timestamp("2023-11-14T22:13:20Z")',
+        'timestamp(0) == timestamp("1970-01-01T00:00:00Z")',
+        # Negative / pre-epoch ints.
+        'timestamp(-1) == timestamp("1969-12-31T23:59:59Z")',
+        'timestamp(-2208988800) == timestamp("1900-01-01T00:00:00Z")',
+        # Matches timestamp.of(value, "seconds") exactly.
+        'timestamp(1700000000) == timestamp.of(1700000000, "seconds")',
+        # The result is a real UTC-aware timestamp, usable with the timestamp methods.
+        "timestamp(1700000000).getFullYear() == 2023",
+        # Forwarded to the base implementation: the datetime-components form needs
+        # arity >= 3 to reach TimestampType, so the override must not swallow it.
+        'timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")',
+        'timestamp(2009, 2, 13, 23, 31, 30) == timestamp("2009-02-13T23:31:30Z")',
+        # Forwarded: RFC 3339 strings, including the lenient form celpy accepts.
+        'timestamp("2023-11-14T22:13:20Z") == timestamp(1700000000)',
+        'timestamp("2020-01-01 00:00:00") == timestamp("2020-01-01T00:00:00Z")',
+        # Forwarded: a timestamp is passed through unchanged.
+        'timestamp(timestamp("2023-11-14T22:13:20Z")) == timestamp(1700000000)',
+    ],
+)
+def test_timestamp_int_is_epoch_seconds_and_other_forms_still_work(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+def test_timestamp_bool_raises_rather_than_meaning_epoch_second_one(validator):
+    # BoolType subclasses int, so an unguarded int check would read true as 1.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule('timestamp(true) == timestamp("1970-01-01T00:00:01Z")'), None, 1)
+    assert "cannot convert bool" in str(excinfo.value.__cause__)
+
+
+def test_timestamp_out_of_range_int_is_a_cel_error(validator):
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule("timestamp(9223372036854775807) == timestamp(0)"), None, 1)
+    cause = excinfo.value.__cause__
+    assert isinstance(cause, celpy.CELEvalError)
+    assert "out of range" in str(cause)
 
 
 # --------------------------------------------------------------------------------------
