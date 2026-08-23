@@ -389,11 +389,11 @@ def test_variant_parse_json_empty_raises(validator, src):
 
 
 # --------------------------------------------------------------------------------------
-# timestamp.of(value, unit)
+# timestamp(value, precision)
 # --------------------------------------------------------------------------------------
 
 
-# ``timestamp.of(value, unit)`` must split the epoch value into whole microseconds with
+# ``timestamp(value, precision)`` must split the epoch value into whole microseconds with
 # exact integer FLOOR division (mirroring Java TimestampUtils' Math.floorDiv/floorMod),
 # not float division that rounds half-to-even and drops precision. datetime resolution is
 # one microsecond, so sub-microsecond nanos are floored away (an inherent, Java-matching
@@ -403,31 +403,48 @@ def test_variant_parse_json_empty_raises(validator, src):
     "expr",
     [
         # nanos floor to the microsecond (1500 ns -> 1 us, not rounded up to 2).
-        'timestamp.of(1500, "nanos") == timestamp("1970-01-01T00:00:00.000001Z")',
+        'timestamp(1500, 9) == timestamp("1970-01-01T00:00:00.000001Z")',
         # 999999500 ns floors to .999999, not rounded up to the next whole second.
-        'timestamp.of(999999500, "nanos") == timestamp("1970-01-01T00:00:00.999999Z")',
+        'timestamp(999999500, 9) == timestamp("1970-01-01T00:00:00.999999Z")',
         # Negative epoch floors toward -inf: -500 ns -> the microsecond before the epoch.
-        'timestamp.of(-500, "nanos") == timestamp("1969-12-31T23:59:59.999999Z")',
+        'timestamp(-500, 9) == timestamp("1969-12-31T23:59:59.999999Z")',
         # A large micros value keeps its microsecond (float division would have lost it).
-        'timestamp.of(253402300799000001, "micros") == '
+        'timestamp(253402300799000001, 6) == '
         'timestamp("9999-12-31T23:59:59.000001Z")',
-        # millis/micros/seconds units are exact.
-        'timestamp.of(1500, "millis") == timestamp("1970-01-01T00:00:01.500000Z")',
-        'timestamp.of(1, "micros") == timestamp("1970-01-01T00:00:00.000001Z")',
-        'timestamp.of(1, "seconds") == timestamp("1970-01-01T00:00:01Z")',
+        # millis/micros/seconds precisions are exact.
+        'timestamp(1500, 3) == timestamp("1970-01-01T00:00:01.500000Z")',
+        'timestamp(1, 6) == timestamp("1970-01-01T00:00:00.000001Z")',
+        'timestamp(1, 0) == timestamp("1970-01-01T00:00:01Z")',
     ],
 )
-def test_timestamp_of_floors_with_exact_integer_arithmetic(validator, expr):
+def test_timestamp_precision_floors_with_exact_integer_arithmetic(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
 
 
-def test_timestamp_of_bool_reports_bool_not_unitless_int(validator):
+def test_timestamp_bool_reports_bool_not_int(validator):
     # celtypes.BoolType subclasses int (MRO: BoolType -> int -> object) and *not*
     # bool, so a plain ``isinstance(v, bool)`` guard never fires for a CEL bool and
     # the value used to be misreported as a unitless raw int.
     with pytest.raises(RuleError) as excinfo:
-        validator.execute(rule("timestamp.of(true) == timestamp(1)"), None, 1)
+        validator.execute(rule("timestamp(true) == timestamp(1)"), None, 1)
     assert "cannot convert bool" in str(excinfo.value.__cause__)
+
+
+@pytest.mark.parametrize("precision", [1, 2, 4, 5, 7, 8, 10, -3])
+def test_timestamp_rejects_precision_outside_the_set(validator, precision):
+    # With the unit a number rather than a name, rejecting anything outside
+    # {0, 3, 6, 9} is the only thing between a typo and a silently wrong instant.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(
+            rule(f"timestamp(1700000000, {precision}) == timestamp(0)"), None, 1)
+    assert "unknown precision" in str(excinfo.value.__cause__)
+
+
+def test_timestamp_datetime_components_form_still_works(validator):
+    # celpy's components form takes three or more args, so it never collides with
+    # the two-arg precision form.
+    assert validator.execute(
+        rule('timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")'), None, 1) is True
 
 
 # --------------------------------------------------------------------------------------
@@ -449,8 +466,8 @@ def test_timestamp_of_bool_reports_bool_not_unitless_int(validator):
         # Negative / pre-epoch ints.
         'timestamp(-1) == timestamp("1969-12-31T23:59:59Z")',
         'timestamp(-2208988800) == timestamp("1900-01-01T00:00:00Z")',
-        # Matches timestamp.of(value, "seconds") exactly.
-        'timestamp(1700000000) == timestamp.of(1700000000, "seconds")',
+        # Matches timestamp(value, 0) exactly.
+        'timestamp(1700000000) == timestamp(1700000000, 0)',
         # The result is a real UTC-aware timestamp, usable with the timestamp methods.
         "timestamp(1700000000).getFullYear() == 2023",
         # Forwarded to the base implementation: the datetime-components form needs
