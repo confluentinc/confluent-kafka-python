@@ -160,6 +160,51 @@ def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
     assert validator.execute(rule("decimals.lt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is False
 
 
+# The Python decimal layer must match java.math.BigDecimal's EXACT/unbounded semantics
+# for add/sub/mul/mod, setScale/quantize (round/trunc/floor/ceil), and scaleb — rather
+# than the thread-local default context (prec=28) which silently rounds or hard-errors on
+# values with >28 significant digits. Only div/sqrt cap at 38 digits. These are the
+# Java-reference regression cases (#30 exact arithmetic, #31 negative-scale round/trunc,
+# #32 no-cap floor/ceil, #33 exact mod, #34 exact decimal-from-bytes).
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        # #30 exact add/mul — no silent rounding of the >28-digit result.
+        ('string(decimals.add(decimal("1E38"), decimal("1")))',
+         "100000000000000000000000000000000000001"),
+        ('string(decimals.mul(decimal("12345678901234567890"), '
+         'decimal("98765432109876543210")))',
+         "1219326311370217952237463801111263526900"),
+        # Scale preservation still holds for ordinary-magnitude operands.
+        ('string(decimals.mul(decimal("2.0"), decimal("3.0")))', "6.00"),
+        ('string(decimals.add(decimal("1.5"), decimal("1.25")))', "2.75"),
+        # #31 negative-scale round/trunc — quantize target Decimal(1).scaleb(-scale),
+        # so scale=-2 rounds/truncates to the hundreds place (not to an integer).
+        ('string(decimals.round(decimal("1234.5"), -2))', "1200"),
+        ('string(decimals.trunc(decimal("1234"), -2))', "1200"),
+        # #32 no 28-digit cap on floor (30-digit value passes through, no error).
+        ('string(decimals.floor(decimal("123456789012345678901234567890")))',
+         "123456789012345678901234567890"),
+        # #33 exact mod — quotient exceeds 38 digits, but remainder is exact.
+        ('string(decimals.mod(decimal("1E40"), decimal("3")))', "1"),
+        # #34 decimal(dyn) from a >28-digit string round-trips exactly.
+        ('string(decimal("12345678901234567890123456789012345"))',
+         "12345678901234567890123456789012345"),
+    ],
+)
+def test_decimal_ops_match_java_bigdecimal_exact_semantics(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+# #34 decimal(bytes, scale): a 38-digit unscaled value at scale 5 must round-trip
+# exactly through _from_bytes_scale (no rounding to the 28-digit default context).
+def test_decimal_from_bytes_scale_is_exact(validator):
+    unscaled = 12345678901234567890123456789012345678  # 38 digits
+    raw = unscaled.to_bytes(16, "big", signed=True)
+    result = validator.execute(rule("string(decimal(this, 5))"), None, raw)
+    assert result == "123456789012345678901234567890123.45678"
+
+
 # --------------------------------------------------------------------------------------
 # Variant CEL functions
 # --------------------------------------------------------------------------------------
@@ -232,6 +277,42 @@ def test_proto_variant_field_into_cel(validator):
 def test_variant_rejects_string_input(validator):
     with pytest.raises(RuleError, match="Could not execute"):
         validator.execute(rule("variants.type(variant(this)) == 'object'"), None, "not-a-variant")
+
+
+# variant(null) yields CEL null instead of erroring (matching the Java reference), and it
+# composes: a null flows through the accessors as absent.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "variant(null) == null",
+        "variants.field(variant(null), 'k') == null",
+        # An absent field is null, and variant(null) of it is still null.
+        "variant(variants.field(variants.parseJson(this), 'missing')) == null",
+    ],
+)
+def test_variant_of_null_is_cel_null(validator, expr):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
+# Non-finite doubles round-trip through CEL as bareword NaN/Infinity/-Infinity (Confluent
+# Java contract). Bareword literals parse (Python json.loads accepts them by default).
+@pytest.mark.parametrize("tok", ["NaN", "Infinity", "-Infinity"])
+def test_variant_non_finite_bareword_roundtrip_through_cel(validator, tok):
+    expr = "variants.toJson(variants.parseJson(this)) == '%s'" % tok
+    assert validator.execute(rule(expr), None, tok) is True
+
+
+# variants.tryParseJson of empty/whitespace-only input is a soft failure -> CEL null,
+# while the strict variants.parseJson raises (surfaced as a RuleError).
+@pytest.mark.parametrize("src", ["", "   ", "\t\n"])
+def test_variant_try_parse_json_empty_is_cel_null(validator, src):
+    assert validator.execute(rule("variants.tryParseJson(this) == null"), None, src) is True
+
+
+@pytest.mark.parametrize("src", ["", "   "])
+def test_variant_parse_json_empty_raises(validator, src):
+    with pytest.raises(RuleError, match="Could not execute"):
+        validator.execute(rule("variants.type(variants.parseJson(this)) == 'object'"), None, src)
 
 
 # --------------------------------------------------------------------------------------

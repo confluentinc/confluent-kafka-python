@@ -194,6 +194,16 @@ def test_decimal_scale_preserved(code, scale, unscaled, width, expected):
     assert decimal_value(code, scale, unscaled, width).get_decimal() == decimal.Decimal(expected)
 
 
+# #34: get_decimal must scale the unscaled value EXACTLY (java.math.BigDecimal semantics),
+# not silently round unscaled values with >28 significant digits under the thread-local
+# default context (prec=28). A 35-digit DECIMAL16 unscaled value at scale 5 round-trips.
+def test_decimal_large_unscaled_is_not_rounded():
+    unscaled = 12345678901234567890123456789012345  # 35 digits, > default prec 28
+    result = decimal_value(vu.DECIMAL16, 5, unscaled, 16).get_decimal()
+    assert format(result, "f") == "123456789012345678901234567890.12345"
+    assert result == decimal.Decimal("123456789012345678901234567890.12345")
+
+
 # --------------------------------------------------------------------------------------
 # to_json — the cross-language contract (matches the Java reference)
 # --------------------------------------------------------------------------------------
@@ -265,6 +275,48 @@ def test_to_json_non_ascii_string_is_raw_utf8():
 
 
 # --------------------------------------------------------------------------------------
+# non-finite doubles/floats (Confluent Java contract: bareword NaN/Infinity/-Infinity,
+# diverging from Spark which quotes them)
+# --------------------------------------------------------------------------------------
+
+
+def test_to_json_non_finite_double_is_bareword():
+    # The builder must accept and store non-finite doubles, and to_json must emit the
+    # capitalized bareword tokens (no quotes, not lowercase nan/inf from str()).
+    for value, expected in [
+        (float("nan"), "NaN"),
+        (float("inf"), "Infinity"),
+        (float("-inf"), "-Infinity"),
+    ]:
+        b = vu.VariantBuilder()
+        b.append_double(value)
+        assert b.build().to_json() == expected
+
+
+def test_to_json_non_finite_float_is_bareword():
+    for value, expected in [
+        (float("nan"), "NaN"),
+        (float("inf"), "Infinity"),
+        (float("-inf"), "-Infinity"),
+    ]:
+        b = vu.VariantBuilder()
+        b.append_float(value)
+        assert b.build().to_json() == expected
+
+
+def test_parse_json_non_finite_barewords_roundtrip():
+    # Bareword non-finite literals parse (Python json.loads accepts them by default) and
+    # round-trip back to the same bareword tokens.
+    for tok in ("NaN", "Infinity", "-Infinity"):
+        assert vu.parse_json(tok).to_json() == tok
+
+
+def test_parse_json_overflow_magnitude_becomes_infinity():
+    # An out-of-range magnitude parses to a stored infinity and renders as the bareword.
+    assert vu.parse_json("1e400").to_json() == "Infinity"
+
+
+# --------------------------------------------------------------------------------------
 # malformed input
 # --------------------------------------------------------------------------------------
 
@@ -277,6 +329,15 @@ def test_unsupported_metadata_version_raises():
 def test_parse_json_malformed_raises():
     with pytest.raises(ValueError):
         vu.parse_json("{not json")
+
+
+def test_parse_json_empty_or_whitespace_raises_value_error():
+    # Empty/whitespace-only input must be a normal typed ValueError (json.JSONDecodeError
+    # is a ValueError subclass) so variants.tryParseJson catches it -> CEL null, rather
+    # than an unexpected crash.
+    for src in ("", "   ", "\t\n"):
+        with pytest.raises(ValueError):
+            vu.parse_json(src)
 
 
 def test_wrong_getter_raises():
@@ -395,3 +456,89 @@ def test_builder_unbalanced_end_raises():
     b.start_object()
     with pytest.raises(VariantError):
         b.end_array()
+
+
+# --------------------------------------------------------------------------------------
+# variants.as('timestamp') extraction (bug #27): NANOS-precision variants must floor
+# to microseconds using floor division (matching Java Math.floorDiv/floorMod), so that
+# pre-epoch (negative) values round toward negative infinity rather than toward zero.
+# celpy's TimestampType is datetime-backed (microsecond resolution), so the residual
+# sub-microsecond nanoseconds Java keeps in its protobuf Timestamp cannot be represented.
+# --------------------------------------------------------------------------------------
+
+import datetime as _dt  # noqa: E402
+
+from confluent_kafka.schema_registry.rules.cel.variant_funcs import (  # noqa: E402
+    _variant_as,
+    _variant_get_timestamp,
+)
+
+_EPOCH_UTC = _dt.datetime(1970, 1, 1, tzinfo=_dt.timezone.utc)
+
+
+def _java_nanos_to_micros(ns):
+    """Java TimestampUtils.fromEpochNanos split, floored to the microsecond that a
+    datetime can hold: sec = floorDiv(ns, 1e9), nanos = floorMod(ns, 1e9), then the
+    nanos field floored to micros. Equals floor(ns / 1000)."""
+    sec = ns // 1_000_000_000          # Math.floorDiv
+    nanos = ns - sec * 1_000_000_000   # Math.floorMod, 0 <= nanos < 1e9
+    return sec * 1_000_000 + nanos // 1000
+
+
+def _nanos_variant(ns, ntz=False):
+    code = vu.TIMESTAMP_NANOS_NTZ if ntz else vu.TIMESTAMP_NANOS
+    return prim(code, struct.pack("<q", ns))
+
+
+@pytest.mark.parametrize(
+    "ns",
+    [
+        0,
+        1,                              # 1 ns after epoch -> floors to epoch
+        999,                            # sub-micro positive -> floors to 0 us
+        1000,
+        1577836800123456789,            # 2020-01-01T00:00:00.123456789Z
+        -1,                             # 1 ns before epoch: floor -> -1 us (NOT 0)
+        -999,                           # sub-micro pre-epoch -> -1 us (NOT 0)
+        -1000,
+        -1500,                          # -1.5 us -> floor -> -2 us (NOT -1)
+        -1577836800123456789,           # deep pre-1970 nanos timestamp
+    ],
+)
+def test_variant_as_timestamp_nanos_floors_to_micros_like_java(ns):
+    expected_micros = _java_nanos_to_micros(ns)
+    expected = _EPOCH_UTC + _dt.timedelta(microseconds=expected_micros)
+    # Both the TZ and NTZ nanos types extract identically (celpy carries no zone flag).
+    for ntz in (False, True):
+        result = _variant_get_timestamp(_nanos_variant(ns, ntz=ntz))
+        assert result == expected
+        # And the full variants.as(...) dispatch path agrees.
+        assert _variant_as(_nanos_variant(ns, ntz=ntz), "timestamp", False) == expected
+
+
+def test_variant_as_timestamp_nanos_uses_floor_not_truncation_for_negatives():
+    # The whole point of bug #27: negative epoch nanos must floor, not truncate toward 0.
+    # -1 ns: floor gives -1 us; truncation toward zero would (wrongly) give 0 us.
+    trunc_wrong = _EPOCH_UTC + _dt.timedelta(microseconds=int(-1 / 1000))  # == epoch (0 us)
+    floored = _variant_get_timestamp(_nanos_variant(-1))
+    assert floored == _EPOCH_UTC - _dt.timedelta(microseconds=1)
+    assert floored != trunc_wrong
+
+
+def test_variant_as_timestamp_nanos_residual_precision_is_micros_only():
+    # Documented type limit: datetime cannot hold sub-microsecond nanoseconds, so the
+    # trailing 789 ns of a NANOS value are dropped (Java keeps them in its Timestamp).
+    result = _variant_get_timestamp(_nanos_variant(1577836800123456789))
+    assert result.microsecond == 123456
+    assert result == _dt.datetime(2020, 1, 1, 0, 0, 0, 123456, tzinfo=_dt.timezone.utc)
+
+
+def test_variant_as_timestamp_micros_types_are_used_as_is():
+    # MICROS-precision variants store microseconds directly (no nanos division).
+    micros = 1577836800123456
+    expected = _EPOCH_UTC + _dt.timedelta(microseconds=micros)
+    assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", micros))) == expected
+    assert _variant_get_timestamp(prim(vu.TIMESTAMP_NTZ, struct.pack("<q", micros))) == expected
+    # Negative micros are used verbatim (already the finest datetime resolution).
+    assert (_variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", -1)))
+            == _EPOCH_UTC - _dt.timedelta(microseconds=1))

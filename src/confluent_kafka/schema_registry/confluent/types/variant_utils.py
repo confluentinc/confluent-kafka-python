@@ -48,6 +48,12 @@ BASIC_TYPE_MASK = 0x3
 TYPE_INFO_MASK = 0x3F
 MAX_SHORT_STR_SIZE = 0x3F
 
+# Exact/unbounded context so scaling an unscaled value with >28 significant digits
+# is not silently rounded by the thread-local default context (prec=28) — matches
+# java.math.BigDecimal's exact scaleb/setScale semantics.
+_EXACT_CONTEXT = decimal.Context(
+    prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
+
 # Basic types (low 2 bits of the header byte).
 PRIMITIVE = 0
 SHORT_STR = 1
@@ -236,12 +242,17 @@ def _format_local_time(micros: int) -> str:
 
 
 def _format_double(d: float) -> str:
-    """A JSON number rendering of a double. Integral values render as ``N.0``; other values
-    use Python's shortest round-tripping ``repr``. (Java Double.toString scientific-notation
-    edge cases for very large/small magnitudes are a known minor divergence.)"""
-    if d != d or d in (float("inf"), float("-inf")):
-        # JSON has no NaN/Inf; Java would not produce these from a finite variant either.
-        raise VariantError("cannot render non-finite double as JSON")
+    """A JSON number rendering of a double. Non-finite values render as the BAREWORD tokens
+    ``NaN``/``Infinity``/``-Infinity`` (the Confluent Java contract, diverging from Spark
+    which quotes them). Integral values render as ``N.0``; other values use Python's shortest
+    round-tripping ``repr``. (Java Double.toString scientific-notation edge cases for very
+    large/small magnitudes are a known minor divergence.)"""
+    if d != d:
+        return "NaN"
+    if d == float("inf"):
+        return "Infinity"
+    if d == float("-inf"):
+        return "-Infinity"
     if d.is_integer() and abs(d) < 1e16:
         return "%d.0" % int(d)
     return repr(d)
@@ -251,9 +262,14 @@ def _format_float(f: float) -> str:
     """A JSON number rendering of a 32-bit float. Emits the shortest decimal that round-trips
     to the SAME float32 (matching Java ``Float.toString`` / Apache Arrow) rather than the
     f64-shortest string produced by widening then formatting as a double. Integral values
-    render as ``N.0``; mirrors :func:`_format_double`'s non-finite handling."""
-    if f != f or f in (float("inf"), float("-inf")):
-        raise VariantError("cannot render non-finite float as JSON")
+    render as ``N.0``; mirrors :func:`_format_double`'s non-finite handling (bareword
+    ``NaN``/``Infinity``/``-Infinity``)."""
+    if f != f:
+        return "NaN"
+    if f == float("inf"):
+        return "Infinity"
+    if f == float("-inf"):
+        return "-Infinity"
     if f == int(f) and abs(f) < 1e16:
         return "%d.0" % int(f)
     for p in range(1, 10):
@@ -415,7 +431,7 @@ class Variant:
             _check_decimal(unscaled, scale, MAX_DECIMAL16_VALUE, MAX_DECIMAL16_PRECISION)
         else:
             raise VariantError("variant is not a decimal")
-        return decimal.Decimal(unscaled).scaleb(-scale)
+        return decimal.Decimal(unscaled).scaleb(-scale, context=_EXACT_CONTEXT)
 
     def get_binary(self) -> bytes:
         _, type_info = self._primitive_info()

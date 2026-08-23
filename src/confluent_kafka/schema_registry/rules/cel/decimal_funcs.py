@@ -46,14 +46,20 @@ except ImportError:
 # division.
 _DIV_CONTEXT = decimal.Context(prec=38, rounding=decimal.ROUND_HALF_UP)
 
+# Exact/unbounded context for operations Java computes exactly (add/sub/mul/mod,
+# setScale/quantize, scaleb) — matches java.math.BigDecimal's exact semantics rather
+# than the thread-local default context (prec=28). Only div/sqrt cap at 38 (_DIV_CONTEXT).
+_EXACT_CONTEXT = decimal.Context(
+    prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
+
 
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
     """Construct a Decimal from raw two's-complement big-endian bytes + scale."""
     raw = _coerce_bytes(value)
     s = int(scale)
     if len(raw) == 0:
-        return Decimal(0).scaleb(-s)
-    return Decimal(int.from_bytes(raw, "big", signed=True)).scaleb(-s)
+        return Decimal(0).scaleb(-s, context=_EXACT_CONTEXT)
+    return Decimal(int.from_bytes(raw, "big", signed=True)).scaleb(-s, context=_EXACT_CONTEXT)
 
 
 def _coerce_bytes(v: typing.Any) -> bytes:
@@ -145,15 +151,15 @@ def _decimals_ge(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
 # ---- arithmetic ----
 
 def _decimals_add(a: typing.Any, b: typing.Any) -> Decimal:
-    return _d(a) + _d(b)
+    return _EXACT_CONTEXT.add(_d(a), _d(b))
 
 
 def _decimals_sub(a: typing.Any, b: typing.Any) -> Decimal:
-    return _d(a) - _d(b)
+    return _EXACT_CONTEXT.subtract(_d(a), _d(b))
 
 
 def _decimals_mul(a: typing.Any, b: typing.Any) -> Decimal:
-    return _d(a) * _d(b)
+    return _EXACT_CONTEXT.multiply(_d(a), _d(b))
 
 
 def _decimals_div(a: typing.Any, b: typing.Any) -> Decimal:
@@ -173,7 +179,7 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
     db = _d(b)
     if db == 0:
         raise celpy.CELEvalError("decimals.mod: division by zero")
-    return _DIV_CONTEXT.remainder(_d(a), db)
+    return _EXACT_CONTEXT.remainder(_d(a), db)
 
 
 # ---- selection ----
@@ -203,11 +209,11 @@ def _decimals_sqrt(a: typing.Any) -> Decimal:
 # ---- unary ----
 
 def _decimals_neg(a: typing.Any) -> Decimal:
-    return -_d(a)
+    return _d(a).copy_negate()
 
 
 def _decimals_abs(a: typing.Any) -> Decimal:
-    return abs(_d(a))
+    return _d(a).copy_abs()
 
 
 def _decimals_sign(a: typing.Any) -> celtypes.IntType:
@@ -222,11 +228,13 @@ def _decimals_sign(a: typing.Any) -> celtypes.IntType:
 def _decimals_round(*args: typing.Any) -> Decimal:
     """Round to the given scale (HALF_UP). One-arg form rounds to integer."""
     if len(args) == 1:
-        return _d(args[0]).quantize(Decimal(1), rounding=decimal.ROUND_HALF_UP)
+        return _d(args[0]).quantize(
+            Decimal(1), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
     if len(args) == 2:
         scale = int(args[1])
         return _d(args[0]).quantize(
-            Decimal(10) ** -scale, rounding=decimal.ROUND_HALF_UP)
+            Decimal(1).scaleb(-scale), rounding=decimal.ROUND_HALF_UP,
+            context=_EXACT_CONTEXT)
     raise celpy.CELEvalError(
         f"decimals.round: expected 1 or 2 args, got {len(args)}")
 
@@ -245,24 +253,28 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
         # current scale = -exponent. Early-return if 0 >= current_scale.
         if d.as_tuple().exponent >= 0:
             return d
-        return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN)
+        return d.quantize(
+            Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
     if len(args) == 2:
         d = _d(args[0])
         scale = int(args[1])
         if scale >= -d.as_tuple().exponent:
             return d
         return d.quantize(
-            Decimal(10) ** -scale, rounding=decimal.ROUND_DOWN)
+            Decimal(1).scaleb(-scale), rounding=decimal.ROUND_DOWN,
+            context=_EXACT_CONTEXT)
     raise celpy.CELEvalError(
         f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
 
 
 def _decimals_floor(a: typing.Any) -> Decimal:
-    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_FLOOR)
+    return _d(a).quantize(
+        Decimal(1), rounding=decimal.ROUND_FLOOR, context=_EXACT_CONTEXT)
 
 
 def _decimals_ceil(a: typing.Any) -> Decimal:
-    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_CEILING)
+    return _d(a).quantize(
+        Decimal(1), rounding=decimal.ROUND_CEILING, context=_EXACT_CONTEXT)
 
 
 def _d(v: typing.Any) -> Decimal:
