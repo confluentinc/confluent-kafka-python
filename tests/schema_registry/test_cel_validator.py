@@ -258,6 +258,25 @@ def test_decimal_accepts_finite_double(validator):
     assert validator.execute(rule("string(decimal(this))"), None, 1.5) == "1.5"
 
 
+# CEL ``==``/``!=`` on two Decimal values must be NUMERIC (scale-insensitive), matching
+# ``decimals.eq`` (java.math.BigDecimal.compareTo) rather than an equals() that also
+# compares scale. Python's ``decimal.Decimal.__eq__`` is already numeric
+# (``Decimal("2.0") == Decimal("2.00")`` is True), and celpy dispatches ``==`` to it,
+# so this is a regression guard — no code change is required.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('decimal("2.0") == decimal("2.00")', True),
+        ('decimal("2.0") == decimal("2.0")', True),
+        ('decimal("2.0") == decimal("2.1")', False),
+        ('decimal("2.0") != decimal("2.00")', False),
+        ('decimal("2.0") != decimal("2.1")', True),
+    ],
+)
+def test_decimal_equality_is_numeric_scale_insensitive(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) is expected
+
+
 # --------------------------------------------------------------------------------------
 # Variant CEL functions
 # --------------------------------------------------------------------------------------
@@ -366,6 +385,39 @@ def test_variant_try_parse_json_empty_is_cel_null(validator, src):
 def test_variant_parse_json_empty_raises(validator, src):
     with pytest.raises(RuleError, match="Could not execute"):
         validator.execute(rule("variants.type(variants.parseJson(this)) == 'object'"), None, src)
+
+
+# --------------------------------------------------------------------------------------
+# timestamp.of(value, unit)
+# --------------------------------------------------------------------------------------
+
+
+# ``timestamp.of(value, unit)`` must split the epoch value into whole microseconds with
+# exact integer FLOOR division (mirroring Java TimestampUtils' Math.floorDiv/floorMod),
+# not float division that rounds half-to-even and drops precision. datetime resolution is
+# one microsecond, so sub-microsecond nanos are floored away (an inherent, Java-matching
+# limit), but the microsecond itself must never round up, and negative epochs must floor
+# toward negative infinity.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # nanos floor to the microsecond (1500 ns -> 1 us, not rounded up to 2).
+        'timestamp.of(1500, "nanos") == timestamp("1970-01-01T00:00:00.000001Z")',
+        # 999999500 ns floors to .999999, not rounded up to the next whole second.
+        'timestamp.of(999999500, "nanos") == timestamp("1970-01-01T00:00:00.999999Z")',
+        # Negative epoch floors toward -inf: -500 ns -> the microsecond before the epoch.
+        'timestamp.of(-500, "nanos") == timestamp("1969-12-31T23:59:59.999999Z")',
+        # A large micros value keeps its microsecond (float division would have lost it).
+        'timestamp.of(253402300799000001, "micros") == '
+        'timestamp("9999-12-31T23:59:59.000001Z")',
+        # millis/micros/seconds units are exact.
+        'timestamp.of(1500, "millis") == timestamp("1970-01-01T00:00:01.500000Z")',
+        'timestamp.of(1, "micros") == timestamp("1970-01-01T00:00:00.000001Z")',
+        'timestamp.of(1, "seconds") == timestamp("1970-01-01T00:00:01Z")',
+    ],
+)
+def test_timestamp_of_floors_with_exact_integer_arithmetic(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
 
 
 # --------------------------------------------------------------------------------------
