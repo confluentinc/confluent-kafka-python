@@ -98,11 +98,12 @@ def _coerce_bytes(v: typing.Any) -> bytes:
         f"variant: expected bytes, got {type(v).__name__}")
 
 
-def _to_variant(v: typing.Any) -> Variant:
+def _to_variant(v: typing.Any) -> typing.Optional[Variant]:
     """Runtime dispatch backing ``variant(dyn)``: accept the shapes proto/Avro decoders
-    produce. Rejects strings (use ``variants.parseJson``)."""
+    produce. Rejects strings (use ``variants.parseJson``). CEL null passes through as CEL
+    null (matching the Java reference: ``variant(null) -> CEL null``)."""
     if v is None:
-        raise celpy.CELEvalError("variant: cannot convert null to Variant")
+        return None
     if isinstance(v, Variant):
         return v
     # A confluent.type.Variant proto message: the generated class, or any message whose
@@ -134,9 +135,9 @@ def _to_variant(v: typing.Any) -> Variant:
     raise celpy.CELEvalError(f"variant: cannot convert {type(v).__name__} to Variant")
 
 
-def _variant(*args: typing.Any) -> Variant:
-    """The ``variant(...)`` constructor. ``variant(dyn)`` runtime-dispatches;
-    ``variant(bytes, bytes)`` builds directly from (value, metadata) bytes."""
+def _variant(*args: typing.Any) -> typing.Optional[Variant]:
+    """The ``variant(...)`` constructor. ``variant(dyn)`` runtime-dispatches (CEL null in ->
+    CEL null out); ``variant(bytes, bytes)`` builds directly from (value, metadata) bytes."""
     if len(args) == 2:
         return Variant(_coerce_bytes(args[0]), _coerce_bytes(args[1]))
     if len(args) != 1:
@@ -222,6 +223,20 @@ def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
 
 
 def _variant_get_timestamp(v: Variant) -> celtypes.TimestampType:
+    """Backing for ``variants.as(v, 'timestamp')``.
+
+    MICROS-precision variants (TIMESTAMP_TZ/NTZ) store microseconds since the epoch and
+    are used as-is. NANOS-precision variants (TIMESTAMP_NANOS_TZ/NTZ) store nanoseconds:
+    the Java reference (TimestampUtils.fromEpochNanos) splits them with
+    ``Math.floorDiv``/``Math.floorMod`` into (seconds, nanos) and keeps the full
+    nanosecond field in a protobuf ``Timestamp``. celpy's ``TimestampType`` is a subclass
+    of ``datetime.datetime``, whose finest resolution is one microsecond, so the epoch
+    value is floored to microseconds. Python ``//`` is floor division (matching Java
+    ``Math.floorDiv``), so pre-epoch (negative) values round toward negative infinity
+    exactly as Java does -- e.g. -1 ns -> -1 us, never 0. The only residual difference
+    from Java is the sub-microsecond nanoseconds that a ``datetime`` cannot represent;
+    this is an inherent limit of the CEL timestamp type, not a rounding discrepancy.
+    """
     raw = v.get_long()
     micros = raw if v.get_type() in _MICROS_TIMESTAMP_TYPES else raw // 1000
     return celtypes.TimestampType(_EPOCH_UTC + timedelta(microseconds=micros))
