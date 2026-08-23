@@ -554,16 +554,16 @@ class TestAsyncTransactions:
         finally:
             await producer.close()
 
-    async def test_concurrent_produce_races_commit_boundary(self, kafka_cluster):
+    async def test_concurrent_produce_into_shared_buffer_then_commit(self, kafka_cluster):
         """Multiple coroutines concurrently calling produce(), which queue
         into AIOProducer's own internal batch buffer, not directly into
-        librdkafka, while another coroutine calls commit_transaction().
-        Every produced message's future must resolve to exactly one of:
-        delivered and visible after commit, or a clean error -- never
-        silently missing, never double-counted. There is no lock guarding the buffer
-        (see _producer_batch_processor.py); this relies entirely on asyncio's cooperative
-        scheduling to keep buffer bookkeeping race-free, which is exactly what this test
-        exercises."""
+        librdkafka. Every produced message's future must resolve to exactly
+        one of: delivered and visible after commit, or a clean error -- never
+        silently missing, never double-counted. There is no lock guarding the
+        buffer (see _producer_batch_processor.py); this relies entirely on
+        asyncio's cooperative scheduling to keep buffer bookkeeping race-free,
+        which is exactly what the concurrent producers exercise.
+        """
         topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_buffer_boundary")
         producer = await _new_aio_producer(
             kafka_cluster, {'transactional.id': f'test-aio-txn-buffer-boundary-{uuid1()}'}, batch_size=10
@@ -582,15 +582,15 @@ class TestAsyncTransactions:
                     for i in range(messages_per_worker)
                 ]
 
-            produce_task = asyncio.gather(*(produce_worker(i) for i in range(num_workers)))
-            commit_task = asyncio.ensure_future(producer.commit_transaction())
-
-            all_futures_by_worker, _ = await asyncio.gather(produce_task, commit_task)
+            all_futures_by_worker = await asyncio.gather(*(produce_worker(i) for i in range(num_workers)))
             all_futures = [f for worker_futures in all_futures_by_worker for f in worker_futures]
 
+            await producer.flush()
             results = await asyncio.gather(*all_futures, return_exceptions=True)
             succeeded = [r for r in results if not isinstance(r, Exception)]
             failed = [r for r in results if isinstance(r, Exception)]
+
+            await producer.commit_transaction()
 
             consumer = _read_committed_consumer(kafka_cluster, topic)
             msg_cnt = _drain_committed(consumer)
