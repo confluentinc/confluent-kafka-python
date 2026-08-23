@@ -127,11 +127,10 @@ class InterpretedRunner(celpy.InterpretedRunner):
                                 # dispatch it directly. Precedence: a
                                 # registered `{path}.{method}` always wins
                                 # over standard method-call dispatch. This
-                                # lets the namespaced extensions work even
-                                # when the path's root identifier is a
-                                # stdlib value (e.g., `timestamp` is bound
-                                # to celpy's TimestampType class, but
-                                # `timestamp.of` is our extension).
+                                # lets the namespaced extensions
+                                # (`decimals.*`, `variants.*`) work even when
+                                # the path's root identifier also names
+                                # something else in scope.
                                 func = funcs[candidate]
                                 if len(tree.children) == 3:
                                     args = list(self.visit(tree.children[2]))
