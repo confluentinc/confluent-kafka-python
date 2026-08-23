@@ -34,7 +34,7 @@ also uses the namespaced form even though celpy itself has no overlap check.
 import datetime
 import typing
 from datetime import datetime as Datetime
-from datetime import timezone
+from datetime import timedelta, timezone
 
 import celpy
 from celpy import celtypes
@@ -50,33 +50,47 @@ _UNIT_MICROS = "micros"
 _UNIT_NANOS = "nanos"
 _UNIT_SECONDS = "seconds"
 
+_EPOCH_UTC = Datetime(1970, 1, 1, tzinfo=timezone.utc)
+
 
 def _from_epoch(value: int, unit: str) -> celtypes.TimestampType:
-    """Construct from epoch numeric value plus unit string."""
+    """Construct from epoch numeric value plus unit string.
+
+    Splits the epoch value into whole microseconds using exact integer floor
+    division (Python ``//`` matches Java ``Math.floorDiv``), then builds the
+    datetime as ``_EPOCH_UTC + timedelta`` -- so the result floors toward
+    negative infinity for both positive and negative epochs, and never loses
+    precision to float rounding (the old ``Datetime.fromtimestamp(value / 1e9)``
+    rounded half-to-even to the microsecond). ``datetime`` resolution is one
+    microsecond, so nanos below that are floored away -- an inherent limit of
+    the CEL timestamp type, matching Java, not a rounding discrepancy.
+    """
     if unit == _UNIT_MILLIS:
-        return celtypes.TimestampType(
-            Datetime.fromtimestamp(value / 1_000, tz=timezone.utc))
-    if unit == _UNIT_MICROS:
-        return celtypes.TimestampType(
-            Datetime.fromtimestamp(value / 1_000_000, tz=timezone.utc))
-    if unit == _UNIT_NANOS:
-        # Datetime supports microsecond precision; nanos round down.
-        return celtypes.TimestampType(
-            Datetime.fromtimestamp(value / 1_000_000_000, tz=timezone.utc))
-    if unit == _UNIT_SECONDS:
-        return celtypes.TimestampType(
-            Datetime.fromtimestamp(value, tz=timezone.utc))
-    raise celpy.CELEvalError(
-        f"timestamp.of: unknown unit '{unit}'; expected one of "
-        "millis, micros, nanos, seconds")
+        micros = value * 1_000
+    elif unit == _UNIT_MICROS:
+        micros = value
+    elif unit == _UNIT_NANOS:
+        micros = value // 1_000
+    elif unit == _UNIT_SECONDS:
+        micros = value * 1_000_000
+    else:
+        raise celpy.CELEvalError(
+            f"timestamp.of: unknown unit '{unit}'; expected one of "
+            "millis, micros, nanos, seconds")
+    return celtypes.TimestampType(_EPOCH_UTC + timedelta(microseconds=micros))
 
 
 def _from_proto_timestamp(t: typing.Any) -> celtypes.TimestampType:
-    """Decode a google.protobuf.Timestamp into a CEL TimestampType."""
+    """Decode a google.protobuf.Timestamp into a CEL TimestampType.
+
+    Uses exact integer arithmetic: whole seconds plus the nanos field floored
+    to microseconds (``nanos // 1000``), mirroring the Java reference rather
+    than the float ``seconds + nanos / 1e9`` that lost precision.
+    """
     seconds = int(t.seconds)
     nanos = int(t.nanos)
     return celtypes.TimestampType(
-        Datetime.fromtimestamp(seconds + nanos / 1_000_000_000, tz=timezone.utc))
+        _EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
 
 
 def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
