@@ -1344,7 +1344,7 @@ def test_avro_cel_timestamp_millis_passes():
         "CEL",
         None,
         None,
-        'timestamp.of(message.tsField) < now',
+        'timestamp(message.tsField) < now',
         None,
         None,
         False,
@@ -1377,7 +1377,7 @@ def test_avro_cel_timestamp_millis_fails():
         "CEL",
         None,
         None,
-        'timestamp.of(message.tsField) > now',
+        'timestamp(message.tsField) > now',
         None,
         None,
         False,
@@ -1392,6 +1392,53 @@ def test_avro_cel_timestamp_millis_fails():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+def test_avro_cel_timestamp_millis_needs_no_constructor():
+    """Cross-client parity: an Avro timestamp logical type is usable as a timestamp with **no
+    constructor call at all**. fastavro decodes it to an aware datetime, which the boundary
+    binds as a CEL timestamp, so it is comparable against ``now`` and carries the timestamp
+    accessors. Every one of the seven clients has this test; the constructor is only needed for
+    a plain numeric field whose unit the schema cannot supply.
+    """
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    def serialize(expr, value):
+        rule = Rule(
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
+        )
+        client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+        return ser({'tsField': value}, ser_ctx)
+
+    past = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    exact = datetime(2023, 11, 14, 22, 13, 20, 123000, tzinfo=timezone.utc)
+
+    # Bare comparison against `now`.
+    assert serialize('message.tsField < now', past) is not None
+    # The schema's millis unit is applied, not guessed, and the accessors work directly.
+    assert serialize('message.tsField == timestamp("2023-11-14T22:13:20.123Z")', exact) is not None
+    assert serialize('message.tsField.getFullYear() == 2023', exact) is not None
+    # Negative control: a future value must fail, so the comparison really happens.
+    with pytest.raises(SerializationError) as e:
+        serialize('message.tsField < now', datetime(2100, 1, 1, tzinfo=timezone.utc))
     assert isinstance(e.value.__cause__, RuleConditionError)
 
 

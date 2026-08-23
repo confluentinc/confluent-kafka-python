@@ -12,32 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""CEL binding for the {@code timestamp.of} constructor.
+"""CEL bindings for the {@code timestamp} constructor.
 
 celpy already provides a stdlib ``timestamp(string)`` (RFC 3339 parsing) plus
 the standard timestamp operators (``<``, ``>``, ``==``, ``-``, ``+ duration``,
-``.getDate()`` etc.). The extension we add here is the namespaced
-``timestamp.of(...)`` constructor:
+``.getDate()`` etc.). What we add, by overriding the ``timestamp`` name itself:
 
-  * ``timestamp.of(dyn) -> timestamp`` — runtime-dispatches on the value's
-    Python type (``datetime``, ``int`` (with hint about the 2-arg form), proto
-    ``Timestamp``, etc.).
-  * ``timestamp.of(int, string) -> timestamp`` — epoch numeric + unit string.
+  * ``timestamp(int) -> timestamp`` — epoch **seconds**, the overload every
+    other CEL implementation declares (cel-java's ``int64_to_timestamp``, plus
+    Go/C++/C#). celpy's base ``timestamp`` is ``TimestampType`` itself, which
+    accepts a ``datetime``, a ``str``, or an int *plus at least two more args*
+    (datetime components) but rejects a lone int -- so without this a
+    single-int call would error on Python only.
+  * ``timestamp(dyn) -> timestamp`` — the shapes a format decoder produces
+    that the base implementation doesn't handle: a proto ``Timestamp``, and a
+    naive ``datetime`` (Avro ``local-timestamp-*``), which is refused rather
+    than silently read at UTC.
+  * ``timestamp(int, int) -> timestamp`` — an epoch value at a Flink-style
+    decimal precision: 0 seconds, 3 millis, 6 micros, 9 nanos.
 
-Singular namespace (``timestamp.*``) mirrors CEL stdlib's ``optional.of(x)``
-pattern. We can't extend stdlib ``timestamp(...)`` with a ``(dyn)`` overload
-because ``(dyn)`` and ``(string)`` would overlap per the CEL signature-overlap
-rule on conformant impls (cel-java/go/cpp); for cross-client parity Python
-also uses the namespaced form even though celpy itself has no overlap check.
+Every other form is forwarded to the base implementation verbatim, including
+the *datetime components* form (``timestamp(2009, 2, 13)``), which needs three
+or more args and so never collides with the two-arg precision form above.
 
-We also override the stdlib ``timestamp(...)`` name itself, purely to add the
-``int -> timestamp`` overload that every other CEL implementation declares
-(cel-java's ``int64_to_timestamp``, plus Go/C++/C#): a bare ``timestamp(1234)``
-is epoch **seconds**. celpy's base ``timestamp`` is ``TimestampType`` itself,
-which accepts a ``datetime``, a ``str``, or an int *plus at least two more
-args* (datetime components) but rejects a lone int -- so without this override
-a single-int call errors on Python only. The override delegates every other
-form to the base implementation unchanged.
+There is no ``timestamp.of`` namespace any more: these are overloads of the standard
+constructor in all seven clients.
 """
 
 import datetime
@@ -66,16 +65,16 @@ except ImportError:  # pragma: no cover
     _BASE_TIMESTAMP = celtypes.TimestampType
 
 
-_UNIT_MILLIS = "millis"
-_UNIT_MICROS = "micros"
-_UNIT_NANOS = "nanos"
-_UNIT_SECONDS = "seconds"
+_PRECISION_SECONDS = 0
+_PRECISION_MILLIS = 3
+_PRECISION_MICROS = 6
+_PRECISION_NANOS = 9
 
 _EPOCH_UTC = Datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-def _from_epoch(value: int, unit: str) -> celtypes.TimestampType:
-    """Construct from epoch numeric value plus unit string.
+def _from_epoch(value: int, precision: int) -> celtypes.TimestampType:
+    """Construct from an epoch numeric value at a decimal precision.
 
     Splits the epoch value into whole microseconds using exact integer floor
     division (Python ``//`` matches Java ``Math.floorDiv``), then builds the
@@ -85,19 +84,23 @@ def _from_epoch(value: int, unit: str) -> celtypes.TimestampType:
     rounded half-to-even to the microsecond). ``datetime`` resolution is one
     microsecond, so nanos below that are floored away -- an inherent limit of
     the CEL timestamp type, matching Java, not a rounding discrepancy.
+
+    Precisions outside {0, 3, 6, 9} are rejected rather than generalized to
+    "any p means 10^-p": with the unit a number rather than a name, that check
+    is the only thing between a typo and a silently wrong instant.
     """
-    if unit == _UNIT_MILLIS:
-        micros = value * 1_000
-    elif unit == _UNIT_MICROS:
-        micros = value
-    elif unit == _UNIT_NANOS:
-        micros = value // 1_000
-    elif unit == _UNIT_SECONDS:
+    if precision == _PRECISION_SECONDS:
         micros = value * 1_000_000
+    elif precision == _PRECISION_MILLIS:
+        micros = value * 1_000
+    elif precision == _PRECISION_MICROS:
+        micros = value
+    elif precision == _PRECISION_NANOS:
+        micros = value // 1_000
     else:
         raise celpy.CELEvalError(
-            f"timestamp.of: unknown unit '{unit}'; expected one of "
-            "millis, micros, nanos, seconds")
+            f"timestamp: unknown precision {precision}; expected 0 (seconds), "
+            "3 (millis), 6 (micros) or 9 (nanos)")
     return celtypes.TimestampType(_EPOCH_UTC + timedelta(microseconds=micros))
 
 
@@ -114,29 +117,15 @@ def _from_proto_timestamp(t: typing.Any) -> celtypes.TimestampType:
         _EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
 
 
-def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
-    """Runtime dispatch backing {@code timestamp.of(...)}.
-
-    Two arities:
-      * {@code timestamp.of(dyn)} — accept whatever the format decoder produces.
-      * {@code timestamp.of(int, string)} — epoch + unit.
-    """
-    if len(args) == 2:
-        value = args[0]
-        unit = args[1]
-        if not isinstance(value, (int, celtypes.IntType)):
-            raise celpy.CELEvalError(
-                f"timestamp.of: epoch value must be int, got {type(value).__name__}")
-        if not isinstance(unit, (str, celtypes.StringType)):
-            raise celpy.CELEvalError(
-                f"timestamp.of: unit must be string, got {type(unit).__name__}")
-        return _from_epoch(int(value), str(unit))
-    if len(args) != 1:
-        raise celpy.CELEvalError(
-            f"timestamp.of: expected 1 or 2 args, got {len(args)}")
-    v = args[0]
+def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:
+    """The one-argument ``timestamp(dyn)`` dispatch."""
     if v is None:
-        raise celpy.CELEvalError("timestamp.of: cannot convert null to Timestamp")
+        raise celpy.CELEvalError("timestamp: cannot convert null to Timestamp")
+    # ``celtypes.BoolType`` subclasses ``int``, *not* ``bool`` (its MRO is
+    # BoolType -> int -> object), so it has to be named explicitly here or a CEL
+    # bool falls through to the epoch-seconds branch below and means epoch 1.
+    if isinstance(v, (bool, celtypes.BoolType)):
+        raise celpy.CELEvalError("timestamp: cannot convert bool to Timestamp")
     if isinstance(v, celtypes.TimestampType):
         return v
     if isinstance(v, Datetime):
@@ -144,9 +133,9 @@ def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
             # Avro local-timestamp-* logical types produce naive datetimes that
             # carry no timezone — refuse rather than silently picking UTC.
             raise celpy.CELEvalError(
-                "timestamp.of: naive datetime (no timezone) cannot be converted. "
+                "timestamp: naive datetime (no timezone) cannot be converted. "
                 "Use the regular timestamp-* logical type (UTC by spec), or pass "
-                "an offset-adjusted epoch value via timestamp.of(value, unit).")
+                "an offset-adjusted epoch value via timestamp(value, precision).")
         return celtypes.TimestampType(v)
     if _ProtoTimestamp is not None and isinstance(v, _ProtoTimestamp):
         return _from_proto_timestamp(v)
@@ -155,52 +144,43 @@ def _timestamp_of(*args: typing.Any) -> celtypes.TimestampType:
     if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == \
             "google.protobuf.Timestamp":
         return _from_proto_timestamp(v)
-    if isinstance(v, (str, celtypes.StringType)):
-        # Delegate to celpy's stdlib timestamp parser for RFC 3339 strings.
-        return celtypes.TimestampType(str(v))
-    # ``celtypes.BoolType`` subclasses ``int``, *not* ``bool`` (its MRO is
-    # BoolType -> int -> object), so it has to be named explicitly here or a CEL
-    # bool falls through to the raw-int branch below and gets the wrong message.
-    if isinstance(v, (bool, celtypes.BoolType)):
-        raise celpy.CELEvalError("timestamp.of: cannot convert bool to Timestamp")
     if isinstance(v, (int, celtypes.IntType)):
-        raise celpy.CELEvalError(
-            "timestamp.of: raw int has no unit; use timestamp.of(value, "
-            "\"millis\"|\"micros\"|\"nanos\"|\"seconds\") or set "
-            "useLogicalTypeConverters=true on the Avro client so timestamp "
-            "fields arrive as datetime")
-    raise celpy.CELEvalError(
-        f"timestamp.of: cannot convert {type(v).__name__} to Timestamp")
+        # A bare int is epoch seconds, matching cel-java's int64_to_timestamp
+        # and Go/C++/C#. Any other unit needs the two-arg precision form.
+        try:
+            return _from_epoch(int(v), _PRECISION_SECONDS)
+        except (OverflowError, ValueError, OSError) as e:
+            raise celpy.CELEvalError(
+                f"timestamp: epoch seconds value out of range: {int(v)}") from e
+    # str (lenient RFC 3339) and anything else the base implementation handles.
+    return _BASE_TIMESTAMP(v)
 
 
 def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
-    """CEL stdlib ``timestamp(...)`` plus the missing ``int`` -> epoch-seconds overload.
+    """CEL stdlib ``timestamp(...)`` plus the epoch-seconds, dyn and precision overloads.
 
-    Everything the base implementation already handles is forwarded to it
-    verbatim -- the ``str`` (lenient RFC 3339) form, the ``datetime`` /
-    ``TimestampType`` form, and crucially the *datetime components* form
-    (``timestamp(2009, 2, 13)``), which is an int in the first position with two
-    or more further args. Only a single int argument is handled here, as epoch
-    seconds, matching cel-java's ``int64_to_timestamp`` and Go/C++/C#.
+    Three or more args is celpy's *datetime components* form
+    (``timestamp(2009, 2, 13)``) and is forwarded to the base implementation
+    verbatim; two args is the epoch + precision form; one arg dispatches on the
+    value's Python type.
     """
+    if len(args) == 2:
+        value, precision = args
+        # Bools before ints: BoolType subclasses int (see _timestamp_one).
+        if isinstance(value, (bool, celtypes.BoolType)) \
+                or not isinstance(value, (int, celtypes.IntType)):
+            raise celpy.CELEvalError(
+                f"timestamp: epoch value must be int, got {type(value).__name__}")
+        if isinstance(precision, (bool, celtypes.BoolType)) \
+                or not isinstance(precision, (int, celtypes.IntType)):
+            raise celpy.CELEvalError(
+                f"timestamp: precision must be int, got {type(precision).__name__}")
+        return _from_epoch(int(value), int(precision))
     if len(args) == 1:
-        v = args[0]
-        # BoolType subclasses int (see _timestamp_of), so reject bools before the
-        # int check -- otherwise ``timestamp(true)`` would silently mean epoch 1.
-        if isinstance(v, (bool, celtypes.BoolType)):
-            raise celpy.CELEvalError("timestamp: cannot convert bool to Timestamp")
-        # ``Datetime`` is not an int subclass, but check it first anyway so the
-        # datetime/TimestampType path stays entirely the base implementation's.
-        if not isinstance(v, Datetime) and isinstance(v, (int, celtypes.IntType)):
-            try:
-                return _from_epoch(int(v), _UNIT_SECONDS)
-            except (OverflowError, ValueError, OSError) as e:
-                raise celpy.CELEvalError(
-                    f"timestamp: epoch seconds value out of range: {int(v)}") from e
+        return _timestamp_one(args[0])
     return _BASE_TIMESTAMP(*args)
 
 
 TIMESTAMP_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "timestamp": _timestamp,
-    "timestamp.of": _timestamp_of,
 }
