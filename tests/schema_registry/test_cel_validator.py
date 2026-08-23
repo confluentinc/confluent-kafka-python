@@ -205,6 +205,59 @@ def test_decimal_from_bytes_scale_is_exact(validator):
     assert result == "123456789012345678901234567890123.45678"
 
 
+# ``decimal(<string>)`` / ``decimal(<dyn>)`` must match java.math.BigDecimal's
+# ``new BigDecimal(String)`` / ``BigDecimal.valueOf(double)``, which throw
+# NumberFormatException on non-finite values, underscore digit-grouping, and
+# surrounding whitespace. Python's ``Decimal(str)`` silently accepts all of
+# these — building a poisoned NaN/Infinity Decimal or a wrongly-parsed 1000 —
+# so the constructor must reject them (surfaced as a RuleError). The
+# ``decimal(bytes, scale)`` path parses no string and is unaffected.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimal("NaN") > decimal("0")',
+        'decimal("Infinity") > decimal("0")',
+        'decimal("-Infinity") > decimal("0")',
+        'decimal("-inf") > decimal("0")',
+        'decimal("sNaN") > decimal("0")',
+        'decimal("1_000") > decimal("0")',
+        # Surrounding whitespace: Java rejects; Python's Decimal strips it.
+        "decimal('  5  ') > decimal('0')",
+    ],
+)
+def test_decimal_rejects_inputs_java_bigdecimal_rejects(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+# A NaN/Infinity double routed through ``decimal(<double>)`` must also be
+# rejected — Java's ``BigDecimal.valueOf(double)`` throws on non-finite doubles.
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_decimal_rejects_non_finite_double(validator, value):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule("decimal(this) > decimal('0')"), None, value)
+
+
+# Legitimate finite decimals must still parse: ordinary decimals, scientific
+# notation, negatives, negative zero, a leading '+', and a finite double.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('string(decimal("123.45"))', "123.45"),
+        ('string(decimal("1e40"))', "10000000000000000000000000000000000000000"),
+        ('string(decimal("-0.5"))', "-0.5"),
+        ('string(decimal("-0"))', "-0"),
+        ('string(decimal("+5"))', "5"),
+    ],
+)
+def test_decimal_accepts_legitimate_finite_values(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+def test_decimal_accepts_finite_double(validator):
+    assert validator.execute(rule("string(decimal(this))"), None, 1.5) == "1.5"
+
+
 # --------------------------------------------------------------------------------------
 # Variant CEL functions
 # --------------------------------------------------------------------------------------

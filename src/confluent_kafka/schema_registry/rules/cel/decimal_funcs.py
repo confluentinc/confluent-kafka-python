@@ -74,6 +74,33 @@ def _coerce_bytes(v: typing.Any) -> bytes:
         f"{type(v).__name__}")
 
 
+def _decimal_from_string(text: str, original: typing.Any) -> Decimal:
+    """Parse a Decimal the way Java's ``new BigDecimal(String)`` does.
+
+    Python's ``Decimal(str)`` is far more permissive than Java's
+    ``BigDecimal(String)`` / ``BigDecimal.valueOf(double)``, silently accepting
+    inputs Java rejects with ``NumberFormatException``:
+
+      * non-finite values — ``"NaN"``, ``"sNaN"``, ``"Infinity"``, ``"inf"``,
+        ``"-inf"`` (and the ``str()`` of a NaN/Inf float);
+      * underscore digit-grouping such as ``"1_000"`` (→ 1000);
+      * surrounding whitespace (Python strips it; internal whitespace is already
+        rejected by ``Decimal``).
+
+    Reject those to match Java, while still accepting every legitimate finite
+    decimal (integers, ``"1e40"``, negatives, ``"-0"``, a leading ``+``, ...).
+    """
+    if "_" in text or text != text.strip():
+        raise celpy.CELEvalError(f"decimal: invalid number '{original}'")
+    try:
+        d = Decimal(text)
+    except decimal.InvalidOperation as ex:
+        raise celpy.CELEvalError(f"decimal: invalid number '{original}'") from ex
+    if not d.is_finite():
+        raise celpy.CELEvalError(f"decimal: invalid number '{original}'")
+    return d
+
+
 def _decimal(*args: typing.Any) -> Decimal:
     """Runtime dispatch backing the {@code decimal(...)} constructor.
 
@@ -111,12 +138,12 @@ def _decimal(*args: typing.Any) -> Decimal:
     if isinstance(v, int):
         return Decimal(v)
     if isinstance(v, float):
-        return Decimal(str(v))
+        # Java uses BigDecimal.valueOf(double), which throws on NaN/Infinity.
+        # str() of a non-finite float ("nan"/"inf"/"-inf") builds a poisoned
+        # Decimal in Python, so validate through the same finite check.
+        return _decimal_from_string(str(v), v)
     if isinstance(v, (str, celtypes.StringType)):
-        try:
-            return Decimal(str(v))
-        except decimal.InvalidOperation as ex:
-            raise celpy.CELEvalError(f"decimal: invalid number '{v}'") from ex
+        return _decimal_from_string(str(v), v)
     if isinstance(v, (bytes, bytearray, memoryview, celtypes.BytesType)):
         raise celpy.CELEvalError(
             "decimal: raw bytes need a scale; use decimal(bytes, scale) or set "
