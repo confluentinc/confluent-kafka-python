@@ -38,6 +38,9 @@
  *
  ****************************************************************************/
 
+static int Admin_enter_rk_use(Handle *self) {
+        return Handle_enter_rk_use(self, ERR_MSG_ADMIN_CLIENT_CLOSED);
+}
 
 
 static int Admin_clear(Handle *self) {
@@ -132,6 +135,9 @@ Admin_options_to_c(Handle *self,
         rd_kafka_error_t *err_obj = NULL;
         char errstr[512];
 
+        /* TODO NOGIL: Check if we can remove this as the caller would've
+         * acquired the lock on rk so this check should not be required.
+         */
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
                                 ERR_MSG_ADMIN_CLIENT_CLOSED);
@@ -584,16 +590,15 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATETOPICS,
                                        &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* options_to_c() sets future as the opaque, which is used in the
          * background_event_cb to set the results on the future as the
@@ -685,6 +690,7 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -693,6 +699,7 @@ err:
         free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -726,16 +733,15 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETETOPICS,
                                        &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* options_to_c() sets opaque to the future object, which is used in the
          * background_event_cb to set the results on the future as the
@@ -789,6 +795,7 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -797,6 +804,7 @@ err:
         free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -838,16 +846,15 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEPARTITIONS,
                                        &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
@@ -916,6 +923,7 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -924,6 +932,7 @@ err:
         free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -959,16 +968,15 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS,
                                        &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -978,6 +986,7 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
             cfl_PyObject_lookup("confluent_kafka.admin", "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by lookup() */
         }
 
@@ -1048,6 +1057,7 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -1057,6 +1067,7 @@ err:
         Py_DECREF(ConfigResource_type); /* from lookup() */
         Py_DECREF(future);              /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1096,16 +1107,15 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
                             &options.validate_only))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS, &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -1115,6 +1125,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
             cfl_PyObject_lookup("confluent_kafka.admin", "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by find() */
         }
 
@@ -1123,6 +1134,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
         if (!ConfigEntry_type) {
                 Py_DECREF(ConfigResource_type);
                 rd_kafka_AdminOptions_destroy(c_options);
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by find() */
         }
 
@@ -1212,6 +1224,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
         Py_DECREF(ConfigResource_type); /* from lookup() */
         Py_DECREF(ConfigEntry_type);    /* from lookup() */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -1222,6 +1235,7 @@ err:
         Py_DECREF(ConfigEntry_type);    /* from lookup() */
         Py_DECREF(future);              /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1264,16 +1278,15 @@ Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
                                        &options, future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -1283,6 +1296,7 @@ Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
             cfl_PyObject_lookup("confluent_kafka.admin", "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by find() */
         }
 
@@ -1369,6 +1383,7 @@ Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -1378,6 +1393,7 @@ err:
         Py_DECREF(ConfigResource_type); /* from lookup() */
         Py_DECREF(future);              /* from options_to_c() */
 
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1396,6 +1412,7 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         char errstr[512];
+        int entered_rk_use = 0;
 
         static char *kws[] = {"acls", "future",
                               /* options */
@@ -1424,11 +1441,9 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEACLS,
                                        &options, future);
@@ -1489,6 +1504,7 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_DECREF(AclBinding_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_objs) {
@@ -1501,6 +1517,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1528,6 +1546,7 @@ Admin_describe_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         char errstr[512];
+        int entered_rk_use = 0;
 
         static char *kws[] = {"acl_binding_filter", "future",
                               /* options */
@@ -1549,11 +1568,9 @@ Admin_describe_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEACLS,
                                        &options, future);
@@ -1604,6 +1621,7 @@ Admin_describe_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AclBinding_destroy(c_obj);
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (AclBindingFilter_type)
@@ -1612,6 +1630,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1639,6 +1659,7 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         char errstr[512];
+        int entered_rk_use = 0;
 
         static char *kws[] = {"acls", "future",
                               /* options */
@@ -1667,11 +1688,9 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETEACLS,
                                        &options, future);
@@ -1732,6 +1751,7 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_objs) {
@@ -1744,6 +1764,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -1772,6 +1794,7 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         int states_cnt                            = 0;
         int types_cnt                             = 0;
         int i                                     = 0;
+        int entered_rk_use                        = 0;
 
         static char *kws[] = {"future",
                               /* options */
@@ -1842,11 +1865,9 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS, &options, future);
@@ -1881,6 +1902,7 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_states) {
@@ -1893,6 +1915,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
@@ -1934,17 +1958,16 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
                 return NULL;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_DESCRIBEUSERSCRAMCREDENTIALS, &options,
             future);
-        if (!c_options)
+        if (!c_options) {
+                Handle_exit_rk_use(self);
                 return NULL; /* Exception raised by options_to_c() */
+        }
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
@@ -2002,6 +2025,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
                 free(c_users);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_users)
@@ -2010,6 +2034,7 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2058,6 +2083,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         PyObject *mechanism             = NULL;
         int32_t iterations;
         int c_mechanism;
+        int entered_rk_use = 0;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &alterations, &future,
@@ -2114,11 +2140,9 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS, &options,
@@ -2306,6 +2330,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         Py_DECREF(UserScramCredentialDeletion_type);   /* from lookup() */
         Py_DECREF(ScramCredentialInfo_type);           /* from lookup() */
         Py_DECREF(ScramMechanism_type);                /* from lookup() */
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
 
@@ -2331,6 +2356,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2358,6 +2385,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_t *rkqu;
         int groups_cnt = 0;
         int i          = 0;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"future", "group_ids",
                               /* options */
@@ -2407,11 +2435,9 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 Py_XDECREF(uogroup);
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS, &options, future);
@@ -2445,6 +2471,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_groups) {
@@ -2454,6 +2481,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2481,6 +2510,7 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_TopicCollection_t *c_topic_collection = NULL;
         int topics_cnt                                 = 0;
         int i                                          = 0;
+        int entered_rk_use                             = 0;
 
         static char *kws[] = {"future", "topic_names",
                               /* options */
@@ -2537,11 +2567,9 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_topic_collection =
             rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
@@ -2579,6 +2607,7 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_topics) {
@@ -2591,6 +2620,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2614,6 +2645,7 @@ Admin_describe_cluster(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_t *c_options = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"future",
                               /* options */
@@ -2633,11 +2665,9 @@ Admin_describe_cluster(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.include_authorized_operations))
                 goto err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER,
                                        &options, future);
@@ -2667,12 +2697,15 @@ Admin_describe_cluster(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2700,6 +2733,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         int i;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"group_ids", "future",
                               /* options */
@@ -2710,11 +2744,9 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETEGROUPS,
                                        &options, future);
@@ -2778,6 +2810,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_delete_group_ids);
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_delete_group_ids) {
@@ -2788,6 +2821,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2819,6 +2854,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
         rd_kafka_queue_t *rkqu;
         PyObject *topic_partitions = NULL;
         char *group_id             = NULL;
+        int entered_rk_use         = 0;
 
         static char *kws[] = {"request", "future",
                               /* options */
@@ -2835,11 +2871,9 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                             &options.require_stable_offsets))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS, &options, future);
@@ -2931,6 +2965,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_topic_partitions) {
@@ -2950,6 +2985,8 @@ err:
         }
         Py_XDECREF(topic_partitions);
         Py_XDECREF(ConsumerGroupTopicPartitions_type);
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -2982,6 +3019,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
         rd_kafka_queue_t *rkqu;
         PyObject *topic_partitions = NULL;
         char *group_id             = NULL;
+        int entered_rk_use         = 0;
 
         static char *kws[] = {"request", "future",
                               /* options */
@@ -2992,11 +3030,9 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(
             self, RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS, &options,
@@ -3087,6 +3123,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_obj) {
@@ -3106,6 +3143,8 @@ err:
         }
         Py_XDECREF(topic_partitions);
         Py_XDECREF(ConsumerGroupTopicPartitions_type);
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -3128,6 +3167,7 @@ PyObject *Admin_list_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"topic_partitions", "future",
                               /* options */
@@ -3139,11 +3179,9 @@ PyObject *Admin_list_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
                                        &options, future);
@@ -3182,12 +3220,15 @@ PyObject *Admin_list_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -3213,6 +3254,7 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_t *c_topic_partition_offsets = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"topic_partition_offsets", "future",
                               /* options */
@@ -3224,11 +3266,9 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETERECORDS,
                                        &options, future);
@@ -3274,6 +3314,7 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
         Py_XDECREF(topic_partition_offsets);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 err:
         if (c_obj) {
@@ -3289,6 +3330,8 @@ err:
                     c_topic_partition_offsets);
         }
         Py_XDECREF(topic_partition_offsets);
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -3314,6 +3357,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_t *c_partitions = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
+        int entered_rk_use = 0;
 
         static char *kws[] = {"election_type",
                               "partitions"
@@ -3328,11 +3372,9 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 goto err;
-        }
+        entered_rk_use = 1;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ELECTLEADERS,
                                        &options, future);
@@ -3386,6 +3428,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_ElectLeaders_destroy(c_elect_leaders);
 
+        Handle_exit_rk_use(self);
         Py_RETURN_NONE;
 
 err:
@@ -3396,6 +3439,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
+        if (entered_rk_use)
+                Handle_exit_rk_use(self);
         return NULL;
 }
 
@@ -3438,13 +3483,13 @@ static PyObject *Admin_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "d", kws, &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                ERR_MSG_ADMIN_CLIENT_CLOSED);
+        if (!Admin_enter_rk_use(self))
                 return NULL;
-        }
 
         r = Admin_poll0(self, (int)(tmout * 1000));
+
+        Handle_exit_rk_use(self);
+
         if (r == -1)
                 return NULL;
 
@@ -3468,6 +3513,23 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
         if (!PyArg_UnpackTuple(args, "__exit__", 3, 3, &exc_type, &exc_value,
                                &exc_traceback))
                 return NULL;
+
+        /* Only one concurrent exit can destroy rk, otherwise, two threads
+         * could both reach rd_kafka_destroy() on the same handle (a
+         * double-free). The losing thread(s) wait for the winner to finish
+         * and then return None, same as a normal __exit__, rather than
+         * racing it. */
+        if (!atomic_int_cas(&self->closing, 0, 1)) {
+                while (self->rk)
+                        Handle_teardown_wait_sleep(self);
+                Py_RETURN_NONE;
+        }
+
+        /* Signal in-flight calls to stop, and wait for them to finish
+         * using self->rk before destroying it. New calls will see `closing`
+         * and fail with ERR_MSG_ADMIN_CLIENT_CLOSED. */
+        while (atomic_int_get(&self->active_calls) > 0)
+                Handle_teardown_wait_sleep(self);
 
         /* Cleanup: destroy admin client */
         if (self->rk) {
