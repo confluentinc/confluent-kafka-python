@@ -149,8 +149,8 @@ async def test_call_after_close_raises(kafka_cluster):
     with pytest.raises(RuntimeError, match="Consumer closed"):
         await consumer.poll(1)
 
-    # A second close() must also be safe (idempotent), not raise or hang.
-    await consumer.close()
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        await consumer.close()
 
 
 async def test_async_context_manager_closes_on_exit(kafka_cluster):

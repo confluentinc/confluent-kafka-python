@@ -53,6 +53,7 @@ class AIOConsumer:
         max_workers: int = 100,
         executor: Optional[concurrent.futures.Executor] = None,
     ) -> None:
+        self._closed = False
         self._owns_executor = False
         if executor is not None:
             # Executor must have at least one worker.
@@ -80,6 +81,9 @@ class AIOConsumer:
         await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        if self._closed:
+            raise RuntimeError("Consumer closed")
+
         # Resolved here, on the event-loop thread, so a re-entrant call reuses
         # the enclosing call's identity -- see _common.ReentryContext.
         identity = _common.ReentryContext.get_or_generate_id()
@@ -165,6 +169,7 @@ class AIOConsumer:
         try:
             return await self._call(self._consumer.close, *args, **kwargs)
         finally:
+            self._closed = True
             if self._owns_executor:
                 await asyncio.get_running_loop().run_in_executor(None, self.executor.shutdown, True)
 
