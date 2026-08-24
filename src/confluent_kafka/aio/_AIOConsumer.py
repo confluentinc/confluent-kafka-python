@@ -28,12 +28,32 @@ from . import _common as _common
 
 
 class AIOConsumer:
+    """
+    Asyncio wrapper around confluent_kafka.Consumer.
+
+    Every method dispatches the underlying blocking Consumer call to a
+    thread pool executor and returns an awaitable, so a single AIOConsumer
+    can be driven from asyncio code without blocking the event loop.
+
+    librdkafka's Consumer is not thread-safe, so concurrent access to
+    the same AIOConsumer instance is serialized rather than allowed to
+    race: if a second call arrives while another is still in flight, it
+    waits for the first to finish.
+
+    The one exception is re-entrancy: a call made from within a
+    callback that this same logical operation triggered (for example,
+    on_assign calling assign(), or on_commit calling commit()) is
+    recognized as belonging to the same caller and is admitted
+    immediately rather than waiting on itself.
+    """
+
     def __init__(
         self,
         consumer_conf: Dict[str, Any],
-        max_workers: int = 2,
+        max_workers: int = 100,
         executor: Optional[concurrent.futures.Executor] = None,
     ) -> None:
+        self._owns_executor = False
         if executor is not None:
             # Executor must have at least one worker.
             # At least two workers are needed when calling re-entrant
@@ -43,6 +63,7 @@ class AIOConsumer:
             if max_workers < 1:
                 raise ValueError("max_workers must be at least 1")
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+            self._owns_executor = True
 
         loop = asyncio.get_event_loop()
         wrap_common_callbacks = _common.wrap_common_callbacks
@@ -59,7 +80,18 @@ class AIOConsumer:
         await self.close()
 
     async def _call(self, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
+        # Resolved here, on the event-loop thread, so a re-entrant call reuses
+        # the enclosing call's identity -- see _common.ReentryIdentity.
+        identity = _common.ReentryIdentity.get_or_generate()
+
+        # Presented from inside wrapped_task so it is visible to the call it
+        # guards, including any re-entrant callback (e.g. on_assign) that
+        # blocking_task triggers synchronously before returning.
+        def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
+            with _common.ReentryIdentity.active(identity):
+                return blocking_task(*task_args, **task_kwargs)
+
+        return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
 
     def _wrap_callback(
         self,
@@ -68,15 +100,7 @@ class AIOConsumer:
         edit_args: Optional[Callable[[Tuple[Any, ...]], Tuple[Any, ...]]] = None,
         edit_kwargs: Optional[Callable[[Any], Any]] = None,
     ) -> Callable[..., Any]:
-        def ret(*args: Any, **kwargs: Any) -> Any:
-            if edit_args:
-                args = edit_args(args)
-            if edit_kwargs:
-                kwargs = edit_kwargs(kwargs)
-            f = asyncio.run_coroutine_threadsafe(callback(*args, **kwargs), loop)
-            return f.result()
-
-        return ret
+        return _common.wrap_callback(loop, callback, edit_args=edit_args, edit_kwargs=edit_kwargs)
 
     async def poll(self, *args: Any, **kwargs: Any) -> Any:
         """
@@ -130,7 +154,11 @@ class AIOConsumer:
         return await self._call(self._consumer.commit, *args, **kwargs)
 
     async def close(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.close, *args, **kwargs)
+        try:
+            return await self._call(self._consumer.close, *args, **kwargs)
+        finally:
+            if self._owns_executor:
+                await asyncio.get_running_loop().run_in_executor(None, self.executor.shutdown, True)
 
     async def seek(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.seek, *args, **kwargs)
