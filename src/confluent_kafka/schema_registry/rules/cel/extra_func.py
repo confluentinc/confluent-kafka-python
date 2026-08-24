@@ -179,7 +179,10 @@ def is_uuid(string: celtypes.Value) -> celpy.Result:
 def make_extra_funcs(locale: str) -> typing.Dict[str, celpy.CELFunction]:
     # Local import keeps the cel-python package import light when these
     # extended-type modules aren't needed.
-    from confluent_kafka.schema_registry.rules.cel.decimal_funcs import DECIMAL_FUNCS
+    from confluent_kafka.schema_registry.rules.cel.decimal_funcs import (
+        DECIMAL_FUNCS,
+        DECIMAL_OPERATOR_FUNCS,
+    )
     from confluent_kafka.schema_registry.rules.cel.timestamp_funcs import TIMESTAMP_FUNCS
     from confluent_kafka.schema_registry.rules.cel.variant_funcs import VARIANT_FUNCS
 
@@ -198,6 +201,7 @@ def make_extra_funcs(locale: str) -> typing.Dict[str, celpy.CELFunction]:
     }
     # Extended types — decimal / timestamp / variant.
     funcs.update(DECIMAL_FUNCS)
+    funcs.update(DECIMAL_OPERATOR_FUNCS)
     funcs.update(TIMESTAMP_FUNCS)
     funcs.update(VARIANT_FUNCS)
     return funcs
