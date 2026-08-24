@@ -1256,6 +1256,54 @@ def test_avro_cel_decimal_fails():
     assert isinstance(e.value.__cause__, RuleConditionError)
 
 
+def test_avro_cel_decimal_needs_no_constructor():
+    """Cross-client parity: an Avro ``decimal`` logical type is usable as a Decimal with **no
+    ``decimal(...)`` call**, and the wrapped form keeps working alongside it. fastavro decodes it
+    to a Python ``Decimal`` at the schema's scale, which is this client's in-CEL decimal
+    representation, so ``decimals.*`` accept it directly and ``==`` is numeric (Python's own
+    ``Decimal.__eq__``).
+    """
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    def serialize(expr):
+        rule = Rule(
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
+        )
+        client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+        return ser({'decField': Decimal('12.34')}, ser_ctx)
+
+    # Bare: no constructor call on the field.
+    assert serialize('decimals.eq(message.decField, decimal("12.34"))') is not None
+    assert serialize('decimals.gt(message.decField, decimal("10.00"))') is not None
+    # The wrapped form must keep working (decimal(...) re-entry).
+    assert serialize('decimals.eq(decimal(message.decField), decimal("12.34"))') is not None
+    # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+    assert serialize('message.decField == decimal("12.340")') is not None
+    # The schema's scale is applied, not guessed: as scale 0 this would be 1234.
+    assert serialize('decimals.lt(message.decField, decimal("100"))') is not None
+    # Negative control: a false comparison must fail.
+    with pytest.raises(SerializationError) as e:
+        serialize('decimals.gt(message.decField, decimal("100"))')
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
 def test_avro_cel_decimal_arithmetic():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)

@@ -155,6 +155,38 @@ def _decimal(*args: typing.Any) -> Decimal:
 
 # ---- comparison ----
 
+def decimal_boundary_value(v: typing.Any) -> typing.Optional[Decimal]:
+    """A ``confluent.type.Decimal`` message as a :class:`~decimal.Decimal`, else ``None``.
+
+    Presents a decimal-shaped bound value as this client's in-CEL decimal. Without it a bare
+    decimal field and ``decimal(...)`` are two different things at runtime: the field is a celpy
+    ``MessageType`` wrapper, so ``this == decimal("12.34")`` compares a wrapper against a
+    ``Decimal`` and answers False, and ``string(this)`` / ``double(this)`` fail outright with
+    ``TypeError: float() argument must be a string or a real number, not 'MessageType'``.
+
+    Converting at the boundary also makes ``==`` scale-insensitive for free, since
+    ``Decimal.__eq__`` is numeric: 12.34 and 12.340 are the same number in two encodings, and
+    comparing the protobuf fields one by one would call them unequal.
+
+    Only reaches a value bound directly. A decimal reached by selection instead
+    (``this.amount``) is resolved inside celpy, past any boundary.
+    """
+    if isinstance(v, Decimal):
+        return v
+    if _from_proto_decimal is None:
+        return None
+    if _PROTO_DECIMAL_CLS is not None and isinstance(v, _PROTO_DECIMAL_CLS):
+        return _from_proto_decimal(v)
+    if getattr(getattr(v, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal":
+        return _from_proto_decimal(v)
+    # celpy wraps a proto message as a MessageType keeping the message on ``.msg``.
+    proto_msg = getattr(v, "msg", None)
+    if proto_msg is not None and getattr(
+            getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal":
+        return _from_proto_decimal(proto_msg)
+    return None
+
+
 def _decimals_eq(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
     return celtypes.BoolType(_d(a).compare(_d(b)) == 0)
 
@@ -348,6 +380,95 @@ def _double(v: typing.Any) -> celtypes.DoubleType:
     if isinstance(v, Decimal):
         return celtypes.DoubleType(float(v))
     return _STDLIB_DOUBLE(v)
+
+
+def _as_decimal_or_none(o: typing.Any) -> typing.Optional[Decimal]:
+    """``o`` as a Decimal if it *is* one, else ``None``.
+
+    Deliberately narrow — unlike :func:`_d`, it does not coerce ints, floats or strings. This runs
+    on every ``==`` in every rule, so turning ``1 == "1"`` into a decimal comparison would be
+    wrong, and it must stay cheap for the common case.
+    """
+    return decimal_boundary_value(o)
+
+
+def _has_decimal(o: typing.Any) -> bool:
+    """Whether ``o`` is a Decimal or holds one at any depth.
+
+    Only consulted once both operands are containers, so it never runs on the scalar path.
+    """
+    if _as_decimal_or_none(o) is not None:
+        return True
+    if isinstance(o, (list, tuple)):
+        return any(_has_decimal(e) for e in o)
+    if isinstance(o, dict):
+        return any(_has_decimal(v) for v in o.values())
+    return False
+
+
+def _cel_equals(a: typing.Any, b: typing.Any) -> bool:
+    """CEL ``==`` with decimals made numeric, as a plain bool.
+
+    A decimal operand may be a :class:`~decimal.Decimal` or a ``confluent.type.Decimal`` message,
+    and comparing the latter structurally - field by field over unscaled bytes and scale - calls
+    12.34 and 12.340 unequal even though they are the same number.
+
+    Containers are handled too, but only when a decimal is actually inside one of them: the base
+    implementation recurses with its own equality, so a Decimal nested in a list or map was
+    compared structurally and ``[a] == [b]`` disagreed with ``a == b`` on the same values. Gating
+    on :func:`_has_decimal` leaves every decimal-free comparison on the base path untouched, and
+    each element pair recurses back through here so non-decimal elements keep base semantics.
+    """
+    da = _as_decimal_or_none(a)
+    db = _as_decimal_or_none(b)
+    if da is not None and db is not None:
+        return da == db
+    if da is not None or db is not None:
+        # A decimal is never equal to a non-decimal.
+        return False
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) \
+            and (_has_decimal(a) or _has_decimal(b)):
+        return len(a) == len(b) and all(
+            _cel_equals(x, y) for x, y in zip(a, b))
+    if isinstance(a, dict) and isinstance(b, dict) and (_has_decimal(a) or _has_decimal(b)):
+        return len(a) == len(b) and all(
+            k in b and _cel_equals(v, b[k]) for k, v in a.items())
+    return bool(celpy.evaluation.bool_eq(a, b))
+
+
+def _decimal_aware_eq(a: typing.Any, b: typing.Any) -> typing.Any:
+    if _as_decimal_or_none(a) is None and _as_decimal_or_none(b) is None \
+            and not _has_decimal(a) and not _has_decimal(b):
+        # No decimal anywhere: hand it straight back to the base implementation, errors and all.
+        return celpy.evaluation.bool_eq(a, b)
+    return celtypes.BoolType(_cel_equals(a, b))
+
+
+def _decimal_aware_ne(a: typing.Any, b: typing.Any) -> typing.Any:
+    if _as_decimal_or_none(a) is None and _as_decimal_or_none(b) is None \
+            and not _has_decimal(a) and not _has_decimal(b):
+        return celpy.evaluation.bool_ne(a, b)
+    return celtypes.BoolType(not _cel_equals(a, b))
+
+
+def _decimal_aware_in(item: typing.Any, container: typing.Any) -> typing.Any:
+    """``in`` has to follow ``==`` or the two contradict each other."""
+    if not _has_decimal(item) and not _has_decimal(container):
+        return celpy.evaluation.operator_in(item, container)
+    if isinstance(container, dict):
+        return celtypes.BoolType(any(_cel_equals(item, k) for k in container))
+    if isinstance(container, (list, tuple)):
+        return celtypes.BoolType(any(_cel_equals(item, e) for e in container))
+    return celpy.evaluation.operator_in(item, container)
+
+
+# The CEL operators, overridden so a decimal compares numerically. celpy resolves functions
+# through a ChainMap that consults these before its own base_functions.
+DECIMAL_OPERATOR_FUNCS: typing.Dict[str, typing.Any] = {
+    "_==_": _decimal_aware_eq,
+    "_!=_": _decimal_aware_ne,
+    "_in_": _decimal_aware_in,
+}
 
 
 DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {

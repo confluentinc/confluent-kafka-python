@@ -161,6 +161,71 @@ def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
     assert validator.execute(rule("decimals.lt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is False
 
 
+# A decimal reached by *selection* rather than bound directly must compare numerically too.
+# The boundary conversion only sees what is bound, so ``this.a`` stays a confluent.type.Decimal
+# message; comparing those structurally - field by field over unscaled bytes and scale - calls
+# 1.50 and 1.5 unequal. Containers and ``in`` follow the same rule, or they contradict ``==``.
+@pytest.mark.parametrize("expr,expected", [
+    ("this.a == this.b", True),
+    ("this.a != this.b", False),
+    ("[this.a] == [this.b]", True),
+    ("{'k': this.a} == {'k': this.b}", True),
+    ("this.a in [this.b]", True),
+    ("decimals.eq(this.a, this.b)", True),
+    # Negative controls.
+    ("this.a == decimal('9')", False),
+    ("[this.a] == [decimal('9')]", False),
+    ("this.a in [decimal('9')]", False),
+])
+def test_nested_proto_decimal_equality(validator, expr, expected):
+    def dec(unscaled, scale):
+        return decimal_pb2.Decimal(value=unscaled.to_bytes(2, "big"), scale=scale)
+
+    # 1.50 (unscaled 150, scale 2) and 1.5 (unscaled 15, scale 1) - one number, two encodings.
+    holder = {"a": dec(150, 2), "b": dec(15, 1)}
+    assert validator.execute(rule(expr), None, holder) is expected
+
+
+# Overriding the equality operators must not disturb anything that has no decimal in it.
+@pytest.mark.parametrize("expr,expected", [
+    ("1 == 1", True), ("1 == 2", False), ("1 != 2", True),
+    ("'a' == 'a'", True), ("[1, 2] == [1, 2]", True), ("[1, 2] == [2, 1]", False),
+    ("{'a': 1} == {'a': 1}", True), ("2 in [1, 2]", True), ("3 in [1, 2]", False),
+    ("b'x' == b'x'", True), ("null == null", True),
+])
+def test_equality_unchanged_without_decimals(validator, expr, expected):
+    assert validator.execute(rule(expr), None, {"unused": 1}) is expected
+
+
+# Cross-client parity: a bare ``confluent.type.Decimal`` field is usable with ``decimals.*``,
+# ``==``, ``string()`` and ``double()`` with **no ``decimal(...)`` call** on it. The
+# discriminating case is the scale-differing equality: a client comparing decimals by their
+# protobuf encoding (unscaled bytes plus scale, field by field) answers False for
+# ``decimal("12.340")``, because 12.34 and 12.340 are the same number in two encodings.
+_BARE_PROTO_DECIMAL_CASES = [
+    # Bare: no constructor call on the field.
+    ('decimals.eq(this, decimal("12.34"))', True),
+    ('decimals.gt(this, decimal("10.00"))', True),
+    # The wrapped form must keep working (decimal(...) re-entry).
+    ('decimals.eq(decimal(this), decimal("12.34"))', True),
+    # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+    ('this == decimal("12.340")', True),
+    ('this != decimal("12.340")', False),
+    ('decimals.lt(this, decimal("100"))', True),
+    # Negative control: a false comparison must still be False.
+    ('decimals.gt(this, decimal("100"))', False),
+    ('string(this) == "12.34"', True),
+    ('double(this) == 12.34', True),
+]
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_PROTO_DECIMAL_CASES)
+def test_proto_decimal_needs_no_constructor(validator, expr, expected):
+    # 12.34 = unscaled 1234 at scale 2.
+    d = decimal_pb2.Decimal(value=(1234).to_bytes(2, "big"), scale=2)
+    assert validator.execute(rule(expr), d.DESCRIPTOR, d) is expected
+
+
 # The Python decimal layer must match java.math.BigDecimal's EXACT/unbounded semantics
 # for add/sub/mul/mod, setScale/quantize (round/trunc/floor/ceil), and scaleb — rather
 # than the thread-local default context (prec=28) which silently rounds or hard-errors on
@@ -344,6 +409,74 @@ def test_proto_variant_field_into_cel(validator):
     v = variant_pb2.Variant(value=value, metadata=metadata)
     expr = "variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"
     assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True
+
+
+# Cross-client parity: a variant value is usable with the variants.* accessors with **no
+# variant(...) call**, in both formats, and the wrapped form keeps working alongside it. The
+# accessors are plain Python functions that coerce their subject, so they take whatever the
+# decoder produced -- a vu.Variant from the Avro logical type, or a proto message.
+_BARE_VARIANT_CASES = [
+    # Bare: no constructor call.
+    ("variants.type(this) == 'object'", True),
+    ("variants.as(variants.field(this, 'name'), 'string') == 'alice'", True),
+    ("variants.as(variants.path(this, '$.age'), 'int') == 30", True),
+    # The wrapped form must keep working (variant(...) re-entry).
+    ("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'", True),
+    # A missing key is CEL null, not an error.
+    ("variants.field(this, 'nope') == null", True),
+    # Negative control.
+    ("variants.as(variants.field(this, 'name'), 'string') == 'bob'", False),
+]
+
+
+# ``variants.isNull`` must coerce its receiver like every other accessor. It is declared over
+# dyn, so a bare variant field reaches it; a receiver check that only accepts the client's own
+# Variant type answers False for the shapes a variant-typed field actually decodes to, reporting
+# "not null" for a variant that holds an explicit JSON null. The bare-object cases above cannot
+# catch this: isNull on an object is False either way, so only a variant that *is* null
+# discriminates.
+@pytest.mark.parametrize("expr,expected", [
+    ("variants.isNull(this)", True),
+    # The wrapped form has always worked and must keep working.
+    ("variants.isNull(variant(this))", True),
+])
+def test_proto_variant_is_null_coerces_bare_receiver(validator, expr, expected):
+    built = vu.parse_json("null")
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is expected
+
+
+def test_proto_variant_is_null_false_for_non_null(validator):
+    built = vu.parse_json("5")
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule("variants.isNull(this)"), v.DESCRIPTOR, v) is False
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_VARIANT_CASES)
+def test_avro_variant_needs_no_constructor(validator, expr, expected):
+    import io
+
+    import fastavro
+
+    import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
+
+    schema = fastavro.parse_schema({
+        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
+        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+    })
+    built = vu.parse_json('{"name":"alice","age":30}')
+    buf = io.BytesIO()
+    fastavro.schemaless_writer(buf, schema, vu.Variant(built.value, built.metadata))
+    buf.seek(0)
+    decoded = fastavro.schemaless_reader(buf, schema)
+    assert validator.execute(rule(expr), None, decoded) is expected
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_VARIANT_CASES)
+def test_proto_variant_needs_no_constructor(validator, expr, expected):
+    built = vu.parse_json('{"name":"alice","age":30}')
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is expected
 
 
 # A string is rejected by variant(...) with a redirect to parseJson.
