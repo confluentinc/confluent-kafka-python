@@ -71,6 +71,11 @@ _MSG_TYPE_URL_TO_CTOR = {
     "google.protobuf.BoolValue": unwrap,
 }
 
+# The wrapper types, which are exactly the ones that stand for the value they hold. A wrapper
+# carries null-or-value rather than the zero value an ordinary message carries - that is the
+# reason to declare a field as one - so an unset wrapper reads as null. See _zero_value.
+_WRAPPER_TYPES = frozenset(name for name, ctor in _MSG_TYPE_URL_TO_CTOR.items() if ctor is unwrap)
+
 
 class MessageType(celtypes.MapType):
     msg: message.Message
@@ -88,10 +93,15 @@ class MessageType(celtypes.MapType):
 
     def __getitem__(self, name):
         field = self.desc.fields_by_name[name]
-        if field.has_presence and not self.msg.HasField(name):
+        if not _is_set(self.msg, field):
             if in_has():
+                # `has()` reads presence off the key, so an unset field has to look
+                # absent - including a proto3 scalar with no explicit presence, where
+                # protobuf calls a default value unset.
                 raise KeyError()
-            else:
+            if field.has_presence:
+                # Outside `has()` an unset field reads as its default rather than as
+                # whatever the message object holds.
                 return _zero_value(field)
         return super().__getitem__(name)
 
@@ -123,6 +133,26 @@ _TYPE_TO_CTOR = {
     descriptor.FieldDescriptor.TYPE_SFIXED32: celtypes.IntType,
     descriptor.FieldDescriptor.TYPE_SFIXED64: celtypes.IntType,
 }
+
+
+def _is_set(msg: message.Message, field: descriptor.FieldDescriptor) -> bool:
+    """
+    Whether ``field`` counts as set on ``msg``, by protobuf's own definition - which is
+    what CEL's ``has()`` reports.
+
+    Three cases, because protobuf tracks presence three ways:
+
+    * A repeated field or map has no presence of its own; it is set when it is non-empty.
+    * A field with explicit presence - ``optional``, a oneof member, a message - is set
+      when ``HasField`` says so.
+    * A proto3 scalar with implicit presence is set when it differs from its default.
+      ``HasField`` raises for these, which is why they cannot share the branch above.
+    """
+    if _is_repeated(field):
+        return len(_proto_message_get_field(msg, field)) > 0
+    if field.has_presence:
+        return _proto_message_has_field(msg, field)
+    return _proto_message_get_field(msg, field) != field.default_value
 
 
 def _proto_message_has_field(msg: message.Message, field: descriptor.FieldDescriptor) -> typing.Any:
@@ -216,6 +246,12 @@ def _is_list(field: descriptor.FieldDescriptor):
 
 def _zero_value(field: descriptor.FieldDescriptor):
     if field.message_type is not None and not _is_repeated(field):
+        # An unset wrapper is null, not the value its default would unwrap to. Reading it as
+        # "" or 0 would erase the only distinction the type exists to carry - the producer
+        # saying "no value" as opposed to "empty". cel-go, cel-java and cel-cpp all answer
+        # null here, the last of them once protovalidate turns on empty-wrapper unboxing.
+        if field.message_type.full_name in _WRAPPER_TYPES:
+            return None
         return _field_value_to_cel(message_factory.GetMessageClass(field.message_type)(), field)
     else:
         return _field_value_to_cel(field.default_value, field)
