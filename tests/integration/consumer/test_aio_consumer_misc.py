@@ -44,6 +44,7 @@ async def _new_aio_consumer(kafka_cluster, conf=None):
         consumer_conf.update(conf)
     return TestAIOConsumer(consumer_conf)
 
+
 async def test_on_assign_default_fallback_without_calling_assign(kafka_cluster):
     """on_assign callback that does *not* call assign()/incremental_assign()
     itself: librdkafka performs the fallback assign automatically. No
@@ -150,6 +151,7 @@ async def test_call_after_close_raises(kafka_cluster):
 
     with pytest.raises(RuntimeError, match="Consumer closed"):
         await consumer.close()
+
 
 async def test_async_context_manager_closes_on_exit(kafka_cluster):
     """The consumer must be usable inside the ctx manager block,
