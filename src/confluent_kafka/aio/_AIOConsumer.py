@@ -28,12 +28,32 @@ from . import _common as _common
 
 
 class AIOConsumer:
+    """
+    Asyncio wrapper around confluent_kafka.Consumer.
+
+    Every method dispatches the underlying blocking Consumer call to a
+    thread pool executor and returns an awaitable, so a single AIOConsumer
+    can be driven from asyncio code without blocking the event loop.
+
+    librdkafka's Consumer is not thread-safe, so concurrent access to
+    the same AIOConsumer instance is serialized rather than allowed to
+    race: if a second call arrives while another is still in flight, it
+    waits for the first to finish.
+
+    The one exception is re-entrancy: a call made from within a
+    callback that this same logical operation triggered (for example,
+    on_assign calling assign(), or on_commit calling commit()) is
+    recognized as belonging to the same caller and is admitted
+    immediately rather than waiting on itself.
+    """
+
     def __init__(
         self,
         consumer_conf: Dict[str, Any],
         max_workers: int = 100,
         executor: Optional[concurrent.futures.Executor] = None,
     ) -> None:
+        self._owns_executor = False
         if executor is not None:
             # Executor must have at least one worker.
             # At least two workers are needed when calling re-entrant
@@ -43,6 +63,7 @@ class AIOConsumer:
             if max_workers < 1:
                 raise ValueError("max_workers must be at least 1")
             self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+            self._owns_executor = True
 
         loop = asyncio.get_event_loop()
         wrap_common_callbacks = _common.wrap_common_callbacks
@@ -133,7 +154,11 @@ class AIOConsumer:
         return await self._call(self._consumer.commit, *args, **kwargs)
 
     async def close(self, *args: Any, **kwargs: Any) -> Any:
-        return await self._call(self._consumer.close, *args, **kwargs)
+        try:
+            return await self._call(self._consumer.close, *args, **kwargs)
+        finally:
+            if self._owns_executor:
+                await asyncio.get_running_loop().run_in_executor(None, self.executor.shutdown, True)
 
     async def seek(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.seek, *args, **kwargs)

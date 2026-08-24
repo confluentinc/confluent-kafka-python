@@ -66,7 +66,7 @@ class TestAIOConsumer:
         async-to-sync bridging, setting the identity presented to the
         Consumer gate on the reentry ContextVar before invoking it."""
         mock_common.ReentryIdentity.get_or_generate.return_value = 42
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
 
         mock_method = Mock(return_value="test_result")
         result = await consumer._call(mock_method, "arg1", kwarg1="value1")
@@ -78,7 +78,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_poll_success(self, mock_consumer, mock_common, basic_config):
         """Test successful message polling."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
 
         mock_message = Mock()
         mock_consumer.return_value.poll.return_value = mock_message
@@ -90,7 +90,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_consume_success(self, mock_consumer, mock_common, basic_config):
         """Test successful message consumption."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
 
         mock_messages = [Mock(), Mock()]
         mock_consumer.return_value.consume.return_value = mock_messages
@@ -102,7 +102,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_subscribe_with_callbacks(self, mock_consumer, mock_common, basic_config):
         """Test subscription with async callbacks."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
 
         async def on_assign(consumer, partitions):
             pass
@@ -113,7 +113,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_multiple_concurrent_operations(self, mock_consumer, mock_common, basic_config):
         """Test concurrent async operations."""
-        consumer = AIOConsumer(basic_config, max_workers=3)
+        consumer = AIOConsumer(basic_config)
 
         mock_message = Mock()
         mock_partitions = [TopicPartition('test', 0)]
@@ -181,7 +181,7 @@ class TestAIOConsumer:
     async def test_call_presents_nonzero_identity_to_blocking_task(self, mock_consumer, basic_config):
         """_call() must set a real, nonzero identity on the reentry
         ContextVar before invoking blocking_task on the worker thread."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
         seen = []
 
         def blocking_task():
@@ -197,7 +197,7 @@ class TestAIOConsumer:
     async def test_call_generates_different_identities_for_independent_calls(self, mock_consumer, basic_config):
         """Two independent (non-nested) _call() invocations must each
         present their own fresh identity to the gate."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
         seen = []
 
         def blocking_task():
@@ -215,7 +215,7 @@ class TestAIOConsumer:
         """A rebalance callback fired synchronously from inside a blocking
         call must see the enclosing call's identity, and a re-entrant _call()
         made from within that callback must reuse it too."""
-        consumer = AIOConsumer(basic_config, max_workers=2)
+        consumer = AIOConsumer(basic_config)
         seen = {}
 
         async def on_assign(c, partitions):
