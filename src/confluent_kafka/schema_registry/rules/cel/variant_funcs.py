@@ -165,17 +165,29 @@ def _try_parse_json(s: typing.Any) -> typing.Optional[Variant]:
 
 def _type(v: typing.Any) -> typing.Any:
     """``variants.type(Variant)`` - the type label as a string; propagates CEL null."""
-    if v is None:
+    variant = _require_variant_or_null(v, "variants.type")
+    if variant is None:
         return None
-    if not isinstance(v, Variant):
-        raise celpy.CELEvalError(
-            f"variants.type: expected Variant, got {type(v).__name__}")
-    return celtypes.StringType(_TYPE_LABELS[v.get_type()])
+    return celtypes.StringType(_TYPE_LABELS[variant.get_type()])
 
 
 def _is_null(o: typing.Any) -> celtypes.BoolType:
-    """``variants.isNull(dyn)`` - true iff input is a Variant whose top type is NULL."""
-    return celtypes.BoolType(isinstance(o, Variant) and o.get_type() == VariantType.NULL)
+    """``variants.isNull(dyn)`` - true iff input is a Variant whose top type is NULL.
+
+    Coerces like every other accessor. ``isinstance(o, Variant)`` alone answered False for the
+    shapes a variant-typed *field* decodes to - a celpy MessageType wrapping a
+    confluent.type.Variant, or the map an Avro variant record yields - which the dyn declaration
+    admits, so a bare variant holding an explicit JSON null reported "not null". CEL null and any
+    non-variant stay False rather than raising: this predicate never errors.
+    """
+    if isinstance(o, Variant):
+        return celtypes.BoolType(o.get_type() == VariantType.NULL)
+    try:
+        coerced = _require_variant_or_null(o, "variants.isNull")
+    except Exception:
+        return celtypes.BoolType(False)
+    return celtypes.BoolType(
+        coerced is not None and coerced.get_type() == VariantType.NULL)
 
 
 def _require_variant_or_null(o: typing.Any, fn: str) -> typing.Optional[Variant]:
@@ -184,8 +196,16 @@ def _require_variant_or_null(o: typing.Any, fn: str) -> typing.Optional[Variant]
     non-Variant reach the binding)."""
     if o is None:
         return None
-    if not isinstance(o, Variant):
-        raise celpy.CELEvalError(f"{fn}: expected Variant, got {type(o).__name__}")
+    if isinstance(o, Variant):
+        return o
+    # Otherwise accept the shapes a variant-typed *field* decodes to -- a proto
+    # confluent.type.Variant message (celpy wraps one as a MessageType), or the mapping an
+    # Avro variant record decodes to -- so such a field can be used without a variant(...)
+    # call, as on the other clients. An unrecognized shape still gets a clear message.
+    try:
+        return _to_variant(o)
+    except celpy.CELEvalError as ex:
+        raise celpy.CELEvalError(f"{fn}: expected Variant, got {type(o).__name__}") from ex
     return o
 
 
@@ -304,12 +324,10 @@ def _try_as(o: typing.Any, type_str: typing.Any) -> typing.Any:
 
 def _to_json(v: typing.Any) -> typing.Any:
     """``variants.toJson(Variant)`` - serialize to a JSON string; propagates CEL null."""
-    if v is None:
+    variant = _require_variant_or_null(v, "variants.toJson")
+    if variant is None:
         return None
-    if not isinstance(v, Variant):
-        raise celpy.CELEvalError(
-            f"variants.toJson: expected Variant, got {type(v).__name__}")
-    return celtypes.StringType(v.to_json())
+    return celtypes.StringType(variant.to_json())
 
 
 VARIANT_FUNCS: typing.Dict[str, celpy.CELFunction] = {
