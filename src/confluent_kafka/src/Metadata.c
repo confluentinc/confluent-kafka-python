@@ -360,24 +360,31 @@ PyObject *list_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_t *only_rkt          = NULL;
         const char *topic                   = NULL;
         double tmout                        = -1.0f;
-        static char *kws[]                  = {"topic", "timeout", NULL};
+        int gated           = Handle_is_rk_use_gated(self);
+        static char *kws[]  = {"topic", "timeout", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws, &topic,
                                          &tmout))
                 return NULL;
 
-        if (!self->rk) {
+        if (gated) {
+                if (!Handle_enter_rk_use(self, ERR_MSG_HANDLE_CLOSED))
+                        return NULL;
+        } else if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
                 return NULL;
         }
 
         if (topic != NULL) {
                 if (!(only_rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
-                        return PyErr_Format(
-                            PyExc_RuntimeError,
-                            "Unable to create topic object "
-                            "for \"%s\": %s",
-                            topic, rd_kafka_err2str(rd_kafka_last_error()));
+                        PyErr_Format(PyExc_RuntimeError,
+                                    "Unable to create topic object "
+                                    "for \"%s\": %s",
+                                    topic,
+                                    rd_kafka_err2str(rd_kafka_last_error()));
+                        if (gated)
+                                Handle_exit_rk_use(self);
+                        return NULL;
                 }
         }
 
@@ -408,6 +415,9 @@ end:
         if (only_rkt != NULL) {
                 rd_kafka_topic_destroy(only_rkt);
         }
+
+        if (gated)
+                Handle_exit_rk_use(self);
 
         return result;
 }
@@ -608,6 +618,7 @@ PyObject *list_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         const struct rd_kafka_group_list *group_list = NULL;
         const char *group                            = NULL;
         double tmout                                 = -1.0f;
+        int gated          = Handle_is_rk_use_gated(self);
         static char *kws[] = {"group", "timeout", NULL};
 
         PyErr_WarnEx(PyExc_DeprecationWarning,
@@ -619,7 +630,10 @@ PyObject *list_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &tmout))
                 return NULL;
 
-        if (!self->rk) {
+        if (gated) {
+                if (!Handle_enter_rk_use(self, ERR_MSG_HANDLE_CLOSED))
+                        return NULL;
+        } else if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
                 return NULL;
         }
@@ -645,6 +659,8 @@ end:
         if (group_list != NULL) {
                 rd_kafka_group_list_destroy(group_list);
         }
+        if (gated)
+                Handle_exit_rk_use(self);
         return result;
 }
 
