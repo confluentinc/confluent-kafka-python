@@ -681,9 +681,13 @@ class TestAsyncTransactions:
         topic = kafka_cluster.create_topic_and_wait_propogation("test_aio_txn_close_races_commit")
         producer = await _new_aio_producer(kafka_cluster, {'transactional.id': f'test-aio-txn-close-commit-{uuid1()}'})
 
-        await producer.init_transactions()
-        await producer.begin_transaction()
-        await producer.produce(topic, value=b'msg')
+        try:
+            await producer.init_transactions()
+            await producer.begin_transaction()
+            await producer.produce(topic, value=b'msg')
+        except Exception:
+            await producer.close()
+            raise
 
         commit_result, close_result = await asyncio.wait_for(
             asyncio.gather(producer.commit_transaction(), producer.close(), return_exceptions=True),
