@@ -41,7 +41,8 @@ from google.type import (
 
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
     FieldType,
@@ -73,6 +74,8 @@ __all__ = [
     '_is_builtin',
     'decimal_to_protobuf',
     'protobuf_to_decimal',
+    'variant_to_protobuf',
+    'protobuf_to_variant',
 ]
 
 # Convert an int to bytes (inverse of ord())
@@ -253,6 +256,7 @@ def _init_pool(pool: DescriptorPool):
 
     pool.AddSerializedFile(meta_pb2.DESCRIPTOR.serialized_pb)
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
+    pool.AddSerializedFile(variant_pb2.DESCRIPTOR.serialized_pb)
 
 
 def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
@@ -758,3 +762,32 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     else:
         decimal_context.prec = MAX_PREC
     return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)
+
+
+def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[name-defined]
+    """
+    Converts a Variant to a ``confluent.type.Variant`` Protobuf message.
+
+    Args:
+        value (Variant): The Variant to convert.
+
+    Returns:
+        The Protobuf value.
+    """
+    result = variant_pb2.Variant()  # type: ignore[attr-defined]
+    result.metadata = value.metadata
+    result.value = value.value
+    return result
+
+
+def protobuf_to_variant(value: variant_pb2.Variant) -> Variant:  # type: ignore[name-defined]
+    """
+    Converts a ``confluent.type.Variant`` Protobuf message to a Variant.
+
+    Args:
+        value (variant_pb2.Variant): The Protobuf value to convert.
+
+    Returns:
+        The Variant value.
+    """
+    return Variant(value.value, value.metadata)

@@ -85,6 +85,13 @@ class CelExecutor(RuleExecutor):
             ast = self._env.compile(expr)
             prog = self._env.program(ast, functions=self._funcs)
             self._cache.set(expr, script_type, schema, prog)
+        # `now` is bound lazily, fresh per evaluation. Only inject when the
+        # expression references it — substring check matches protovalidate-
+        # python's pattern. Each rule evaluation sees a freshly-captured UTC
+        # instant.
+        if "now" in expr and "now" not in args:
+            args["now"] = celtypes.TimestampType(
+                datetime.datetime.now(tz=datetime.timezone.utc))
         result = prog.evaluate(args)
         if isinstance(result, celtypes.BoolType):
             return bool(result)
