@@ -395,10 +395,13 @@ class TestCallbackReentrancy:
         kafka_cluster, this is purely about the executor/callback interaction."""
         error_cb_called = []
         reentrant_results = []
+        reentrant_attempted = False
 
         async def error_cb(err):
+            nonlocal reentrant_attempted
             error_cb_called.append(err)
-            if not reentrant_results:
+            if not reentrant_attempted:
+                reentrant_attempted = True
                 result = await producer.poll(0)
                 reentrant_results.append(result)
 
