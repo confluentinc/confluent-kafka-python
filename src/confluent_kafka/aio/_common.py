@@ -15,6 +15,7 @@
 import asyncio
 import concurrent.futures
 import contextlib
+import contextvars
 import functools
 import itertools
 import logging
@@ -25,9 +26,10 @@ from confluent_kafka import cimpl
 T = TypeVar('T')
 
 
-class ReentryIdentity:
-    """Internal use only. The identity AIOConsumer presents to the Consumer
-    reentrancy gate.
+class ReentryContext:
+    """Internal use only. Per-call-chain context AIOConsumer carries through
+    a ContextVar: the identity presented to the Consumer reentrancy gate, and
+    the lock serializing concurrent dispatches within one callback invocation.
 
     The sync Consumer uses the calling thread's ID as its gate identity, but
     that does not work for AIOConsumer: a call and the re-entrant calls its
@@ -38,7 +40,12 @@ class ReentryIdentity:
     -- see Handle_gate_enter() in Consumer.c.
     """
 
-    _var = cimpl._reentry_identity_var
+    # The ContextVar the C gate itself reads, defined in confluent_kafka.c.
+    _id_var = cimpl._reentry_identity_var
+
+    # Serializes concurrent/un-awaited calls dispatched from within the same
+    # callback invocation. Not used by C gate and only used by AIO Consumer.
+    _lock_var: contextvars.ContextVar = contextvars.ContextVar('reentry_lock_var', default=None)
 
     # Process-wide counter generating identities.
     _ctr = itertools.count(1)
@@ -48,31 +55,41 @@ class ReentryIdentity:
     _MASK = 0xFFFFFFFF
 
     @classmethod
-    def get_or_generate(cls) -> int:
+    def get_or_generate_id(cls) -> int:
         """Return the identity for an AIOConsumer call: the current context's
         identity for a re-entrant call, or a fresh one for a top-level call.
 
         Must be called on the event-loop thread, before dispatching to the
         executor.
         """
-        identity = cls.current()
+        identity = cls.current_id()
         if identity:
             return identity
         return (next(cls._ctr) & cls._MASK) or 1
 
     @classmethod
-    def current(cls) -> int:
+    def current_id(cls) -> int:
         """Return the identity of the call currently in flight, or 0 if none.
 
         Called on a worker thread from inside a gated call, to capture the
         identity that the enclosing call set.
         """
-        return cls._var.get()
+        return cls._id_var.get()
+
+    @classmethod
+    def current_lock(cls) -> Optional[asyncio.Lock]:
+        """Return the lock serializing calls dispatched concurrently from
+        the current callback invocation, or None for a top-level call.
+
+        Called on the event-loop thread, before dispatching to the executor.
+        """
+        return cls._lock_var.get()
 
     @classmethod
     @contextlib.contextmanager
-    def active(cls, identity: int) -> Iterator[None]:
-        """Present `identity` to the gate for the duration of the block.
+    def active(cls, identity: int, lock: Optional[asyncio.Lock] = None) -> Iterator[None]:
+        """Present `identity` (and, for a callback invocation, `lock`) to
+        the gate for the duration of the block.
 
         The identity is set here, inside the worker thread (or callback task)
         that makes the call, rather than before dispatching to the executor:
@@ -80,11 +97,13 @@ class ReentryIdentity:
         thread's Context is first established, so a set() on the event-loop
         thread would be invisible to later calls reusing the same worker.
         """
-        token = cls._var.set(identity)
+        active_id = cls._id_var.set(identity)
+        active_lock = cls._lock_var.set(lock)
         try:
             yield
         finally:
-            cls._var.reset(token)
+            cls._id_var.reset(active_id)
+            cls._lock_var.reset(active_lock)
 
 
 class AsyncLogger:
@@ -112,14 +131,14 @@ def wrap_callback(
 
         # Set by the enclosing call's wrapped_task before this callback
         # trampoline fired -- see AIOConsumer._call().
-        identity = ReentryIdentity.current()
+        identity = ReentryContext.current_id()
 
         async def _run_with_identity() -> Any:
-            # Tasks the callback spawns inherit this identity, so calls back into the
-            # Consumer must be awaited one at a time -- concurrent ones (gather,
-            # or an un-awaited create_task) would all be let through the gate.
-            # TODO NOGIL: Add support for concurrent and un-awaited calls
-            with ReentryIdentity.active(identity):
+            # A fresh lock per invocation. Concurrent calls from the
+            # callback inherit the ID and lock via context propagation
+            # to the tasks asyncio creates for them, so only one is ever
+            # dispatched to the gate at a time.
+            with ReentryContext.active(identity, asyncio.Lock()):
                 return await callback(*args, **kwargs)
 
         f = asyncio.run_coroutine_threadsafe(_run_with_identity(), loop)

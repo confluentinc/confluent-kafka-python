@@ -3,6 +3,8 @@
 import asyncio
 import concurrent.futures
 import itertools
+import threading
+import time
 from unittest.mock import Mock, patch
 
 import pytest
@@ -65,14 +67,14 @@ class TestAIOConsumer:
         """Test that _call method properly uses ThreadPoolExecutor for
         async-to-sync bridging, setting the identity presented to the
         Consumer gate on the reentry ContextVar before invoking it."""
-        mock_common.ReentryIdentity.get_or_generate.return_value = 42
+        mock_common.ReentryContext.get_or_generate_id.return_value = 42
         consumer = AIOConsumer(basic_config, max_workers=2)
 
         mock_method = Mock(return_value="test_result")
         result = await consumer._call(mock_method, "arg1", kwarg1="value1")
 
         mock_method.assert_called_once_with("arg1", kwarg1="value1")
-        mock_common.ReentryIdentity.active.assert_called_once_with(42)
+        mock_common.ReentryContext.active.assert_called_once_with(42)
         assert result == "test_result"
 
     @pytest.mark.asyncio
@@ -249,55 +251,171 @@ class TestAIOConsumer:
             await consumer._call(lambda: None)
 
             # Submitted directly to the same single-worker executor,
-            # bypassing _call()/ReentryIdentity entirely, to force reuse of
+            # bypassing _call()/ReentryContext entirely, to force reuse of
             # the same OS thread _call() just used.
             leaked = await asyncio.get_event_loop().run_in_executor(executor, cimpl._reentry_identity_var.get)
             assert leaked == 0, f"identity leaked into the worker thread's persistent context: {leaked}"
         finally:
             executor.shutdown(wait=True)
 
+    @pytest.mark.asyncio
+    async def test_call_acquires_and_releases_context_bound_lock(self, mock_consumer, basic_config):
+        """_call() must acquire the lock bound in the current context (as
+        wrap_callback binds one per callback invocation) around the
+        executor dispatch, and release it once the dispatch completes."""
+        consumer = AIOConsumer(basic_config, max_workers=2)
+        assert _common.ReentryContext.current_lock() is None
+        assert await consumer._call(lambda: "ok") == "ok"
 
-class TestReentryIdentity:
-    """Unit tests for confluent_kafka.aio._common.ReentryIdentity: the
+        lock = asyncio.Lock()
+        entered = threading.Event()
+        release = threading.Event()
+
+        def blocking_task():
+            entered.set()
+            release.wait(timeout=5)
+            return "done"
+
+        async def call_under_lock():
+            with _common.ReentryContext.active(_common.ReentryContext.get_or_generate_id(), lock):
+                return await consumer._call(blocking_task)
+
+        task = asyncio.create_task(call_under_lock())
+        await asyncio.get_event_loop().run_in_executor(None, entered.wait, 5)
+        assert lock.locked(), "the context-bound lock must be held while the dispatch is in flight"
+
+        release.set()
+        result = await task
+
+        assert result == "done"
+        assert not lock.locked(), "the lock must be released once the dispatch completes"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_reentrant_calls_sharing_lock_serialize(self, mock_consumer, basic_config):
+        """Two reentrant calls sharing the same callback-bound lock -- as
+        gather()/create_task() from within a callback produce, since both
+        inherit the same context -- must never run their blocking_task
+        concurrently.."""
+        consumer = AIOConsumer(basic_config, max_workers=3)
+        lock = asyncio.Lock()
+        identity = _common.ReentryContext.get_or_generate_id()
+
+        active_count = 0
+        max_active = 0
+        count_lock = threading.Lock()
+
+        def blocking_task():
+            nonlocal active_count, max_active
+            with count_lock:
+                active_count += 1
+                max_active = max(max_active, active_count)
+            time.sleep(0.1)
+            with count_lock:
+                active_count -= 1
+            return "ok"
+
+        async def reentrant_call():
+            return await consumer._call(blocking_task)
+
+        with _common.ReentryContext.active(identity, lock):
+            results = await asyncio.gather(reentrant_call(), reentrant_call())
+
+        assert results == ["ok", "ok"]
+        assert (
+            max_active == 1
+        ), f"blocking_task ran concurrently (max_active={max_active}) -- the lock failed to serialize"
+
+    @pytest.mark.asyncio
+    async def test_wrap_callback_binds_a_fresh_lock_per_invocation(self, mock_consumer, basic_config):
+        """wrap_callback's trampoline must bind a fresh asyncio.Lock per
+        invocation, visible to the wrapped callback via current_lock().
+        Two separate invocations (e.g. two separate rebalances) must not share
+        a lock with each other."""
+        consumer = AIOConsumer(basic_config, max_workers=2)
+        loop = asyncio.get_event_loop()
+        seen_locks = []
+
+        async def callback(*args, **kwargs):
+            seen_locks.append(_common.ReentryContext.current_lock())
+
+        wrapped = consumer._wrap_callback(loop, callback)
+
+        await loop.run_in_executor(None, wrapped)
+        await loop.run_in_executor(None, wrapped)
+
+        assert len(seen_locks) == 2
+        assert all(isinstance(lock, asyncio.Lock) for lock in seen_locks)
+        assert seen_locks[0] is not seen_locks[1], "each callback invocation must get its own fresh lock"
+
+
+class TestReentryContext:
+    """Unit tests for confluent_kafka.aio._common.ReentryContext: the
     identity AIOConsumer presents to the Consumer gate."""
 
-    def test_get_or_generate_returns_nonzero_and_distinct_identities(self):
+    def test_get_or_generate_id_returns_nonzero_and_distinct_identities(self):
         """Two independent (non-nested) top-level calls must each get their
         own fresh, nonzero identity -- 0 means "not set" to the gate."""
-        a = _common.ReentryIdentity.get_or_generate()
-        b = _common.ReentryIdentity.get_or_generate()
+        a = _common.ReentryContext.get_or_generate_id()
+        b = _common.ReentryContext.get_or_generate_id()
         assert a != 0 and b != 0
         assert a != b
 
-    def test_active_sets_current_reuses_for_get_or_generate_then_resets_on_exit(self):
+    def test_active_sets_current_id_reuses_for_get_or_generate_id_then_resets_on_exit(self):
         """active() must, for the duration of its block: (1) make the
-        identity visible via current(), and (2) have get_or_generate()
+        identity visible via current_id(), and (2) have get_or_generate_id()
         reuse it rather than generating a fresh one -- this is what lets a
         re-entrant call present the same identity through the gate. Once
         the block exits, it must reset the ContextVar rather than just
         setting it."""
-        assert _common.ReentryIdentity.current() == 0
-        with _common.ReentryIdentity.active(4242):
-            assert _common.ReentryIdentity.current() == 4242
-            assert _common.ReentryIdentity.get_or_generate() == 4242
-        assert _common.ReentryIdentity.current() == 0
+        assert _common.ReentryContext.current_id() == 0
+        with _common.ReentryContext.active(4242):
+            assert _common.ReentryContext.current_id() == 4242
+            assert _common.ReentryContext.get_or_generate_id() == 4242
+        assert _common.ReentryContext.current_id() == 0
 
     def test_active_nesting_restores_outer_identity(self):
-        with _common.ReentryIdentity.active(11):
-            with _common.ReentryIdentity.active(22):
-                assert _common.ReentryIdentity.current() == 22
-            assert _common.ReentryIdentity.current() == 11
-        assert _common.ReentryIdentity.current() == 0
+        with _common.ReentryContext.active(11):
+            with _common.ReentryContext.active(22):
+                assert _common.ReentryContext.current_id() == 22
+            assert _common.ReentryContext.current_id() == 11
+        assert _common.ReentryContext.current_id() == 0
 
     def test_generated_identity_stays_within_unsigned_long_mask(self, monkeypatch):
         """The gate stores an identity in a C unsigned long, 32-bit on
         Windows, so generated identities must always fit -- verified here
         by forcing the counter to the edge of that range and confirming it
         wraps instead of overflowing."""
-        monkeypatch.setattr(_common.ReentryIdentity, '_ctr', itertools.count(0xFFFFFFFE))
-        seen = [_common.ReentryIdentity.get_or_generate() for _ in range(5)]
+        monkeypatch.setattr(_common.ReentryContext, '_ctr', itertools.count(0xFFFFFFFE))
+        seen = [_common.ReentryContext.get_or_generate_id() for _ in range(5)]
         assert all(0 < i <= 0xFFFFFFFF for i in seen), seen
         # 0xFFFFFFFF + 1 wraps to 0, remapped to 1 (0 means unset); the next
         # draw masks to 1 too (0x100000001 & 0xFFFFFFFF == 1), so 1 appears
         # twice at the wrap before the sequence continues from 2.
         assert seen == [0xFFFFFFFE, 0xFFFFFFFF, 1, 1, 2], seen
+
+    def test_active_with_lock_binds_current_lock_then_resets_to_none(self):
+        lock = asyncio.Lock()
+        assert _common.ReentryContext.current_lock() is None
+        with _common.ReentryContext.active(1, lock):
+            assert _common.ReentryContext.current_lock() is lock
+        assert _common.ReentryContext.current_lock() is None
+
+    def test_active_nesting_with_lock_restores_outer_lock(self):
+        outer_lock = asyncio.Lock()
+        inner_lock = asyncio.Lock()
+        with _common.ReentryContext.active(1, outer_lock):
+            with _common.ReentryContext.active(2, inner_lock):
+                assert _common.ReentryContext.current_lock() is inner_lock
+            assert _common.ReentryContext.current_lock() is outer_lock
+        assert _common.ReentryContext.current_lock() is None
+
+    def test_active_without_lock_arg_clears_outer_lock_for_the_block(self):
+        """active() called without a lock argument does not preserve an
+        outer bound lock -- it explicitly clears it for the duration of
+        the block, then restores it on exit."""
+        lock = asyncio.Lock()
+        with _common.ReentryContext.active(1, lock):
+            assert _common.ReentryContext.current_lock() is lock
+            with _common.ReentryContext.active(2):
+                assert _common.ReentryContext.current_lock() is None
+            assert _common.ReentryContext.current_lock() is lock
