@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import io
+import threading as _locks
 from typing import Any, Callable, List, Optional, Set, Tuple, Union, cast
 
 from google.protobuf import descriptor_pb2, json_format
@@ -51,8 +52,10 @@ from confluent_kafka.schema_registry.serde import (
     BaseSerializer,
     ParsedSchemaCache,
     SchemaId,
+    clear_original_key,
+    set_original_key,
 )
-from confluent_kafka.serialization import SerializationContext, SerializationError
+from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 
 __all__ = [
     '_resolve_named_schema',
@@ -224,6 +227,7 @@ class ProtobufSerializer(BaseSerializer):
     __slots__ = [
         '_skip_known_types',
         '_known_subjects',
+        '_known_subjects_lock',
         '_msg_class',
         '_index_array',
         '_schema',
@@ -320,6 +324,7 @@ class ProtobufSerializer(BaseSerializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
+        self._known_subjects_lock = _locks.Lock()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
 
@@ -329,6 +334,8 @@ class ProtobufSerializer(BaseSerializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -404,6 +411,18 @@ class ProtobufSerializer(BaseSerializer):
         return self.__serialize(message, ctx)
 
     def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        try:
+            if message is None:
+                return None
+            return self.__serialize_impl(message, ctx)
+        finally:
+            # Track the key for use when serializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(message)
+            else:
+                clear_original_key()
+
+    def __serialize_impl(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -441,29 +460,40 @@ class ProtobufSerializer(BaseSerializer):
         if subject is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
+        # schema_id is kept as a local variable (rather than read back from self._schema_id)
+        # so that concurrent __serialize calls on a shared serializer instance can't clobber
+        # each other's result between this point and where it's used below.
+        schema_id = self._schema_id
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid, self._index_array)
+            self._schema_id = schema_id
 
         elif subject is not None and subject not in self._known_subjects and ctx is not None:
-            references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
-            self._schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
+            with self._known_subjects_lock:
+                if subject not in self._known_subjects:
+                    references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
+                    schema = Schema(self._schema.schema_str, self._schema.schema_type, references)
 
-            if self._auto_register:
-                registered_schema = self._registry.register_schema_full_response(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
-            else:
-                registered_schema = self._registry.lookup_schema(
-                    subject, self._schema, normalize_schemas=self._normalize_schemas
-                )
-                self._schema_id = SchemaId(
-                    PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
-                )
+                    if self._auto_register:
+                        registered_schema = self._registry.register_schema_full_response(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
+                    else:
+                        registered_schema = self._registry.lookup_schema(
+                            subject, schema, normalize_schemas=self._normalize_schemas
+                        )
+                        schema_id = SchemaId(
+                            PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid, self._index_array
+                        )
 
-            self._known_subjects.add(subject)
+                    self._schema = schema
+                    self._known_subjects.add(subject)
+                    self._schema_id = schema_id
+                else:
+                    schema_id = self._schema_id
 
         if latest_schema is not None:
             fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
@@ -480,8 +510,8 @@ class ProtobufSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            if self._schema_id is not None:
-                self._schema_id.message_indexes = self._index_array
+            if schema_id is not None:
+                schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None and ctx is not None and subject is not None:
@@ -489,7 +519,7 @@ class ProtobufSerializer(BaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE, None, latest_schema.schema, buffer, None, None
                 )
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -627,6 +657,8 @@ class ProtobufDeserializer(BaseDeserializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
+        for action in self._rule_registry.get_actions():
+            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -634,6 +666,18 @@ class ProtobufDeserializer(BaseDeserializer):
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        try:
+            if data is None:
+                return None
+            return self.__deserialize_impl(data, ctx)
+        finally:
+            # Track the key for use when deserializing the value, such as for a DLQ
+            if ctx is not None and ctx.field == MessageField.KEY:
+                set_original_key(data)
+            else:
+                clear_original_key()
+
+    def __deserialize_impl(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -696,7 +740,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         if ctx is not None and subject is not None:
             payload = self._execute_rules_with_phase(
-                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None, data
             )
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
@@ -742,7 +786,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         if ctx is not None and subject is not None:
             msg = self._execute_rules(
-                ctx, subject, RuleMode.READ, None, reader_schema_raw, msg, None, field_transformer
+                ctx, subject, RuleMode.READ, None, reader_schema_raw, msg, None, field_transformer, data
             )
         return msg
 
