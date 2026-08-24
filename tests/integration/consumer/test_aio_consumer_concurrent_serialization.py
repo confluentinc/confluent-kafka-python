@@ -251,14 +251,15 @@ async def test_gathered_reentrant_calls_from_callback_serialize(kafka_cluster):
     await consumer.close()
 
 
-async def test_unawaited_create_task_from_callback_serializes(kafka_cluster):
+async def test_joined_create_task_from_callback_serializes(kafka_cluster):
     """Same shape as test_gathered_reentrant_calls_from_callback_serialize,
     but after completing the required incremental_assign(), on_assign fires one
     consume() call via create_task() without immediately awaiting it, makes
     its own reentrant consume() call directly, and only awaits the created
-    task afterward. Must still serialize."""
+    task afterward -- i.e. the task is created early but still joined before
+    the callback returns. Must still serialize."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
-        "test_unawaited_task_reentrant_serialize", conf={'num_partitions': 4}
+        "test_joined_task_reentrant_serialize", conf={'num_partitions': 4}
     )
 
     consumer = await _new_aio_consumer(kafka_cluster, {'partition.assignment.strategy': 'cooperative-sticky'})
@@ -281,9 +282,49 @@ async def test_unawaited_create_task_from_callback_serializes(kafka_cluster):
     print(f"elapsed={elapsed}, result={result}")
     assert elapsed, "on_assign was never invoked"
     assert elapsed[0] >= 2.0, (
-        f"the un-awaited create_task() call and the direct reentrant call completed in "
+        f"the created-but-not-yet-awaited task and the direct reentrant call completed in "
         f"{elapsed[0]:.2f}s -- too fast to have been serialized (each blocks ~1.0s with "
         f"nothing to consume, so a genuinely serialized pair must take >= 2.0s)"
+    )
+    assert len(result) == 4, f"expected all 4 partitions assigned, got {result}"
+
+    await consumer.close()
+
+
+async def test_detached_create_task_from_callback_still_serializes_afterward(kafka_cluster):
+    """on_assign fires a consume() call via create_task() and returns
+    WITHOUT ever awaiting it. This lets the top-level poll() that invoked
+    on_assign fully return and release the gate while the detached call may
+    still be in flight (dispatched with on_assign's identity, on its own executor worker)."""
+    topic = kafka_cluster.create_topic_and_wait_propogation(
+        "test_detached_task_reentrant_serialize", conf={'num_partitions': 4}
+    )
+
+    consumer = await _new_aio_consumer(kafka_cluster, {'partition.assignment.strategy': 'cooperative-sticky'})
+
+    detached_tasks = []
+
+    async def on_assign(consumer, partitions):
+        await consumer.incremental_assign(partitions)
+        detached_tasks.append(asyncio.create_task(consumer.consume(num_messages=1, timeout=1.0)))
+
+    await consumer.subscribe([topic], on_assign=on_assign)
+    await consumer.poll(10)
+
+    assert detached_tasks, "on_assign was never invoked"
+
+    t0 = time.time()
+    await consumer.consume(num_messages=1, timeout=1.0)
+    elapsed = time.time() - t0
+
+    result = await consumer.assignment()
+    await detached_tasks[0]  # join it before close() so nothing is left dangling
+
+    print(f"elapsed={elapsed:.2f}s, result={result}")
+    assert elapsed >= 1.0, (
+        f"the unrelated call issued right after poll() returned completed in {elapsed:.2f}s -- "
+        f"too fast to have waited for on_assign's still-in-flight detached call, meaning the "
+        f"gate let them run concurrently"
     )
     assert len(result) == 4, f"expected all 4 partitions assigned, got {result}"
 
