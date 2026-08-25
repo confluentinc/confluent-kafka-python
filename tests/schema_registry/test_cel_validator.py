@@ -844,3 +844,45 @@ def test_written_wrapper_is_the_value_it_holds(validator):
     assert validator.execute(rule("has(this.name)"), descriptor, written) is True
     empty = message_factory.GetMessageClass(descriptor)()
     assert validator.execute(rule("has(this.name)"), descriptor, empty) is False
+
+
+# --------------------------------------------------------------------------------------
+# string(timestamp) renders the sub-second component
+#
+# celpy's TimestampType.__str__ formats with strftime("%Y-%m-%dT%H:%M:%S%z") -- no %f -- so it
+# dropped the fraction entirely: string(timestamp("...T22:13:20.123Z")) came back as
+# "2023-11-14T22:13:20Z". The stored value was always correct (comparisons and getMilliseconds()
+# agreed with the other clients), so this was a silent rendering divergence rather than an error.
+# decimal_funcs._string now routes a Timestamp through timestamp_funcs.format_timestamp.
+#
+# Every expectation below is the verbatim output of the Java reference for the same expression.
+@pytest.mark.parametrize(
+    ("expr", "expected"),
+    [
+        ("string(timestamp(1700000000, 0))", "2023-11-14T22:13:20Z"),
+        ("string(timestamp(1700000000123, 3))", "2023-11-14T22:13:20.123Z"),
+        ("string(timestamp(1700000000123456, 6))", "2023-11-14T22:13:20.123456Z"),
+        # A whole millisecond keeps its trailing zeros (3-digit group), not ".1Z".
+        ("string(timestamp(1700000000100, 3))", "2023-11-14T22:13:20.100Z"),
+        ("string(timestamp('2023-11-14T22:13:20.5Z'))", "2023-11-14T22:13:20.500Z"),
+        # A zero fraction emits no decimal point at all.
+        ("string(timestamp(1700000000000, 3))", "2023-11-14T22:13:20Z"),
+        ("string(timestamp(0))", "1970-01-01T00:00:00Z"),
+        # Pre-epoch, where the fraction is a non-negative nano-of-second.
+        ("string(timestamp(-1500, 3))", "1969-12-31T23:59:58.500Z"),
+        # Rendered in UTC with a Z suffix whatever offset the literal carried.
+        ("string(timestamp('2020-01-01T00:00:00+05:00'))", "2019-12-31T19:00:00Z"),
+    ],
+)
+def test_string_timestamp_renders_subsecond(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+def test_string_timestamp_nanos_limited_to_microseconds(validator):
+    # datetime's resolution is one microsecond, so a nanosecond-precision value renders 6 digits
+    # where Java renders 9 (".123456789Z"). That is the same pre-existing limit that floors the
+    # value itself in timestamp_funcs._from_epoch, not something the formatting introduces.
+    assert (
+        validator.execute(rule("string(timestamp(1700000000123456789, 9))"), None, 1)
+        == "2023-11-14T22:13:20.123456Z"
+    )
