@@ -294,7 +294,6 @@ async def test_joined_create_task_from_callback_serializes(kafka_cluster):
     await consumer.close()
 
 
-<<<<<<< HEAD
 async def test_detached_create_task_from_callback_still_serializes_afterward(kafka_cluster):
     """on_assign fires a consume() call via create_task() and returns
     WITHOUT ever awaiting it. The detached call outlives its callback
