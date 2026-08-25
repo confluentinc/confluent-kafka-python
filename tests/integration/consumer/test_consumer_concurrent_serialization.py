@@ -26,6 +26,7 @@ waits (GIL released) until the gate frees up, then proceeds -- unless it's
 the same thread re-entering, which is admitted immediately.
 """
 
+import random
 import threading
 import time
 from uuid import uuid1
@@ -429,5 +430,102 @@ def test_callback_makes_multiple_reentrant_calls(kafka_cluster):
     ], f"expected all 5 re-entrant calls to run in order, got: {calls_made}"
     assert msg is not None
     assert msg.value() == b'hello'
+
+    consumer.close()
+
+
+def test_list_topics_racing_close(kafka_cluster):
+    """consumer.list_topics() is a common API that routes through the dispatcher,
+    which for a Consumer takes the serialize gate. A worker hammers
+    list_topics() while the main thread closes the consumer at a randomized
+    moment; across many rounds every call must return metadata or, once the
+    consumer is closed, raise cleanly -- never crash or hang."""
+    rounds = 20
+    errors = []
+
+    for r in range(rounds):
+        consumer = _new_consumer(kafka_cluster)
+        start = threading.Barrier(2)
+        stop = threading.Event()
+
+        def worker(consumer=consumer, start=start, stop=stop, r=r):
+            try:
+                start.wait()
+                while not stop.is_set():
+                    try:
+                        consumer.list_topics(timeout=1)
+                    except RuntimeError as e:
+                        assert "Handle has been closed" in str(e), f"round {r}: unexpected RuntimeError: {e!r}"
+                        break
+            except Exception as e:  # noqa: BLE001
+                errors.append((r, e))
+
+        t = threading.Thread(target=worker)
+        t.start()
+        start.wait()
+        time.sleep(random.uniform(0.0, 0.05))
+        consumer.close()
+        stop.set()
+        t.join(timeout=10)
+        assert not t.is_alive(), f"round {r}: worker thread hung after close()"
+
+    assert not errors, f"unexpected errors racing list_topics() vs close(): {errors}"
+
+
+def test_list_topics_serializes_with_poll(kafka_cluster):
+    """list_topics() takes the same serialize gate as poll(), so the two
+    colliding on one shared Consumer must serialize. poll() enters the gate
+    first and holds it for its full 10s, list_topics() arrives second and
+    must wait behind it. Both then succeed and the consumer stays usable."""
+    consumer, topic, _msg, _partitions = _subscribed_consumer(kafka_cluster, "test_list_topics_vs_poll", [b'hello'])
+
+    poll_error = None
+    list_error = None
+    list_result = None
+    list_elapsed = None
+
+    def do_poll():
+        nonlocal poll_error
+        try:
+            consumer.poll(10)
+        except Exception as e:  # noqa: BLE001
+            poll_error = e
+
+    def do_list_topics():
+        nonlocal list_error, list_result, list_elapsed
+        # Let poll() enter the gate first, so list_topics() must wait for it.
+        time.sleep(0.5)
+        t0 = time.time()
+        try:
+            list_result = consumer.list_topics(timeout=2)
+        except Exception as e:  # noqa: BLE001
+            list_error = e
+        list_elapsed = time.time() - t0
+
+    t_poll = threading.Thread(target=do_poll)
+    t_list = threading.Thread(target=do_list_topics)
+    t_poll.start()
+    t_list.start()
+    t_poll.join()
+    t_list.join()
+
+    print(f"poll_error={poll_error}, list_error={list_error}, list_elapsed={list_elapsed}")
+    assert poll_error is None, f"poll() unexpectedly failed: {poll_error!r}"
+    assert list_error is None, f"expected list_topics() to wait and then succeed, got: {list_error!r}"
+    assert list_result is not None and topic in list_result.topics, "list_topics() did not return the expected metadata"
+    # poll() holds the gate for ~10s; list_topics() (2s timeout) started right
+    # after and had to wait behind it, so its wall time must far exceed its own
+    # timeout -- proof the gate serialized them rather than letting them overlap.
+    assert list_elapsed >= 5.0, (
+        f"list_topics() returned in {list_elapsed:.2f}s -- too fast to have "
+        f"waited behind poll()'s gate hold; the two did not serialize"
+    )
+
+    # The consumer must remain usable afterward -- verify with a real poll().
+    kafka_cluster.seed_topic(topic, value_source=[b'world'])
+    msg2 = consumer.poll(5)
+    print(f"final poll after colliding list_topics()/poll(): {msg2.value() if msg2 else None}")
+    assert msg2 is not None
+    assert msg2.value() == b'world'
 
     consumer.close()
