@@ -258,10 +258,6 @@ class TestAIOConsumer:
         finally:
             executor.shutdown(wait=True)
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> cb4a67a8 (Fix for serializing concurrent calls from a Async callback)
     @pytest.mark.asyncio
     async def test_call_acquires_and_releases_context_bound_lock(self, mock_consumer, basic_config):
         """_call() must acquire the lock bound in the current context (as
