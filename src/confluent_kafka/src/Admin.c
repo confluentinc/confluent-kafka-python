@@ -38,8 +38,8 @@
  *
  ****************************************************************************/
 
-static int Admin_enter_rk_use(Handle *self) {
-        return Handle_enter_rk_use(self, ERR_MSG_ADMIN_CLIENT_CLOSED);
+static int Admin_rk_use_begin(Handle *self) {
+        return Handle_rk_use_begin(self, ERR_MSG_ADMIN_CLIENT_CLOSED);
 }
 
 
@@ -592,7 +592,7 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATETOPICS,
@@ -700,7 +700,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -736,7 +736,7 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETETOPICS,
@@ -808,7 +808,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -852,7 +852,7 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEPARTITIONS,
@@ -939,7 +939,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -977,7 +977,7 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS,
@@ -1072,7 +1072,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1115,7 +1115,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
                             &options.validate_only))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(
@@ -1234,7 +1234,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1279,7 +1279,7 @@ Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.validate_only))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
@@ -1390,7 +1390,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1438,7 +1438,7 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -1501,7 +1501,7 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_DECREF(AclBinding_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_objs) {
@@ -1515,7 +1515,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -1565,7 +1565,7 @@ Admin_describe_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -1618,7 +1618,7 @@ Admin_describe_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AclBinding_destroy(c_obj);
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (AclBindingFilter_type)
@@ -1628,7 +1628,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -1685,7 +1685,7 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -1748,7 +1748,7 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_objs) {
@@ -1762,7 +1762,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -1862,7 +1862,7 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -1899,7 +1899,7 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_states) {
@@ -1913,7 +1913,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
@@ -1957,7 +1957,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
                 return NULL;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         c_options = Admin_options_to_c(
@@ -2034,7 +2034,7 @@ done:
         if (future_incremented && !result)
                 Py_DECREF(future);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -2140,7 +2140,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2330,7 +2330,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         Py_DECREF(UserScramCredentialDeletion_type);   /* from lookup() */
         Py_DECREF(ScramCredentialInfo_type);           /* from lookup() */
         Py_DECREF(ScramMechanism_type);                /* from lookup() */
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
 
@@ -2357,7 +2357,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -2435,7 +2435,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 Py_XDECREF(uogroup);
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2471,7 +2471,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_groups) {
@@ -2482,7 +2482,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -2567,7 +2567,7 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2607,7 +2607,7 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_topics) {
@@ -2621,7 +2621,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -2665,7 +2665,7 @@ Admin_describe_cluster(Handle *self, PyObject *args, PyObject *kwargs) {
                             &options.include_authorized_operations))
                 goto err;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2697,7 +2697,7 @@ Admin_describe_cluster(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_options) {
@@ -2705,7 +2705,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -2744,7 +2744,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2810,7 +2810,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_delete_group_ids);
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_delete_group_ids) {
@@ -2822,7 +2822,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -2871,7 +2871,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                             &options.require_stable_offsets))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -2965,7 +2965,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_topic_partitions) {
@@ -2986,7 +2986,7 @@ err:
         Py_XDECREF(topic_partitions);
         Py_XDECREF(ConsumerGroupTopicPartitions_type);
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -3030,7 +3030,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -3123,7 +3123,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_obj) {
@@ -3144,7 +3144,7 @@ err:
         Py_XDECREF(topic_partitions);
         Py_XDECREF(ConsumerGroupTopicPartitions_type);
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -3179,7 +3179,7 @@ PyObject *Admin_list_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -3220,7 +3220,7 @@ PyObject *Admin_list_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_options) {
@@ -3228,7 +3228,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -3266,7 +3266,7 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -3314,7 +3314,7 @@ PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
         Py_XDECREF(topic_partition_offsets);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
         if (c_obj) {
@@ -3331,7 +3331,7 @@ err:
         }
         Py_XDECREF(topic_partition_offsets);
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -3372,7 +3372,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 goto err;
         entered_rk_use = 1;
 
@@ -3428,7 +3428,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_ElectLeaders_destroy(c_elect_leaders);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         Py_RETURN_NONE;
 
 err:
@@ -3440,7 +3440,7 @@ err:
                 Py_DECREF(future);
         }
         if (entered_rk_use)
-                Handle_exit_rk_use(self);
+                Handle_rk_use_end(self);
         return NULL;
 }
 
@@ -3483,12 +3483,12 @@ static PyObject *Admin_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "d", kws, &tmout))
                 return NULL;
 
-        if (!Admin_enter_rk_use(self))
+        if (!Admin_rk_use_begin(self))
                 return NULL;
 
         r = Admin_poll0(self, (int)(tmout * 1000));
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         if (r == -1)
                 return NULL;
@@ -3541,12 +3541,12 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
                 return NULL;
         }
 
-        /* Record which thread won, so Handle_enter_rk_use() can let a
+        /* Record which thread won, so Handle_rk_use_begin() can let a
          * reentrant call from this same thread through while we tear down. */
         atomic_ulong_set(&self->closing_thread, PyThread_get_thread_ident());
 
         /* Signal in-flight calls to stop, and wait for them to finish using
-         * self->rk before destroying it -- see Handle_enter_rk_use(). New
+         * self->rk before destroying it -- see Handle_rk_use_begin(). New
          * calls will see `closing` and fail with
          * ERR_MSG_ADMIN_CLIENT_CLOSED. */
         while (atomic_int_get(&self->active_calls) > 0) {
@@ -3705,7 +3705,7 @@ static PyMethodDef Admin_methods[] = {
 static Py_ssize_t Admin__len__(Handle *self) {
         Py_ssize_t len;
 
-        /* __len__ must never raise, so we can't use Handle_enter_rk_use()
+        /* __len__ must never raise, so we can't use Handle_rk_use_begin()
          * (which sets an exception on failure) -- fall back to returning 0
          * if the Handle is closed/closing. */
         if (atomic_int_get(&self->closing) || !self->rk)

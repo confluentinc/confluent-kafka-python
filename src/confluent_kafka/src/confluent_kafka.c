@@ -3359,11 +3359,11 @@ void CallState_crash(CallState *cs) {
  *        e.g. ERR_MSG_PRODUCER_CLOSED (Producer) or
  *        ERR_MSG_ADMIN_CLIENT_CLOSED (Admin).
  * @returns 1 if self->rk is safe to use (active_calls has been
- *          incremented; caller must call Handle_exit_rk_use() on every
+ *          incremented; caller must call Handle_rk_use_end() on every
  *          return path), or 0 with a RuntimeError(err_msg) set if the
  *          Handle is closed/closing (nothing to undo).
  */
-int Handle_enter_rk_use(Handle *h, const char *err_msg) {
+int Handle_rk_use_begin(Handle *h, const char *err_msg) {
         unsigned long self_tid = PyThread_get_thread_ident();
 
         if ((atomic_int_get(&h->closing) &&
@@ -3386,16 +3386,16 @@ int Handle_enter_rk_use(Handle *h, const char *err_msg) {
 }
 
 /**
- * @brief Counterpart to Handle_enter_rk_use(): call on every return path
- *        after a successful Handle_enter_rk_use().
+ * @brief Counterpart to Handle_rk_use_begin(): call on every return path
+ *        after a successful Handle_rk_use_begin().
  */
-void Handle_exit_rk_use(Handle *h) {
+void Handle_rk_use_end(Handle *h) {
         atomic_int_dec(&h->active_calls);
 }
 
 /**
  * @brief Whether this Handle guards self->rk with the active_calls/closing
- *        gate (Handle_enter_rk_use()/Handle_exit_rk_use()).
+ *        gate (Handle_rk_use_begin()/Handle_rk_use_end()).
  *
  * True for the Producer and Admin clients; false for the
  * Consumer/ShareConsumer, which serialize access through their own
@@ -3444,7 +3444,7 @@ int Handle_sleep(Handle *h, int duration_ms) {
  * @returns 1 once the gate is held, or 0 with a Python exception set if a
  *          signal (e.g. KeyboardInterrupt) arrived while waiting.
  */
-int Handle_gate_enter(Handle *h) {
+int Handle_serialize_enter(Handle *h) {
         unsigned long identity = 0;
         PyObject *value        = NULL;
 
@@ -3490,10 +3490,10 @@ int Handle_gate_enter(Handle *h) {
 }
 
 /**
- * @brief Counterpart to Handle_gate_enter(): call once per successful
- *        Handle_gate_enter(), on every return path.
+ * @brief Counterpart to Handle_serialize_enter(): call once per successful
+ *        Handle_serialize_enter(), on every return path.
  */
-void Handle_gate_exit(Handle *h) {
+void Handle_serialize_exit(Handle *h) {
         int depth = atomic_int_dec(&h->u.Consumer.gate_depth);
         assert(depth >= 0);
 
@@ -3520,14 +3520,14 @@ void Handle_gate_exit(Handle *h) {
  */
 int Handle_common_enter(Handle *h) {
         if (Handle_is_rk_use_gated(h))
-                return Handle_enter_rk_use(h, ERR_MSG_HANDLE_CLOSED);
+                return Handle_rk_use_begin(h, ERR_MSG_HANDLE_CLOSED);
 
         /* Consumer: serialize via the Consumer gate, then verify rk (the
          * gate itself does not NULL-check it). */
-        if (!Handle_gate_enter(h))
+        if (!Handle_serialize_enter(h))
                 return 0; /* signal while waiting; exception already set */
         if (!h->rk) {
-                Handle_gate_exit(h);
+                Handle_serialize_exit(h);
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
                 return 0;
         }
@@ -3540,9 +3540,9 @@ int Handle_common_enter(Handle *h) {
  */
 void Handle_common_exit(Handle *h) {
         if (Handle_is_rk_use_gated(h))
-                Handle_exit_rk_use(h);
+                Handle_rk_use_end(h);
         else
-                Handle_gate_exit(h);
+                Handle_serialize_exit(h);
 }
 
 
@@ -4209,7 +4209,7 @@ static PyObject *_init_cimpl(void) {
                            ConcurrentModificationException);
 
         /* ContextVar carrying the identity AIOConsumer presents to the
-         * Consumer gate for the current call -- see Handle_gate_enter()
+         * Consumer gate for the current call -- see Handle_serialize_enter()
          * in Consumer.c and confluent_kafka.aio._common. */
         PyObject *zero = PyLong_FromLong(0);
         if (!zero)
