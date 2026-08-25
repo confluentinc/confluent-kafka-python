@@ -457,17 +457,6 @@ void CallState_begin(Handle *h, CallState *cs);
 int CallState_end(Handle *h, CallState *cs);
 
 /**
- * @brief Mark self->rk as in-use by the calling thread.
- * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
- *          return path), 0 with ERR_MSG_PRODUCER_CLOSED set otherwise.
- */
-int Handle_enter_rk_use(Handle *h);
-/**
- * @brief Counterpart to Handle_enter_rk_use().
- */
-void Handle_exit_rk_use(Handle *h);
-
-/**
  * @brief Get the current thread's CallState and re-locks the GIL.
  */
 CallState *CallState_get(Handle *h);
@@ -480,6 +469,61 @@ void CallState_resume(CallState *cs);
  * @brief Indicate that call crashed.
  */
 void CallState_crash(CallState *cs);
+
+/**
+ * @brief Mark self->rk as in-use by the calling thread, blocking a
+ *        concurrent close()/__exit__() from freeing it until the matching
+ *        Handle_exit_rk_use(). Used by the gated clients (Producer, Admin).
+ * @param err_msg exception text to raise if the Handle is closed/closing,
+ *        e.g. ERR_MSG_PRODUCER_CLOSED or ERR_MSG_ADMIN_CLIENT_CLOSED.
+ * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
+ *          return path), 0 with a RuntimeError(err_msg) set otherwise.
+ */
+int Handle_enter_rk_use(Handle *h, const char *err_msg);
+/**
+ * @brief Counterpart to Handle_enter_rk_use().
+ */
+void Handle_exit_rk_use(Handle *h);
+
+/**
+ * @brief Release the GIL, sleep for `duration_ms`, then re-acquire it -- one
+ *        interruptible wait tick, used by close()/__exit__() teardown drain
+ *        loops and by the Consumer gate while it waits its turn.
+ * @param duration_ms sleep duration in milliseconds; intended for sub-second
+ *        waits.
+ * @returns 1 if the tick completed normally, 0 if a Python signal was
+ *          raised or a callback crashed while the GIL was released (the
+ *          caller should stop waiting and propagate the error).
+ */
+int Handle_sleep(Handle *h, int duration_ms);
+
+/**
+ * @brief Consumer serializing gate: only one caller at a time inside gated
+ *        Consumer C code (re-entrant calls of the same identity nest via
+ *        gate_depth).
+ * @returns 1 once held (caller must call Handle_gate_exit()), or 0 with a
+ *          Python exception set if a signal arrived while waiting.
+ */
+int Handle_gate_enter(Handle *h);
+/**
+ * @brief Counterpart to Handle_gate_enter().
+ */
+void Handle_gate_exit(Handle *h);
+
+/**
+ * @brief Entry guard for the client-agnostic APIs (list_topics(),
+ *        list_groups(), set_sasl_credentials()): takes the rk-use gate for
+ *        Producer/Admin (parallel calls) or the Consumer serializing gate
+ *        for the Consumer. Validates self->rk on both paths, raising
+ *        ERR_MSG_HANDLE_CLOSED if the handle is closed.
+ * @returns 1 if safe to use self->rk (caller must call Handle_common_exit()
+ *          on every return path), or 0 with a Python exception set.
+ */
+int Handle_common_enter(Handle *h);
+/**
+ * @brief Counterpart to Handle_common_enter().
+ */
+void Handle_common_exit(Handle *h);
 
 
 /**

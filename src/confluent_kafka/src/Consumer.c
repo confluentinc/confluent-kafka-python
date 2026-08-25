@@ -27,12 +27,6 @@
 
 #include "confluent_kafka.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
-
 
 /****************************************************************************
  *
@@ -43,85 +37,6 @@
  *
  *
  ****************************************************************************/
-
-/**
- * @brief Serializing gate: only one caller may be inside gated Consumer C
- *        code at a time. For the sync Consumer the identity is always the
- *        calling thread's own ID. For AIOConsumer this is a temporary ID
- *        generated when the method is called.
- *
- *        If the gate is unowned, the identity becomes the owner. If
- *        identity already matches the current owner, this is a legitimate
- *        re-entrant call (gate_depth is incremented). Any other identity
- *        waits for the gate to free up, retrying at a fixed interval.
- *
- * @returns 1 once the gate is held, or 0 with a Python exception set if a
- *          signal (e.g. KeyboardInterrupt) arrived while waiting.
- */
-static int Handle_gate_enter(Handle *h) {
-        unsigned long identity = 0;
-        PyObject *value        = NULL;
-
-        if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) ==
-            -1)
-                return 0;
-
-        if (value && PyLong_Check(value))
-                identity = PyLong_AsUnsignedLong(value);
-        Py_XDECREF(value);
-
-        /* 0 is never a legitimate identity (neither a real thread ID nor a
-         * generated AIOConsumer identity), so treat it the same as "not set".
-         */
-        if (identity == 0)
-                identity = (unsigned long)PyThread_get_thread_ident();
-
-        while (1) {
-                unsigned long owner =
-                    atomic_ulong_get(&h->u.Consumer.gate_owner);
-
-                if (owner == identity) {
-                        /* Re-entrant call presenting the same identity that
-                         * already owns the gate.
-                         */
-                        atomic_int_inc(&h->u.Consumer.gate_depth);
-                        return 1;
-                }
-
-                if (owner == 0 &&
-                    atomic_ulong_cas(&h->u.Consumer.gate_owner, 0,
-                                     identity)) {
-                        /* Gate looked unowned and we won the race to take
-                         * it. */
-                        atomic_int_set(&h->u.Consumer.gate_depth, 1);
-                        return 1;
-                }
-
-                /* Someone else holds the gate: wait for it. */
-                CallState cs;
-                CallState_begin(h, &cs);
-                /* TODO NOGIL: Create function for below */
-#ifdef _WIN32
-                Sleep(1);
-#else
-                usleep(1000);
-#endif
-                if (!CallState_end(h, &cs))
-                        return 0; /* signal received, e.g. KeyboardInterrupt */
-        }
-}
-
-/**
- * @brief Counterpart to Handle_gate_enter(): call once per successful
- *        Handle_gate_enter(), on every return path.
- */
-static void Handle_gate_exit(Handle *h) {
-        int depth = atomic_int_dec(&h->u.Consumer.gate_depth);
-        assert(depth >= 0);
-
-        if (depth == 0)
-                atomic_ulong_set(&h->u.Consumer.gate_owner, 0);
-}
 
 static void Consumer_clear0(Handle *self) {
         if (self->u.Consumer.on_assign) {
