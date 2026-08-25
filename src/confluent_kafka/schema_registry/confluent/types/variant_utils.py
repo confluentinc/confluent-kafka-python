@@ -232,8 +232,35 @@ def _format_local_datetime(total_nanos: int) -> str:
         dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, _frac_nanos(nano))
 
 
+# The range a TIME may occupy, in microseconds since midnight: 00:00:00 through 23:59:59.999999.
+# RFC 3339's partial-time requires time-hour = 2DIGIT in 00-23, so a value at or past 24 hours (or
+# negative) has no valid form. A variant TIME is an int64 of microseconds, so those are reachable
+# and are refused rather than rendered.
+_MIN_TIME_MICROS = 0
+_MAX_TIME_MICROS = 86_400_000_000 - 1
+
+# The range a DATE may occupy, in days since the epoch: 0001-01-01 through 9999-12-31. RFC 3339's
+# full-date requires date-fullyear = 4DIGIT, so an expanded or negative year is not a valid
+# full-date. (Python's `date` already refuses those, but with an opaque OverflowError/ValueError;
+# checking explicitly keeps the message and the bound the same as every other client's.)
+_MIN_DATE_EPOCH_DAY = -719162
+_MAX_DATE_EPOCH_DAY = 2932896
+
+
+def _check_date_range(epoch_day: int) -> int:
+    if epoch_day < _MIN_DATE_EPOCH_DAY or epoch_day > _MAX_DATE_EPOCH_DAY:
+        raise VariantError(
+            "date epoch day (%d) must be in range [%d, %d]"
+            % (epoch_day, _MIN_DATE_EPOCH_DAY, _MAX_DATE_EPOCH_DAY))
+    return epoch_day
+
+
 def _format_local_time(micros: int) -> str:
     """ISO local time, seconds always present (see :func:`_format_local_datetime`)."""
+    if micros < _MIN_TIME_MICROS or micros > _MAX_TIME_MICROS:
+        raise VariantError(
+            "time microseconds of day (%d) must be in range [%d, %d]"
+            % (micros, _MIN_TIME_MICROS, _MAX_TIME_MICROS))
     nano_of_day = micros * 1000
     seconds, nano = divmod(nano_of_day, 1_000_000_000)
     hour, rem = divmod(seconds, 3600)
@@ -579,7 +606,8 @@ class Variant:
             # Fixed-point (never scientific), matching Java's toPlainString contract.
             return format(self.get_decimal(), "f")
         if t == VariantType.DATE:
-            return '"' + (_EPOCH_DATE + datetime.timedelta(days=self.get_long())).isoformat() + '"'
+            return '"' + (_EPOCH_DATE + datetime.timedelta(
+                days=_check_date_range(self.get_long()))).isoformat() + '"'
         if t == VariantType.TIMESTAMP_TZ:
             return '"' + _format_instant(self.get_long() * 1000) + '"'
         if t == VariantType.TIMESTAMP_NTZ:

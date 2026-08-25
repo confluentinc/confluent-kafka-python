@@ -181,6 +181,40 @@ def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
     return _BASE_TIMESTAMP(*args)
 
 
+def format_timestamp(t: Datetime) -> str:
+    """Render a timestamp the way every other client's ``string(...)`` does.
+
+    celpy's ``TimestampType.__str__`` formats with
+    ``strftime("%Y-%m-%dT%H:%M:%S%z")`` -- no ``%f`` -- so it drops the
+    sub-second component entirely: ``string(timestamp("...T22:13:20.123Z"))``
+    came back as ``2023-11-14T22:13:20Z``. The stored value was always right
+    (comparisons and ``getMilliseconds()`` agreed with the other clients);
+    only the rendering was lossy, which made it a silent divergence rather
+    than an error.
+
+    The fraction is emitted in whole 3-digit groups, matching protobuf's
+    ``Timestamps.toString`` (the Java reference) and the Go, C++, JS and C#
+    clients: no fraction when it is zero, otherwise 3 digits when the value is
+    a whole millisecond and 6 when it is not. Java also has a 9-digit
+    (nanosecond) group, which ``datetime`` cannot represent -- its resolution
+    is one microsecond -- so a nanosecond-precision value renders 6 digits
+    here. That is the same pre-existing limit that floors the value itself in
+    :func:`_from_epoch`, not something this formatting introduces.
+
+    The instant is rendered in UTC with a ``Z`` suffix regardless of the
+    offset it carries, as the Java reference does.
+    """
+    utc = t.astimezone(timezone.utc)
+    text = utc.strftime("%Y-%m-%dT%H:%M:%S")
+    micros = utc.microsecond
+    if micros:
+        if micros % 1000 == 0:
+            text += f".{micros // 1000:03d}"
+        else:
+            text += f".{micros:06d}"
+    return text + "Z"
+
+
 TIMESTAMP_FUNCS: typing.Dict[str, celpy.CELFunction] = {
     "timestamp": _timestamp,
 }

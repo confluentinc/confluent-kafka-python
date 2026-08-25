@@ -31,6 +31,8 @@ from decimal import Decimal
 import celpy
 from celpy import celtypes
 
+from confluent_kafka.schema_registry.rules.cel.timestamp_funcs import format_timestamp
+
 try:
     from confluent_kafka.schema_registry.confluent.types import decimal_pb2
     from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
@@ -353,14 +355,19 @@ _STDLIB_STRING = celtypes.StringType
 
 
 def _string(v: typing.Any) -> celtypes.StringType:
-    """Extension of CEL stdlib {@code string(...)} with a Decimal arm.
+    """Extension of CEL stdlib {@code string(...)} with Decimal and Timestamp arms.
 
     Returns ``Decimal.toPlainString()``-equivalent form (Python's
-    ``format(d, 'f')``) for Decimal inputs; delegates to celpy's stdlib
-    string coercion for everything else.
+    ``format(d, 'f')``) for Decimal inputs; renders a Timestamp through
+    :func:`~confluent_kafka.schema_registry.rules.cel.timestamp_funcs.format_timestamp`,
+    because celpy's own ``TimestampType.__str__`` silently drops the
+    sub-second component; delegates to celpy's stdlib string coercion for
+    everything else.
     """
     if isinstance(v, Decimal):
         return celtypes.StringType(format(v, "f"))
+    if isinstance(v, celtypes.TimestampType):
+        return celtypes.StringType(format_timestamp(v))
     return _STDLIB_STRING(v)
 
 
