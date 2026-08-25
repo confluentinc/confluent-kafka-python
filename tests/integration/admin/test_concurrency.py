@@ -246,3 +246,104 @@ def test_exit_races_exit_with_real_in_flight_work(kafka_cluster):
         ), "__exit__() thread {} returned at {:.2f} before poll() finished at {:.2f}".format(
             i, finished_at, poll_finished_at
         )
+
+
+def _submit_mixed_ops(admin, known_topic, expected_retention, missing_topic):
+    """Submit a mix of ops with deterministic outcomes and return a list of
+    zero-arg verifiers.
+
+    Each verifier asserts that THIS op's future received exactly the outcome
+    the op should get -- a success future must not raise, a failure future must
+    raise its specific error code, and a describe success must carry the known
+    topic's own config.
+    """
+    checks = []
+
+    # success: validate a brand-new topic. validate_only=True keeps the success
+    # future path exercised without actually creating (no cluster litter).
+    ok_name = "test_admin_mixed_ok-{}".format(uuid1())
+    f = admin.create_topics([NewTopic(ok_name, num_partitions=1, replication_factor=1)], validate_only=True)[ok_name]
+    checks.append(lambda f=f: f.result(timeout=30))  # must not raise
+
+    # failure: create an already-existing topic -> TOPIC_ALREADY_EXISTS
+    f = admin.create_topics([NewTopic(known_topic, num_partitions=1, replication_factor=1)])[known_topic]
+
+    def _create_exists(f=f):
+        with pytest.raises(KafkaException) as ei:
+            f.result(timeout=30)
+        assert (
+            ei.value.args[0].code() == KafkaError.TOPIC_ALREADY_EXISTS
+        ), "create(existing) got wrong outcome: {}".format(ei.value)
+
+    checks.append(_create_exists)
+
+    # success: describe the known topic -> result carries OUR retention.ms value
+    res = ConfigResource(ResourceType.TOPIC, known_topic)
+    f = admin.describe_configs([res])[res]
+
+    def _describe_known(f=f):
+        cfg = f.result(timeout=30)
+        assert (
+            cfg['retention.ms'].value == expected_retention
+        ), "describe_configs returned the wrong topic's config: retention.ms={}".format(cfg['retention.ms'].value)
+
+    checks.append(_describe_known)
+
+    # failure: delete a nonexistent topic -> UNKNOWN_TOPIC_OR_PART
+    f = admin.delete_topics([missing_topic])[missing_topic]
+
+    def _delete_missing(f=f):
+        with pytest.raises(KafkaException) as ei:
+            f.result(timeout=30)
+        assert (
+            ei.value.args[0].code() == KafkaError.UNKNOWN_TOPIC_OR_PART
+        ), "delete(missing) got wrong outcome: {}".format(ei.value)
+
+    checks.append(_delete_missing)
+
+    return checks
+
+
+def test_mixed_success_failure_outcomes_are_not_cross_delivered(kafka_cluster):
+    """Many threads submit an interleaved mix of succeeding and failing ops on
+    one shared AdminClient. Every future must receive its own correct outcome
+    -- success futures never raise, failure futures raise their specific code,
+    and describe returns the known topic's own config -- proving results are
+    not cross-delivered between concurrent operations under free-threading."""
+    expected_retention = '123456789'
+    known_topic = kafka_cluster.create_topic_and_wait_propogation(
+        "test_admin_mixed_outcomes", conf={'config': {'retention.ms': expected_retention}}
+    )
+    missing_topic = "test_admin_mixed_missing-{}".format(uuid1())
+
+    num_workers = 6
+    iterations = 10
+    barrier = threading.Barrier(num_workers)
+    errors = []
+
+    admin = _new_admin(kafka_cluster, {'error_cb': prefixed_error_cb('mixed_outcomes')})
+
+    def worker():
+        try:
+            checks = []
+            for _ in range(iterations):
+                # Align submissions across threads for the tightest interleaving.
+                # Submission returns a futmap synchronously and does not raise,
+                # so a worker can't leave the others stranded on the barrier.
+                barrier.wait()
+                checks += _submit_mixed_ops(admin, known_topic, expected_retention, missing_topic)
+            # Resolve/verify only after every op has been submitted.
+            for verify in checks:
+                verify()
+        except Exception as e:  # noqa: BLE001 - want any wrong/cross-delivered outcome, not just crashes
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker) for _ in range(num_workers)]
+    with admin:
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=120)
+
+    assert all(not t.is_alive() for t in threads), "a worker thread did not finish"
+    assert not errors, "cross-delivered or incorrect outcomes: {}".format(errors)
