@@ -328,7 +328,7 @@ typedef struct {
 
         /* Protects self->rk in Producer and Admin clients from being freed by
          * close() while another method is still using it.
-         * See Handle_enter_rk_use()/Handle_exit_rk_use() in confluent_kafka.c.
+         * See Handle_rk_use_begin()/Handle_rk_use_end() in confluent_kafka.c.
          */
         atomic_int_t active_calls;
         atomic_int_t closing;
@@ -368,7 +368,7 @@ typedef struct {
                         /* The following variables ensure only one caller
                          * is inside gated Consumer C code at a time; any
                          * other caller waits its turn (see
-                         * Handle_gate_enter() in Consumer.c).
+                         * Handle_serialize_enter() in Consumer.c).
                          *
                          * gate_owner identifies the current caller and is
                          * either a thread ID (PyThread_get_thread_ident(),
@@ -473,17 +473,17 @@ void CallState_crash(CallState *cs);
 /**
  * @brief Mark self->rk as in-use by the calling thread, blocking a
  *        concurrent close()/__exit__() from freeing it until the matching
- *        Handle_exit_rk_use(). Used by the gated clients (Producer, Admin).
+ *        Handle_rk_use_end(). Used by the gated clients (Producer, Admin).
  * @param err_msg exception text to raise if the Handle is closed/closing,
  *        e.g. ERR_MSG_PRODUCER_CLOSED or ERR_MSG_ADMIN_CLIENT_CLOSED.
- * @returns 1 if safe to use (caller must call Handle_exit_rk_use() on every
+ * @returns 1 if safe to use (caller must call Handle_rk_use_end() on every
  *          return path), 0 with a RuntimeError(err_msg) set otherwise.
  */
-int Handle_enter_rk_use(Handle *h, const char *err_msg);
+int Handle_rk_use_begin(Handle *h, const char *err_msg);
 /**
- * @brief Counterpart to Handle_enter_rk_use().
+ * @brief Counterpart to Handle_rk_use_begin().
  */
-void Handle_exit_rk_use(Handle *h);
+void Handle_rk_use_end(Handle *h);
 
 /**
  * @brief Release the GIL, sleep for `duration_ms`, then re-acquire it -- one
@@ -501,14 +501,14 @@ int Handle_sleep(Handle *h, int duration_ms);
  * @brief Consumer serializing gate: only one caller at a time inside gated
  *        Consumer C code (re-entrant calls of the same identity nest via
  *        gate_depth).
- * @returns 1 once held (caller must call Handle_gate_exit()), or 0 with a
+ * @returns 1 once held (caller must call Handle_serialize_exit()), or 0 with a
  *          Python exception set if a signal arrived while waiting.
  */
-int Handle_gate_enter(Handle *h);
+int Handle_serialize_enter(Handle *h);
 /**
- * @brief Counterpart to Handle_gate_enter().
+ * @brief Counterpart to Handle_serialize_enter().
  */
-void Handle_gate_exit(Handle *h);
+void Handle_serialize_exit(Handle *h);
 
 /**
  * @brief Entry guard for the client-agnostic APIs (list_topics(),
