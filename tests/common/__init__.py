@@ -23,6 +23,7 @@ import uuid
 
 from confluent_kafka import Consumer, DeserializingShareConsumer, ShareConsumer
 from confluent_kafka.admin import AlterConfigOpType, ConfigEntry, ConfigResource
+from confluent_kafka.aio._AIOConsumer import AIOConsumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 
@@ -137,6 +138,31 @@ class TestConsumer(Consumer):
             super(TestConsumer, self).incremental_unassign(partitions)
         else:
             super(TestConsumer, self).unassign()
+
+
+class TestAIOConsumer(AIOConsumer):
+    """AIOConsumer equivalent of TestConsumer: injects group.protocol under
+    TEST_CONSUMER_GROUP_PROTOCOL=consumer, and redirects assign()/unassign()
+    to the incremental variants that protocol requires, so test code can
+    call assign()/unassign() once and have it work under either protocol.
+    """
+
+    def __init__(self, conf=None, **kwargs):
+        TestUtils.update_conf_group_protocol(conf)
+        TestUtils.remove_forbidden_conf_group_protocol_consumer(conf)
+        super(TestAIOConsumer, self).__init__(conf, **kwargs)
+
+    async def assign(self, partitions):
+        if TestUtils.use_group_protocol_consumer():
+            await super(TestAIOConsumer, self).incremental_assign(partitions)
+        else:
+            await super(TestAIOConsumer, self).assign(partitions)
+
+    async def unassign(self, partitions):
+        if TestUtils.use_group_protocol_consumer():
+            await super(TestAIOConsumer, self).incremental_unassign(partitions)
+        else:
+            await super(TestAIOConsumer, self).unassign()
 
 
 def unique_id(prefix):
