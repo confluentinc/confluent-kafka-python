@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import concurrent.futures
+import sys
 
 import pytest
 
@@ -1175,6 +1176,31 @@ def test_delete_records():
 
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
+
+
+def test_delete_records_does_not_corrupt_argument_refcount():
+    """
+    Regression test for #2275.
+    delete_records() must not decref the 'topic_partition_offsets' argument it only borrows.
+    """
+    a = AdminClient({"socket.timeout.ms": 10})
+    request = [TopicPartition("test-topic1", 0, 1)]
+
+    refcount_before = sys.getrefcount(request)
+    a.delete_records(request)
+    refcount_after = sys.getrefcount(request)
+
+    assert refcount_after == refcount_before
+
+    # The original bug corrupted the heap rather than crashing immediately,
+    # so a later, unrelated call is what actually segfaulted (list_topics()
+    # in the reported issue).
+    # With no broker configured this call can't succeed, but it must fail cleanly
+    # instead of crashing the interpreter.
+    try:
+        a.list_topics(timeout=0.2)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
 
 def test_elect_leaders():
