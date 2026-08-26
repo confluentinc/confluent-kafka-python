@@ -417,3 +417,61 @@ def test_on_assign_calls_non_reentrancy_eligible_method(kafka_cluster):
     assert msg.value() == b'hello'
 
     consumer.close()
+
+
+def test_on_assign_calls_list_topics_from_callback(kafka_cluster):
+    """list_topics() is a common API that routes through the serialize gate.
+    Called from inside on_assign -- which already holds the gate for this same
+    thread identity -- it must be admitted as a re-entrant call (gate_depth
+    incremented), not deadlock."""
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_on_assign_calls_list_topics")
+    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
+
+    consumer = _new_consumer(kafka_cluster)
+
+    seen = {}
+
+    def on_assign(consumer, partitions):
+        consumer.assign(partitions)
+        md = consumer.list_topics(timeout=10)  # re-entrant common-API call
+        seen['topics'] = list(md.topics.keys())
+
+    consumer.subscribe([topic], on_assign=on_assign)
+
+    msg = consumer.poll(10)
+
+    print(f"seen_topics={len(seen.get('topics', []))}, msg={msg.value() if msg else None}")
+    assert 'topics' in seen, "on_assign / re-entrant list_topics() was never invoked"
+    assert topic in seen['topics'], "re-entrant list_topics() did not return the subscribed topic"
+    assert msg is not None
+    assert msg.value() == b'hello'
+
+    consumer.close()
+
+
+def test_on_assign_calls_set_sasl_credentials_from_callback(kafka_cluster):
+    """set_sasl_credentials() is a common API that routes through the serialize
+    gate. Called re-entrantly from inside on_assign it must nest via gate_depth
+    rather than deadlock; it returns None on success like a normal call."""
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_on_assign_calls_set_sasl")
+    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
+
+    consumer = _new_consumer(kafka_cluster)
+
+    called = []
+
+    def on_assign(consumer, partitions):
+        consumer.assign(partitions)
+        called.append(consumer.set_sasl_credentials('username', 'password'))  # re-entrant
+
+    consumer.subscribe([topic], on_assign=on_assign)
+
+    msg = consumer.poll(10)
+
+    print(f"called={called}, msg={msg.value() if msg else None}")
+    assert called, "on_assign / re-entrant set_sasl_credentials() was never invoked"
+    assert called[0] is None, f"set_sasl_credentials() should return None, got {called[0]!r}"
+    assert msg is not None
+    assert msg.value() == b'hello'
+
+    consumer.close()
