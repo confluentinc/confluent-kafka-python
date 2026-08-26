@@ -439,7 +439,12 @@ def test_list_topics_racing_close(kafka_cluster):
     which for a Consumer takes the serialize gate. A worker hammers
     list_topics() while the main thread closes the consumer at a randomized
     moment; across many rounds every call must return metadata or, once the
-    consumer is closed, raise cleanly -- never crash or hang."""
+    consumer is closed, raise cleanly -- never crash or hang.
+
+    The worker does time.sleep(0) each iteration to yield the GIL; without it a
+    GIL-enabled run lets this tight loop re-grab the gate before the concurrent
+    close() can, starving close() (with the GIL off, close() races the free
+    window on another core and doesn't need the yield)."""
     rounds = 20
     errors = []
 
@@ -454,6 +459,7 @@ def test_list_topics_racing_close(kafka_cluster):
                 while not stop.is_set():
                     try:
                         consumer.list_topics(timeout=1)
+                        time.sleep(0)  # yield the GIL so close() isn't starved
                     except RuntimeError as e:
                         assert "Handle has been closed" in str(e), f"round {r}: unexpected RuntimeError: {e!r}"
                         break
