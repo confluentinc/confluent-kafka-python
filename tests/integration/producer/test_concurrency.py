@@ -16,6 +16,7 @@
 
 import inspect
 import os
+import re
 import signal
 import threading
 import time
@@ -520,6 +521,75 @@ class TestTransactionalProducerConcurrency:
         successes = [k for k, v in results.items() if v is True]
         assert len(successes) == 1, f"expected exactly one of commit/abort to succeed, got: {results}"
 
+    def test_multiple_independent_transactional_producers_concurrent(self, kafka_cluster):
+        """Several producer instances, each with its own distinct
+        transactional.id, running a full init/begin/produce/commit
+        lifecycle concurrently on separate threads must not interfere with
+        each other -- every producer's transaction should complete and
+        commit independently, and none should block or corrupt another's."""
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_txn_multiple_independent_producers")
+        num_producers = 6
+        messages_per_producer = 20
+        errors = []
+
+        def worker(producer_id):
+            try:
+                producer = kafka_cluster.producer(
+                    {
+                        'transactional.id': f'test-txn-independent-{producer_id}-{uuid1()}',
+                        'error_cb': prefixed_error_cb(
+                            f'test_multiple_independent_transactional_producers_concurrent-{producer_id}'
+                        ),
+                    }
+                )
+                producer.init_transactions()
+                producer.begin_transaction()
+                for i in range(messages_per_producer):
+                    producer.produce(topic, value=f'producer-{producer_id}-msg-{i}'.encode())
+                producer.commit_transaction()
+                producer.flush()
+            except Exception as e:  # noqa: BLE001 - want to see any exception, not just crashes
+                errors.append((producer_id, e))
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(num_producers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        print(f"{called_by()}: {num_producers} independent producers finished, errors={errors}")
+        assert all(not t.is_alive() for t in threads), "a producer thread did not finish"
+        assert not errors, f"unexpected exceptions from independent transactional producers: {errors}"
+
+        consumer_conf = kafka_cluster.client_conf()
+        consumer_conf.update(
+            {
+                'group.id': str(uuid1()),
+                'auto.offset.reset': 'earliest',
+                'enable.auto.commit': False,
+                'enable.partition.eof': True,
+                'isolation.level': 'read_committed',
+            }
+        )
+        consumer = TestConsumer(consumer_conf)
+        consumer.subscribe([topic])
+
+        msg_cnt = 0
+        eof_reached = False
+        while not eof_reached:
+            msg = consumer.poll(timeout=10.0)
+            assert msg is not None, "timed out waiting for messages"
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    eof_reached = True
+                    continue
+                raise KafkaException(msg.error())
+            msg_cnt += 1
+        consumer.close()
+
+        print(f"{called_by()}: consumed msg_cnt={msg_cnt}")
+        assert msg_cnt == num_producers * messages_per_producer
+
 
 class TestReentrantDeliveryCallback:
     """Delivery callbacks run synchronously inside poll()/flush() on
@@ -731,3 +801,98 @@ class TestReentrantDeliveryCallback:
         assert not errors, f"unexpected delivery errors: {errors}"
         assert len(first_delivered) == 1, "the original message must be delivered"
         assert len(second_delivered) == 1, "the reentrantly-produced message must itself be delivered"
+
+
+class TestHeadersDictRace:
+    """
+    Free-threading memory-safety for the headers-dict parse.
+
+    Producer.produce(headers={dict}) converts the dict in C with PyDict_Next and
+    borrowed key/value references, without holding the dict stable
+    (py_headers_dict_to_c in confluent_kafka.c). If another thread mutates that
+    same dict during the parse, a single message's headers can be a *torn read*:
+    a mix of two states the dict was never actually in at once.
+    """
+
+    HEADER_COUNT = 100
+    MESSAGE_COUNT = 100
+    NUM_MUTATORS = 3
+
+    @classmethod
+    def _headers(cls, ns):
+        # Fixed keys, namespace-tagged values -> values can be toggled in place.
+        return {'k%d' % i: ('%s_v%d' % (ns, i)).encode() for i in range(cls.HEADER_COUNT)}
+
+    def test_produce_headers_dict_torn_read(self, kafka_cluster):
+        topic = kafka_cluster.create_topic_and_wait_propogation("test_headers_dict_race")
+        producer = kafka_cluster.cimpl_producer({'error_cb': prefixed_error_cb('test_produce_headers_dict_torn_read')})
+
+        shared = self._headers('a')
+        stop = threading.Event()
+
+        def mutator():
+            names = ('a', 'b')
+            k = 0
+            while not stop.is_set():
+                k ^= 1
+                shared.update(self._headers(names[k]))  # toggle values in place
+
+        mutators = [threading.Thread(target=mutator) for _ in range(self.NUM_MUTATORS)]
+        for t in mutators:
+            t.start()
+
+        # Produce while the dict is being swapped underneath each parse. produce()
+        # parses (and copies) the headers synchronously, so the race is per-call.
+        produced = 0
+        for i in range(self.MESSAGE_COUNT):
+            while True:
+                try:
+                    producer.produce(topic, value=b'v%d' % i, headers=shared)
+                    produced += 1
+                    break
+                except BufferError:
+                    producer.poll(0.5)
+        producer.flush(30)
+
+        stop.set()
+        for t in mutators:
+            t.join(timeout=5)
+
+        key_re = re.compile(r'^k(\d+)$')
+        val_re = re.compile(r'^([ab])_v(\d+)$')
+
+        consumer = kafka_cluster.cimpl_consumer({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
+        consumer.subscribe([topic])
+
+        corrupt = []
+        seen = 0
+        deadline = time.time() + 60
+        try:
+            while seen < produced and time.time() < deadline:
+                msg = consumer.poll(1.0)
+                if msg is None or msg.error():
+                    continue
+                seen += 1
+                namespaces = set()
+                for k, v in msg.headers() or []:
+                    ks = k if isinstance(k, str) else k.decode('utf-8', 'replace')
+                    vs = v.decode('utf-8', 'replace') if v is not None else ''
+                    mk = key_re.match(ks)
+                    mv = val_re.match(vs)
+                    # key 'k<i>' must pair with value '<ns>_v<i>' (same index).
+                    if not mk or not mv or mk.group(1) != mv.group(2):
+                        corrupt.append(('garbage/mismatch', ks, vs))
+                        break
+                    namespaces.add(mv.group(1))
+                else:
+                    if len(namespaces) > 1:
+                        corrupt.append(('namespace mix', sorted(namespaces)))
+        finally:
+            consumer.close()
+
+        assert seen > 0, "consumed no messages back -- broker/topic setup issue, not the bug under test"
+        assert not corrupt, (
+            "%d of %d consumed messages had torn/corrupted headers from a concurrent "
+            "dict mutation during produce() parsing -- py_headers_dict_to_c must parse "
+            "from a stable snapshot of the dict (e.g. PyDict_Copy). Examples: %s" % (len(corrupt), seen, corrupt[:5])
+        )

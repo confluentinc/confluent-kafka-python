@@ -31,6 +31,8 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 /**
@@ -1768,12 +1770,22 @@ err:
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
         rd_kafka_topic_partition_list_t *c_parts;
         size_t i;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_plist = NULL;
+#endif
 
         if (!PyList_Check(plist)) {
                 PyErr_SetString(PyExc_TypeError,
                                 "requires list of TopicPartition");
                 return NULL;
         }
+
+#ifdef Py_GIL_DISABLED
+        owned_plist = PyList_GetSlice(plist, 0, PY_SSIZE_T_MAX);
+        if (!owned_plist)
+                return NULL;
+        plist = owned_plist;
+#endif
 
         c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
@@ -1786,6 +1798,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      TopicPartitionType.tp_name);
                         rd_kafka_topic_partition_list_destroy(c_parts);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_plist);
+#endif
                         return NULL;
                 }
 
@@ -1803,6 +1818,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                 }
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_plist);
+#endif
         return c_parts;
 }
 
@@ -1928,6 +1946,12 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
 static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
         int i, len;
         rd_kafka_headers_t *rd_headers = NULL;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_hdrs = PyList_GetSlice(hdrs, 0, PY_SSIZE_T_MAX);
+        if (!owned_hdrs)
+                return NULL;
+        hdrs = owned_hdrs;
+#endif
 
         len        = (int)PyList_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -1940,15 +1964,24 @@ static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
                         PyErr_SetString(PyExc_TypeError,
                                         "Headers are expected to be a "
                                         "list of (key, value) tuples");
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
 
                 if (!py_header_to_c(rd_headers, PyTuple_GET_ITEM(tuple, 0),
                                     PyTuple_GET_ITEM(tuple, 1))) {
                         rd_kafka_headers_destroy(rd_headers);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
         }
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_hdrs);
+#endif
         return rd_headers;
 }
 
@@ -1961,6 +1994,12 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
         Py_ssize_t pos                 = 0;
         rd_kafka_headers_t *rd_headers = NULL;
         PyObject *ko, *vo;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_hdrs = PyDict_Copy(hdrs);
+        if (!owned_hdrs)
+                return NULL;
+        hdrs = owned_hdrs;
+#endif
 
         len        = (int)PyDict_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -1969,10 +2008,16 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
 
                 if (!py_header_to_c(rd_headers, ko, vo)) {
                         rd_kafka_headers_destroy(rd_headers);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_hdrs);
+#endif
         return rd_headers;
 }
 
@@ -2499,6 +2544,14 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         if (extensions) {
+#ifdef Py_GIL_DISABLED
+                PyObject *owned_extensions = PyDict_Copy(extensions);
+                if (!owned_extensions) {
+                        Py_DECREF(result);
+                        goto err;
+                }
+                extensions = owned_extensions;
+#endif
                 int len        = (int)PyDict_Size(extensions);
                 rd_extensions  = (char **)malloc(2 * len * sizeof(char *));
                 Py_ssize_t pos = 0;
@@ -2506,12 +2559,18 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 while (PyDict_Next(extensions, &pos, &ko, &vo)) {
                         if (!py_extensions_to_c(rd_extensions,
                                                 rd_extensions_size, ko, vo)) {
+#ifdef Py_GIL_DISABLED
+                                Py_DECREF(owned_extensions);
+#endif
                                 Py_DECREF(result);
                                 free(rd_extensions);
                                 goto err;
                         }
                         rd_extensions_size = rd_extensions_size + 2;
                 }
+#ifdef Py_GIL_DISABLED
+                Py_DECREF(owned_extensions);
+#endif
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
@@ -2946,6 +3005,7 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
         PyObject *confdict = NULL;
+        PyObject *cfg_iter = NULL;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
                 PyErr_Format(PyExc_RuntimeError,
@@ -3066,8 +3126,16 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 goto outer_err;
         }
 
+#ifdef Py_GIL_DISABLED
+        cfg_iter = PyDict_Copy(confdict);
+        if (!cfg_iter)
+                goto outer_err;
+#else
+        cfg_iter = confdict;
+#endif
+
         /* Convert config dict to config key-value pairs. */
-        while (PyDict_Next(confdict, &pos, &ko, &vo)) {
+        while (PyDict_Next(cfg_iter, &pos, &ko, &vo)) {
                 PyObject *ks;
                 PyObject *ks8 = NULL;
                 PyObject *vs = NULL, *vs8 = NULL;
@@ -3224,6 +3292,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 goto outer_err;
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(cfg_iter);
+#endif
         Py_DECREF(confdict);
 
         rd_kafka_conf_set_error_cb(conf, error_cb);
@@ -3264,6 +3335,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
         return conf;
 
 outer_err:
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(cfg_iter);
+#endif
         Py_DECREF(confdict);
         rd_kafka_conf_destroy(conf);
 
@@ -3315,47 +3389,6 @@ int CallState_end(Handle *h, CallState *cs) {
         return 1;
 }
 
-
-/**
- * @brief Mark self->rk as in-use by the calling thread, so that close()
- *        (running concurrently on another thread) will wait for us before
- *        destroying it. Must be called before CallState_begin().
- *
- * @returns 1 if self->rk is safe to use (active_calls has been
- *          incremented; caller must call Handle_exit_rk_use() on every
- *          return path), or 0 with ERR_MSG_PRODUCER_CLOSED set if the
- *          Handle is closed/closing (nothing to undo).
- */
-int Handle_enter_rk_use(Handle *h) {
-        unsigned long self_tid = PyThread_get_thread_ident();
-
-        if ((atomic_int_get(&h->closing) &&
-             atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-                return 0;
-        }
-        atomic_int_inc(&h->active_calls);
-        /* close() may have started between our check above and the
-         * increment; re-check now that we're counted. */
-        if ((atomic_int_get(&h->closing) &&
-             atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
-                atomic_int_dec(&h->active_calls);
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-                return 0;
-        }
-        return 1;
-}
-
-/**
- * @brief Counterpart to Handle_enter_rk_use(): call on every return path
- *        after a successful Handle_enter_rk_use().
- */
-void Handle_exit_rk_use(Handle *h) {
-        atomic_int_dec(&h->active_calls);
-}
-
 /**
  * @brief Get the current thread's CallState and re-locks the GIL.
  */
@@ -3386,6 +3419,202 @@ void CallState_resume(CallState *cs) {
  */
 void CallState_crash(CallState *cs) {
         cs->crashed++;
+}
+
+
+/**
+ * @brief Mark self->rk as in-use by the calling thread, so that close()
+ *        (running concurrently on another thread) will wait for us before
+ *        destroying it. Must be called before CallState_begin().
+ *
+ * @param err_msg exception text to raise if the Handle is closed/closing,
+ *        e.g. ERR_MSG_PRODUCER_CLOSED (Producer) or
+ *        ERR_MSG_ADMIN_CLIENT_CLOSED (Admin).
+ * @returns 1 if self->rk is safe to use (active_calls has been
+ *          incremented; caller must call Handle_rk_use_end() on every
+ *          return path), or 0 with a RuntimeError(err_msg) set if the
+ *          Handle is closed/closing (nothing to undo).
+ */
+int Handle_rk_use_begin(Handle *h, const char *err_msg) {
+        unsigned long self_tid = PyThread_get_thread_ident();
+
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                PyErr_SetString(PyExc_RuntimeError, err_msg);
+                return 0;
+        }
+        atomic_int_inc(&h->active_calls);
+        /* close() may have started between our check above and the
+         * increment; re-check now that we're counted. */
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                atomic_int_dec(&h->active_calls);
+                PyErr_SetString(PyExc_RuntimeError, err_msg);
+                return 0;
+        }
+        return 1;
+}
+
+/**
+ * @brief Counterpart to Handle_rk_use_begin(): call on every return path
+ *        after a successful Handle_rk_use_begin().
+ */
+void Handle_rk_use_end(Handle *h) {
+        atomic_int_dec(&h->active_calls);
+}
+
+/**
+ * @brief Whether this Handle guards self->rk with the active_calls/closing
+ *        gate (Handle_rk_use_begin()/Handle_rk_use_end()).
+ *
+ * True for the Producer and Admin clients; false for the
+ * Consumer/ShareConsumer, which serialize access through their own
+ * reentrancy gate instead.
+ */
+static int Handle_is_rk_use_gated(Handle *h) {
+        return h->type == RD_KAFKA_PRODUCER || h->type == PY_RD_KAFKA_ADMIN;
+}
+
+/**
+ * @brief Release the GIL, sleep for `duration_ms`, then re-acquire it -- one
+ *        interruptible wait tick.
+ *
+ * @param duration_ms sleep duration in milliseconds
+ * @returns 1 if the tick completed normally, or 0 if a Python signal was
+ *          raised or a callback crashed while the GIL was released (the
+ *          caller should stop waiting and propagate the error).
+ */
+int Handle_sleep(Handle *h, int duration_ms) {
+        CallState cs;
+
+        CallState_begin(h, &cs);
+#ifdef _WIN32
+        Sleep((DWORD)duration_ms);
+#else
+        usleep((useconds_t)duration_ms * 1000);
+#endif
+        return CallState_end(h, &cs);
+}
+
+/**
+ * @brief Serializing gate for the Consumer: only one caller may be inside
+ *        gated Consumer C code at a time. For the sync Consumer the identity
+ *        is always the calling thread's own ID. For AIOConsumer this is a
+ *        temporary ID generated when the method is called.
+ *
+ *        If the gate is unowned, the identity becomes the owner. If identity
+ *        already matches the current owner, this is a legitimate re-entrant
+ *        call (gate_depth is incremented). Any other identity waits for the
+ *        gate to free up, retrying at a fixed interval.
+ *
+ *        Operates on the h->u.Consumer.* fields, so it must only be called
+ *        on Consumer handles (never Producer/Admin, which use the rk-use
+ *        gate, nor ShareConsumer, which uses a different union member).
+ *
+ * @returns 1 once the gate is held, or 0 with a Python exception set if a
+ *          signal (e.g. KeyboardInterrupt) arrived while waiting.
+ */
+int Handle_serialize_enter(Handle *h) {
+        unsigned long identity = 0;
+        PyObject *value        = NULL;
+
+        if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) ==
+            -1)
+                return 0;
+
+        if (value && PyLong_Check(value))
+                identity = PyLong_AsUnsignedLong(value);
+        Py_XDECREF(value);
+
+        /* 0 is never a legitimate identity (neither a real thread ID nor a
+         * generated AIOConsumer identity), so treat it the same as "not set".
+         */
+        if (identity == 0)
+                identity = (unsigned long)PyThread_get_thread_ident();
+
+        while (1) {
+                unsigned long owner =
+                    atomic_ulong_get(&h->u.Consumer.gate_owner);
+
+                if (owner == identity) {
+                        /* Re-entrant call presenting the same identity that
+                         * already owns the gate.
+                         */
+                        atomic_int_inc(&h->u.Consumer.gate_depth);
+                        return 1;
+                }
+
+                if (owner == 0 &&
+                    atomic_ulong_cas(&h->u.Consumer.gate_owner, 0,
+                                     identity)) {
+                        /* Gate looked unowned and we won the race to take
+                         * it. */
+                        atomic_int_set(&h->u.Consumer.gate_depth, 1);
+                        return 1;
+                }
+
+                /* Someone else holds the gate: wait 1ms and retry. */
+                if (!Handle_sleep(h, 1))
+                        return 0; /* signal received, e.g. KeyboardInterrupt */
+        }
+}
+
+/**
+ * @brief Counterpart to Handle_serialize_enter(): call once per successful
+ *        Handle_serialize_enter(), on every return path.
+ */
+void Handle_serialize_exit(Handle *h) {
+        int depth = atomic_int_dec(&h->u.Consumer.gate_depth);
+        assert(depth >= 0);
+
+        if (depth == 0)
+                atomic_ulong_set(&h->u.Consumer.gate_owner, 0);
+}
+
+/**
+ * @brief Entry guard for the APIs common to all client types
+ *        (list_topics(), list_groups(), set_sasl_credentials()).
+ *
+ * Dispatches to the right protection based on the client type:
+ *  - Producer/Admin (Handle_is_rk_use_gated()): the rk-use gate, which lets
+ *    parallel calls proceed while blocking a concurrent close()/__exit__().
+ *  - Consumer: the serializing gate, so these APIs obey the Consumer's
+ *    one-caller-at-a-time contract just like poll()/consume().
+ *
+ * self->rk is validated on both paths; a closed handle raises
+ * ERR_MSG_HANDLE_CLOSED (the generic message these shared APIs use).
+ *
+ * @returns 1 if it is safe to use self->rk (caller must call
+ *          Handle_common_exit() on every return path), or 0 with a Python
+ *          exception set (closed handle, or a signal while waiting).
+ */
+int Handle_common_enter(Handle *h) {
+        if (Handle_is_rk_use_gated(h))
+                return Handle_rk_use_begin(h, ERR_MSG_HANDLE_CLOSED);
+
+        /* Consumer: serialize via the Consumer gate, then verify rk (the
+         * gate itself does not NULL-check it). */
+        if (!Handle_serialize_enter(h))
+                return 0; /* signal while waiting; exception already set */
+        if (!h->rk) {
+                Handle_serialize_exit(h);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
+                return 0;
+        }
+        return 1;
+}
+
+/**
+ * @brief Counterpart to Handle_common_enter(): call on every return path
+ *        after a successful Handle_common_enter().
+ */
+void Handle_common_exit(Handle *h) {
+        if (Handle_is_rk_use_gated(h))
+                Handle_rk_use_end(h);
+        else
+                Handle_serialize_exit(h);
 }
 
 
@@ -3663,6 +3892,7 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
         const char *username = NULL;
         const char *password = NULL;
         rd_kafka_error_t *error;
+        PyObject *result = NULL;
         CallState cs;
         static char *kws[] = {"username", "password", NULL};
 
@@ -3671,21 +3901,29 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
+        if (!Handle_common_enter(self))
+                return NULL;
+
         CallState_begin(self, &cs);
         error = rd_kafka_sasl_set_credentials(self->rk, username, password);
 
         if (!CallState_end(self, &cs)) {
                 if (error) /* Ignore error in favour of callstate exception */
                         rd_kafka_error_destroy(error);
-                return NULL;
+                goto done; /* result stays NULL */
         }
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
-                return NULL;
+                goto done; /* result stays NULL */
         }
 
-        Py_RETURN_NONE;
+        result = Py_None;
+        Py_INCREF(result);
+
+done:
+        Handle_common_exit(self);
+        return result;
 }
 
 
@@ -4043,7 +4281,7 @@ static PyObject *_init_cimpl(void) {
                            ConcurrentModificationException);
 
         /* ContextVar carrying the identity AIOConsumer presents to the
-         * Consumer gate for the current call -- see Handle_gate_enter()
+         * Consumer gate for the current call -- see Handle_serialize_enter()
          * in Consumer.c and confluent_kafka.aio._common. */
         PyObject *zero = PyLong_FromLong(0);
         if (!zero)
@@ -4069,6 +4307,11 @@ static PyObject *_init_cimpl(void) {
         PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
+
+#ifdef Py_GIL_DISABLED
+        if (PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED) < 0)
+                return NULL;
+#endif
 
         return m;
 }

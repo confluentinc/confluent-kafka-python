@@ -17,7 +17,7 @@
 import threading
 import time
 
-from confluent_kafka import Consumer, Producer, TopicPartition
+from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, TopicPartition
 from tests.concurrency._subprocess_isolation import subprocess_isolated
 
 _PRODUCER_CONF = {'bootstrap.servers': 'localhost:9092', 'socket.timeout.ms': 10, 'message.timeout.ms': 10}
@@ -145,15 +145,18 @@ def test_close_races_init_transactions():
 
     def worker(producer):
         while True:
-            # TODO NOGIL: move to tests/integration -- init_transactions() needs a
-            # real transaction coordinator to reach the race being tested; against
-            # the unreachable localhost:9092 used here it fails with a genuine
-            # _TIMED_OUT KafkaException instead of the expected RuntimeError.
             try:
                 producer.init_transactions(0.05)
             except RuntimeError as e:
                 assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
+            except KafkaException as e:
+                # init_transactions() needs a reachable coordinator,
+                # so against localhost:9092 it can never succeed --
+                # expected, unrelated to close(), ignore and keep
+                # racing until closing wins.
+                if e.args[0].code() != KafkaError._TIMED_OUT:
+                    raise
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -169,6 +172,12 @@ def test_close_races_begin_transaction():
             except RuntimeError as e:
                 assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
+            except KafkaException as e:
+                # begin_transaction() can return a state error as we didn't
+                # call init_transactions() -- expected, unrelated to close(),
+                # ignore and keep racing until closing wins.
+                if e.args[0].code() != KafkaError._STATE:
+                    raise
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -180,10 +189,15 @@ def test_close_races_commit_transaction():
     def worker(producer):
         while True:
             try:
-                producer.commit_transaction(0.05)
+                producer.commit_transaction(2.0)
             except RuntimeError as e:
                 assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
+            except KafkaException as e:
+                # No open transaction exists -- expected, unrelated
+                # to close(), ignore and keep racing until closing wins.
+                if e.args[0].code() != KafkaError._STATE:
+                    raise
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -194,15 +208,16 @@ def test_close_races_abort_transaction():
 
     def worker(producer):
         while True:
-            # TODO NOGIL: move to tests/integration -- abort_transaction() needs a
-            # real transaction coordinator to reach the race being tested; against
-            # the unreachable localhost:9092 used here it fails with a genuine
-            # _STATE KafkaException instead of the expected RuntimeError.
             try:
-                producer.abort_transaction(0.05)
+                producer.abort_transaction(2.0)
             except RuntimeError as e:
                 assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
+            except KafkaException as e:
+                # No open transaction exists -- expected, unrelated
+                # to close(), ignore and keep racing until closing wins.
+                if e.args[0].code() != KafkaError._STATE:
+                    raise
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -220,10 +235,20 @@ def test_close_races_send_offsets_to_transaction():
         offsets = [TopicPartition('mytopic', 0, 1)]
         while True:
             try:
-                producer.send_offsets_to_transaction(offsets, metadata, 0.05)
+                # A generous timeout keeps this a pure _STATE check: the
+                # underlying check is local and near-instant, so 2s leaves
+                # huge headroom against _TIMED_OUT ever firing instead,
+                # even under CI scheduling delays.
+                producer.send_offsets_to_transaction(offsets, metadata, 2.0)
             except RuntimeError as e:
                 assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
                 break
+            except KafkaException as e:
+                # No open transaction exists (init/begin never completed
+                # against this unreachable broker) -- expected, unrelated
+                # to close(), ignore and keep racing until closing wins.
+                if e.args[0].code() != KafkaError._STATE:
+                    raise
 
     _race_close_against(worker, conf=_TXN_PRODUCER_CONF)
 
@@ -349,6 +374,51 @@ def test_close_completes_quickly_with_indefinite_flush_in_progress():
     assert close_duration < 0.5, (
         f"close() took {close_duration:.2f}s to complete while flush(-1) was "
         f"in progress -- expected it to finish within 0.5s"
+    )
+
+
+def test_close_waits_for_in_flight_list_topics():
+    """list_topics() goes through the rk-use gate (active_calls) and a close()
+    that starts while list_topics() is in flight must wait for it to finish before
+    tearing down self->rk, rather than racing it. Against the unreachable
+    localhost:9092, list_topics(timeout=5) blocks its full timeout, giving
+    close() a real in-flight call to wait on."""
+    producer = Producer(_PRODUCER_CONF)
+    list_started = threading.Event()
+    list_finished_at = None
+
+    def run_list_topics():
+        nonlocal list_finished_at
+        list_started.set()
+        try:
+            producer.list_topics(timeout=5)
+        except KafkaException:
+            pass  # unreachable broker -> transport error at the end, expected
+        list_finished_at = time.monotonic()
+
+    t = threading.Thread(target=run_list_topics)
+    t.start()
+    list_started.wait()
+    time.sleep(1)  # Make sure list_topics() is genuinely in-flight (holding the gate).
+
+    close_start = time.monotonic()
+    result = producer.close()
+    close_end = time.monotonic()
+
+    t.join(timeout=15)
+    assert not t.is_alive(), "list_topics() thread did not finish after close()"
+    assert list_finished_at is not None, "list_topics() never finished"
+    assert result is True, f"close() must return True, got {result!r}"
+
+    close_duration = close_end - close_start
+    # close() must not have returned before the in-flight list_topics()
+    # released the gate ...
+    assert close_end >= list_finished_at, (
+        f"close() returned at {close_end:.2f} before in-flight list_topics() "
+        f"finished at {list_finished_at:.2f} -- it did not wait"
+    )
+    assert close_duration >= 3.0, (
+        f"close() returned in {close_duration:.2f}s -- too fast to have waited " f"for the in-flight list_topics() call"
     )
 
 
