@@ -17,6 +17,7 @@
 import threading
 import time
 
+from confluent_kafka import KafkaException
 from confluent_kafka.admin import AdminClient, ConfigResource, NewTopic, ResourceType
 from tests.concurrency._subprocess_isolation import subprocess_isolated
 
@@ -90,7 +91,8 @@ def test_exit_races_create_topics():
                         f.result(timeout=1)
                     except Exception:  # noqa: BLE001 - broker-less errors expected, not the bug we're after
                         pass
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError racing teardown: {e}"
                 break
 
     _race_exit_against(worker)
@@ -104,9 +106,27 @@ def test_exit_races_list_topics():
         while not stop_event.is_set():
             try:
                 admin.list_topics(timeout=0.05)
-            except RuntimeError:
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError racing teardown: {e}"
                 break
             except Exception:  # noqa: BLE001 - librdkafka timeout/transport errors expected without a broker
+                pass
+
+    _race_exit_against(worker)
+
+
+@subprocess_isolated
+def test_exit_races_set_sasl_credentials():
+    """Exiting the `with` block concurrent with set_sasl_credentials() on another thread."""
+
+    def worker(admin, stop_event):
+        while not stop_event.is_set():
+            try:
+                admin.set_sasl_credentials('user', 'password')
+            except RuntimeError as e:
+                assert 'closed' in str(e).lower(), f"unexpected RuntimeError racing teardown: {e}"
+                break
+            except Exception:  # noqa: BLE001 - librdkafka errors possible without a SASL-configured broker
                 pass
 
     _race_exit_against(worker)
@@ -135,7 +155,8 @@ def test_exit_races_multiple_methods():
             while not stop_event.is_set():
                 try:
                     call(admin)
-                except RuntimeError:
+                except RuntimeError as e:
+                    assert 'closed' in str(e).lower(), f"unexpected RuntimeError racing teardown: {e}"
                     break
                 except Exception:  # noqa: BLE001 - broker-less/timeout errors expected, not the bug we're after
                     pass
@@ -181,37 +202,41 @@ def test_exit_races_multiple_methods():
 
 
 def test_exit_waits_for_in_flight_call():
-    """__exit__() blocks until an in-flight poll() call finishes."""
+    """__exit__() blocks until an in-flight list_topics() call finishes."""
     admin = AdminClient(_ADMIN_CONF)
-    poll_started = threading.Event()
-    poll_duration = 10
-    poll_finished_at = None
+    list_started = threading.Event()
+    list_finished_at = None
 
-    def run_poll():
-        nonlocal poll_finished_at
-        poll_started.set()
-        admin.poll(poll_duration)
-        poll_finished_at = time.monotonic()
+    def run_list_topics():
+        nonlocal list_finished_at
+        list_started.set()
+        try:
+            admin.list_topics(timeout=5)
+        except KafkaException:
+            pass  # unreachable broker -> transport error at the end, expected
+        list_finished_at = time.monotonic()
 
-    t = threading.Thread(target=run_poll)
+    t = threading.Thread(target=run_list_topics)
     t.start()
-    poll_started.wait()
-    time.sleep(2)
+    list_started.wait()
+    time.sleep(1)  # Make sure list_topics() is genuinely in-flight (holding the gate).
 
     exit_start = time.monotonic()
     admin.__exit__(None, None, None)
     exit_end = time.monotonic()
 
-    t.join(timeout=10)
-    assert not t.is_alive(), "poll() thread did not finish after __exit__()"
-    assert poll_finished_at is not None, "poll() never finished"
+    t.join(timeout=15)
+    assert not t.is_alive(), "list_topics() thread did not finish after __exit__()"
+    assert list_finished_at is not None, "list_topics() never finished"
 
-    # __exit__() should have waited for the actual remaining poll() duration.
+    # __exit__() must not have returned before the in-flight list_topics()
+    # released the gate.
+    assert exit_end >= list_finished_at, (
+        f"__exit__() returned at {exit_end:.2f} before in-flight list_topics() "
+        f"finished at {list_finished_at:.2f} -- it did not wait"
+    )
     exit_duration = exit_end - exit_start
-    remaining_poll_duration = poll_finished_at - exit_start
-    assert exit_duration >= remaining_poll_duration * 0.9, (
-        f"__exit__() took {exit_duration:.2f}s but the in-flight poll() call "
-        f"was still going to run for {remaining_poll_duration:.2f}s more "
-        f"-- __exit__() returned too early relative to what it should have "
-        f"waited for"
+    assert exit_duration >= 3.0, (
+        f"__exit__() returned in {exit_duration:.2f}s -- too fast to have waited "
+        f"for the in-flight list_topics() call"
     )
