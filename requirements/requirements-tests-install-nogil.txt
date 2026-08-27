@@ -1,10 +1,14 @@
 # Free-threaded (no-GIL) variant of requirements-tests-install.txt.
-# Excludes extras whose compiled deps ship no free-threaded wheels:
-#   rules (tink, google-re2, grpcio via google-cloud-kms) and json-fast (orjson).
+# Excludes extras that don't work on a free-threaded interpreter:
+#   rules (tink, google-re2, grpcio via google-cloud-kms) and json-fast (orjson)
+#     ship no free-threaded wheels at all, so installing them fails outright;
+#   avro (fastavro) ships a free-threaded wheel but has not declared itself
+#     GIL-safe (see https://github.com/fastavro/fastavro/issues/873), so
+#     merely importing it silently re-enables the GIL for the rest of the
+#     process.
 # Keep in sync with requirements-tests-install.txt when adding new includes.
 -r requirements-tests.txt
 -r requirements-schemaregistry.txt
--r requirements-avro.txt
 -r requirements-protobuf.txt
 -r requirements-json.txt
 -r requirements-oauthbearer-aws.txt
