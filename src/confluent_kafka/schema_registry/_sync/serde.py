@@ -18,7 +18,7 @@
 
 import logging
 import threading as _locks
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 
 from cachetools import LRUCache
 
@@ -41,6 +41,10 @@ from confluent_kafka.schema_registry.common.serde import (
     RuleError,
     SchemaId,
     SubjectNameStrategyType,
+    ValidationRuleError,
+    ValidationRuleExecutor,
+    ValidationRulesExecution,
+    default_validation_rule_executor,
     get_original_key,
 )
 from confluent_kafka.schema_registry.error import SchemaRegistryError
@@ -255,6 +259,9 @@ class BaseSerde(object):
         '_subject_name_conf',
         '_subject_name_func',
         '_field_transformer',
+        '_validation_rules_execution',
+        '_validation_rules_fail_fast',
+        '_validation_rule_executor',
     ]
 
     _use_schema_id: Optional[int]
@@ -266,6 +273,65 @@ class BaseSerde(object):
     _subject_name_conf: Optional[dict]
     _subject_name_func: Callable[..., Any]
     _field_transformer: Optional[FieldTransformer]
+    _validation_rules_execution: ValidationRulesExecution
+    _validation_rules_fail_fast: bool
+    _validation_rule_executor: Optional[ValidationRuleExecutor]
+
+    def configure_validation_rules(self, conf: dict) -> None:
+        """
+        Pop and validate the inline validation rule configs from ``conf``.
+
+        When execution is not DISABLED the executor is resolved eagerly, so a missing
+        dependency surfaces at serializer construction rather than at the first record.
+        """
+        execution = conf.pop('validation.rules.execution', ValidationRulesExecution.DISABLED)
+        try:
+            self._validation_rules_execution = ValidationRulesExecution(execution)
+        except ValueError:
+            raise ValueError(
+                "validation.rules.execution must be one of {}".format(
+                    ", ".join(m.value for m in ValidationRulesExecution)
+                )
+            )
+
+        self._validation_rules_fail_fast = cast(bool, conf.pop('validation.rules.fail.fast', False))
+        if not isinstance(self._validation_rules_fail_fast, bool):
+            raise ValueError("validation.rules.fail.fast must be a boolean value")
+
+        executor = conf.pop('validation.rules.executor', None)
+        if self._validation_rules_execution == ValidationRulesExecution.DISABLED:
+            # Nothing will be validated, so don't import the CEL machinery.
+            self._validation_rule_executor = executor
+            return
+        if executor is None:
+            executor = default_validation_rule_executor()
+        if not isinstance(executor, ValidationRuleExecutor):
+            raise ValueError("validation.rules.executor must be a ValidationRuleExecutor instance")
+        self._validation_rule_executor = executor
+
+    def _validation_enabled(self, phase: Optional[ValidationRulesExecution] = None) -> bool:
+        """
+        True when inline validation rules should run at ``phase``.
+
+        Pass no phase when there is a single validation point — a serialization path
+        that applies no domain rules has nothing to run before or after, so any
+        enabled mode validates there.
+        """
+        if phase is None:
+            return self._validation_rules_execution != ValidationRulesExecution.DISABLED
+        return self._validation_rules_execution == phase
+
+    def _raise_validation_violations(self, violations: List[ValidationRuleError]) -> None:
+        """
+        Raise a single SerializationError aggregating every violation found.
+        """
+        if not violations:
+            return
+        count = len(violations)
+        lines = ["Validation rule failed ({} violation{}):".format(count, "" if count == 1 else "s")]
+        for violation in violations:
+            lines.append("  - {}".format(violation))
+        raise SerializationError("\n".join(lines))
 
     def configure_subject_name_strategy(
         self,

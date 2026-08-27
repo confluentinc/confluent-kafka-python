@@ -13,6 +13,8 @@
   default (global) `RuleRegistry` the DLQ is best-effort; set
   `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
   shutdown) for durability.
+- Add support for inline validation rules (#2326)
+
 
 ### Fixes
 
@@ -24,6 +26,8 @@
 ### Fixes
 
 - Fix race conditions (#2315)
+- Fix segmentation fault after calling `AdminClient.delete_records()` followed
+  by another Admin API call (e.g. `list_topics()`) on Python 3.14.
 
 
 ## v2.15.0
