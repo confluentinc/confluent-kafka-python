@@ -125,13 +125,15 @@ string_serializer = StringSerializer('utf_8')
 
 p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
+
 def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush()."""
+    """Called once for each message produced to indicate delivery result.
+    Triggered by poll() or flush()."""
     if err is not None:
         print(f'Message delivery failed: {err}')
     else:
         print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
+
 
 # Each `user` is a dict, for example {"name": "...", "favorite_number": 42}
 for user in some_data_source:
