@@ -560,6 +560,9 @@ exit:
 static PyObject *
 Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_resp_err_t err;
+        rd_kafka_error_t *txn_error;
+        rd_kafka_resp_err_t txn_err;
+        char txn_errstr[512] = {0};
         CallState cs;
 
         if (!self->rk)
@@ -625,6 +628,22 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         CallState_begin(self, &cs);
 
+        /* If a transaction is in progress, abort it now rather than leaving it
+         * dangling on the broker. Ideally, rd_kafka_destroy() should do it on
+         * its own.
+         * _ERR__STATE (no transaction in progress) and _ERR__NOT_CONFIGURED
+         * (non-transactional producer) are the expected outcome for most
+         * producers and are ignored; anything else is stashed to warn about
+         * below. */
+        txn_error = rd_kafka_abort_transaction(self->rk, -1);
+        txn_err   = rd_kafka_error_code(txn_error);
+        if (txn_err != RD_KAFKA_RESP_ERR_NO_ERROR &&
+            txn_err != RD_KAFKA_RESP_ERR__STATE &&
+            txn_err != RD_KAFKA_RESP_ERR__NOT_CONFIGURED)
+                snprintf(txn_errstr, sizeof(txn_errstr), "%s",
+                         rd_kafka_error_string(txn_error));
+        rd_kafka_error_destroy(txn_error);
+
         /* Flush any pending messages (wait indefinitely to ensure delivery) */
         err = rd_kafka_flush(self->rk, -1);
 
@@ -634,6 +653,12 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         if (!CallState_end(self, &cs))
                 return NULL;
+
+        if (txn_errstr[0]) {
+                PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+                                 "Producer abort_transaction failed during "
+                                 "close: %s", txn_errstr);
+        }
 
         /* If flush failed, warn but don't suppress original exception */
         if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
@@ -1095,8 +1120,8 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        /* TODO NOGIL: closing rejects this mandatory abort even from an
-         * unrelated thread once close() has started. Revisit. */
+        /* abort_transaction is called as part of close() so even if this call
+         * is rejected here (because a close is in progress), it is safe.*/
         if (!Handle_enter_rk_use(self))
                 return NULL;
 
