@@ -17,9 +17,10 @@
 #
 import inspect
 import sys
+import time
 from uuid import uuid1
 
-from confluent_kafka import KafkaError
+from confluent_kafka import OFFSET_INVALID, KafkaError
 from tests.common import TestConsumer
 
 
@@ -151,6 +152,122 @@ def test_send_offsets_committed_transaction(kafka_cluster):
     assert [tp.offset for tp in committed_offsets] == [100]
 
     consumer.close()
+
+
+def test_send_offsets_aborted_transaction(kafka_cluster):
+    """Offsets passed to send_offsets_to_transaction() must not be
+    committed if the transaction is aborted rather than committed."""
+    input_topic = kafka_cluster.create_topic_and_wait_propogation("input_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+    error_cb = prefixed_error_cb('test_send_offsets_aborted_transaction')
+    producer = kafka_cluster.producer(
+        {
+            'transactional.id': 'example_transactional_id',
+            'error_cb': error_cb,
+        }
+    )
+
+    consumer_conf = {
+        'group.id': str(uuid1()),
+        'auto.offset.reset': 'earliest',
+        'enable.auto.commit': False,
+        'enable.partition.eof': True,
+        'error_cb': error_cb,
+    }
+    consumer_conf.update(kafka_cluster.client_conf())
+    consumer = TestConsumer(consumer_conf)
+
+    kafka_cluster.seed_topic(input_topic)
+    consumer.subscribe([input_topic])
+
+    read_all_msgs(consumer)
+
+    producer.init_transactions()
+    transactional_produce(producer, output_topic, 100)
+
+    consumer_position = consumer.position(consumer.assignment())
+    group_metadata = consumer.consumer_group_metadata()
+    print("=== Sending offsets {} to transaction (to be aborted) ===".format(consumer_position))
+    producer.send_offsets_to_transaction(consumer_position, group_metadata)
+    producer.abort_transaction()
+
+    committed_offsets = consumer.committed(consumer.assignment())
+    print("=== Committed offsets after abort: {} ===".format(committed_offsets))
+    assert all(
+        tp.offset == OFFSET_INVALID for tp in committed_offsets
+    ), f"expected no committed offsets after an aborted transaction, got: {committed_offsets}"
+
+    # The produced messages must not be visible either.
+    assert consume_committed(kafka_cluster.client_conf(), output_topic) == 0
+
+    consumer.close()
+
+
+def test_close_resolves_open_transaction_promptly(kafka_cluster):
+    """close() should actively abort an open transaction rather
+    than leave it dangling on the broker. A dangling transaction blocks its
+    partition's last-stable-offset (LSO) from advancing, so a read_committed
+    consumer can't see any later message on that partition until the transaction
+    resolves. Without an explicit abort, that only happens once transaction.timeout.ms
+    elapses; with one, it should happen almost immediately.
+    """
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+
+    txn_timeout_ms = 15000
+    visibility_deadline_s = 7
+
+    producer1 = kafka_cluster.producer(
+        {
+            'transactional.id': f'test_close_resolves_open_transaction_promptly-{uuid1()}',
+            'transaction.timeout.ms': txn_timeout_ms,
+            'error_cb': prefixed_error_cb('test_close_resolves_open_transaction_promptly-p1'),
+        }
+    )
+    producer1.init_transactions()
+    producer1.begin_transaction()
+    producer1.produce(output_topic, value=b'from-open-txn')
+    producer1.flush()
+
+    # Deliberately close() without calling abort_transaction()
+    assert producer1.close() is True
+
+    # Now create a new non-transactional producer and produce one msg to the same topic
+    producer2 = kafka_cluster.producer(
+        {'error_cb': prefixed_error_cb('test_close_resolves_open_transaction_promptly-p2')}
+    )
+    producer2.produce(output_topic, value=b'plain-message-after-close')
+    producer2.close()
+
+    # Create a new consumer to try reading the msg produced by producer2
+    consumer_conf = kafka_cluster.client_conf()
+    consumer_conf.update(
+        {
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': False,
+            'isolation.level': 'read_committed',
+            'error_cb': prefixed_error_cb('test_close_resolves_open_transaction_promptly-consumer'),
+        }
+    )
+    consumer = TestConsumer(consumer_conf)
+    consumer.subscribe([output_topic])
+
+    deadline = time.monotonic() + visibility_deadline_s
+    msg = None
+    while time.monotonic() < deadline:
+        msg = consumer.poll(timeout=0.5)
+        if msg is not None and msg.error() is None:
+            break
+        msg = None
+
+    consumer.close()
+
+    assert msg is not None, (
+        f"plain message produced after close() was not visible to a read_committed "
+        f"consumer within {visibility_deadline_s}s -- the transaction left open by "
+        f"close() is blocking the partition's last-stable-offset from advancing"
+    )
+    assert msg.value() == b'plain-message-after-close'
 
 
 def transactional_produce(producer, topic, num_messages):
