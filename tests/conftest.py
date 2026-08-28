@@ -18,7 +18,6 @@
 
 import sys
 import sysconfig
-import warnings
 
 import pytest
 
@@ -31,20 +30,12 @@ if FREE_THREADED_BUILD:
     def gil_stays_disabled():
         """
         Runs in adaptive GIL mode (PYTHON_GIL unset) so the suite tests the
-        configuration users actually run. Module-scoped so the warning points
-        at the test file whose imports or tests re-enabled the GIL; the
-        interpreter's own RuntimeWarning names the offending extension module.
+        configuration users actually run. Module-scoped so a failure points at
+        the test file whose imports or tests re-enabled the GIL.
 
-        TODO NOGIL: replace the warnings with the commented asserts in the same
-        PR that declares Py_MOD_GIL_NOT_USED in cimpl. Until then a re-enable
-        is expected (cimpl itself triggers it) and must not fail the suite.
+        cimpl declares Py_MOD_GIL_NOT_USED, so a re-enable here is a real
+        regression, not expected behavior.
         """
-        if sys._is_gil_enabled():
-            warnings.warn("the GIL was re-enabled before this test module started", RuntimeWarning)
-        # assert not sys._is_gil_enabled(), \
-        #     "the GIL was re-enabled before this test module started"
+        assert not sys._is_gil_enabled(), "the GIL was re-enabled before this test module started"
         yield
-        if sys._is_gil_enabled():
-            warnings.warn("the GIL was re-enabled by this test module", RuntimeWarning)
-        # assert not sys._is_gil_enabled(), \
-        #     "the GIL was re-enabled by this test module"
+        assert not sys._is_gil_enabled(), "the GIL was re-enabled by this test module"

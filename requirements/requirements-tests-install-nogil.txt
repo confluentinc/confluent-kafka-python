@@ -1,10 +1,13 @@
 # Free-threaded (no-GIL) variant of requirements-tests-install.txt.
-# Excludes extras whose compiled deps ship no free-threaded wheels:
-#   rules (tink, google-re2, grpcio via google-cloud-kms) and json-fast (orjson).
+# Excludes extras whose compiled deps ship no free-threaded wheels at all,
+# so installing them fails outright: rules (tink, google-re2, grpcio via
+# google-cloud-kms) and json-fast (orjson). avro is replaced with
+# requirements-avro-nogil.txt, which drops only fastavro (see that file for
+# why) and keeps its other, safe deps.
 # Keep in sync with requirements-tests-install.txt when adding new includes.
 -r requirements-tests.txt
 -r requirements-schemaregistry.txt
--r requirements-avro.txt
+-r requirements-avro-nogil.txt
 -r requirements-protobuf.txt
 -r requirements-json.txt
 -r requirements-oauthbearer-aws.txt
