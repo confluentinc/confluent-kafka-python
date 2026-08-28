@@ -26,6 +26,8 @@ from confluent_kafka import cimpl
 T = TypeVar('T')
 
 
+# TODO NOGIL: Fix for fire and forget tasks created inside callbacks.
+# We don't want such tasks to escape serialization and run concurrently.
 class ReentryContext:
     """Internal use only. Per-call-chain context AIOConsumer carries through
     a ContextVar: the identity presented to the Consumer reentrancy gate, and
