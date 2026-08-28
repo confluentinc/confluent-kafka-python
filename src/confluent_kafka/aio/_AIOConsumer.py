@@ -45,12 +45,6 @@ class AIOConsumer:
     on_assign calling assign(), or on_commit calling commit()) is
     recognized as belonging to the same caller and is admitted
     immediately rather than waiting on itself.
-
-    A call created inside a callback but not awaited there (e.g. via an
-    un-awaited asyncio.create_task()) may outlive the callback invocation
-    it was created in. Such a call is not re-entrant: it runs as a new
-    top-level call, waiting for the operation that fired the callback to
-    finish rather than being admitted alongside it.
     """
 
     def __init__(
@@ -90,73 +84,26 @@ class AIOConsumer:
         if self._closed:
             raise RuntimeError("Consumer closed")
 
-        # Set when this call was made from within a callback invocation
-        # (e.g. on_assign), inherited via context propagation -- including
-        # into tasks created inside the callback. See _common.Invocation.
-        invocation = _common.ReentryContext.current_invocation()
+        # Resolved here, on the event-loop thread, so a re-entrant call reuses
+        # the enclosing call's identity -- see _common.ReentryContext.
+        identity = _common.ReentryContext.get_or_generate_id()
 
-        if invocation is not None:
-            # Sibling calls dispatched concurrently from the same callback
-            # invocation serialize on its lock, so only one presents the
-            # shared identity to the gate at a time.
-            async with invocation.lock:
-                if invocation.alive:
-                    return await self._reentrant_call(invocation, blocking_task, *args, **kwargs)
-            # The callback has already returned (e.g. an un-awaited
-            # create_task() that outlived it): its identity is stale, and
-            # presenting it could run this call concurrently with the still
-            # in-flight call that fired the callback. Fall through and run
-            # as a fresh top-level call instead, outside the lock, which
-            # only exists to serialize the invocation's own calls.
+        # Using the lock, the call gets serialized against any sibling in
+        # the same callback invocation dispatched concurrently.
+        # For any calls from outside a callback, this value stays None.
+        lock = _common.ReentryContext.current_lock()
 
-        # Resolved here, on the event-loop thread, and presented from inside
-        # wrapped_task so it is visible to the call it guards, including any
-        # re-entrant callback (e.g. on_assign) that blocking_task triggers
-        # synchronously before returning.
-        identity = _common.ReentryContext.generate_id()
-
+        # Presented from inside wrapped_task so it is visible to the call it
+        # guards, including any re-entrant callback (e.g. on_assign) that
+        # blocking_task triggers synchronously before returning.
         def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
             with _common.ReentryContext.active(identity):
                 return blocking_task(*task_args, **task_kwargs)
 
-        return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
-
-    async def _reentrant_call(
-        self, invocation: _common.Invocation, blocking_task: Callable[..., Any], *args: Any, **kwargs: Any
-    ) -> Any:
-        """Dispatch a call made from within a live callback invocation,
-        presenting the enclosing call's identity so the gate admits it.
-
-        The invocation must stay open until this dispatch has fully left
-        the gate, even if the task awaiting it is cancelled (e.g. by
-        asyncio.wait_for()): a worker thread cannot be interrupted, so the
-        blocking call keeps running after the await below is abandoned.
-        The done callback on the executor future -- which fires only once
-        wrapped_task has actually returned, or the submission was cancelled
-        before ever starting -- is therefore what balances the in-flight
-        count, never this coroutine's own await.
-
-        Called with invocation.lock held.
-        """
-        loop = asyncio.get_running_loop()
-
-        def wrapped_task() -> Any:
-            with _common.ReentryContext.active(invocation.identity):
-                return blocking_task(*args, **kwargs)
-
-        invocation.dispatch_started()
-        future = self.executor.submit(wrapped_task)
-
-        def on_done(_: concurrent.futures.Future) -> None:
-            try:
-                loop.call_soon_threadsafe(invocation.dispatch_finished)
-            except RuntimeError:
-                # Event loop already closed (interpreter shutdown); nothing
-                # is waiting on the drain anymore.
-                pass
-
-        future.add_done_callback(on_done)
-        return await asyncio.wrap_future(future)
+        if lock is None:
+            return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
+        async with lock:
+            return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
 
     def _wrap_callback(
         self,
