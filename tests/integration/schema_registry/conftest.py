@@ -18,23 +18,23 @@
 import sysconfig
 import warnings
 
-# test_dlq.py imports celpy (via CelExecutor) at the top of the file. celpy
-# ships no free-threaded wheel, so it is not installed on free-threaded
-# builds (see requirements-tests-install-nogil.txt) and importing this
-# module would fail at collection; exclude it there. On regular builds the
-# dep is expected to be installed, so a missing dep stays a loud collection
-# error instead of a silent skip.
+# test_dlq.py imports celpy; test_avro_serializers.py imports fastavro.
+# celpy ships no free-threaded wheel; fastavro ships one but has not declared
+# itself GIL-safe. Neither is installed on free-threaded builds (see
+# requirements-tests-install-nogil.txt), so both are excluded here.
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 collect_ignore = []
 if FREE_THREADED_BUILD:
     collect_ignore = [
+        "_async/test_avro_serializers.py",
         "_async/test_dlq.py",
+        "_sync/test_avro_serializers.py",
         "_sync/test_dlq.py",
     ]
     warnings.warn(
         "free-threaded build: skipping collection of {} schema_registry "
-        "integration test modules requiring celpy, which ships no "
-        "free-threaded wheel".format(len(collect_ignore)),
+        "integration test modules requiring celpy (no free-threaded wheel) "
+        "or fastavro (not declared GIL-safe)".format(len(collect_ignore)),
         RuntimeWarning,
     )
