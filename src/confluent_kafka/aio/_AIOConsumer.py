@@ -85,17 +85,25 @@ class AIOConsumer:
             raise RuntimeError("Consumer closed")
 
         # Resolved here, on the event-loop thread, so a re-entrant call reuses
-        # the enclosing call's identity -- see _common.ReentryIdentity.
-        identity = _common.ReentryIdentity.get_or_generate()
+        # the enclosing call's identity -- see _common.ReentryContext.
+        identity = _common.ReentryContext.get_or_generate_id()
+
+        # Using the lock, the call gets serialized against any sibling in
+        # the same callback invocation dispatched concurrently.
+        # For any calls from outside a callback, this value stays None.
+        lock = _common.ReentryContext.current_lock()
 
         # Presented from inside wrapped_task so it is visible to the call it
         # guards, including any re-entrant callback (e.g. on_assign) that
         # blocking_task triggers synchronously before returning.
         def wrapped_task(*task_args: Any, **task_kwargs: Any) -> Any:
-            with _common.ReentryIdentity.active(identity):
+            with _common.ReentryContext.active(identity):
                 return blocking_task(*task_args, **task_kwargs)
 
-        return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
+        if lock is None:
+            return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
+        async with lock:
+            return await _common.async_call(self.executor, wrapped_task, *args, **kwargs)
 
     def _wrap_callback(
         self,
