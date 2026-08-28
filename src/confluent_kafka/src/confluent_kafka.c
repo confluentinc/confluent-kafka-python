@@ -4070,6 +4070,11 @@ static PyObject *_init_cimpl(void) {
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
 
+#ifdef Py_GIL_DISABLED
+        if (PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED) < 0)
+                return NULL;
+#endif
+
         return m;
 }
 
