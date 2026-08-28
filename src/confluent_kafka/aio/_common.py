@@ -30,9 +30,8 @@ T = TypeVar('T')
 # We don't want such tasks to escape serialization and run concurrently.
 class ReentryContext:
     """Internal use only. Per-call-chain context AIOConsumer carries through
-    ContextVars: the identity presented to the Consumer reentrancy gate, and
-    the Invocation record of the callback invocation the call chain belongs
-    to, if any.
+    a ContextVar: the identity presented to the Consumer reentrancy gate, and
+    the lock serializing concurrent dispatches within one callback invocation.
 
     The sync Consumer uses the calling thread's ID as its gate identity, but
     that does not work for AIOConsumer: a call and the re-entrant calls its
@@ -40,17 +39,15 @@ class ReentryContext:
     a rebalance callback dispatched to one worker, then a re-entrant call from
     within it scheduled on another). AIOConsumer therefore generates an
     identity per top-level call and carries it in a ContextVar the gate reads
-    -- see Handle_serialize_enter() in confluent_kafka.c.
+    -- see Handle_gate_enter() in Consumer.c.
     """
 
     # The ContextVar the C gate itself reads, defined in confluent_kafka.c.
     _id_var = cimpl._reentry_identity_var
 
-    # The Invocation of the callback invocation the current context belongs
-    # to, or None outside any callback. Not read by the C gate; used by
-    # AIOConsumer._call() to decide whether the inherited identity may still
-    # be presented.
-    _invocation_var: contextvars.ContextVar = contextvars.ContextVar('reentry_invocation_var', default=None)
+    # Serializes concurrent/un-awaited calls dispatched from within the same
+    # callback invocation. Not used by C gate and only used by AIO Consumer.
+    _lock_var: contextvars.ContextVar = contextvars.ContextVar('reentry_lock_var', default=None)
 
     # Process-wide counter generating identities.
     _ctr = itertools.count(1)
@@ -60,12 +57,16 @@ class ReentryContext:
     _MASK = 0xFFFFFFFF
 
     @classmethod
-    def generate_id(cls) -> int:
-        """Return a fresh identity for a top-level AIOConsumer call.
+    def get_or_generate_id(cls) -> int:
+        """Return the identity for an AIOConsumer call: the current context's
+        identity for a re-entrant call, or a fresh one for a top-level call.
 
         Must be called on the event-loop thread, before dispatching to the
         executor.
         """
+        identity = cls.current_id()
+        if identity:
+            return identity
         return (next(cls._ctr) & cls._MASK) or 1
 
     @classmethod
@@ -78,19 +79,19 @@ class ReentryContext:
         return cls._id_var.get()
 
     @classmethod
-    def current_invocation(cls) -> Optional[Invocation]:
-        """Return the Invocation of the callback invocation the current
-        context belongs to, or None for a top-level call.
+    def current_lock(cls) -> Optional[asyncio.Lock]:
+        """Return the lock serializing calls dispatched concurrently from
+        the current callback invocation, or None for a top-level call.
 
         Called on the event-loop thread, before dispatching to the executor.
         """
-        return cls._invocation_var.get()
+        return cls._lock_var.get()
 
     @classmethod
     @contextlib.contextmanager
-    def active(cls, identity: int, invocation: Optional[Invocation] = None) -> Iterator[None]:
-        """Present `identity` (and, for a callback invocation, its
-        Invocation record) for the duration of the block.
+    def active(cls, identity: int, lock: Optional[asyncio.Lock] = None) -> Iterator[None]:
+        """Present `identity` (and, for a callback invocation, `lock`) to
+        the gate for the duration of the block.
 
         The identity is set here, inside the worker thread (or callback task)
         that makes the call, rather than before dispatching to the executor:
@@ -99,12 +100,12 @@ class ReentryContext:
         thread would be invisible to later calls reusing the same worker.
         """
         active_id = cls._id_var.set(identity)
-        active_invocation = cls._invocation_var.set(invocation)
+        active_lock = cls._lock_var.set(lock)
         try:
             yield
         finally:
             cls._id_var.reset(active_id)
-            cls._invocation_var.reset(active_invocation)
+            cls._lock_var.reset(active_lock)
 
 
 class AsyncLogger:
@@ -134,25 +135,15 @@ def wrap_callback(
         # trampoline fired -- see AIOConsumer._call().
         identity = ReentryContext.current_id()
 
-        async def _run_with_invocation() -> Any:
-            # A fresh Invocation per callback invocation. Calls made from
-            # the callback inherit it (and the identity) via context
-            # propagation to the tasks asyncio creates for them; its lock
-            # ensures only one is ever dispatched to the gate at a time.
-            invocation = Invocation(identity)
-            with ReentryContext.active(identity, invocation):
-                try:
-                    return await callback(*args, **kwargs)
-                finally:
-                    # Close before returning: once this coroutine finishes,
-                    # the gated call that fired the callback resumes, and
-                    # it must not run concurrently with a dispatch still
-                    # carrying this invocation's identity. Calls that run
-                    # after this point present a fresh identity instead --
-                    # see AIOConsumer._call().
-                    await invocation.close()
+        async def _run_with_identity() -> Any:
+            # A fresh lock per invocation. Concurrent calls from the
+            # callback inherit the ID and lock via context propagation
+            # to the tasks asyncio creates for them, so only one is ever
+            # dispatched to the gate at a time.
+            with ReentryContext.active(identity, asyncio.Lock()):
+                return await callback(*args, **kwargs)
 
-        f = asyncio.run_coroutine_threadsafe(_run_with_invocation(), loop)
+        f = asyncio.run_coroutine_threadsafe(_run_with_identity(), loop)
         return f.result()
 
     return ret
