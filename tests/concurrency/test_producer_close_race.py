@@ -145,10 +145,6 @@ def test_close_races_init_transactions():
 
     def worker(producer):
         while True:
-        # TODO NOGIL: move to tests/integration -- init_transactions() needs a
-        # real transaction coordinator to reach the race being tested; against
-        # the unreachable localhost:9092 used here it fails with a genuine
-        # _TIMED_OUT KafkaException instead of the expected RuntimeError.
             try:
                 producer.init_transactions(0.05)
             except RuntimeError as e:
@@ -212,10 +208,6 @@ def test_close_races_abort_transaction():
 
     def worker(producer):
         while True:
-        # TODO NOGIL: move to tests/integration -- abort_transaction() needs a
-        # real transaction coordinator to reach the race being tested; against
-        # the unreachable localhost:9092 used here it fails with a genuine
-        # _STATE KafkaException instead of the expected RuntimeError.
             try:
                 producer.abort_transaction(2.0)
             except RuntimeError as e:
