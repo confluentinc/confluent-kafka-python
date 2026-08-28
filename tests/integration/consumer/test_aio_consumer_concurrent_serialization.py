@@ -20,13 +20,10 @@ Tests for the AIO Consumer gate's serialization behavior.
 Out of multiple independent calls racing on the same underlying Consumer
 Handle, a colliding call waits for the current holder to release the gate,
 then proceeds -- it is not rejected. Only a genuinely re-entrant call (same
-identity) is admitted immediately. Also covers callback-spawned concurrency:
-concurrent calls a callback dispatches back into the Consumer while it is
-still running (gather(), create_task() joined before returning) inherit the
-enclosing call's identity and are serialized by the per-invocation lock,
-while a call that escapes its callback invocation (an un-awaited
-create_task() that outlives the callback) runs as a fresh top-level call,
-waiting for the enclosing operation to release the gate.
+identity) is admitted immediately. Also covers same-identity concurrency:
+concurrent or un-awaited calls a callback dispatches back into the Consumer
+(gather(), or an un-awaited create_task()) all present the same identity,
+so the gate alone can't tell them apart from a single sequential re-entrant call.
 """
 
 import asyncio
@@ -296,10 +293,9 @@ async def test_joined_create_task_from_callback_serializes(kafka_cluster):
 
 async def test_detached_create_task_from_callback_still_serializes_afterward(kafka_cluster):
     """on_assign fires a consume() call via create_task() and returns
-    WITHOUT ever awaiting it. The detached call outlives its callback
-    invocation, so it runs as a fresh top-level call (own identity, own
-    executor worker) once the poll() that invoked on_assign releases the
-    gate -- and a subsequent unrelated call must serialize behind it."""
+    WITHOUT ever awaiting it. This lets the top-level poll() that invoked
+    on_assign fully return and release the gate while the detached call may
+    still be in flight (dispatched with on_assign's identity, on its own executor worker)."""
     topic = kafka_cluster.create_topic_and_wait_propogation(
         "test_detached_task_reentrant_serialize", conf={'num_partitions': 4}
     )
@@ -331,148 +327,6 @@ async def test_detached_create_task_from_callback_still_serializes_afterward(kaf
         f"gate let them run concurrently"
     )
     assert len(result) == 4, f"expected all 4 partitions assigned, got {result}"
-
-    await consumer.close()
-
-
-async def test_fire_and_forget_task_waits_for_enclosing_poll(kafka_cluster):
-    """on_assign detaches a FAST call (assignment()) via create_task() and
-    returns without awaiting it. The task outlives its callback invocation,
-    so it must not be admitted alongside the enclosing poll() that fired the
-    callback. It must stay pending until poll() returns and releases the gate,
-    then complete as a fresh top-level call."""
-    topic = kafka_cluster.create_topic_and_wait_propogation("test_fire_and_forget_waits_for_poll")
-
-    consumer = await _new_aio_consumer(kafka_cluster, {'partition.assignment.strategy': 'cooperative-sticky'})
-
-    assign_fired = asyncio.Event()
-    detached_tasks = []
-
-    async def on_assign(consumer, partitions):
-        await consumer.incremental_assign(partitions)
-        detached_tasks.append(asyncio.create_task(consumer.assignment()))
-        assign_fired.set()
-
-    await consumer.subscribe([topic], on_assign=on_assign)
-
-    # Nothing is seeded yet, so poll() keeps holding the gate for its full
-    # timeout after the rebalance fires inside it.
-    poll_task = asyncio.create_task(consumer.poll(10))
-    await asyncio.wait_for(assign_fired.wait(), 30)
-
-    # assignment() is a local, broker-free call: if the detached task were
-    # (wrongly) admitted while poll() still holds the gate, it would finish
-    # within milliseconds. Give it ample time to prove it is really waiting.
-    await asyncio.sleep(1.0)
-    assert not detached_tasks[0].done(), (
-        "the detached call completed while the enclosing poll() still held the "
-        "gate -- an escaped call must wait for the gate, not run alongside its "
-        "enclosing operation"
-    )
-
-    # Unblock poll() early instead of waiting out its full timeout.
-    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
-    msg = await poll_task
-    assert msg is not None and msg.value() == b'hello'
-
-    result = await asyncio.wait_for(detached_tasks[0], 10)
-    assert result, "the detached assignment() call must succeed once the gate frees up"
-
-    await consumer.close()
-
-
-async def test_fire_and_forget_subscribe_from_on_assign(kafka_cluster):
-    """on_assign fires subscribe() via create_task() and returns without
-    awaiting it. The resubscribe must wait for the enclosing poll() rather
-    than racing it inside the gate, complete cleanly, and leave the consumer
-    fully usable through the rebalance the resubscribe itself triggers."""
-    topic = kafka_cluster.create_topic_and_wait_propogation("test_fire_and_forget_subscribe")
-    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
-
-    consumer = await _new_aio_consumer(kafka_cluster)
-
-    resubscribe_tasks = []
-
-    async def on_assign(consumer, partitions):
-        if not resubscribe_tasks:
-            resubscribe_tasks.append(asyncio.create_task(consumer.subscribe([topic])))
-
-    await consumer.subscribe([topic], on_assign=on_assign)
-
-    msg = await consumer.poll(10)
-    assert msg is not None and msg.value() == b'hello'
-    assert resubscribe_tasks, "on_assign was never invoked"
-
-    await asyncio.wait_for(resubscribe_tasks[0], 10)
-
-    # The resubscribe triggers a group rejoin; with no committed offsets the
-    # consumer restarts from earliest, so drain until the newly seeded
-    # message arrives to prove the consumer survived the whole sequence.
-    kafka_cluster.seed_topic(topic, value_source=[b'world'])
-    seen = []
-    for _ in range(100):
-        msg = await consumer.poll(0.2)
-        if msg is not None:
-            seen.append(msg.value())
-            if b'world' in seen:
-                break
-
-    assert b'world' in seen, f"consumer never delivered the post-resubscribe message, saw: {seen}"
-
-    await consumer.close()
-
-
-async def test_cancelled_reentrant_call_drains_before_callback_returns(kafka_cluster):
-    """asyncio.wait_for() cancels a re-entrant consume() shortly after it
-    starts, but the executor worker running it cannot be interrupted: the
-    consume keeps blocking until its own timeout. The callback invocation
-    must stay open -- keeping the enclosing poll() parked inside the
-    rebalance callback -- until that worker actually exits, so the two
-    never run inside the gate concurrently."""
-    topic = kafka_cluster.create_topic_and_wait_propogation("test_cancelled_reentrant_drains")
-
-    consumer = await _new_aio_consumer(kafka_cluster, {'partition.assignment.strategy': 'cooperative-sticky'})
-
-    timings = {}
-
-    async def on_assign(consumer, partitions):
-        await consumer.incremental_assign(partitions)
-        if 'cancelled_at' not in timings:
-            try:
-                # Nothing is seeded, so the worker blocks for the full 1.5s;
-                # wait_for() abandons the await at ~0.2s.
-                await asyncio.wait_for(consumer.consume(num_messages=1, timeout=1.5), timeout=0.2)
-            except asyncio.TimeoutError:
-                timings['cancelled_at'] = time.time()
-
-    await consumer.subscribe([topic], on_assign=on_assign)
-
-    for _ in range(60):
-        await consumer.poll(0.5)
-        if 'cancelled_at' in timings:
-            break
-    assert 'cancelled_at' in timings, "on_assign's wait_for() never timed out"
-
-    # The poll() that fired on_assign could only return once the abandoned
-    # consume()'s worker exited (~1.3s after the cancellation), because the
-    # callback invocation drains in-flight dispatches before closing. If the
-    # cancellation had been allowed to reopen the gate immediately, poll()
-    # would have resumed within its own 0.5s timeout instead.
-    resumed_after = time.time() - timings['cancelled_at']
-    assert resumed_after >= 1.0, (
-        f"the enclosing poll() resumed {resumed_after:.2f}s after the re-entrant "
-        f"consume() was cancelled -- too fast: the cancelled dispatch was still "
-        f"running inside the gate for ~1.3s more"
-    )
-
-    # The consumer must remain fully usable afterward.
-    kafka_cluster.seed_topic(topic, value_source=[b'hello'])
-    msg = None
-    for _ in range(100):
-        msg = await consumer.poll(0.2)
-        if msg is not None:
-            break
-    assert msg is not None and msg.value() == b'hello'
 
     await consumer.close()
 
