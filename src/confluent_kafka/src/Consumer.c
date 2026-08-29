@@ -27,12 +27,6 @@
 
 #include "confluent_kafka.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
-
 
 /****************************************************************************
  *
@@ -43,85 +37,6 @@
  *
  *
  ****************************************************************************/
-
-/**
- * @brief Serializing gate: only one caller may be inside gated Consumer C
- *        code at a time. For the sync Consumer the identity is always the
- *        calling thread's own ID. For AIOConsumer this is a temporary ID
- *        generated when the method is called.
- *
- *        If the gate is unowned, the identity becomes the owner. If
- *        identity already matches the current owner, this is a legitimate
- *        re-entrant call (gate_depth is incremented). Any other identity
- *        waits for the gate to free up, retrying at a fixed interval.
- *
- * @returns 1 once the gate is held, or 0 with a Python exception set if a
- *          signal (e.g. KeyboardInterrupt) arrived while waiting.
- */
-static int Handle_gate_enter(Handle *h) {
-        unsigned long identity = 0;
-        PyObject *value        = NULL;
-
-        if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) ==
-            -1)
-                return 0;
-
-        if (value && PyLong_Check(value))
-                identity = PyLong_AsUnsignedLong(value);
-        Py_XDECREF(value);
-
-        /* 0 is never a legitimate identity (neither a real thread ID nor a
-         * generated AIOConsumer identity), so treat it the same as "not set".
-         */
-        if (identity == 0)
-                identity = (unsigned long)PyThread_get_thread_ident();
-
-        while (1) {
-                unsigned long owner =
-                    atomic_ulong_get(&h->u.Consumer.gate_owner);
-
-                if (owner == identity) {
-                        /* Re-entrant call presenting the same identity that
-                         * already owns the gate.
-                         */
-                        atomic_int_inc(&h->u.Consumer.gate_depth);
-                        return 1;
-                }
-
-                if (owner == 0 &&
-                    atomic_ulong_cas(&h->u.Consumer.gate_owner, 0,
-                                     identity)) {
-                        /* Gate looked unowned and we won the race to take
-                         * it. */
-                        atomic_int_set(&h->u.Consumer.gate_depth, 1);
-                        return 1;
-                }
-
-                /* Someone else holds the gate: wait for it. */
-                CallState cs;
-                CallState_begin(h, &cs);
-                /* TODO NOGIL: Create function for below */
-#ifdef _WIN32
-                Sleep(1);
-#else
-                usleep(1000);
-#endif
-                if (!CallState_end(h, &cs))
-                        return 0; /* signal received, e.g. KeyboardInterrupt */
-        }
-}
-
-/**
- * @brief Counterpart to Handle_gate_enter(): call once per successful
- *        Handle_gate_enter(), on every return path.
- */
-static void Handle_gate_exit(Handle *h) {
-        int depth = atomic_int_dec(&h->u.Consumer.gate_depth);
-        assert(depth >= 0);
-
-        if (depth == 0)
-                atomic_ulong_set(&h->u.Consumer.gate_owner, 0);
-}
 
 static void Consumer_clear0(Handle *self) {
         if (self->u.Consumer.on_assign) {
@@ -205,7 +120,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &on_revoke, &on_lost))
                 return NULL;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -295,7 +210,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -303,7 +218,7 @@ static PyObject *Consumer_unsubscribe(Handle *self, PyObject *ignore) {
         PyObject *result = NULL;
         rd_kafka_resp_err_t err;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -322,7 +237,7 @@ static PyObject *Consumer_unsubscribe(Handle *self, PyObject *ignore) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -333,7 +248,7 @@ Consumer_incremental_assign(Handle *self, PyObject *tlist) {
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -359,7 +274,7 @@ Consumer_incremental_assign(Handle *self, PyObject *tlist) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -368,7 +283,7 @@ static PyObject *Consumer_assign(Handle *self, PyObject *tlist) {
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -395,7 +310,7 @@ static PyObject *Consumer_assign(Handle *self, PyObject *tlist) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -403,7 +318,7 @@ static PyObject *Consumer_unassign(Handle *self, PyObject *ignore) {
         PyObject *result = NULL;
         rd_kafka_resp_err_t err;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -424,7 +339,7 @@ static PyObject *Consumer_unassign(Handle *self, PyObject *ignore) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -434,7 +349,7 @@ Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -460,7 +375,7 @@ Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -472,7 +387,7 @@ Consumer_assignment(Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -492,7 +407,7 @@ Consumer_assignment(Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_destroy(c_parts);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -591,20 +506,20 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
-        if (!Handle_gate_enter(self)) {
+        if (!Handle_serialize_enter(self)) {
                 return NULL;
         }
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
                                          &msg, &offsets, &async_o,
                                          &async_o)) {
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -614,7 +529,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
         if (msg && offsets) {
                 PyErr_SetString(PyExc_ValueError,
                                 "message and offsets are mutually exclusive");
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -625,7 +540,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
         if (offsets) {
 
                 if (!(c_offsets = py_to_c_parts(offsets))) {
-                        Handle_gate_exit(self);
+                        Handle_serialize_exit(self);
                         return NULL;
                 }
         } else if (msg) {
@@ -637,7 +552,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                     (PyObject *)&MessageType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      MessageType.tp_name);
-                        Handle_gate_exit(self);
+                        Handle_serialize_exit(self);
                         return NULL;
                 }
 
@@ -653,7 +568,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                                          PyUnicode_AsUTF8(errstr));
                         Py_DECREF(error);
                         Py_DECREF(errstr);
-                        Handle_gate_exit(self);
+                        Handle_serialize_exit(self);
                         return NULL;
                 }
 
@@ -709,13 +624,13 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 cfl_PyErr_Format(err, "Commit failed: %s",
                                  rd_kafka_err2str(err));
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
         if (async) {
                 /* async commit returns None when commit is in progress */
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 Py_RETURN_NONE;
 
         } else {
@@ -727,7 +642,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 plist = c_parts_to_py(commit_return.c_parts);
                 rd_kafka_topic_partition_list_destroy(commit_return.c_parts);
 
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return plist;
         }
 }
@@ -755,7 +670,7 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -835,7 +750,7 @@ Consumer_store_offsets(Handle *self, PyObject *args,
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 #endif
 }
@@ -857,7 +772,7 @@ Consumer_committed(Handle *self, PyObject *args,
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -885,7 +800,7 @@ Consumer_committed(Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_destroy(c_parts);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -904,7 +819,7 @@ Consumer_position(Handle *self, PyObject *args,
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -930,7 +845,7 @@ Consumer_position(Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_destroy(c_parts);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -948,7 +863,7 @@ Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -971,7 +886,7 @@ Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -989,7 +904,7 @@ Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1012,7 +927,7 @@ Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1032,7 +947,7 @@ static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1079,7 +994,7 @@ static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1100,7 +1015,7 @@ Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1137,7 +1052,7 @@ Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         PyTuple_SetItem(result, 1, PyLong_FromLongLong(high));
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1166,7 +1081,7 @@ Consumer_offsets_for_times(Handle *self, PyObject *args,
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1193,7 +1108,7 @@ Consumer_offsets_for_times(Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_destroy(c_parts);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 #endif
 }
@@ -1234,7 +1149,7 @@ Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1303,7 +1218,7 @@ Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_message_destroy(rkm);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1312,7 +1227,7 @@ Consumer_memberid(Handle *self, PyObject *ignore) {
         char *memberid;
         PyObject *result = NULL;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1339,7 +1254,7 @@ Consumer_memberid(Handle *self, PyObject *ignore) {
         rd_kafka_mem_free(self->rk, memberid);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1385,12 +1300,12 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -1398,7 +1313,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyErr_SetString(
                     PyExc_ValueError,
                     "num_messages must be between 0 and 1000000 (1M)");
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -1408,7 +1323,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
         if (!rkmessages) {
                 PyErr_NoMemory();
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -1429,7 +1344,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         cfl_PyErr_Format(
                             rd_kafka_last_error(), "%s",
                             rd_kafka_err2str(rd_kafka_last_error()));
-                        Handle_gate_exit(self);
+                        Handle_serialize_exit(self);
                         return NULL;
                 }
         } else {
@@ -1454,7 +1369,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                                 cfl_PyErr_Format(
                                     rd_kafka_last_error(), "%s",
                                     rd_kafka_err2str(rd_kafka_last_error()));
-                                Handle_gate_exit(self);
+                                Handle_serialize_exit(self);
                                 return NULL;
                         }
 
@@ -1468,7 +1383,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         /* Check for signals between chunks */
                         if (check_signals_between_chunks(self, &cs)) {
                                 free(rkmessages);
-                                Handle_gate_exit(self);
+                                Handle_serialize_exit(self);
                                 return NULL;
                         }
                 }
@@ -1480,7 +1395,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                         rd_kafka_message_destroy(rkmessages[i]);
                 }
                 free(rkmessages);
-                Handle_gate_exit(self);
+                Handle_serialize_exit(self);
                 return NULL;
         }
 
@@ -1501,7 +1416,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
 
         free(rkmessages);
 
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return msglist;
 }
 
@@ -1510,7 +1425,7 @@ static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
         CallState cs;
         PyObject *result = NULL;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1538,15 +1453,15 @@ static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
 static PyObject *Consumer_enter(Handle *self) {
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
         Py_INCREF(self);
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return (PyObject *)self;
 }
 
@@ -1554,7 +1469,7 @@ static PyObject *Consumer_exit(Handle *self, PyObject *args) {
         PyObject *exc_type, *exc_value, *exc_traceback;
         PyObject *result = NULL;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!PyArg_UnpackTuple(args, "__exit__", 3, 3, &exc_type, &exc_value,
@@ -1574,7 +1489,7 @@ static PyObject *Consumer_exit(Handle *self, PyObject *args) {
         result = Py_None;
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result;
 }
 
@@ -1583,7 +1498,7 @@ Consumer_consumer_group_metadata(Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
         PyObject *result = NULL;
 
-        if (!Handle_gate_enter(self))
+        if (!Handle_serialize_enter(self))
                 return NULL;
 
         if (!self->rk) {
@@ -1602,7 +1517,7 @@ Consumer_consumer_group_metadata(Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_destroy(cgmd);
 
 done:
-        Handle_gate_exit(self);
+        Handle_serialize_exit(self);
         return result; /* Possibly NULL */
 }
 
