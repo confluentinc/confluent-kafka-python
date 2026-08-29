@@ -4,6 +4,7 @@ import argparse
 import difflib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -135,8 +136,24 @@ def unasync_file_check(in_path, out_path):
             # Format using isort and black (same as style-format.sh does)
             # Use relative path from project root so pyproject.toml config is found
             tmp_rel_path = os.path.relpath(tmp_path, project_root)
-            subprocess.run(['python3', '-m', 'isort', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
-            subprocess.run(['python3', '-m', 'black', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
+            bindir = os.path.dirname(sys.executable)
+            for tool in ('isort', 'black'):
+                tool_exe = os.path.join(bindir, tool)
+                if not os.path.exists(tool_exe):
+                    tool_exe = shutil.which(tool)
+                if not tool_exe:
+                    raise ValueError(f"could not find {tool} to format {out_path}")
+                proc = subprocess.run(
+                    [tool_exe, tmp_rel_path],
+                    cwd=project_root,
+                    capture_output=True,
+                    text=True,
+                )
+                if proc.returncode != 0:
+                    raise ValueError(
+                        f"failed to run {tool} while checking {out_path}: "
+                        f"{proc.stderr.strip() or proc.stdout.strip()}"
+                    )
 
             with open(tmp_path, "r") as formatted_file:
                 expected_content = formatted_file.read()
