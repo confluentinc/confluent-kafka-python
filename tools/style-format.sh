@@ -110,9 +110,9 @@ for f in $*; do
             # First, create a backup to compare
             cp "$f" _styletmp_orig
             # Run isort to sort imports
-            python3 -m isort "$f" > /dev/null 2>&1 || true
+            isort "$f" > /dev/null 2>&1 || true
             # Run black to format the file
-            python3 -m black "$f" > /dev/null 2>&1 || true
+            black "$f" > /dev/null 2>&1 || true
             # Compare to see if changes were made
             if ! cmp -s "$f" _styletmp_orig; then
                 echo "[$file_num/$file_count] $f: style fixed (isort + black)"
@@ -160,7 +160,7 @@ for f in $*; do
         elif [[ $lang == py ]]; then
             # Check with isort first
             set +e
-            isort_check=$(python3 -m isort --check-only --diff "$f" 2>&1)
+            isort_check=$(isort --check-only --diff "$f" 2>&1)
             isort_exit=$?
             set -e
             if [[ $isort_exit -ne 0 ]]; then
@@ -171,7 +171,7 @@ for f in $*; do
             fi
             # Check with black
             set +e
-            black_check=$(python3 -m black --check --diff "$f" 2>&1)
+            black_check=$(black --check --diff "$f" 2>&1)
             black_exit=$?
             set -e
             if [[ $black_exit -ne 0 ]]; then
@@ -182,7 +182,7 @@ for f in $*; do
             fi
             # Also run flake8 for linting (not formatting)
             set +e
-            flake8_output=$(python3 -m flake8 "$f" 2>&1)
+            flake8_output=$(flake8 "$f" 2>&1)
             flake8_exit=$?
             set -e
             if [[ $flake8_exit -ne 0 ]]; then
