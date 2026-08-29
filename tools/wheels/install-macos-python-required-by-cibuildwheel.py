@@ -52,6 +52,7 @@ for py_version_config in macos_config:
 tmp_download_dir = "tmp_download_dir"
 tmp_pkg_file_name = "Package.pkg"
 this_file_path = os.getcwd()
+script_dir = os.path.dirname(os.path.abspath(__file__))
 print(f"CWD is: '{this_file_path}'")
 tmp_download_dir_full_path = os.path.join(os.getcwd(), tmp_download_dir)
 tmp_pkg_file_full_path = os.path.join(tmp_download_dir_full_path, tmp_pkg_file_name)
@@ -59,14 +60,27 @@ if os.path.exists(tmp_download_dir_full_path):
     shutil.rmtree(tmp_download_dir_full_path)
 os.mkdir(tmp_download_dir)
 os.chdir(tmp_download_dir)
-install_command = f"sudo installer -pkg {tmp_pkg_file_name} -target /"
 
 for py_version_info in py_versions_info:
     identifier = py_version_info[0]
     pkg_url = py_version_info[1]
     print(f"Installing '{identifier}' from '{pkg_url}'")
     os.system(f"curl {pkg_url} --output {tmp_pkg_file_name}")
-    os.system(install_command)
+
+    install_args = ""
+    cpython_tag = identifier.split('-')[0]
+    if cpython_tag.endswith('t'):
+        # Free-threaded identifiers (e.g. cp314t-macosx_arm64) share the
+        # same installer .pkg as their regular counterpart (cp314-...).
+        # The free-threaded framework is an opt-in installer choice that
+        # is unchecked by default, so it must be explicitly selected via
+        # -applyChoiceChangesXML, otherwise only the regular (GIL)
+        # framework gets installed and the cpython314t interpreter is
+        # never created. Mirrors cibuildwheel's own macOS installer logic.
+        py_version_digits = cpython_tag[2:-1]
+        choicechanges_xml = os.path.join(script_dir, f"free-threaded-enable-{py_version_digits}.xml")
+        install_args = f"-applyChoiceChangesXML {choicechanges_xml} "
+    os.system(f"sudo installer -pkg {tmp_pkg_file_name} {install_args}-target /")
     os.remove(tmp_pkg_file_full_path)
 
 os.chdir(this_file_path)
