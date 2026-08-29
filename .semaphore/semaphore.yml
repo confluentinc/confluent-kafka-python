@@ -16,7 +16,7 @@ global_job_config:
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -36,7 +36,7 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -60,7 +60,7 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -82,7 +82,7 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -108,7 +108,7 @@ blocks:
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -128,7 +128,7 @@ blocks:
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -148,7 +148,7 @@ blocks:
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -418,7 +418,7 @@ blocks:
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Wheel Verification: Linux x64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Linux x64"
     task:
@@ -456,7 +456,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: Linux arm64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Linux arm64"
     task:
@@ -494,7 +494,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: OSX x64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
@@ -545,7 +545,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: OSX arm64"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
@@ -596,7 +596,7 @@ blocks:
             - pytest tests/test_error.py
   - name: "Wheel Verification: Windows"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Windows"
     task:
@@ -661,7 +661,7 @@ blocks:
             - tools/pre-release-validation.sh
   - name: "Source Distribution"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheel Verification: Linux x64"
       - "Wheel Verification: Linux arm64"
@@ -682,7 +682,7 @@ blocks:
             - artifact push workflow dist/ --destination artifacts/sdist/
   - name: "Packaging"
     run:
-      when: "tag =~ '.*'"
+      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Source Distribution"
     task:
