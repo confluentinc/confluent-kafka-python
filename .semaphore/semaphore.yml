@@ -15,8 +15,6 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -35,8 +33,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -59,8 +55,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -81,8 +75,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -107,8 +99,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -127,8 +117,6 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -147,8 +135,6 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies: []
     task:
       agent:
@@ -417,8 +403,6 @@ blocks:
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Wheel Verification: Linux x64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Linux x64"
     task:
@@ -455,8 +439,6 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
   - name: "Wheel Verification: Linux arm64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Linux arm64"
     task:
@@ -493,8 +475,6 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
   - name: "Wheel Verification: OSX x64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
@@ -544,8 +524,6 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
   - name: "Wheel Verification: OSX arm64"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
@@ -595,8 +573,6 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
   - name: "Wheel Verification: Windows"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheels: Windows"
     task:
@@ -660,8 +636,6 @@ blocks:
             - sem-version python 3.11
             - tools/pre-release-validation.sh
   - name: "Source Distribution"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Wheel Verification: Linux x64"
       - "Wheel Verification: Linux arm64"
@@ -681,8 +655,6 @@ blocks:
             - ls dist/
             - artifact push workflow dist/ --destination artifacts/sdist/
   - name: "Packaging"
-    run:
-      when: "branch = 'dev_thread_free_support_wheel'"
     dependencies:
       - "Source Distribution"
     task:
