@@ -3836,7 +3836,7 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
                                &exc_traceback))
                 return NULL;
 
-        if (!self->rk)
+        if (!atomic_ptr_get(&self->rk))
                 Py_RETURN_NONE;
 
         /* Calling __exit__ reentrantly from within a callback
@@ -3849,11 +3849,11 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
          * flushing and destroying it.
          */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
-                while (self->rk && atomic_int_get(&self->closing)) {
+                while (atomic_ptr_get(&self->rk) && atomic_int_get(&self->closing)) {
                         if (!Handle_sleep(self, 100))
                                 return NULL;
                 }
-                if (!self->rk)
+                if (!atomic_ptr_get(&self->rk))
                         Py_RETURN_NONE;
 
                 /* The winner got interrupted by a signal */
@@ -3885,7 +3885,7 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
         CallState_begin(self, &cs);
 
         rd_kafka_destroy(self->rk);
-        self->rk = NULL;
+        atomic_ptr_set(&self->rk, NULL);
 
         if (!CallState_end(self, &cs))
                 return NULL;
@@ -4030,10 +4030,10 @@ static Py_ssize_t Admin__len__(Handle *self) {
         /* __len__ must never raise, so we can't use Handle_rk_use_begin()
          * (which sets an exception on failure) -- fall back to returning 0
          * if the Handle is closed/closing. */
-        if (atomic_int_get(&self->closing) || !self->rk)
+        if (atomic_int_get(&self->closing) || !atomic_ptr_get(&self->rk))
                 return 0;
         atomic_int_inc(&self->active_calls);
-        if (atomic_int_get(&self->closing) || !self->rk) {
+        if (atomic_int_get(&self->closing) || !atomic_ptr_get(&self->rk)) {
                 atomic_int_dec(&self->active_calls);
                 return 0;
         }

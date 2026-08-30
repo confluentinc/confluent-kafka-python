@@ -3440,7 +3440,7 @@ int Handle_rk_use_begin(Handle *h, const char *err_msg) {
 
         if ((atomic_int_get(&h->closing) &&
              atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
+            !atomic_ptr_get(&h->rk)) {
                 PyErr_SetString(PyExc_RuntimeError, err_msg);
                 return 0;
         }
@@ -3449,7 +3449,7 @@ int Handle_rk_use_begin(Handle *h, const char *err_msg) {
          * increment; re-check now that we're counted. */
         if ((atomic_int_get(&h->closing) &&
              atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
+            !atomic_ptr_get(&h->rk)) {
                 atomic_int_dec(&h->active_calls);
                 PyErr_SetString(PyExc_RuntimeError, err_msg);
                 return 0;
