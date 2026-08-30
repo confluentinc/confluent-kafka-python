@@ -347,3 +347,113 @@ def test_mixed_success_failure_outcomes_are_not_cross_delivered(kafka_cluster):
 
     assert all(not t.is_alive() for t in threads), "a worker thread did not finish"
     assert not errors, "cross-delivered or incorrect outcomes: {}".format(errors)
+
+
+# Valid, exactly-stored numeric topic configs. Namespace A values are ~1e8,
+# namespace B values ~2e8, so a torn (mixed) config is detectable by whether the
+# stored value starts with '1' or '2'.
+_CONFIG_DICT_RACE_KEYS = [
+    'retention.ms',
+    'retention.bytes',
+    'max.message.bytes',
+    'segment.ms',
+    'segment.bytes',
+    'flush.ms',
+    'flush.messages',
+    'delete.retention.ms',
+]
+
+
+def _config_dict(ns):
+    # Fixed keys, namespace-tagged values -> values can be toggled in place so a
+    # non-atomic parse reads a mix of the two namespaces (see the produce headers
+    # test for why we toggle values rather than clear()+update()).
+    base = 100000000 if ns == 'a' else 200000000
+    return {key: str(base + j) for j, key in enumerate(_CONFIG_DICT_RACE_KEYS)}
+
+
+def test_create_topics_config_dict_torn_read(kafka_cluster):
+    """
+    Free-threading memory-safety for the topic-config-dict parse.
+
+    create_topics([NewTopic(config={dict})]) converts each topic's config dict in
+    C with PyDict_Next and borrowed key/value references, without holding the
+    dict stable (Admin_config_dict_to_c in Admin.c). A concurrent mutation of that
+    dict during the parse can make a topic's stored config a *torn read* -- some
+    settings from one state of the dict, some from another.
+    """
+    topic_count = 100
+    num_mutators = 3
+    admin = _new_admin(kafka_cluster)
+
+    run_id = str(uuid1())
+    names = ['test_config_dict_race_{}_{}'.format(run_id, i) for i in range(topic_count)]
+
+    shared = _config_dict('a')
+    stop = threading.Event()
+
+    def mutator():
+        namespaces = ('a', 'b')
+        k = 0
+        while not stop.is_set():
+            k ^= 1
+            shared.update(_config_dict(namespaces[k]))  # toggle values in place
+
+    mutators = [threading.Thread(target=mutator) for _ in range(num_mutators)]
+    for t in mutators:
+        t.start()
+
+    # One call, all topics sharing the one config dict: create_topics() parses the
+    # dict once per topic, back-to-back, while the mutator toggles it underneath.
+    new_topics = [NewTopic(n, num_partitions=1, replication_factor=1, config=shared) for n in names]
+    create_futs = admin.create_topics(new_topics, request_timeout=30)
+
+    stop.set()
+    for t in mutators:
+        t.join(timeout=5)
+
+    created = []
+    for name, fut in create_futs.items():
+        try:
+            fut.result(timeout=30)
+            created.append(name)
+        except Exception:  # noqa: BLE001 - a torn config may be rejected; we check the ones that were created
+            pass
+
+    try:
+        assert created, "no topics were created -- broker/config setup issue, not the bug under test"
+        # Let the new topics' metadata propagate to all brokers before
+        # describe_configs, else a describe served by a lagging broker returns
+        # UNKNOWN_TOPIC_OR_PART (a propagation race, not the bug under test).
+        time.sleep(5)
+        resources = [ConfigResource(ResourceType.TOPIC, n) for n in created]
+        describe_futs = admin.describe_configs(resources, request_timeout=30)
+
+        corrupt = []
+        for res, fut in describe_futs.items():
+            cfg = fut.result(timeout=30)
+            namespaces = set()
+            for key in _CONFIG_DICT_RACE_KEYS:
+                entry = cfg.get(key)
+                if entry is None or entry.value is None:
+                    continue
+                lead = entry.value[:1]
+                if lead in ('1', '2'):
+                    namespaces.add(lead)
+            if len(namespaces) > 1:
+                corrupt.append((res.name, {k: cfg[k].value for k in _CONFIG_DICT_RACE_KEYS if k in cfg}))
+
+        assert not corrupt, (
+            "{} of {} created topics have a torn/mixed config from a concurrent dict "
+            "mutation during create_topics() parsing -- Admin_config_dict_to_c must parse "
+            "from a stable snapshot of the dict (e.g. PyDict_Copy). Examples: {}".format(
+                len(corrupt), len(created), corrupt[:3]
+            )
+        )
+    finally:
+        if created:
+            for _, fut in admin.delete_topics(created, request_timeout=30).items():
+                try:
+                    fut.result(timeout=30)
+                except Exception:  # noqa: BLE001 - best-effort cleanup
+                    pass

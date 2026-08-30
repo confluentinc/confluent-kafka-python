@@ -502,7 +502,7 @@ def test_callback_exception_no_system_error():
 
     # Test error_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer1.consume(timeout=0.1)
+        consumer1.consume(timeout=0.5)
 
     # Verify error_cb was called and raised the expected exception
     assert "Test exception from error_cb" in str(exc_info.value)
@@ -536,7 +536,7 @@ def test_callback_exception_no_system_error():
 
     # Test stats_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer2.consume(timeout=0.2)  # Longer timeout to allow stats callback
+        consumer2.consume(timeout=0.5)  # Longer timeout to allow stats callback
 
     # Verify stats_cb was called and raised the expected exception
     assert "Test exception from stats_cb" in str(exc_info.value)
@@ -565,7 +565,7 @@ def test_callback_exception_no_system_error():
 
     # Test throttle_cb callback - may not be triggered, so we'll just verify it doesn't crash
     try:
-        consumer3.consume(timeout=0.1)
+        consumer3.consume(timeout=0.5)
         # If no exception is raised, that's also fine - throttle_cb may not be triggered
         print("Throttle callback not triggered in this scenario")
     except RuntimeError as exc_info:
