@@ -434,9 +434,7 @@ static int Admin_incremental_config_to_c(PyObject *incremental_configs,
         char *name                      = NULL;
         char *value                     = NULL;
         PyObject *incremental_operation = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_configs = NULL;
-#endif
+        PyObject *owned_configs         = NULL;
 
         if (!PyList_Check(incremental_configs)) {
                 PyErr_Format(PyExc_TypeError,
@@ -445,12 +443,16 @@ static int Admin_incremental_config_to_c(PyObject *incremental_configs,
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
+        /* Snapshot the list before iterating it even on GIL-based builds.
+         * Fetching ConfigEntry.incremental_operation's .value below re-enters
+         * the interpreter, which is a legal GIL yield point. Without this
+         * snapshot, a concurrent mutation of the caller's list can cause
+         * PyList_GET_ITEM(incremental_configs, i) calls to read out of bounds.
+         */
         owned_configs = PyList_GetSlice(incremental_configs, 0, PY_SSIZE_T_MAX);
         if (!owned_configs)
                 goto err;
         incremental_configs = owned_configs;
-#endif
 
         if ((config_entry_count = (int)PyList_Size(incremental_configs)) < 1) {
                 PyErr_Format(PyExc_ValueError,
@@ -518,9 +520,7 @@ static int Admin_incremental_config_to_c(PyObject *incremental_configs,
                 value                 = NULL;
                 incremental_operation = NULL;
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_configs);
-#endif
         return 1;
 err:
         Py_XDECREF(incremental_operation);
@@ -528,9 +528,7 @@ err:
                 free(name);
         if (value)
                 free(value);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_configs);
-#endif
         return 0;
 }
 
@@ -1202,9 +1200,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
                                                  PyObject *kwargs) {
         PyObject *resources, *future;
         PyObject *validate_only_obj = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_resources = NULL;
-#endif
+        PyObject *owned_resources   = NULL;
         static char *kws[] = {"resources", "future",
                               /* options */
                               "validate_only", "request_timeout", "broker",
@@ -1247,13 +1243,17 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,
         if (!c_options)
                 goto done; /* Exception raised by options_to_c() */
 
-#ifdef Py_GIL_DISABLED
+        /* Snapshot the list before iterating it even on GIL-based builds.
+         * Fetching ConfigEntry.incremental_operation's .value below re-enters
+         * the interpreter, which is a legal GIL yield point. Without this
+         * snapshot, a concurrent mutation of the caller's list can cause
+         * PyList_GET_ITEM(incremental_configs, i) calls to read out of bounds.
+         */
         owned_resources = PyList_GetSlice(resources, 0, PY_SSIZE_T_MAX);
         if (!owned_resources)
                 goto done;
         resources = owned_resources;
         cnt       = (int)PyList_Size(resources);
-#endif
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -1359,9 +1359,7 @@ done:
         free(c_objs);
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_resources);
-#endif
         Py_XDECREF(ConfigResource_type);      /* from lookup() */
         Py_XDECREF(ConfigEntry_type);         /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
