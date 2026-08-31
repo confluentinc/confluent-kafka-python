@@ -1200,6 +1200,26 @@ static int ShareConsumer_reject_incompatible_config(PyObject *args,
 /**
  * @brief Initialize ShareConsumer.
  */
+
+static PyObject *ShareConsumer_config(PyObject *selfobj, void *closure) {
+        Handle *self = (Handle *)selfobj;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "ShareConsumer instance not initialized");
+                return NULL;
+        }
+
+        return handle_config_dict(self);
+}
+
+static PyGetSetDef ShareConsumer_getsetters[] = {
+    {"config", (getter)ShareConsumer_config, NULL,
+     ":attribute config: Effective configuration properties of the "
+     "ShareConsumer instance (dict, read-only). Callbacks such as "
+     "``error_cb`` passed in the configuration dict are not included.",
+     NULL},
+    {NULL}};
 static int
 ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         ShareConsumerHandle *self = (ShareConsumerHandle *)selfobj;
@@ -1386,7 +1406,7 @@ PyTypeObject ShareConsumerType = {
     0,                                    /* tp_iternext */
     ShareConsumer_methods,                /* tp_methods */
     0,                                    /* tp_members */
-    0,                                    /* tp_getset */
+    ShareConsumer_getsetters,             /* tp_getset */
     0,                                    /* tp_base */
     0,                                    /* tp_dict */
     0,                                    /* tp_descr_get */
