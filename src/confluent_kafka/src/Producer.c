@@ -59,6 +59,11 @@
  *
  ****************************************************************************/
 
+static int Producer_rk_use_begin(Handle *self) {
+        return Handle_rk_use_begin(self, ERR_MSG_PRODUCER_CLOSED);
+}
+
+
 /**
  * Per-message state.
  */
@@ -302,7 +307,7 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!dr_cb || dr_cb == Py_None)
                 dr_cb = self->u.Producer.default_dr_cb;
 
-        if (!Handle_enter_rk_use(self)) {
+        if (!Producer_rk_use_begin(self)) {
 #ifdef RD_KAFKA_V_HEADERS
                 if (rd_headers)
                         rd_kafka_headers_destroy(rd_headers);
@@ -328,7 +333,7 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
                                 key_len, msgstate);
 #endif
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         if (err) {
                 if (msgstate)
@@ -433,12 +438,12 @@ static PyObject *Producer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         r = Producer_poll0(self, cfl_timeout_ms(tmout));
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         if (r == -1)
                 return NULL;
@@ -483,7 +488,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         total_timeout_ms = cfl_timeout_ms(tmout);
@@ -552,7 +557,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         result = cfl_PyInt_FromInt(qlen);
 
 exit:
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -579,13 +584,7 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
          */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
                 while (self->rk && atomic_int_get(&self->closing)) {
-                        CallState_begin(self, &cs);
-#ifdef _WIN32
-                        Sleep(100);
-#else
-                        usleep(100000);
-#endif
-                        if (!CallState_end(self, &cs))
+                        if (!Handle_sleep(self, 100))
                                 return NULL;
                 }
                 if (!self->rk)
@@ -598,25 +597,19 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        /* Record which thread won, so Handle_enter_rk_use() can let a
+        /* Record which thread won, so Handle_rk_use_begin() can let a
          * reentrant call through if (and only if) it's this same thread --
          * i.e. close()'s own delivery callback, fired synchronously from
          * inside the flush() call below, calling back into the Producer. */
         atomic_ulong_set(&self->closing_thread, PyThread_get_thread_ident());
 
         /* Signal in-flight calls to stop, and wait for them to finish
-         * using self->rk before destroying it -- see Handle_enter_rk_use().
+         * using self->rk before destroying it -- see Handle_rk_use_begin().
          * New calls will see `closing` and fail with ERR_MSG_PRODUCER_CLOSED. */
         /* TODO NOGIL: replace this poll loop with a mutex/condvar wait so
          * close() unblocks immediately instead of up to 100ms late. */
         while (atomic_int_get(&self->active_calls) > 0) {
-                CallState_begin(self, &cs);
-#ifdef _WIN32
-                Sleep(100);
-#else
-                usleep(100000);
-#endif
-                if (!CallState_end(self, &cs)) {
+                if (!Handle_sleep(self, 100)) {
                         /* Abort the attempt: rk was never touched, so
                          * reopen the gate for a future close() attempt.
                          */
@@ -923,7 +916,7 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
                 return cfl_PyInt_FromInt(0);
         }
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         /* Allocate arrays for librdkafka messages and msgstates */
@@ -956,7 +949,7 @@ cleanup:
         if (rkt)
                 rd_kafka_topic_destroy(rkt);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         /* Cleanup resources not tied to self->rk */
         if (rkmessages)
@@ -979,7 +972,7 @@ static PyObject *Producer_init_transactions(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         CallState_begin(self, &cs);
@@ -1002,19 +995,19 @@ static PyObject *Producer_init_transactions(Handle *self, PyObject *args) {
         Py_INCREF(result);
 
 exit:
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
 static PyObject *Producer_begin_transaction(Handle *self) {
         rd_kafka_error_t *error;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         error = rd_kafka_begin_transaction(self->rk);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -1037,7 +1030,7 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         if (!PyArg_ParseTuple(args, "OO|d", &offsets, &metadata, &tmout))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         if (!(c_offsets = py_to_c_parts(offsets)))
@@ -1071,7 +1064,7 @@ exit:
                 rd_kafka_consumer_group_metadata_destroy(cgmd);
         if (c_offsets)
                 rd_kafka_topic_partition_list_destroy(c_offsets);
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1084,7 +1077,7 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         CallState_begin(self, &cs);
@@ -1107,7 +1100,7 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         Py_INCREF(result);
 
 exit:
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1122,7 +1115,7 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
 
         /* abort_transaction is called as part of close() so even if this call
          * is rejected here (because a close is in progress), it is safe.*/
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         CallState_begin(self, &cs);
@@ -1145,7 +1138,7 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         Py_INCREF(result);
 
 exit:
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
         return result;
 }
 
@@ -1162,7 +1155,7 @@ static void *Producer_purge(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &in_flight, &blocking))
                 return NULL;
 
-        if (!Handle_enter_rk_use(self))
+        if (!Producer_rk_use_begin(self))
                 return NULL;
 
         if (in_queue)
@@ -1174,7 +1167,7 @@ static void *Producer_purge(Handle *self, PyObject *args, PyObject *kwargs) {
 
         err = rd_kafka_purge(self->rk, purge_strategy);
 
-        Handle_exit_rk_use(self);
+        Handle_rk_use_end(self);
 
         if (err) {
                 cfl_PyErr_Format(err, "Purge failed: %s",
@@ -1533,7 +1526,7 @@ static PyMethodDef Producer_methods[] = {
 static Py_ssize_t Producer__len__(Handle *self) {
         Py_ssize_t len;
 
-        /* __len__ must never raise, so we can't use Handle_enter_rk_use()
+        /* __len__ must never raise, so we can't use Handle_rk_use_begin()
          * (which sets an exception on failure) -- fall back to returning 0,
          * , if the Handle is closed/closing. */
         if (atomic_int_get(&self->closing) || !self->rk)
