@@ -64,8 +64,8 @@ class TestCloseRace:
             while True:
                 try:
                     producer.produce(topic, value=f'msg-{produced_count}'.encode(), on_delivery=on_delivery)
-                    producer.poll(0)
                     produced_count += 1
+                    producer.poll(0)
                 except RuntimeError as e:
                     closed_runtime_error = e
                     break
