@@ -570,7 +570,7 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
         char txn_errstr[512] = {0};
         CallState cs;
 
-        if (!self->rk)
+        if (!atomic_ptr_get(&self->rk))
                 Py_RETURN_TRUE;
 
         /* Calling close() reentrantly from within a callback
@@ -583,11 +583,11 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
          * flushing and destroying it.
          */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
-                while (self->rk && atomic_int_get(&self->closing)) {
+                while (atomic_ptr_get(&self->rk) && atomic_int_get(&self->closing)) {
                         if (!Handle_sleep(self, 100))
                                 return NULL;
                 }
-                if (!self->rk)
+                if (!atomic_ptr_get(&self->rk))
                         Py_RETURN_TRUE;
 
                 /* The winner got interrupted by a signal */
@@ -642,7 +642,7 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         /* Destroy the producer (even if flush had issues) */
         rd_kafka_destroy(self->rk);
-        self->rk = NULL;
+        atomic_ptr_set(&self->rk, NULL);
 
         if (!CallState_end(self, &cs))
                 return NULL;
@@ -889,6 +889,9 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
         int message_cnt                      = 0;
         int good                             = 0;
         rd_kafka_topic_t *rkt                = NULL;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_messages = NULL;
+#endif
 
         static char *kws[] = {"topic",    "messages",    "partition",
                               "callback", "on_delivery", NULL};
@@ -918,6 +921,16 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
 
         if (!Producer_rk_use_begin(self))
                 return NULL;
+
+#ifdef Py_GIL_DISABLED
+        owned_messages = PyList_GetSlice(messages_list, 0, PY_SSIZE_T_MAX);
+        if (!owned_messages)
+                goto cleanup;
+        messages_list = owned_messages;
+        message_cnt   = (int)PyList_Size(messages_list);
+        if (message_cnt == 0)
+                goto cleanup;
+#endif
 
         /* Allocate arrays for librdkafka messages and msgstates */
         rkmessages = calloc(message_cnt, sizeof(*rkmessages));
@@ -956,6 +969,10 @@ cleanup:
                 free(rkmessages);
         if (msgstates)
                 free(msgstates);
+
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(owned_messages);
+#endif
 
         if (PyErr_Occurred())
                 return NULL;
@@ -1529,10 +1546,10 @@ static Py_ssize_t Producer__len__(Handle *self) {
         /* __len__ must never raise, so we can't use Handle_rk_use_begin()
          * (which sets an exception on failure) -- fall back to returning 0,
          * , if the Handle is closed/closing. */
-        if (atomic_int_get(&self->closing) || !self->rk)
+        if (atomic_int_get(&self->closing) || !atomic_ptr_get(&self->rk))
                 return 0;
         atomic_int_inc(&self->active_calls);
-        if (atomic_int_get(&self->closing) || !self->rk) {
+        if (atomic_int_get(&self->closing) || !atomic_ptr_get(&self->rk)) {
                 atomic_int_dec(&self->active_calls);
                 return 0;
         }
