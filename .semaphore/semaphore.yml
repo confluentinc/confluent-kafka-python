@@ -426,7 +426,6 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install pytest
             - uv pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -462,7 +461,6 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install pytest
             - uv pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -511,7 +509,6 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install pytest
             - uv pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -560,7 +557,6 @@ blocks:
             - export ARCH=arm64
             - pip install uv
             - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install pytest
             - uv pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
@@ -608,7 +604,6 @@ blocks:
             - python -m pip install uv
             - uv venv _venv314t --python 3.14t
             - . .\_venv314t\Scripts\Activate.ps1
-            - uv pip install pytest
             - uv pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts
