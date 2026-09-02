@@ -134,7 +134,7 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.15.0"
+#define CFL_VERSION_STR "2.15.0+nogil1"
 
 /**
  * Minimum required librdkafka version. This is checked both during
