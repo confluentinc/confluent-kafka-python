@@ -35,6 +35,7 @@ process segfaults. On a memory-safe build the process survives and the test pass
 """
 
 import os
+import sys
 import threading
 import time
 
@@ -421,6 +422,101 @@ def test_list_consumer_groups_types_races_list_mutation():
     _admin_list_crash(
         lambda a, s: super(AdminClient, a).list_consumer_groups(AdminClient._create_future(), types_int=s), _group_types
     )
+
+
+###############################################################################
+# Snapshot refcount balance
+#
+# The fix for the bug class above makes the C code take a private snapshot of
+# the caller's list (PyList_GetSlice) and iterate that instead. The snapshot
+# is an internal object Python can never see -- but PyList_GetSlice
+# Py_INCREFs every element, so if some exit path forgets to release the
+# snapshot, the leaked list keeps its grip on the *caller's* elements and each
+# one's refcount stays elevated by exactly +1 per call. A correct release
+# brings them back to baseline. So a leak of the invisible internal list is
+# observable through sys.getrefcount() of the visible elements it pins.
+#
+# These do not crash, so they need no subprocess isolation.
+#
+# TODO NOGIL: generalize this into a parametrized snapshot-release check covering
+# every API we added a list/dict snapshot to (not just create_acls/delete_acls)
+# Assert on the list *element's* refcount
+# (not the list object -- the snapshot is a copy, so the container's own count
+# never moves; and not the element's attributes -- those are where the
+# separate, pre-existing element-refcount bugs live). Success case: a fully
+# valid list. Error case: put a plain object() sentinel at index 0 so the parse
+# loop bails on the first type-check, before any per-element handling that could
+# trip a pre-existing bug, and check the sentinel's refcount. This keeps the
+# assertion scoped to *our* snapshot change and side-steps the pre-existing
+# issues.
+###############################################################################
+
+
+def _assert_snapshot_released(call, items, raises=None, n=200):
+    """Call ``call(items)`` ``n`` times and assert the input elements'
+    refcounts return to baseline, i.e. the C-side list snapshot was released
+    on the exercised path. ``raises`` is the exception type every call must
+    raise (error path); ``None`` means every call must succeed."""
+    elem = items[0]
+    base = sys.getrefcount(elem)
+    for _ in range(n):
+        if raises is None:
+            call(items)
+        else:
+            with pytest.raises(raises):
+                call(items)
+    delta = sys.getrefcount(elem) - base
+    assert delta == 0, (
+        f"input element refcount drifted by {delta:+d} over {n} calls -- the "
+        f"internal list snapshot was not released on this path"
+    )
+
+
+def test_create_acls_releases_snapshot_on_success():
+    """Regression: Admin_create_acls() snapshotted the acl list but released
+    it only on the err: path, so every *successful* call leaked the snapshot
+    and pinned every AclBinding in the list forever."""
+    with AdminClient(_CONF) as admin:
+        _assert_snapshot_released(
+            lambda s: super(AdminClient, admin).create_acls(s, AdminClient._create_future()),
+            _acl_bindings()[:8],
+        )
+
+
+def test_create_acls_releases_snapshot_on_error():
+    """The err: path must release the snapshot too. A wrong-typed element at
+    index 1 fails the IsInstance check *after* the snapshot has been taken."""
+    items = _acl_bindings()[:8]
+    items.insert(1, 'not-an-acl-binding')
+    with AdminClient(_CONF) as admin:
+        _assert_snapshot_released(
+            lambda s: super(AdminClient, admin).create_acls(s, AdminClient._create_future()),
+            items,
+            raises=ValueError,
+        )
+
+
+def test_delete_acls_releases_snapshot_on_success():
+    """Regression: same success-path snapshot leak as create_acls(), for
+    Admin_delete_acls() and its AclBindingFilter list."""
+    with AdminClient(_CONF) as admin:
+        _assert_snapshot_released(
+            lambda s: super(AdminClient, admin).delete_acls(s, AdminClient._create_future()),
+            _acl_binding_filters()[:8],
+        )
+
+
+def test_delete_acls_releases_snapshot_on_error():
+    """The err: path must release the snapshot too (wrong-typed element at
+    index 1, after the snapshot has been taken)."""
+    items = _acl_binding_filters()[:8]
+    items.insert(1, 'not-an-acl-binding-filter')
+    with AdminClient(_CONF) as admin:
+        _assert_snapshot_released(
+            lambda s: super(AdminClient, admin).delete_acls(s, AdminClient._create_future()),
+            items,
+            raises=ValueError,
+        )
 
 
 ###############################################################################

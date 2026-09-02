@@ -1658,6 +1658,9 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         Py_DECREF(AclBinding_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(owned_acls_list);
+#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
@@ -1919,6 +1922,9 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(owned_acls_list);
+#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;

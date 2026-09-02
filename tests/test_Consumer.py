@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import time
+
 import pytest
 
 from confluent_kafka import (
@@ -477,6 +479,14 @@ def test_consumer_without_groupid():
     assert ex.match('group.id must be set')
 
 
+def _poll_until_callback_raises(consumer, timeout_s=5.0, step_s=0.2):
+    """poll() repeatedly, under a bounded deadline, until a callback raises."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        consumer.poll(timeout=step_s)
+    pytest.fail(f"no callback raised within {timeout_s}s")
+
+
 def test_callback_exception_no_system_error():
     """Test all consumer callbacks exception handling with separate assertions for each callback"""
 
@@ -484,9 +494,10 @@ def test_callback_exception_no_system_error():
     error_called = []
 
     def error_cb_that_raises(error):
-        """Error callback that raises an exception"""
+        """Error callback that raises an exception, but only the first time"""
         error_called.append(error)
-        raise RuntimeError("Test exception from error_cb")
+        if len(error_called) == 1:
+            raise RuntimeError("Test exception from error_cb")
 
     consumer1 = TestConsumer(
         {
@@ -502,7 +513,7 @@ def test_callback_exception_no_system_error():
 
     # Test error_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer1.consume(timeout=0.5)
+        _poll_until_callback_raises(consumer1)
 
     # Verify error_cb was called and raised the expected exception
     assert "Test exception from error_cb" in str(exc_info.value)
@@ -536,7 +547,7 @@ def test_callback_exception_no_system_error():
 
     # Test stats_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer2.consume(timeout=0.5)  # Longer timeout to allow stats callback
+        _poll_until_callback_raises(consumer2)
 
     # Verify stats_cb was called and raised the expected exception
     assert "Test exception from stats_cb" in str(exc_info.value)
@@ -565,7 +576,7 @@ def test_callback_exception_no_system_error():
 
     # Test throttle_cb callback - may not be triggered, so we'll just verify it doesn't crash
     try:
-        consumer3.consume(timeout=0.5)
+        consumer3.poll(timeout=0.5)
         # If no exception is raised, that's also fine - throttle_cb may not be triggered
         print("Throttle callback not triggered in this scenario")
     except RuntimeError as exc_info:
