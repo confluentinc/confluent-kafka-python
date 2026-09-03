@@ -15,10 +15,7 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -36,10 +33,7 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -61,10 +55,7 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -84,10 +75,7 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -111,10 +99,7 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -132,10 +117,7 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
         machine:
@@ -153,10 +135,7 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
-    run:
-      when: "tag =~ '.*'"
-    dependencies:
-      - "Pre-release Validation"
+    dependencies: []
     task:
       agent:
           machine:
@@ -424,8 +403,6 @@ blocks:
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Wheel Verification: Linux x64"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Linux x64"
     task:
@@ -443,9 +420,24 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify (Python 3.14t free-threaded)
+          commands:
+            - export ARCH=x64
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
+            - uv pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: Linux arm64"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Linux arm64"
     task:
@@ -463,9 +455,24 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify (Python 3.14t free-threaded)
+          commands:
+            - export ARCH=arm64
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
+            - uv pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: OSX x64"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
@@ -495,9 +502,25 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
+        - name: Verify (Python 3.14t free-threaded)
+          commands:
+            - export ARCH=x64
+            - checkout
+            - sem-version python 3.11
+            - pip install uv
+            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
+            - uv pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.14"
@@ -527,9 +550,25 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
+        - name: Verify (Python 3.14t free-threaded)
+          commands:
+            - checkout
+            - sem-version python 3.11
+            - export ARCH=arm64
+            - pip install uv
+            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
+            - uv pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests/test_error.py
   - name: "Wheel Verification: Windows"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: Windows"
     task:
@@ -559,6 +598,25 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests\test_error.py
+        - name: Verify (Python 3.14t free-threaded)
+          commands:
+            - sem-version python 3.11
+            - python -m pip install uv
+            - uv venv _venv314t --python 3.14t --seed
+            - . .\_venv314t\Scripts\Activate.ps1
+            - python -m pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - cd artifacts
+            - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
+            - cd ..
+            - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
+            - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
+            - pytest tests\test_error.py
   - name: "Pre-release Validation"
     run:
       when: "tag =~ '.*'"
@@ -573,8 +631,6 @@ blocks:
             - sem-version python 3.11
             - tools/pre-release-validation.sh
   - name: "Source Distribution"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheel Verification: Linux x64"
       - "Wheel Verification: Linux arm64"
@@ -594,8 +650,6 @@ blocks:
             - ls dist/
             - artifact push workflow dist/ --destination artifacts/sdist/
   - name: "Packaging"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Source Distribution"
     task:
