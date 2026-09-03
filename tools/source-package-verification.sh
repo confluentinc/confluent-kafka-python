@@ -5,13 +5,23 @@
 #
 set -e
 
-uv pip install -r requirements/requirements-tests-install.txt
-# Install orjson (CI-only) so the test suite exercises the orjson fast-path of
-# the JSON codec. It is intentionally NOT in requirements-tests-install.txt:
-# orjson has no free-threaded wheels yet, and keeping it out lets contributors
-# on such interpreters still install the default test deps. The stdlib fallback
-# is covered by tests/schema_registry/test_json_codec.py regardless.
-uv pip install -r requirements/requirements-json-fast.txt
+FREE_THREADED=$(python -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)")
+
+if [[ $FREE_THREADED == "1" ]]; then
+    # The rules and json-fast extras' compiled deps (tink, google-re2, grpcio;
+    # orjson) ship no free-threaded wheels and their source builds fail
+    # (e.g. tink needs protoc), so install the supported subset.
+    uv pip install -r requirements/requirements-tests-install-nogil.txt
+else
+    uv pip install -r requirements/requirements-tests-install.txt
+    # Install orjson (CI-only) so the test suite exercises the orjson fast-path
+    # of the JSON codec. It is intentionally NOT in
+    # requirements-tests-install.txt: orjson has no free-threaded wheels yet,
+    # and keeping it out lets contributors on such interpreters still install
+    # the default test deps. The stdlib fallback is covered by
+    # tests/schema_registry/test_json_codec.py regardless.
+    uv pip install -r requirements/requirements-json-fast.txt
+fi
 uv pip install -U build
 
 # Cache trivup Apache Kafka versions
@@ -71,7 +81,22 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         python3 -m mypy src/confluent_kafka
 
         uv pip install -r requirements/requirements-docs.txt
+        if [[ $FREE_THREADED == "1" ]]; then
+            # Sphinx autodoc imports confluent_kafka.schema_registry.avro (and
+            # the legacy confluent_kafka.avro) to document AvroSerializer/
+            # AvroDeserializer, which needs fastavro. fastavro is deliberately
+            # excluded from the free-threaded test install (see
+            # requirements-avro-nogil.txt) because importing it silently
+            # re-enables the GIL -- that only matters for the free-threading
+            # behavior the pytest run below is testing, not for this one-shot
+            # doc build, so install it just for `make docs` and remove it
+            # again immediately after so pytest stays GIL-clean.
+            uv pip install fastavro
+        fi
         make docs
+        if [[ $FREE_THREADED == "1" ]]; then
+            uv pip uninstall -y fastavro
+        fi
 
         echo "Testing extra dependencies ..."
         python3 -c "
