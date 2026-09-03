@@ -602,14 +602,14 @@ blocks:
           commands:
             - sem-version python 3.11
             - python -m pip install uv
-            - uv venv _venv314t --python 3.14t
+            - uv venv _venv314t --python 3.14t --seed
             - . .\_venv314t\Scripts\Activate.ps1
-            - uv pip install -r requirements/requirements-tests-install-nogil.txt
+            - python -m pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts
             - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
             - cd ..
-            - uv pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
             - python -c "import confluent_kafka; print('version:', confluent_kafka.version())"
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''ssl.cipher.suites'':''DEFAULT''}); print(''OK: OpenSSL'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''gzip''}); print(''OK: gzip'')"'
