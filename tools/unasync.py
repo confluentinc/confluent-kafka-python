@@ -135,7 +135,7 @@ def unasync_file_check(in_path, out_path):
             # Format using isort and black (same as style-format.sh does)
             # Use relative path from project root so pyproject.toml config is found
             tmp_rel_path = os.path.relpath(tmp_path, project_root)
-            subprocess.run(['python3', '-m', 'isort', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
+            subprocess.run(['isort', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
             subprocess.run(['python3', '-m', 'black', tmp_rel_path], cwd=project_root, capture_output=True, check=False)
 
             with open(tmp_path, "r") as formatted_file:
