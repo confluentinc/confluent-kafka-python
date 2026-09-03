@@ -602,8 +602,9 @@ blocks:
           commands:
             - sem-version python 3.11
             - python -m pip install uv
-            - uv venv _venv314t --python 3.14t --seed
+            - uv venv _venv314t --python 3.14t
             - . .\_venv314t\Scripts\Activate.ps1
+            - python -m ensurepip
             - python -m pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts
