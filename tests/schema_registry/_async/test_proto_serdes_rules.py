@@ -62,6 +62,7 @@ if proto_path not in sys.path:
 
 from tests.schema_registry.data.proto import (  # noqa: E402
     example_pb2,
+    map_widget_pb2,
     newerwidget_pb2,
     newwidget_pb2,
     widget_pb2,
@@ -481,3 +482,47 @@ async def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, o
     deser = await AsyncProtobufDeserializer(newerwidget_pb2.NewerWidget, deser_conf, client)
     newobj = await deser(obj_bytes, ser_ctx)
     assert obj3.length == newobj.length
+
+
+async def test_proto_cel_field_transform_with_map_field():
+    # A field-level domain rule on a message carrying a map field. Taking the repeated
+    # branch for a map iterated its keys and then failed in _set_field, so this used to
+    # raise; the map must survive intact while scalar and repeated fields transform.
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True, 'use.deprecated.format': False}
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "typeName == 'STRING' ; value + '-suffix'",
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(
+            _schema_to_str(map_widget_pb2.MapWidget.DESCRIPTOR.file),
+            "PROTOBUF",
+            [],
+            None,
+            RuleSet(None, [rule]),
+        ),
+    )
+    obj = map_widget_pb2.MapWidget(name='widget', labels={'env': 'prod'}, tags=['a'])
+    ser = await AsyncProtobufSerializer(map_widget_pb2.MapWidget, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncProtobufDeserializer(map_widget_pb2.MapWidget, {'use.deprecated.format': False}, client)
+    newobj = await deser(obj_bytes, ser_ctx)
+    assert newobj.name == 'widget-suffix'
+    assert list(newobj.tags) == ['a-suffix']
+    # Map values are not visited by field-level rules: the field context keeps the MAP
+    # type through the recursion, so the executor skips it as non-primitive.
+    assert dict(newobj.labels) == {'env': 'prod'}
