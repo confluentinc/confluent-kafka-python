@@ -1372,7 +1372,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                               NULL};
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
-        rd_kafka_queue_t *rkqu;
+        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
         Py_ssize_t i, n;
 
@@ -1423,6 +1423,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 free(rkmessages);
                 cfl_PyErr_Format(rd_kafka_last_error(), "%s",
                                  rd_kafka_err2str(rd_kafka_last_error()));
+                Handle_gate_exit(self);
                 return NULL;
         }
 
