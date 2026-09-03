@@ -53,6 +53,7 @@ PyObject *KafkaException;
  * KafkaException. */
 PyObject *IllegalStateException;
 PyObject *ConcurrentModificationException;
+PyObject *Consumer_reentry_identity_var;
 
 
 /****************************************************************************
@@ -2431,7 +2432,8 @@ int wait_for_oauth_token_set(Handle *h) {
         int max_wait_sec       = 10;
         int retry_interval_sec = 1; /* Check every 1 sec */
         int elapsed_sec        = 0;
-        while (!h->oauth_token_set && elapsed_sec < max_wait_sec) {
+        while (!atomic_int_get(&h->oauth_token_set) &&
+               elapsed_sec < max_wait_sec) {
                 CallState cs;
                 CallState_begin(h, &cs);
 #ifdef _WIN32
@@ -2443,7 +2445,7 @@ int wait_for_oauth_token_set(Handle *h) {
                 elapsed_sec += retry_interval_sec;
         }
 
-        if (!h->oauth_token_set) {
+        if (!atomic_int_get(&h->oauth_token_set)) {
                 /* Token timeout. Don't tear down here — each _init knows
                  * whether to call rd_kafka_destroy() or
                  * rd_kafka_share_destroy() for what it allocated. */
@@ -2529,7 +2531,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);
                 goto fail;
         }
-        h->oauth_token_set = 1;
+        atomic_int_set(&h->oauth_token_set, 1);
         goto done;
 
 fail:
@@ -3315,6 +3317,46 @@ int CallState_end(Handle *h, CallState *cs) {
 
 
 /**
+ * @brief Mark self->rk as in-use by the calling thread, so that close()
+ *        (running concurrently on another thread) will wait for us before
+ *        destroying it. Must be called before CallState_begin().
+ *
+ * @returns 1 if self->rk is safe to use (active_calls has been
+ *          incremented; caller must call Handle_exit_rk_use() on every
+ *          return path), or 0 with ERR_MSG_PRODUCER_CLOSED set if the
+ *          Handle is closed/closing (nothing to undo).
+ */
+int Handle_enter_rk_use(Handle *h) {
+        unsigned long self_tid = PyThread_get_thread_ident();
+
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return 0;
+        }
+        atomic_int_inc(&h->active_calls);
+        /* close() may have started between our check above and the
+         * increment; re-check now that we're counted. */
+        if ((atomic_int_get(&h->closing) &&
+             atomic_ulong_get(&h->closing_thread) != self_tid) ||
+            !h->rk) {
+                atomic_int_dec(&h->active_calls);
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return 0;
+        }
+        return 1;
+}
+
+/**
+ * @brief Counterpart to Handle_enter_rk_use(): call on every return path
+ *        after a successful Handle_enter_rk_use().
+ */
+void Handle_exit_rk_use(Handle *h) {
+        atomic_int_dec(&h->active_calls);
+}
+
+/**
  * @brief Get the current thread's CallState and re-locks the GIL.
  */
 CallState *CallState_get(Handle *h) {
@@ -4000,6 +4042,21 @@ static PyObject *_init_cimpl(void) {
         PyModule_AddObject(m, "ConcurrentModificationException",
                            ConcurrentModificationException);
 
+        /* ContextVar carrying the identity AIOConsumer presents to the
+         * Consumer gate for the current call -- see Handle_gate_enter()
+         * in Consumer.c and confluent_kafka.aio._common. */
+        PyObject *zero = PyLong_FromLong(0);
+        if (!zero)
+                return NULL;
+        Consumer_reentry_identity_var =
+            PyContextVar_New("reentry_identity", zero);
+        Py_DECREF(zero);
+        if (!Consumer_reentry_identity_var)
+                return NULL;
+        Py_INCREF(Consumer_reentry_identity_var);
+        PyModule_AddObject(m, "_reentry_identity_var",
+                           Consumer_reentry_identity_var);
+
         PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE",
                                 RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
         PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME",
@@ -4012,6 +4069,11 @@ static PyObject *_init_cimpl(void) {
         PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
+
+#ifdef Py_GIL_DISABLED
+        if (PyUnstable_Module_SetGIL(m, Py_MOD_GIL_NOT_USED) < 0)
+                return NULL;
+#endif
 
         return m;
 }
