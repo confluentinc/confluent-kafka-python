@@ -45,9 +45,13 @@ if FREE_THREADED_BUILD:
         "test_azure_aead.py",
         "test_azure_client.py",
         "test_azure_driver.py",
+        "test_cel_validator.py",
         "test_dlq_action.py",
         "test_encrypt_executor.py",
         "test_hcvault_driver.py",
+        "test_inline_tags.py",
+        "test_proto_transform.py",
+        "test_validate_message.py",
         "_async/test_avro.py",
         "_async/test_avro_serdes.py",
         "_async/test_avro_serdes_rules.py",
@@ -55,6 +59,7 @@ if FREE_THREADED_BUILD:
         "_async/test_dlq_serdes.py",
         "_async/test_json_serdes_rules.py",
         "_async/test_proto_serdes_rules.py",
+        "_async/test_validation_serdes.py",
         "_sync/test_avro.py",
         "_sync/test_avro_serdes.py",
         "_sync/test_avro_serdes_rules.py",
@@ -62,6 +67,7 @@ if FREE_THREADED_BUILD:
         "_sync/test_dlq_serdes.py",
         "_sync/test_json_serdes_rules.py",
         "_sync/test_proto_serdes_rules.py",
+        "_sync/test_validation_serdes.py",
     ]
     warnings.warn(
         "free-threaded build: skipping collection of {} schema_registry "
