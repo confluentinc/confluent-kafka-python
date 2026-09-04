@@ -1732,6 +1732,26 @@ static void Consumer_rebalance_cb(rd_kafka_t *rk,
 
 
 
+
+static PyObject *Consumer_config(PyObject *selfobj, void *closure) {
+        Handle *self = (Handle *)selfobj;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer instance not initialized");
+                return NULL;
+        }
+
+        return handle_config_dict(self);
+}
+
+static PyGetSetDef Consumer_getsetters[] = {
+    {"config", (getter)Consumer_config, NULL,
+     ":attribute config: Effective configuration properties of the "
+     "Consumer instance (dict, read-only). Callbacks such as ``error_cb`` "
+     "passed in the configuration dict are not included.", NULL},
+    {NULL}};
+
 static int Consumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
         char errstr[256];
@@ -1840,7 +1860,7 @@ PyTypeObject ConsumerType = {
     0,                               /* tp_iternext */
     Consumer_methods,                /* tp_methods */
     0,                               /* tp_members */
-    0,                               /* tp_getset */
+    Consumer_getsetters,             /* tp_getset */
     0,                               /* tp_base */
     0,                               /* tp_dict */
     0,                               /* tp_descr_get */
