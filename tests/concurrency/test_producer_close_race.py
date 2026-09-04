@@ -377,6 +377,51 @@ def test_close_completes_quickly_with_indefinite_flush_in_progress():
     )
 
 
+def test_close_waits_for_in_flight_list_topics():
+    """list_topics() goes through the rk-use gate (active_calls) and a close()
+    that starts while list_topics() is in flight must wait for it to finish before
+    tearing down self->rk, rather than racing it. Against the unreachable
+    localhost:9092, list_topics(timeout=5) blocks its full timeout, giving
+    close() a real in-flight call to wait on."""
+    producer = Producer(_PRODUCER_CONF)
+    list_started = threading.Event()
+    list_finished_at = None
+
+    def run_list_topics():
+        nonlocal list_finished_at
+        list_started.set()
+        try:
+            producer.list_topics(timeout=5)
+        except KafkaException:
+            pass  # unreachable broker -> transport error at the end, expected
+        list_finished_at = time.monotonic()
+
+    t = threading.Thread(target=run_list_topics)
+    t.start()
+    list_started.wait()
+    time.sleep(1)  # Make sure list_topics() is genuinely in-flight (holding the gate).
+
+    close_start = time.monotonic()
+    result = producer.close()
+    close_end = time.monotonic()
+
+    t.join(timeout=15)
+    assert not t.is_alive(), "list_topics() thread did not finish after close()"
+    assert list_finished_at is not None, "list_topics() never finished"
+    assert result is True, f"close() must return True, got {result!r}"
+
+    close_duration = close_end - close_start
+    # close() must not have returned before the in-flight list_topics()
+    # released the gate ...
+    assert close_end >= list_finished_at, (
+        f"close() returned at {close_end:.2f} before in-flight list_topics() "
+        f"finished at {list_finished_at:.2f} -- it did not wait"
+    )
+    assert close_duration >= 3.0, (
+        f"close() returned in {close_duration:.2f}s -- too fast to have waited " f"for the in-flight list_topics() call"
+    )
+
+
 def test_close_is_idempotent():
     """Calling close() twice, with no concurrency at all, must return True
     both times."""
