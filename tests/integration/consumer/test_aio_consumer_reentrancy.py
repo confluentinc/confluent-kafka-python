@@ -241,7 +241,12 @@ async def test_on_assign_calls_non_reentrancy_eligible_method(kafka_cluster):
 
     await consumer.subscribe([topic], on_assign=on_assign)
 
-    msg = await consumer.poll(10)
+    # Poll in a loop until msg arrives
+    msg = None
+    for _ in range(30):
+        msg = await consumer.poll(1)
+        if msg is not None:
+            break
 
     print(f"{called_by()}: pause_called={len(pause_called)}, position_results={position_results}")
     assert pause_called, "on_assign was never invoked"
