@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, cast
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
+from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     VALIDATION_RULES_PROP,
     FieldTransform,
@@ -24,6 +25,31 @@ from confluent_kafka.schema_registry.serde import (
 )
 
 from .schema_registry_client import RuleKind, Schema
+
+
+# The Avro `variant` logical type: a record {metadata: bytes, value: bytes} carrying a
+# Spark/Parquet Variant. A field with this logical type decodes to / encodes from a Variant,
+# so serde consumers and CEL rules see a first-class Variant rather than raw bytes. fastavro
+# keys logical handlers by "<avro-type>-<logicalType>" = "record-variant"; this is the Python
+# counterpart of Java's io.confluent.avro.type.VariantConversion.
+def _variant_from_avro(data, writer_schema, reader_schema=None):  # noqa: ARG001
+    return Variant(bytes(data["value"]), bytes(data["metadata"]))
+
+
+def _variant_to_avro(data, schema):  # noqa: ARG001
+    if isinstance(data, Variant):
+        return {"metadata": data.metadata, "value": data.value}
+    return data
+
+
+try:
+    from fastavro import read as _fastavro_read
+    from fastavro import write as _fastavro_write
+
+    _fastavro_read.LOGICAL_READERS["record-variant"] = _variant_from_avro
+    _fastavro_write.LOGICAL_WRITERS["record-variant"] = _variant_to_avro
+except Exception:  # pragma: no cover - guards against a fastavro API shape change
+    pass
 
 __all__ = [
     'AvroMessage',

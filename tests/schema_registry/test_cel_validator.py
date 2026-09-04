@@ -21,6 +21,7 @@ Tests for CelValidator — the per-rule CEL semantics, independent of any walker
 
 import datetime
 
+import celpy
 import pytest
 from celpy import celtypes
 from google.protobuf import descriptor_pb2, message_factory, wrappers_pb2
@@ -28,6 +29,8 @@ from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.types import variant_utils as vu
 from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule
@@ -144,6 +147,490 @@ def test_protobuf_map_field_binds_a_map(validator):
     message = validation_widget_pb2.ValidationOuter(labels={"a": validation_widget_pb2.ValidationItem(v=1)})
     fd = message.DESCRIPTOR.fields_by_name["labels"]
     assert validator.execute(rule("'a' in this"), fd, message.labels) is True
+
+
+# A ``confluent.type.Decimal`` proto field is bound into CEL as a celpy MessageType wrapper
+# (the same shape produced whether the Decimal is the whole message or a nested field), so
+# ``decimal(...)`` must unwrap it and dispatch the ``decimals.*`` operators against it. This
+# mirrors the JVM client's CelValidatorDecimalTest, which reads a ``confluent.type.Decimal``
+# field via ``decimal(this)``.
+def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
+    # 12.34 = unscaled 1234 (0x04D2) at scale 2.
+    d = decimal_pb2.Decimal(value=(1234).to_bytes(2, "big"), scale=2)
+    assert validator.execute(rule("decimals.gt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is True
+    assert validator.execute(rule("decimals.lt(decimal(this), decimal('10.00'))"), d.DESCRIPTOR, d) is False
+
+
+# A decimal reached by *selection* rather than bound directly must compare numerically too.
+# The boundary conversion only sees what is bound, so ``this.a`` stays a confluent.type.Decimal
+# message; comparing those structurally - field by field over unscaled bytes and scale - calls
+# 1.50 and 1.5 unequal. Containers and ``in`` follow the same rule, or they contradict ``==``.
+@pytest.mark.parametrize("expr,expected", [
+    ("this.a == this.b", True),
+    ("this.a != this.b", False),
+    ("[this.a] == [this.b]", True),
+    ("{'k': this.a} == {'k': this.b}", True),
+    ("this.a in [this.b]", True),
+    ("decimals.eq(this.a, this.b)", True),
+    # Negative controls.
+    ("this.a == decimal('9')", False),
+    ("[this.a] == [decimal('9')]", False),
+    ("this.a in [decimal('9')]", False),
+])
+def test_nested_proto_decimal_equality(validator, expr, expected):
+    def dec(unscaled, scale):
+        return decimal_pb2.Decimal(value=unscaled.to_bytes(2, "big"), scale=scale)
+
+    # 1.50 (unscaled 150, scale 2) and 1.5 (unscaled 15, scale 1) - one number, two encodings.
+    holder = {"a": dec(150, 2), "b": dec(15, 1)}
+    assert validator.execute(rule(expr), None, holder) is expected
+
+
+# Overriding the equality operators must not disturb anything that has no decimal in it.
+@pytest.mark.parametrize("expr,expected", [
+    ("1 == 1", True), ("1 == 2", False), ("1 != 2", True),
+    ("'a' == 'a'", True), ("[1, 2] == [1, 2]", True), ("[1, 2] == [2, 1]", False),
+    ("{'a': 1} == {'a': 1}", True), ("2 in [1, 2]", True), ("3 in [1, 2]", False),
+    ("b'x' == b'x'", True), ("null == null", True),
+])
+def test_equality_unchanged_without_decimals(validator, expr, expected):
+    assert validator.execute(rule(expr), None, {"unused": 1}) is expected
+
+
+# Cross-client parity: a bare ``confluent.type.Decimal`` field is usable with ``decimals.*``,
+# ``==``, ``string()`` and ``double()`` with **no ``decimal(...)`` call** on it. The
+# discriminating case is the scale-differing equality: a client comparing decimals by their
+# protobuf encoding (unscaled bytes plus scale, field by field) answers False for
+# ``decimal("12.340")``, because 12.34 and 12.340 are the same number in two encodings.
+_BARE_PROTO_DECIMAL_CASES = [
+    # Bare: no constructor call on the field.
+    ('decimals.eq(this, decimal("12.34"))', True),
+    ('decimals.gt(this, decimal("10.00"))', True),
+    # The wrapped form must keep working (decimal(...) re-entry).
+    ('decimals.eq(decimal(this), decimal("12.34"))', True),
+    # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+    ('this == decimal("12.340")', True),
+    ('this != decimal("12.340")', False),
+    ('decimals.lt(this, decimal("100"))', True),
+    # Negative control: a false comparison must still be False.
+    ('decimals.gt(this, decimal("100"))', False),
+    ('string(this) == "12.34"', True),
+    ('double(this) == 12.34', True),
+]
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_PROTO_DECIMAL_CASES)
+def test_proto_decimal_needs_no_constructor(validator, expr, expected):
+    # 12.34 = unscaled 1234 at scale 2.
+    d = decimal_pb2.Decimal(value=(1234).to_bytes(2, "big"), scale=2)
+    assert validator.execute(rule(expr), d.DESCRIPTOR, d) is expected
+
+
+# The Python decimal layer must match java.math.BigDecimal's EXACT/unbounded semantics
+# for add/sub/mul/mod, setScale/quantize (round/trunc/floor/ceil), and scaleb — rather
+# than the thread-local default context (prec=28) which silently rounds or hard-errors on
+# values with >28 significant digits. Only div/sqrt cap at 38 digits. These are the
+# Java-reference regression cases (#30 exact arithmetic, #31 negative-scale round/trunc,
+# #32 no-cap floor/ceil, #33 exact mod, #34 exact decimal-from-bytes).
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        # #30 exact add/mul — no silent rounding of the >28-digit result.
+        ('string(decimals.add(decimal("1E38"), decimal("1")))',
+         "100000000000000000000000000000000000001"),
+        ('string(decimals.mul(decimal("12345678901234567890"), '
+         'decimal("98765432109876543210")))',
+         "1219326311370217952237463801111263526900"),
+        # Scale preservation still holds for ordinary-magnitude operands.
+        ('string(decimals.mul(decimal("2.0"), decimal("3.0")))', "6.00"),
+        ('string(decimals.add(decimal("1.5"), decimal("1.25")))', "2.75"),
+        # #31 negative-scale round/trunc — quantize target Decimal(1).scaleb(-scale),
+        # so scale=-2 rounds/truncates to the hundreds place (not to an integer).
+        ('string(decimals.round(decimal("1234.5"), -2))', "1200"),
+        ('string(decimals.trunc(decimal("1234"), -2))', "1200"),
+        # #32 no 28-digit cap on floor (30-digit value passes through, no error).
+        ('string(decimals.floor(decimal("123456789012345678901234567890")))',
+         "123456789012345678901234567890"),
+        # #33 exact mod — quotient exceeds 38 digits, but remainder is exact.
+        ('string(decimals.mod(decimal("1E40"), decimal("3")))', "1"),
+        # #34 decimal(dyn) from a >28-digit string round-trips exactly.
+        ('string(decimal("12345678901234567890123456789012345"))',
+         "12345678901234567890123456789012345"),
+    ],
+)
+def test_decimal_ops_match_java_bigdecimal_exact_semantics(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+# #34 decimal(bytes, scale): a 38-digit unscaled value at scale 5 must round-trip
+# exactly through _from_bytes_scale (no rounding to the 28-digit default context).
+def test_decimal_from_bytes_scale_is_exact(validator):
+    unscaled = 12345678901234567890123456789012345678  # 38 digits
+    raw = unscaled.to_bytes(16, "big", signed=True)
+    result = validator.execute(rule("string(decimal(this, 5))"), None, raw)
+    assert result == "123456789012345678901234567890123.45678"
+
+
+# ``decimal(<string>)`` / ``decimal(<dyn>)`` must match java.math.BigDecimal's
+# ``new BigDecimal(String)`` / ``BigDecimal.valueOf(double)``, which throw
+# NumberFormatException on non-finite values, underscore digit-grouping, and
+# surrounding whitespace. Python's ``Decimal(str)`` silently accepts all of
+# these — building a poisoned NaN/Infinity Decimal or a wrongly-parsed 1000 —
+# so the constructor must reject them (surfaced as a RuleError). The
+# ``decimal(bytes, scale)`` path parses no string and is unaffected.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimal("NaN") > decimal("0")',
+        'decimal("Infinity") > decimal("0")',
+        'decimal("-Infinity") > decimal("0")',
+        'decimal("-inf") > decimal("0")',
+        'decimal("sNaN") > decimal("0")',
+        'decimal("1_000") > decimal("0")',
+        # Surrounding whitespace: Java rejects; Python's Decimal strips it.
+        "decimal('  5  ') > decimal('0')",
+    ],
+)
+def test_decimal_rejects_inputs_java_bigdecimal_rejects(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+# A NaN/Infinity double routed through ``decimal(<double>)`` must also be
+# rejected — Java's ``BigDecimal.valueOf(double)`` throws on non-finite doubles.
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_decimal_rejects_non_finite_double(validator, value):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule("decimal(this) > decimal('0')"), None, value)
+
+
+# Legitimate finite decimals must still parse: ordinary decimals, scientific
+# notation, negatives, negative zero, a leading '+', and a finite double.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('string(decimal("123.45"))', "123.45"),
+        ('string(decimal("1e40"))', "10000000000000000000000000000000000000000"),
+        ('string(decimal("-0.5"))', "-0.5"),
+        ('string(decimal("-0"))', "-0"),
+        ('string(decimal("+5"))', "5"),
+    ],
+)
+def test_decimal_accepts_legitimate_finite_values(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+def test_decimal_accepts_finite_double(validator):
+    assert validator.execute(rule("string(decimal(this))"), None, 1.5) == "1.5"
+
+
+# CEL ``==``/``!=`` on two Decimal values must be NUMERIC (scale-insensitive), matching
+# ``decimals.eq`` (java.math.BigDecimal.compareTo) rather than an equals() that also
+# compares scale. Python's ``decimal.Decimal.__eq__`` is already numeric
+# (``Decimal("2.0") == Decimal("2.00")`` is True), and celpy dispatches ``==`` to it,
+# so this is a regression guard — no code change is required.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('decimal("2.0") == decimal("2.00")', True),
+        ('decimal("2.0") == decimal("2.0")', True),
+        ('decimal("2.0") == decimal("2.1")', False),
+        ('decimal("2.0") != decimal("2.00")', False),
+        ('decimal("2.0") != decimal("2.1")', True),
+    ],
+)
+def test_decimal_equality_is_numeric_scale_insensitive(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) is expected
+
+
+# --------------------------------------------------------------------------------------
+# Variant CEL functions
+# --------------------------------------------------------------------------------------
+
+_VARIANT_JSON = (
+    '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
+
+
+# `this` is bound to a JSON string; variants.parseJson(this) turns it into a Variant, then
+# the variants.* accessors navigate and extract. Covers the null model (absent vs
+# variant-null), path/field/index navigation, typed extraction, and toJson.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "variants.type(variants.parseJson(this)) == 'object'",
+        "variants.as(variants.field(variants.parseJson(this), 'name'), 'string') == 'alice'",
+        "variants.as(variants.field(variants.parseJson(this), 'age'), 'int') == 30",
+        # Absent (missing field) vs present-but-variant-null (explicit JSON null).
+        "variants.field(variants.parseJson(this), 'missing') == null",
+        "variants.isNull(variants.field(variants.parseJson(this), 'explicit'))",
+        "!variants.isNull(variants.field(variants.parseJson(this), 'missing'))",
+        "variants.as(variants.path(variants.parseJson(this), '$.nested.x'), 'int') == 1",
+        "variants.as(variants.index("
+        "variants.field(variants.parseJson(this), 'scores'), 2), 'int') == 30",
+        # tryAs returns CEL null on a type mismatch (age is not a string).
+        "variants.tryAs(variants.field(variants.parseJson(this), 'age'), 'string') == null",
+        "variants.toJson(variants.field(variants.parseJson(this), 'nested')) == '{\"x\":1}'",
+    ],
+)
+def test_variant_functions_over_parsed_json(validator, expr):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
+# An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
+# in common/avro.py), which then flows into CEL through variant(this).
+def test_avro_variant_field_into_cel(validator):
+    import io
+
+    import fastavro
+
+    import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
+
+    schema = fastavro.parse_schema({
+        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
+        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+    })
+    built = vu.parse_json('{"name":"alice","age":30}')
+    value, metadata = built.value, built.metadata
+    buf = io.BytesIO()
+    fastavro.schemaless_writer(buf, schema, vu.Variant(value, metadata))
+    buf.seek(0)
+    decoded = fastavro.schemaless_reader(buf, schema)
+    assert isinstance(decoded, vu.Variant)
+    assert validator.execute(
+        rule("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"),
+        None, decoded) is True
+
+
+# A confluent.type.Variant proto field is bound into CEL as a celpy MessageType wrapper;
+# variant(...) must unwrap it, mirroring the decimal test above and the JVM client.
+def test_proto_variant_field_into_cel(validator):
+    built = vu.parse_json('{"name":"alice","age":30}')
+    value, metadata = built.value, built.metadata
+    v = variant_pb2.Variant(value=value, metadata=metadata)
+    expr = "variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True
+
+
+# Cross-client parity: a variant value is usable with the variants.* accessors with **no
+# variant(...) call**, in both formats, and the wrapped form keeps working alongside it. The
+# accessors are plain Python functions that coerce their subject, so they take whatever the
+# decoder produced -- a vu.Variant from the Avro logical type, or a proto message.
+_BARE_VARIANT_CASES = [
+    # Bare: no constructor call.
+    ("variants.type(this) == 'object'", True),
+    ("variants.as(variants.field(this, 'name'), 'string') == 'alice'", True),
+    ("variants.as(variants.path(this, '$.age'), 'int') == 30", True),
+    # The wrapped form must keep working (variant(...) re-entry).
+    ("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'", True),
+    # A missing key is CEL null, not an error.
+    ("variants.field(this, 'nope') == null", True),
+    # Negative control.
+    ("variants.as(variants.field(this, 'name'), 'string') == 'bob'", False),
+]
+
+
+# ``variants.isNull`` must coerce its receiver like every other accessor. It is declared over
+# dyn, so a bare variant field reaches it; a receiver check that only accepts the client's own
+# Variant type answers False for the shapes a variant-typed field actually decodes to, reporting
+# "not null" for a variant that holds an explicit JSON null. The bare-object cases above cannot
+# catch this: isNull on an object is False either way, so only a variant that *is* null
+# discriminates.
+@pytest.mark.parametrize("expr,expected", [
+    ("variants.isNull(this)", True),
+    # The wrapped form has always worked and must keep working.
+    ("variants.isNull(variant(this))", True),
+])
+def test_proto_variant_is_null_coerces_bare_receiver(validator, expr, expected):
+    built = vu.parse_json("null")
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is expected
+
+
+def test_proto_variant_is_null_false_for_non_null(validator):
+    built = vu.parse_json("5")
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule("variants.isNull(this)"), v.DESCRIPTOR, v) is False
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_VARIANT_CASES)
+def test_avro_variant_needs_no_constructor(validator, expr, expected):
+    import io
+
+    import fastavro
+
+    import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
+
+    schema = fastavro.parse_schema({
+        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
+        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+    })
+    built = vu.parse_json('{"name":"alice","age":30}')
+    buf = io.BytesIO()
+    fastavro.schemaless_writer(buf, schema, vu.Variant(built.value, built.metadata))
+    buf.seek(0)
+    decoded = fastavro.schemaless_reader(buf, schema)
+    assert validator.execute(rule(expr), None, decoded) is expected
+
+
+@pytest.mark.parametrize("expr,expected", _BARE_VARIANT_CASES)
+def test_proto_variant_needs_no_constructor(validator, expr, expected):
+    built = vu.parse_json('{"name":"alice","age":30}')
+    v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is expected
+
+
+# A string is rejected by variant(...) with a redirect to parseJson.
+def test_variant_rejects_string_input(validator):
+    with pytest.raises(RuleError, match="Could not execute"):
+        validator.execute(rule("variants.type(variant(this)) == 'object'"), None, "not-a-variant")
+
+
+# variant(null) yields CEL null instead of erroring (matching the Java reference), and it
+# composes: a null flows through the accessors as absent.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "variant(null) == null",
+        "variants.field(variant(null), 'k') == null",
+        # An absent field is null, and variant(null) of it is still null.
+        "variant(variants.field(variants.parseJson(this), 'missing')) == null",
+    ],
+)
+def test_variant_of_null_is_cel_null(validator, expr):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
+# Non-finite doubles round-trip through CEL as bareword NaN/Infinity/-Infinity (Confluent
+# Java contract). Bareword literals parse (Python json.loads accepts them by default).
+@pytest.mark.parametrize("tok", ["NaN", "Infinity", "-Infinity"])
+def test_variant_non_finite_bareword_roundtrip_through_cel(validator, tok):
+    expr = "variants.toJson(variants.parseJson(this)) == '%s'" % tok
+    assert validator.execute(rule(expr), None, tok) is True
+
+
+# variants.tryParseJson of empty/whitespace-only input is a soft failure -> CEL null,
+# while the strict variants.parseJson raises (surfaced as a RuleError).
+@pytest.mark.parametrize("src", ["", "   ", "\t\n"])
+def test_variant_try_parse_json_empty_is_cel_null(validator, src):
+    assert validator.execute(rule("variants.tryParseJson(this) == null"), None, src) is True
+
+
+@pytest.mark.parametrize("src", ["", "   "])
+def test_variant_parse_json_empty_raises(validator, src):
+    with pytest.raises(RuleError, match="Could not execute"):
+        validator.execute(rule("variants.type(variants.parseJson(this)) == 'object'"), None, src)
+
+
+# --------------------------------------------------------------------------------------
+# timestamp(value, precision)
+# --------------------------------------------------------------------------------------
+
+
+# ``timestamp(value, precision)`` must split the epoch value into whole microseconds with
+# exact integer FLOOR division (mirroring Java TimestampUtils' Math.floorDiv/floorMod),
+# not float division that rounds half-to-even and drops precision. datetime resolution is
+# one microsecond, so sub-microsecond nanos are floored away (an inherent, Java-matching
+# limit), but the microsecond itself must never round up, and negative epochs must floor
+# toward negative infinity.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # nanos floor to the microsecond (1500 ns -> 1 us, not rounded up to 2).
+        'timestamp(1500, 9) == timestamp("1970-01-01T00:00:00.000001Z")',
+        # 999999500 ns floors to .999999, not rounded up to the next whole second.
+        'timestamp(999999500, 9) == timestamp("1970-01-01T00:00:00.999999Z")',
+        # Negative epoch floors toward -inf: -500 ns -> the microsecond before the epoch.
+        'timestamp(-500, 9) == timestamp("1969-12-31T23:59:59.999999Z")',
+        # A large micros value keeps its microsecond (float division would have lost it).
+        'timestamp(253402300799000001, 6) == '
+        'timestamp("9999-12-31T23:59:59.000001Z")',
+        # millis/micros/seconds precisions are exact.
+        'timestamp(1500, 3) == timestamp("1970-01-01T00:00:01.500000Z")',
+        'timestamp(1, 6) == timestamp("1970-01-01T00:00:00.000001Z")',
+        'timestamp(1, 0) == timestamp("1970-01-01T00:00:01Z")',
+    ],
+)
+def test_timestamp_precision_floors_with_exact_integer_arithmetic(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+def test_timestamp_bool_reports_bool_not_int(validator):
+    # celtypes.BoolType subclasses int (MRO: BoolType -> int -> object) and *not*
+    # bool, so a plain ``isinstance(v, bool)`` guard never fires for a CEL bool and
+    # the value used to be misreported as a unitless raw int.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule("timestamp(true) == timestamp(1)"), None, 1)
+    assert "cannot convert bool" in str(excinfo.value.__cause__)
+
+
+@pytest.mark.parametrize("precision", [1, 2, 4, 5, 7, 8, 10, -3])
+def test_timestamp_rejects_precision_outside_the_set(validator, precision):
+    # With the unit a number rather than a name, rejecting anything outside
+    # {0, 3, 6, 9} is the only thing between a typo and a silently wrong instant.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(
+            rule(f"timestamp(1700000000, {precision}) == timestamp(0)"), None, 1)
+    assert "unknown precision" in str(excinfo.value.__cause__)
+
+
+def test_timestamp_datetime_components_form_still_works(validator):
+    # celpy's components form takes three or more args, so it never collides with
+    # the two-arg precision form.
+    assert validator.execute(
+        rule('timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")'), None, 1) is True
+
+
+# --------------------------------------------------------------------------------------
+# stdlib timestamp(...) — the single-int epoch-seconds overload every other client has
+# --------------------------------------------------------------------------------------
+
+
+# celpy binds ``timestamp`` straight to celtypes.TimestampType, which accepts a
+# datetime, a string, or an int followed by *at least two more* args (datetime
+# components) — but rejects a lone int. cel-java (int64_to_timestamp), Go, C++ and C#
+# all read a single int as epoch SECONDS, so the client registers its own "timestamp"
+# that adds that overload and delegates every other form to the base implementation.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # The regression: a bare int is epoch seconds.
+        'timestamp(1700000000) == timestamp("2023-11-14T22:13:20Z")',
+        'timestamp(0) == timestamp("1970-01-01T00:00:00Z")',
+        # Negative / pre-epoch ints.
+        'timestamp(-1) == timestamp("1969-12-31T23:59:59Z")',
+        'timestamp(-2208988800) == timestamp("1900-01-01T00:00:00Z")',
+        # Matches timestamp(value, 0) exactly.
+        'timestamp(1700000000) == timestamp(1700000000, 0)',
+        # The result is a real UTC-aware timestamp, usable with the timestamp methods.
+        "timestamp(1700000000).getFullYear() == 2023",
+        # Forwarded to the base implementation: the datetime-components form needs
+        # arity >= 3 to reach TimestampType, so the override must not swallow it.
+        'timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")',
+        'timestamp(2009, 2, 13, 23, 31, 30) == timestamp("2009-02-13T23:31:30Z")',
+        # Forwarded: RFC 3339 strings, including the lenient form celpy accepts.
+        'timestamp("2023-11-14T22:13:20Z") == timestamp(1700000000)',
+        'timestamp("2020-01-01 00:00:00") == timestamp("2020-01-01T00:00:00Z")',
+        # Forwarded: a timestamp is passed through unchanged.
+        'timestamp(timestamp("2023-11-14T22:13:20Z")) == timestamp(1700000000)',
+    ],
+)
+def test_timestamp_int_is_epoch_seconds_and_other_forms_still_work(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+def test_timestamp_bool_raises_rather_than_meaning_epoch_second_one(validator):
+    # BoolType subclasses int, so an unguarded int check would read true as 1.
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule('timestamp(true) == timestamp("1970-01-01T00:00:01Z")'), None, 1)
+    assert "cannot convert bool" in str(excinfo.value.__cause__)
+
+
+def test_timestamp_out_of_range_int_is_a_cel_error(validator):
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule("timestamp(9223372036854775807) == timestamp(0)"), None, 1)
+    cause = excinfo.value.__cause__
+    assert isinstance(cause, celpy.CELEvalError)
+    assert "out of range" in str(cause)
 
 
 # --------------------------------------------------------------------------------------
