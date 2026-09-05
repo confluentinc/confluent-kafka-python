@@ -98,6 +98,16 @@ def _coerce_bytes(v: typing.Any) -> bytes:
         f"variant: expected bytes, got {type(v).__name__}")
 
 
+def _variant_or_absent(value: bytes, metadata: bytes) -> typing.Optional[Variant]:
+    """Build a Variant, or ``None`` when there is no metadata at all -- a protobuf field left
+    unset, or an Avro variant record whose byte fields are empty. The Variant constructor reads
+    the metadata version byte, so an empty buffer has to be caught before construction; callers
+    report the ``None`` as CEL null, which every ``variants.*`` accessor already propagates."""
+    if not metadata:
+        return None
+    return Variant(value, metadata)
+
+
 def _to_variant(v: typing.Any) -> typing.Optional[Variant]:
     """Runtime dispatch backing ``variant(dyn)``: accept the shapes proto/Avro decoders
     produce. Rejects strings (use ``variants.parseJson``). CEL null passes through as CEL
@@ -109,21 +119,22 @@ def _to_variant(v: typing.Any) -> typing.Optional[Variant]:
     # A confluent.type.Variant proto message: the generated class, or any message whose
     # descriptor full name matches (covers DynamicMessage / alternate bindings).
     if _PROTO_VARIANT_CLS is not None and isinstance(v, _PROTO_VARIANT_CLS):
-        return Variant(_coerce_bytes(v.value), _coerce_bytes(v.metadata))
+        return _variant_or_absent(_coerce_bytes(v.value), _coerce_bytes(v.metadata))
     if getattr(getattr(v, "DESCRIPTOR", None), "full_name", "") == _VARIANT_PROTO_NAME:
-        return Variant(_coerce_bytes(v.value), _coerce_bytes(v.metadata))
+        return _variant_or_absent(_coerce_bytes(v.value), _coerce_bytes(v.metadata))
     # celpy binds a proto-message field as a wrapper that keeps the message on ``.msg``.
     proto_msg = getattr(v, "msg", None)
     if proto_msg is not None and getattr(
             getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == _VARIANT_PROTO_NAME:
-        return Variant(_coerce_bytes(proto_msg.value), _coerce_bytes(proto_msg.metadata))
+        return _variant_or_absent(
+            _coerce_bytes(proto_msg.value), _coerce_bytes(proto_msg.metadata))
     # An Avro variant-logical field reaches CEL as a map with {"metadata", "value"} byte
     # entries (celpy MapType is a dict subclass).
     if isinstance(v, dict):
         md = v.get("metadata")
         val = v.get("value")
         if md is not None and val is not None:
-            return Variant(_coerce_bytes(val), _coerce_bytes(md))
+            return _variant_or_absent(_coerce_bytes(val), _coerce_bytes(md))
         if md is not None or val is not None:
             missing = "value" if val is None else "metadata"
             raise celpy.CELEvalError(
@@ -139,7 +150,13 @@ def _variant(*args: typing.Any) -> typing.Optional[Variant]:
     """The ``variant(...)`` constructor. ``variant(dyn)`` runtime-dispatches (CEL null in ->
     CEL null out); ``variant(bytes, bytes)`` builds directly from (value, metadata) bytes."""
     if len(args) == 2:
-        return Variant(_coerce_bytes(args[0]), _coerce_bytes(args[1]))
+        metadata = _coerce_bytes(args[1])
+        if not metadata:
+            # Passing empty metadata explicitly is a rule-authoring mistake rather than an
+            # absent field, so it is reported instead of yielding null.
+            raise celpy.CELEvalError(
+                "variant(value, metadata): metadata is empty, so there is no variant to read")
+        return Variant(_coerce_bytes(args[0]), metadata)
     if len(args) != 1:
         raise celpy.CELEvalError(f"variant: expected 1 or 2 args, got {len(args)}")
     return _to_variant(args[0])
