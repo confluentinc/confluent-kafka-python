@@ -480,6 +480,57 @@ def test_proto_variant_needs_no_constructor(validator, expr, expected):
 
 
 # A string is rejected by variant(...) with a redirect to parseJson.
+# An *absent* variant -- a protobuf field left unset, or an Avro variant record whose byte
+# fields are empty -- carries no metadata, so there is nothing to read. It reads as CEL null and
+# every accessor propagates that, rather than the Variant constructor raising on a metadata
+# version byte that isn't there.
+_ABSENT_VARIANT_CASES = [
+    "variants.type(this) == null",
+    # isNull is False, not an error: an absent variant is not a JSON null.
+    "!variants.isNull(this)",
+    "variants.field(this, 'name') == null",
+    "variants.path(this, '$.name') == null",
+    "variants.toJson(this) == null",
+    # The explicit constructor reports it as CEL null too, like variant(null).
+    "variant(this) == null",
+]
+
+
+@pytest.mark.parametrize("expr", _ABSENT_VARIANT_CASES)
+def test_absent_proto_variant_reads_as_null(validator, expr):
+    v = variant_pb2.Variant(value=b"", metadata=b"")
+    assert validator.execute(rule(expr), v.DESCRIPTOR, v) is True
+
+
+@pytest.mark.parametrize("expr", _ABSENT_VARIANT_CASES)
+def test_absent_avro_variant_reads_as_null(validator, expr):
+    # The mapping an Avro variant record decodes to, with empty byte fields.
+    assert validator.execute(rule(expr), None, {"metadata": b"", "value": b""}) is True
+
+
+def test_explicit_null_variant_is_not_absent(validator):
+    # Absent must stay distinguishable from a variant that genuinely holds JSON null: the
+    # former is CEL null, the latter a present variant whose type is NULL.
+    assert validator.execute(
+        rule("variants.isNull(variants.parseJson('null'))"), None, "null") is True
+    assert validator.execute(
+        rule("variants.type(variants.parseJson('null')) != null"), None, "null") is True
+
+
+def test_variant_from_empty_metadata_bytes_is_rejected(validator):
+    # Passing empty metadata explicitly is a rule-authoring mistake rather than an absent
+    # field, so it is reported instead of yielding null.
+    with pytest.raises(Exception) as exc:
+        validator.execute(rule("variants.type(variant(b'', b'')) == 'object'"), None, "x")
+    # The validator wraps rule failures, so the explanation is on the cause chain.
+    chain = []
+    err = exc.value
+    while err is not None:
+        chain.append(str(err))
+        err = err.__cause__
+    assert any("metadata is empty" in m for m in chain), chain
+
+
 def test_variant_rejects_string_input(validator):
     with pytest.raises(RuleError, match="Could not execute"):
         validator.execute(rule("variants.type(variant(this)) == 'object'"), None, "not-a-variant")
