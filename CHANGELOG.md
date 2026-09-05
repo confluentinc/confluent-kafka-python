@@ -4,6 +4,7 @@
 
 ### Enhancements
 
+- Add KIP-546 `describe_client_quotas()` and `alter_client_quotas()` Admin APIs.
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
