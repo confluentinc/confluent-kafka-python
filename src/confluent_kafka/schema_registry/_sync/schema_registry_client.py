@@ -793,6 +793,7 @@ class SchemaRegistryClient(object):
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
         self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.guid, s)
+        self.clear_latest_caches(subject=subject_name)
 
         return registered_schema
 
@@ -1600,10 +1601,17 @@ class SchemaRegistryClient(object):
         result = self._rest_client.get('contexts', query={'offset': offset, 'limit': limit})
         return result
 
-    def clear_latest_caches(self):
+    def clear_latest_caches(self, subject: Optional[str] = None) -> None:
+        """Clear latest-version and latest-with-metadata caches, optionally for one subject."""
         with self._latest_lock:
-            self._latest_version_cache.clear()
-            self._latest_with_metadata_cache.clear()
+            if subject is None:
+                self._latest_version_cache.clear()
+                self._latest_with_metadata_cache.clear()
+            else:
+                self._latest_version_cache.pop(subject, None)
+                for cache_key in list(self._latest_with_metadata_cache):
+                    if cache_key[0] == subject:
+                        del self._latest_with_metadata_cache[cache_key]
 
     def clear_caches(self):
         with self._latest_lock:
