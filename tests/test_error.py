@@ -64,3 +64,16 @@ def test_new_produce_error_custom_message():
     assert pe.code == KafkaError._KEY_SERIALIZATION
     assert pe.name == u'_KEY_SERIALIZATION'
     assert pe.args[0].str() == "Unable to serialize key"
+
+
+def test_kafka_error_non_ascii_str():
+    # Covers the valid-UTF-8 non-ASCII path only: that the "replace" decode
+    # doesn't mangle legitimate non-English text. The public constructor can't
+    # inject invalid bytes, so the actual #448 invalid-byte case (reachable only
+    # from C or a genuinely non-UTF-8 locale) is not exercised here.
+    msg = u"Ошибка: недопустимое значение"
+    err = KafkaError(KafkaError._KEY_SERIALIZATION, msg)
+
+    assert err.str() == msg
+    assert msg in str(err)
+    assert repr(err)
