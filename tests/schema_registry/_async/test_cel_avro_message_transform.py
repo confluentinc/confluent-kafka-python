@@ -33,8 +33,8 @@ executor-level test cannot see it.
 import json
 
 from confluent_kafka.schema_registry import Schema
-from confluent_kafka.schema_registry._sync.schema_registry_client import SchemaRegistryClient
-from confluent_kafka.schema_registry.avro import AvroDeserializer, AvroSerializer
+from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AsyncAvroDeserializer, AsyncAvroSerializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet
@@ -62,26 +62,26 @@ _RECORD = {
 }
 
 
-def _round_trip(subject_suffix, expr):
+async def _round_trip(subject_suffix, expr):
     """Serializes the fixture under one message-level CEL transform and reads it back."""
     topic = _TOPIC + "-" + subject_suffix
-    client = SchemaRegistryClient.new_client({"url": "mock://"})
+    client = AsyncSchemaRegistryClient.new_client({"url": "mock://"})
     rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None,
                 expr, None, None, False)
-    client.register_schema(topic + "-value",
+    await client.register_schema(topic + "-value",
                            Schema(json.dumps(_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])))
-    ser = AvroSerializer(
+    ser = await AsyncAvroSerializer(
         client, schema_str=None,
         conf={"auto.register.schemas": False, "use.latest.version": True})
     ctx = SerializationContext(topic, MessageField.VALUE)
-    # Each is on its own call: tools/unasync.py strips "await " by word boundary, so
+    # Each await is on its own call: tools/unasync.py strips "await " by word boundary, so
     # "await (" survives the rewrite and the generated sync file will not parse.
-    payload = ser(_RECORD, ctx)
-    deser = AvroDeserializer(client)
-    return deser(payload, ctx)
+    payload = await ser(_RECORD, ctx)
+    deser = await AsyncAvroDeserializer(client)
+    return await deser(payload, ctx)
 
 
-def test_a_field_the_rule_does_not_name_takes_its_declared_default():
+async def test_a_field_the_rule_does_not_name_takes_its_declared_default():
     """The case this file exists for. Under merge, `withDefault` would still read
     "original-withDefault"; under replace it takes the schema's declared default.
 
@@ -90,7 +90,7 @@ def test_a_field_the_rule_does_not_name_takes_its_declared_default():
     the key is absent and the default is None - so a null default blew up where a non-null one
     worked. The executor now hands fastavro a plain dict.
     """
-    out = _round_trip("drop", '{"kept": message.kept}')
+    out = await _round_trip("drop", '{"kept": message.kept}')
 
     assert out["kept"] == "original-kept"
     assert out["withDefault"] == "fallback"
@@ -98,10 +98,10 @@ def test_a_field_the_rule_does_not_name_takes_its_declared_default():
     assert out["nullable"] is None
 
 
-def test_naming_every_field_round_trips():
+async def test_naming_every_field_round_trips():
     """The must-fail twin. Without it, "the other fields took their defaults" is equally
     consistent with the transform having stopped working altogether."""
-    out = _round_trip("all", '{"kept": message.kept, "withDefault": message.withDefault, '
+    out = await _round_trip("all", '{"kept": message.kept, "withDefault": message.withDefault, '
                              '"nullable": message.nullable}')
 
     assert out == _RECORD
