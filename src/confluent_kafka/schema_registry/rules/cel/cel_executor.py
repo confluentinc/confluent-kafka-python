@@ -26,10 +26,33 @@ from confluent_kafka.schema_registry import RuleKind, Schema
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.rules.cel.cel_field_presence import InterpretedRunner
 from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel, _scalar_field_value_to_cel
+from confluent_kafka.schema_registry.rules.cel import protobuf_result_writer
 from confluent_kafka.schema_registry.rules.cel.extra_func import EXTRA_FUNCS
 from confluent_kafka.schema_registry.serde import FieldContext, RuleContext, RuleExecutor
 
 log = logging.getLogger(__name__)
+
+
+def _to_plain_containers(value: Any) -> Any:
+    """Replaces celpy's container types with the plain ones, all the way down.
+
+    ``celtypes.MapType`` is a dict subclass, so an Avro record it stands in for looks usable -
+    but it overrides ``get`` to *raise* KeyError when the key is absent and the default is
+    ``None``, where ``dict.get`` returns ``None``. fastavro fills an omitted field with
+    ``datum.get(name, field.get("default"))``, so a field whose declared default is ``null``
+    passes ``None`` as that default and raises instead of taking the default. The effect was
+    that a message-level transform omitting a nullable field failed with a bare
+    ``KeyError: 'nullable'``, while a field with a non-null default worked - a split with no
+    reason behind it. Handing fastavro a plain dict gets the JVM's behaviour for free.
+
+    Keys are normalised too: a celpy ``StringType`` is a str subclass and hashes alike, so this
+    is for the benefit of anything downstream that checks the type rather than the value.
+    """
+    if isinstance(value, dict):
+        return {str(k): _to_plain_containers(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_plain_containers(v) for v in value]
+    return value
 
 # A date logical type annotates an Avro int, where the int stores the number
 # of days from the unix epoch, 1 January 1970 (ISO calendar).
@@ -69,7 +92,21 @@ class CelExecutor(RuleExecutor):
                     return msg
             expr = expr[index + 1 :]
 
-        return self.execute_rule(ctx, expr, args)
+        return self._write_back(ctx, msg, self.execute_rule(ctx, expr, args))
+
+    def _write_back(self, ctx: RuleContext, msg: Any, result: Any) -> Any:
+        """Shapes a rule result back into the form the serializer for this format expects.
+
+        An Avro record is a dict in this client, so the celpy map a rule returns is nearly
+        usable as-is - but only nearly, hence ``_to_plain_containers``. A protobuf message is
+        not a dict at all: the result has to be rebuilt into one, which is also where the
+        transform's replace semantics live.
+        """
+        if ctx.rule.kind == RuleKind.CONDITION:
+            return result
+        if isinstance(msg, message.Message):
+            return protobuf_result_writer.convert(result, msg)
+        return _to_plain_containers(result)
 
     def execute_rule(self, ctx: RuleContext, expr: str, args: Any) -> Any:
         schema = ctx.target

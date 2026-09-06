@@ -1,4 +1,6 @@
 import base64
+import datetime
+import decimal
 import io
 import sys
 from collections import deque
@@ -48,6 +50,7 @@ from confluent_kafka.schema_registry.serde import (
     FieldType,
     RuleConditionError,
     RuleContext,
+    RuleError,
     ValidationRule,
     ValidationRuleError,
     ValidationRuleExecutor,
@@ -259,6 +262,106 @@ def _init_pool(pool: DescriptorPool):
     pool.AddSerializedFile(variant_pb2.DESCRIPTOR.serialized_pb)
 
 
+# Message types a CEL rule works with as a single value rather than as a record.
+#
+# Avro carries the same concepts as logical types on a primitive, so the field is a leaf there
+# and a CEL_FIELD rule reaches it. In protobuf they are messages, and without this the walk
+# descends into their internals and transforms `value`/`scale` or `seconds`/`nanos` one at a
+# time instead - which is not what the rule asked for, and which an untagged rule would do
+# silently. Ported from the JVM client's ProtobufSchema.isCelLeafMessage (#4538).
+#
+# Variant is deliberately *not* a leaf: it is a record in Avro too, so skipping it is the
+# behaviour that matches, and a variant is reached with a message-level CEL rule instead.
+DECIMAL_TYPE_NAME = "confluent.type.Decimal"
+TIMESTAMP_TYPE_NAME = "google.protobuf.Timestamp"
+
+
+def is_cel_leaf_message(desc: Optional[Descriptor]) -> bool:
+    """Whether *desc* is a message type bound to CEL as a single value."""
+    return desc is not None and desc.full_name in (DECIMAL_TYPE_NAME, TIMESTAMP_TYPE_NAME)
+
+
+def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
+    """Writes a Python Decimal into a confluent.type.Decimal message.
+
+    Precision and scale describe the value itself rather than a declared column width, which is
+    the same mapping the JVM client uses (DecimalUtils.fromBigDecimal) and the reverse of how a
+    decimal is read back.
+    """
+    sign, digits, exponent = value.as_tuple()
+    if not isinstance(exponent, int):
+        raise ValueError("cannot write a non-finite decimal to " + DECIMAL_TYPE_NAME)
+    unscaled = int("".join(str(d) for d in digits) or "0")
+    if sign:
+        unscaled = -unscaled
+    scale = -exponent
+    if scale < 0:
+        # A positive exponent (1E+3) has no scale of its own; normalise it into the digits
+        # rather than writing a negative scale.
+        unscaled *= 10 ** (-scale)
+        scale = 0
+    target.value = unscaled_to_bytes(unscaled)
+    target.precision = len(digits)
+    target.scale = scale
+
+
+def unscaled_to_bytes(unscaled: int) -> bytes:
+    """Minimal big-endian two's-complement encoding, matching the other clients."""
+    if unscaled == 0:
+        return b"\x00"
+    length = (unscaled.bit_length() + 8) // 8
+    return unscaled.to_bytes(length, byteorder="big", signed=True)
+
+
+def set_timestamp_message(target: Message, value: datetime.datetime) -> None:
+    """Writes a datetime into a google.protobuf.Timestamp message."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    delta = value - _EPOCH
+    target.seconds = delta.days * 86400 + delta.seconds
+    target.nanos = delta.microseconds * 1000
+
+
+_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def rebuild_value_type(ctx, fd: FieldDescriptor, value: Any) -> Message:
+    """Rebuilds a leaf value-type message from what a CEL_FIELD rule returned.
+
+    An identity rule hands back the message it was given; a computed rule hands back a Python
+    Decimal or datetime, which has to be encoded. Anything else is a rule-authoring mistake and
+    is reported as one rather than written as a default.
+    """
+    desc = fd.message_type
+    if value is None:
+        raise _value_type_error(ctx, fd, "null", "a decimal or timestamp")
+    if isinstance(value, Message) and value.DESCRIPTOR.full_name == desc.full_name:
+        # Already the right message, which is what an identity rule produces.
+        return value
+    out = _message_factory(desc)
+    if desc.full_name == DECIMAL_TYPE_NAME:
+        if not isinstance(value, decimal.Decimal):
+            raise _value_type_error(ctx, fd, type(value).__name__, "a decimal")
+        set_decimal_message(out, value)
+        return out
+    if not isinstance(value, datetime.datetime):
+        raise _value_type_error(ctx, fd, type(value).__name__, "a timestamp")
+    set_timestamp_message(out, value)
+    return out
+
+
+def _message_factory(desc: Descriptor) -> Message:
+    """A new message of *desc*'s type, built from the descriptor so that a message parsed
+    dynamically from a registered schema is written back in kind."""
+    return message_factory.GetMessageClass(desc)()
+
+
+def _value_type_error(ctx, fd: FieldDescriptor, actual: str, expected: str) -> Exception:
+    return RuleError(
+        "Rule returned " + actual + " for field '" + fd.full_name + "', which is a "
+        + fd.message_type.full_name + "; expected " + expected)
+
+
 def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
     if message is None or descriptor is None:
         return message
@@ -266,7 +369,7 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
         return [transform(ctx, descriptor, item, field_transform) for item in message]
     if isinstance(message, dict):
         return {key: transform(ctx, descriptor, value, field_transform) for key, value in message.items()}
-    if isinstance(message, Message):
+    if isinstance(message, Message) and not is_cel_leaf_message(message.DESCRIPTOR):
         # Driven by the runtime message's fields, each matched by name to the
         # schema-side descriptor, which is the one carrying the inline tags. The two
         # can differ under use.latest.version, and only the runtime field can be read
@@ -319,6 +422,12 @@ def _transform_field(
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
+            if (fd.type == FieldDescriptor.TYPE_MESSAGE
+                    and is_cel_leaf_message(fd.message_type)
+                    and not _is_repeated(fd)):
+                # The rule saw this field as a single value, so it hands back a decimal or a
+                # datetime rather than the message; encode it before writing.
+                new_value = rebuild_value_type(ctx, fd, new_value)
             _set_field(fd, message, new_value)
     finally:
         ctx.exit_field()
@@ -646,6 +755,11 @@ def get_type(fd: FieldDescriptor) -> FieldType:
     if is_map_field(fd):
         return FieldType.MAP
     if fd.type == FieldDescriptor.TYPE_MESSAGE:
+        # Report the same primitive type the Avro counterpart does, so that CEL_FIELD applies
+        # to the field and a rule written against one format ports to the other.
+        if is_cel_leaf_message(fd.message_type):
+            return (FieldType.BYTES if fd.message_type.full_name == DECIMAL_TYPE_NAME
+                    else FieldType.LONG)
         return FieldType.RECORD
     if fd.type == FieldDescriptor.TYPE_ENUM:
         return FieldType.ENUM
