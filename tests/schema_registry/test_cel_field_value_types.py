@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-``CEL_FIELD`` rules over protobuf decimal and timestamp fields (capabilities C4 and C5).
+``CEL_FIELD`` rules over protobuf decimal and timestamp fields.
 
 Avro carries these two as logical types on a primitive, so the field is a leaf and a field rule
 reaches it. Protobuf carries them as messages, so the walk used to descend *past* the field and
@@ -37,7 +37,7 @@ from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFiel
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.serde import FieldType, RuleContext, RuleError
 
-from .data.proto import c8_inline_pb2, value_types_pb2
+from .data.proto import value_type_rules_pb2, value_types_pb2
 
 _SCHEMA = """syntax = "proto3";
 package tests;
@@ -158,12 +158,12 @@ def test_a_wrong_result_type_is_reported():
 # So a field rule over a repeated decimal could not be written back at all (the reference answers `[2.11, 3.22]`).
 _CONTAINER_SCHEMA = """syntax = "proto3";
 package tests;
-message C9Containers {}
+message ValueTypeContainers {}
 """
 
 
 def _container_message():
-    msg = c8_inline_pb2.C9Containers()
+    msg = value_type_rules_pb2.ValueTypeContainers()
     for unscaled in (111, 222):
         d = msg.amounts.add()
         d.value = unscaled.to_bytes(2, "big")
