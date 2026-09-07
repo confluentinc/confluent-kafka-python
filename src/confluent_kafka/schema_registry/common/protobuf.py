@@ -423,11 +423,19 @@ def _transform_field(
                 raise RuleConditionError(ctx.rule)
         else:
             if (fd.type == FieldDescriptor.TYPE_MESSAGE
-                    and is_cel_leaf_message(fd.message_type)
-                    and not _is_repeated(fd)):
+                    and is_cel_leaf_message(fd.message_type)):
                 # The rule saw this field as a single value, so it hands back a decimal or a
                 # datetime rather than the message; encode it before writing.
-                new_value = rebuild_value_type(ctx, fd, new_value)
+                #
+                # A repeated leaf field needs the same treatment per element. The walk applies
+                # the rule to each element, so what comes back is a *list* of decimals - and
+                # writing those raw failed with "Expected a message object, but got
+                # Decimal(...)". Only the singular case was rebuilt before, so a field rule
+                # over a repeated value type could not be written back at all.
+                if _is_repeated(fd):
+                    new_value = [rebuild_value_type(ctx, fd, item) for item in new_value]
+                else:
+                    new_value = rebuild_value_type(ctx, fd, new_value)
             _set_field(fd, message, new_value)
     finally:
         ctx.exit_field()

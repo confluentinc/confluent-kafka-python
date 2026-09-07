@@ -37,7 +37,7 @@ from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFiel
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.serde import FieldType, RuleContext, RuleError
 
-from .data.proto import value_types_pb2
+from .data.proto import c8_inline_pb2, value_types_pb2
 
 _SCHEMA = """syntax = "proto3";
 package tests;
@@ -150,3 +150,65 @@ def test_a_wrong_result_type_is_reported():
     mistake; it must be named rather than written back as a default."""
     with pytest.raises(RuleError, match="expected a decimal"):
         _run('"not a decimal"', RuleKind.TRANSFORM, "AMOUNT")
+
+
+# A repeated value-type field needs its rule's result rebuilt *per element*. The walk applies the
+# rule to each element, so what comes back is a list of Decimals; only the singular case was
+# rebuilt, and writing the raw list failed with "Expected a message object, but got Decimal(...)".
+# So a field rule over a repeated decimal could not be written back at all (the reference answers `[2.11, 3.22]`).
+_CONTAINER_SCHEMA = """syntax = "proto3";
+package tests;
+message C9Containers {}
+"""
+
+
+def _container_message():
+    msg = c8_inline_pb2.C9Containers()
+    for unscaled in (111, 222):
+        d = msg.amounts.add()
+        d.value = unscaled.to_bytes(2, "big")
+        d.precision = 8
+        d.scale = 2
+    msg.amount_map["a"].value = (333).to_bytes(2, "big")
+    msg.amount_map["a"].precision = 8
+    msg.amount_map["a"].scale = 2
+    msg.label = "hi"
+    return msg
+
+
+def _run_container(expr, tag):
+    msg = _container_message()
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD",
+                [tag], None, expr, None, None, False)
+    ctx = RuleContext(None, None, None, Schema(_CONTAINER_SCHEMA, "PROTOBUF"), "t-value",
+                      RuleMode.WRITE, rule, 0, [rule], None, None)
+    ft = CelFieldExecutor().new_transform(ctx)
+    return transform(ctx, msg.DESCRIPTOR, msg, ft)
+
+
+def _amounts(msg):
+    return [Decimal(int.from_bytes(d.value, "big", signed=True)).scaleb(-d.scale)
+            for d in msg.amounts]
+
+
+def test_repeated_decimal_transform_is_written_back_per_element():
+    out = _run_container('decimals.add(decimal(value), decimal("1.00"))', "AMOUNTS")
+
+    assert _amounts(out) == [Decimal("2.11"), Decimal("3.22")]
+
+
+def test_repeated_decimal_identity_transform_round_trips():
+    """The must-pass twin: an identity rule hands back the message it was given, and the
+    per-element rebuild has to accept that as readily as a computed decimal."""
+    out = _run_container("value", "AMOUNTS")
+
+    assert _amounts(out) == [Decimal("1.11"), Decimal("2.22")]
+
+
+def test_a_tagged_map_field_is_left_alone():
+    """The reference does *not* transform a map value through a tag on the map field - the tag
+    does not reach the entry's value leaf - so matching it means leaving the map unchanged."""
+    out = _run_container('decimals.add(decimal(value), decimal("1.00"))', "AMOUNTMAP")
+
+    unscaled = int.from_bytes(out.amount_map["a"].value, "big", signed=True)
+    assert Decimal(unscaled).scaleb(-out.amount_map["a"].scale) == Decimal("3.33")
