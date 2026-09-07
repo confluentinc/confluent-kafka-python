@@ -301,7 +301,12 @@ def _format_float(f: float) -> str:
         return "%d.0" % int(f)
     for p in range(1, 10):
         s = "%.*g" % (p, f)
-        if struct.unpack("<f", struct.pack("<f", float(s)))[0] == f:
+        try:
+            narrowed = struct.unpack("<f", struct.pack("<f", float(s)))[0]
+        except OverflowError:
+            # The candidate rounded past the float32 range; try more digits.
+            continue
+        if narrowed == f:
             return repr(float(s))
     return repr(f)
 
