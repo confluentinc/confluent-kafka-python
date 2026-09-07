@@ -28,6 +28,7 @@
 - Fix race conditions (#2315)
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
+- Use `asyncio.get_running_loop()` instead of `asyncio.get_event_loop()` to avoid creating a new event loop and raise an error in case a loop isn't available (@AlexCai26, #2339).
 
 
 ## v2.15.0

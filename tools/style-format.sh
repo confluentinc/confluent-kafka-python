@@ -110,7 +110,7 @@ for f in $*; do
             # First, create a backup to compare
             cp "$f" _styletmp_orig
             # Run isort to sort imports
-            python3 -m isort "$f" > /dev/null 2>&1 || true
+            isort "$f" > /dev/null 2>&1 || true
             # Run black to format the file
             python3 -m black "$f" > /dev/null 2>&1 || true
             # Compare to see if changes were made
@@ -160,7 +160,7 @@ for f in $*; do
         elif [[ $lang == py ]]; then
             # Check with isort first
             set +e
-            isort_check=$(python3 -m isort --check-only --diff "$f" 2>&1)
+            isort_check=$(isort --check-only --diff "$f" 2>&1)
             isort_exit=$?
             set -e
             if [[ $isort_exit -ne 0 ]]; then
