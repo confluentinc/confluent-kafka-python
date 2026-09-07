@@ -1300,7 +1300,7 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                               NULL};
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
-        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
+        rd_kafka_queue_t *rkqu;
         CallState cs;
         Py_ssize_t i, n;
 
@@ -1317,6 +1317,8 @@ Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
                 Handle_serialize_exit(self);
                 return NULL;
         }
+
+        rkqu = self->u.Consumer.rkqu;
 
         if (num_messages > 1000000) {
                 PyErr_SetString(

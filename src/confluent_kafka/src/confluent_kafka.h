@@ -177,6 +177,21 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 #endif
 
 /**
+ * @brief Mutex for short, non-blocking C-only regions. PyMutex (3.13+) on
+ *        free-threaded builds; a no-op on GIL builds. Never hold it across
+ *        code that can run Python or block.
+ */
+#ifdef Py_GIL_DISABLED
+typedef PyMutex cfl_lock_t;
+#define cfl_lock(l)   PyMutex_Lock(l)
+#define cfl_unlock(l) PyMutex_Unlock(l)
+#else
+typedef char cfl_lock_t;
+#define cfl_lock(l)   ((void)(l))
+#define cfl_unlock(l) ((void)(l))
+#endif
+
+/**
  * Avoid unused function warnings
  */
 #if _WIN32
@@ -700,6 +715,14 @@ typedef struct {
         int16_t delivery_count; /**< Share consumer: number of times this
                                  *   record has been delivered. 1 on first
                                  *   delivery. -1 if unavailable. */
+
+        /* One lock per mutable PyObject field above: serializes concurrent
+         * get/set of the same field on a shared Message (free-threaded). */
+        cfl_lock_t topic_lock;
+        cfl_lock_t value_lock;
+        cfl_lock_t key_lock;
+        cfl_lock_t headers_lock;
+        cfl_lock_t error_lock;
 } Message;
 
 extern PyTypeObject MessageType;
