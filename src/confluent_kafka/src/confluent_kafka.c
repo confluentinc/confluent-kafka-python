@@ -1770,12 +1770,22 @@ err:
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
         rd_kafka_topic_partition_list_t *c_parts;
         size_t i;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_plist = NULL;
+#endif
 
         if (!PyList_Check(plist)) {
                 PyErr_SetString(PyExc_TypeError,
                                 "requires list of TopicPartition");
                 return NULL;
         }
+
+#ifdef Py_GIL_DISABLED
+        owned_plist = PyList_GetSlice(plist, 0, PY_SSIZE_T_MAX);
+        if (!owned_plist)
+                return NULL;
+        plist = owned_plist;
+#endif
 
         c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
@@ -1788,6 +1798,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      TopicPartitionType.tp_name);
                         rd_kafka_topic_partition_list_destroy(c_parts);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_plist);
+#endif
                         return NULL;
                 }
 
@@ -1805,6 +1818,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                 }
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_plist);
+#endif
         return c_parts;
 }
 
@@ -1930,6 +1946,12 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
 static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
         int i, len;
         rd_kafka_headers_t *rd_headers = NULL;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_hdrs = PyList_GetSlice(hdrs, 0, PY_SSIZE_T_MAX);
+        if (!owned_hdrs)
+                return NULL;
+        hdrs = owned_hdrs;
+#endif
 
         len        = (int)PyList_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -1942,15 +1964,24 @@ static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
                         PyErr_SetString(PyExc_TypeError,
                                         "Headers are expected to be a "
                                         "list of (key, value) tuples");
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
 
                 if (!py_header_to_c(rd_headers, PyTuple_GET_ITEM(tuple, 0),
                                     PyTuple_GET_ITEM(tuple, 1))) {
                         rd_kafka_headers_destroy(rd_headers);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
         }
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_hdrs);
+#endif
         return rd_headers;
 }
 
@@ -1963,6 +1994,12 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
         Py_ssize_t pos                 = 0;
         rd_kafka_headers_t *rd_headers = NULL;
         PyObject *ko, *vo;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_hdrs = PyDict_Copy(hdrs);
+        if (!owned_hdrs)
+                return NULL;
+        hdrs = owned_hdrs;
+#endif
 
         len        = (int)PyDict_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -1971,10 +2008,16 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
 
                 if (!py_header_to_c(rd_headers, ko, vo)) {
                         rd_kafka_headers_destroy(rd_headers);
+#ifdef Py_GIL_DISABLED
+                        Py_DECREF(owned_hdrs);
+#endif
                         return NULL;
                 }
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(owned_hdrs);
+#endif
         return rd_headers;
 }
 
@@ -2501,6 +2544,14 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         if (extensions) {
+#ifdef Py_GIL_DISABLED
+                PyObject *owned_extensions = PyDict_Copy(extensions);
+                if (!owned_extensions) {
+                        Py_DECREF(result);
+                        goto err;
+                }
+                extensions = owned_extensions;
+#endif
                 int len        = (int)PyDict_Size(extensions);
                 rd_extensions  = (char **)malloc(2 * len * sizeof(char *));
                 Py_ssize_t pos = 0;
@@ -2508,12 +2559,18 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 while (PyDict_Next(extensions, &pos, &ko, &vo)) {
                         if (!py_extensions_to_c(rd_extensions,
                                                 rd_extensions_size, ko, vo)) {
+#ifdef Py_GIL_DISABLED
+                                Py_DECREF(owned_extensions);
+#endif
                                 Py_DECREF(result);
                                 free(rd_extensions);
                                 goto err;
                         }
                         rd_extensions_size = rd_extensions_size + 2;
                 }
+#ifdef Py_GIL_DISABLED
+                Py_DECREF(owned_extensions);
+#endif
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
@@ -2948,6 +3005,7 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
         PyObject *confdict = NULL;
+        PyObject *cfg_iter = NULL;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
                 PyErr_Format(PyExc_RuntimeError,
@@ -3068,8 +3126,16 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 goto outer_err;
         }
 
+#ifdef Py_GIL_DISABLED
+        cfg_iter = PyDict_Copy(confdict);
+        if (!cfg_iter)
+                goto outer_err;
+#else
+        cfg_iter = confdict;
+#endif
+
         /* Convert config dict to config key-value pairs. */
-        while (PyDict_Next(confdict, &pos, &ko, &vo)) {
+        while (PyDict_Next(cfg_iter, &pos, &ko, &vo)) {
                 PyObject *ks;
                 PyObject *ks8 = NULL;
                 PyObject *vs = NULL, *vs8 = NULL;
@@ -3226,6 +3292,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 goto outer_err;
         }
 
+#ifdef Py_GIL_DISABLED
+        Py_DECREF(cfg_iter);
+#endif
         Py_DECREF(confdict);
 
         rd_kafka_conf_set_error_cb(conf, error_cb);
@@ -3266,6 +3335,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
         return conf;
 
 outer_err:
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(cfg_iter);
+#endif
         Py_DECREF(confdict);
         rd_kafka_conf_destroy(conf);
 
@@ -3368,7 +3440,7 @@ int Handle_rk_use_begin(Handle *h, const char *err_msg) {
 
         if ((atomic_int_get(&h->closing) &&
              atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
+            !atomic_ptr_get(&h->rk)) {
                 PyErr_SetString(PyExc_RuntimeError, err_msg);
                 return 0;
         }
@@ -3377,7 +3449,7 @@ int Handle_rk_use_begin(Handle *h, const char *err_msg) {
          * increment; re-check now that we're counted. */
         if ((atomic_int_get(&h->closing) &&
              atomic_ulong_get(&h->closing_thread) != self_tid) ||
-            !h->rk) {
+            !atomic_ptr_get(&h->rk)) {
                 atomic_int_dec(&h->active_calls);
                 PyErr_SetString(PyExc_RuntimeError, err_msg);
                 return 0;

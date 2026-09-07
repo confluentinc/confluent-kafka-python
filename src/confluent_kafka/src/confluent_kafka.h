@@ -117,6 +117,19 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 }
 #endif
 
+/**
+ * @brief Atomic accessors for Handle.rk itself.
+ */
+#if defined(_MSC_VER)
+#define atomic_ptr_get(p)                                                     \
+        InterlockedCompareExchangePointer((PVOID volatile *)(p), NULL, NULL)
+#define atomic_ptr_set(p, v)                                                  \
+        InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
+#else /* gcc / clang */
+#define atomic_ptr_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_ptr_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
+#endif
+
 
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
