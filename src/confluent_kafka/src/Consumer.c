@@ -114,6 +114,9 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result = NULL;
         Py_ssize_t pos = 0;
         rd_kafka_resp_err_t err;
+#ifdef Py_GIL_DISABLED
+        PyObject *owned_tlist = NULL;
+#endif
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
                                          &tlist, &on_assign,
@@ -148,6 +151,13 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyErr_Format(PyExc_TypeError, "on_lost expects a callable");
                 goto done;
         }
+
+#ifdef Py_GIL_DISABLED
+        owned_tlist = PyList_GetSlice(tlist, 0, PY_SSIZE_T_MAX);
+        if (!owned_tlist)
+                goto done;
+        tlist = owned_tlist;
+#endif
 
         topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
         for (pos = 0; pos < PyList_Size(tlist); pos++) {
@@ -210,6 +220,9 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
+#ifdef Py_GIL_DISABLED
+        Py_XDECREF(owned_tlist);
+#endif
         Handle_serialize_exit(self);
         return result;
 }
