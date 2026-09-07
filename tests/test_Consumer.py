@@ -398,6 +398,50 @@ def test_any_method_after_close_throws_exception():
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
     assert ex.match('Consumer closed')
 
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+
+def test_pause_after_close_raises_runtime_error():
+    """Regression test: Consumer__pause_internal must check self->rk before
+    calling into librdkafka, same as every other _internal method. Prior
+    to this fix, pause() after close() dereferenced a NULL self->rk and
+    segfaulted the process instead of raising RuntimeError."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([])
+    assert ex.match('Consumer closed')
+
+
+def test_resume_after_close_raises_runtime_error():
+    """Same regression as test_pause_after_close_raises_runtime_error, for
+    Consumer__resume_internal."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([])
+    assert ex.match('Consumer closed')
+
 
 def test_calling_store_offsets_after_close_throws_erro():
     """calling store_offset after close should throw RuntimeError"""
@@ -469,9 +513,13 @@ def test_callback_exception_no_system_error():
     stats_called = []
 
     def stats_cb_that_raises(stats_json):
-        """Stats callback that raises an exception"""
+        """Stats callback that raises an exception, but only the first
+        time -- statistics.interval.ms fires independently of consume(),
+        so a later call (e.g. during close()'s own internal polling) must
+        not raise again and turn the unguarded close() below flaky."""
         stats_called.append(stats_json)
-        raise RuntimeError("Test exception from stats_cb")
+        if len(stats_called) == 1:
+            raise RuntimeError("Test exception from stats_cb")
 
     consumer2 = TestConsumer(
         {

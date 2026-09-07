@@ -92,9 +92,9 @@ class AIOProducer:
         2. **Cancel Timeout Task**: Immediately cancels the buffer timeout monitoring task
         3. **Flush All Messages**: Flushes any buffered messages and waits for delivery confirmation
         4. **Shutdown ThreadPool**: Waits for all pending ThreadPool operations to complete
-        5. **Cleanup**: Ensures the underlying librdkafka producer is properly closed. The shutdown
-            is designed to be safe and non-blocking for the asyncio event loop
-            while ensuring all pending operations complete before the producer is closed.
+        5. **Cleanup** [Not implemented yet]: Ensures the underlying librdkafka producer is properly closed.
+                       The shutdown is designed to be safe and non-blocking for the asyncio event loop
+                       while ensuring all pending operations complete before the producer is closed.
 
         Raises:
             Exception: May raise exceptions from buffer flushing, but these are logged

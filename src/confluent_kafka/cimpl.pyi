@@ -35,6 +35,7 @@ maintenance burden and get type hints directly from the implementation.
 """
 
 import builtins
+import contextvars
 from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union, overload
 
 try:
@@ -55,6 +56,10 @@ RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
 AcknowledgementCommitCallback = Callable[
     [Dict['TopicPartition', Set[int]], Optional['KafkaException']], None
 ]
+
+# Internal use only. ContextVar carrying the identity AIOConsumer presents
+# to the Consumer reentrancy gate for the current call.
+_reentry_identity_var: 'contextvars.ContextVar[int]'
 
 # ===== CLASSES (Manual - stubgen missed these) =====
 
@@ -421,6 +426,7 @@ class Producer:
     ) -> None: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
+    def close(self) -> bool: ...
     def __len__(self) -> int: ...
     def __bool__(self) -> bool: ...
     def __enter__(self) -> Self: ...
