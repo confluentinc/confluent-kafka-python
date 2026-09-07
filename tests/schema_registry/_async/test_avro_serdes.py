@@ -17,7 +17,8 @@
 #
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 from fastavro._logical_readers import UUID
@@ -1171,6 +1172,300 @@ async def test_avro_cel_field_condition_fail():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     with pytest.raises(SerializationError) as e:
         await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+_AVRO_DECIMAL_SCHEMA = {
+    'type': 'record',
+    'name': 'test',
+    'fields': [
+        {'name': 'decField', 'type': {
+            'type': 'bytes', 'logicalType': 'decimal',
+            'precision': 10, 'scale': 2,
+        }},
+    ],
+}
+
+
+async def test_avro_cel_decimal_passes():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.gt(decimal(message.decField), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_cel_decimal_fails():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.lt(decimal(message.decField), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+async def test_avro_cel_decimal_needs_no_constructor():
+    """Cross-client parity: an Avro ``decimal`` logical type is usable as a Decimal with **no
+    ``decimal(...)`` call**, and the wrapped form keeps working alongside it. fastavro decodes it
+    to a Python ``Decimal`` at the schema's scale, which is this client's in-CEL decimal
+    representation, so ``decimals.*`` accept it directly and ``==`` is numeric (Python's own
+    ``Decimal.__eq__``).
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    async def serialize(expr):
+        rule = Rule(
+            "test-cel", "", RuleKind.CONDITION, RuleMode.WRITE, "CEL", None, None,
+            expr, None, None, False,
+        )
+        await client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+        return await ser({'decField': Decimal('12.34')}, ser_ctx)
+
+    # Bare: no constructor call on the field.
+    assert await serialize('decimals.eq(message.decField, decimal("12.34"))') is not None
+    assert await serialize('decimals.gt(message.decField, decimal("10.00"))') is not None
+    # The wrapped form must keep working (decimal(...) re-entry).
+    assert await serialize(
+        'decimals.eq(decimal(message.decField), decimal("12.34"))') is not None
+    # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+    assert await serialize('message.decField == decimal("12.340")') is not None
+    # The schema's scale is applied, not guessed: as scale 0 this would be 1234.
+    assert await serialize('decimals.lt(message.decField, decimal("100"))') is not None
+    # Negative control: a false comparison must fail.
+    with pytest.raises(SerializationError) as e:
+        await serialize('decimals.gt(message.decField, decimal("100"))')
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+async def test_avro_cel_decimal_arithmetic():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.eq(decimals.add(decimal(message.decField), decimal("1.66")), decimal("14.00"))',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_cel_decimal_string():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'string(decimal(message.decField)) == "12.34"',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+_AVRO_TIMESTAMP_SCHEMA = {
+    'type': 'record',
+    'name': 'test',
+    'fields': [
+        {'name': 'tsField', 'type': {'type': 'long', 'logicalType': 'timestamp-millis'}},
+    ],
+}
+
+
+async def test_avro_cel_timestamp_millis_passes():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp(message.tsField) < now',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'tsField': datetime(2020, 1, 1, tzinfo=timezone.utc)}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_cel_timestamp_millis_fails():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp(message.tsField) > now',
+        None,
+        None,
+        False,
+    )
+    await client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'tsField': datetime(2020, 1, 1, tzinfo=timezone.utc)}
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+async def test_avro_cel_timestamp_millis_needs_no_constructor():
+    """Cross-client parity: an Avro timestamp logical type is usable as a timestamp with **no
+    constructor call at all**. fastavro decodes it to an aware datetime, which the boundary
+    binds as a CEL timestamp, so it is comparable against ``now`` and carries the timestamp
+    accessors. Every one of the seven clients has this test; the constructor is only needed for
+    a plain numeric field whose unit the schema cannot supply.
+    """
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    async def serialize(expr, value):
+        rule = Rule(
+            "test-cel", "", RuleKind.CONDITION, RuleMode.WRITE, "CEL", None, None,
+            expr, None, None, False,
+        )
+        await client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+        return await ser({'tsField': value}, ser_ctx)
+
+    past = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    exact = datetime(2023, 11, 14, 22, 13, 20, 123000, tzinfo=timezone.utc)
+
+    # Bare comparison against `now`.
+    assert await serialize('message.tsField < now', past) is not None
+    # The schema's millis unit is applied, not guessed, and the accessors work directly.
+    assert await serialize(
+        'message.tsField == timestamp("2023-11-14T22:13:20.123Z")', exact) is not None
+    assert await serialize('message.tsField.getFullYear() == 2023', exact) is not None
+    # Negative control: a future value must fail, so the comparison really happens.
+    with pytest.raises(SerializationError) as e:
+        await serialize('message.tsField < now', datetime(2100, 1, 1, tzinfo=timezone.utc))
     assert isinstance(e.value.__cause__, RuleConditionError)
 
 
