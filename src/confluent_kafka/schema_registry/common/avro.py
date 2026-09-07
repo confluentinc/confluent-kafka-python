@@ -142,7 +142,11 @@ def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]
 def transform(
     ctx: RuleContext, schema: AvroSchema, message: AvroMessage, field_transform: FieldTransform
 ) -> AvroMessage:
-    if message is None or schema is None:
+    # Only the schema being absent stops the walk. A `None` *value* is the null branch of a
+    # `["null", T]` union and has to reach the rule: the reference binds it as CEL null so a
+    # rule can guard with `value == null`, and returning early here skipped the rule entirely -
+    # indistinguishable, to the caller, from a rule that ran and passed.
+    if schema is None:
         return message
     field_ctx = ctx.current_field()
     if field_ctx is not None:
@@ -168,6 +172,11 @@ def transform(
                 return message
             return {key: transform(ctx, schema["values"], value, field_transform) for key, value in message.items()}
         elif schema_type == 'record':
+            # A null record has no fields to walk. Guarded before the isinstance check below
+            # so a legitimate null does not log an "incompatible message type" warning; the
+            # reference guards the record case, and only the record case, the same way.
+            if message is None:
+                return message
             if not isinstance(message, dict):
                 log.warning("Incompatible message type for record schema")
                 return message
