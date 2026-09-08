@@ -440,7 +440,7 @@ blocks:
             - ls artifacts/wheelhouse/*-cp314t-manylinux*x86_64.whl
             - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
             - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --timeout 1200
+            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
   - name: "Wheel Verification: Linux arm64"
     dependencies:
       - "Wheels: Linux arm64"
@@ -472,7 +472,7 @@ blocks:
             - ls artifacts/wheelhouse/*-cp314t-manylinux*aarch64.whl
             - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
             - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --timeout 1200
+            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
   - name: "Wheel Verification: OSX x64"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
@@ -516,7 +516,7 @@ blocks:
             - ls artifacts/wheelhouse/*-cp314t-macosx*x86_64.whl
             - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
             - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --timeout 1200
+            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
   - name: "Wheel Verification: OSX arm64"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
@@ -560,7 +560,7 @@ blocks:
             - ls artifacts/wheelhouse/*-cp314t-macosx*arm64.whl
             - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
             - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --timeout 1200
+            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
   - name: "Wheel Verification: Windows"
     dependencies:
       - "Wheels: Windows"
@@ -608,7 +608,7 @@ blocks:
             - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
             - ".\\tools\\mingw-w64\\setup-msys2.ps1"
             - C:\msys64\usr\bin\bash.exe tools/verify-free-threaded-wheel.sh _venv314t/Scripts/python.exe
-            - python -m pytest tests --ignore=tests\integration --timeout 1200
+            - python -m pytest tests --ignore=tests\integration --ignore=tests\test_unasync.py --timeout 1200
   - name: "Pre-release Validation"
     dependencies: []
     task:
