@@ -60,9 +60,7 @@ try:
 
     # celpy's own callable, declared as returning the whole CEL value union rather than a
     # TimestampType specifically - so the annotation follows what it hands back.
-    _BASE_TIMESTAMP: typing.Callable[..., typing.Any] = _base_functions.get(
-        "timestamp", celtypes.TimestampType
-    )
+    _BASE_TIMESTAMP: typing.Callable[..., typing.Any] = _base_functions.get("timestamp", celtypes.TimestampType)
 except ImportError:  # pragma: no cover
     _BASE_TIMESTAMP = celtypes.TimestampType
 
