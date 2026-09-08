@@ -52,6 +52,7 @@ for py_version_config in macos_config:
 tmp_download_dir = "tmp_download_dir"
 tmp_pkg_file_name = "Package.pkg"
 this_file_path = os.getcwd()
+script_dir = os.path.dirname(os.path.abspath(__file__))
 print(f"CWD is: '{this_file_path}'")
 tmp_download_dir_full_path = os.path.join(os.getcwd(), tmp_download_dir)
 tmp_pkg_file_full_path = os.path.join(tmp_download_dir_full_path, tmp_pkg_file_name)
@@ -66,6 +67,20 @@ for py_version_info in py_versions_info:
     pkg_url = py_version_info[1]
     print(f"Installing '{identifier}' from '{pkg_url}'")
     os.system(f"curl {pkg_url} --output {tmp_pkg_file_name}")
+
+    install_args = ""
+    cpython_tag = identifier.split('-')[0]
+    if cpython_tag.endswith('t'):
+        # The free-threaded framework is an opt-in installer choice that
+        # is unchecked by default, so it must be explicitly selected via
+        # -applyChoiceChangesXML, otherwise only the regular (GIL)
+        # framework gets installed and the cpython314t interpreter is
+        # never created.
+        py_version_digits = cpython_tag[2:-1]
+        choicechanges_xml = os.path.join(script_dir, f"free-threaded-enable-{py_version_digits} .xml")
+        install_args = f"-applyChoiceChangesXML {choicechanges_xml} "
+    os.system(f"sudo installer -pkg {tmp_pkg_file_name} {install_args}-target /")
+
     os.system(install_command)
     os.remove(tmp_pkg_file_full_path)
 
