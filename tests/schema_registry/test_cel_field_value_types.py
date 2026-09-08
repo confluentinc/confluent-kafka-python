@@ -27,7 +27,7 @@ This is the port of the JVM client's #4538 (``isCelLeafMessage``). Variant is de
 leaf - it is a record in Avro too, so skipping it is the behaviour that matches, and a variant
 is reached with a message-level ``CEL`` rule instead.
 """
-import datetime
+
 from decimal import Decimal
 
 import pytest
@@ -61,13 +61,20 @@ def _message():
 
 def _run(expr, kind, tag, msg=None):
     msg = msg if msg is not None else _message()
-    rule = Rule("r", None, kind, RuleMode.WRITE, "CEL_FIELD",
-                [tag] if tag else None, None, expr, None, None, False)
-    ctx = RuleContext(None, None, None, Schema(_SCHEMA, "PROTOBUF"), "t-value",
-                      RuleMode.WRITE, rule, 0, [rule],
-                      {"tests.ValueTypes.amount": {"AMOUNT"},
-                       "tests.ValueTypes.ts": {"TS"},
-                       "tests.ValueTypes.data": {"DATA"}}, None)
+    rule = Rule("r", None, kind, RuleMode.WRITE, "CEL_FIELD", [tag] if tag else None, None, expr, None, None, False)
+    ctx = RuleContext(
+        None,
+        None,
+        None,
+        Schema(_SCHEMA, "PROTOBUF"),
+        "t-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        {"tests.ValueTypes.amount": {"AMOUNT"}, "tests.ValueTypes.ts": {"TS"}, "tests.ValueTypes.data": {"DATA"}},
+        None,
+    )
     ft = CelFieldExecutor().new_transform(ctx)
     return transform(ctx, msg.DESCRIPTOR, msg, ft)
 
@@ -178,17 +185,16 @@ def _container_message():
 
 def _run_container(expr, tag):
     msg = _container_message()
-    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD",
-                [tag], None, expr, None, None, False)
-    ctx = RuleContext(None, None, None, Schema(_CONTAINER_SCHEMA, "PROTOBUF"), "t-value",
-                      RuleMode.WRITE, rule, 0, [rule], None, None)
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", [tag], None, expr, None, None, False)
+    ctx = RuleContext(
+        None, None, None, Schema(_CONTAINER_SCHEMA, "PROTOBUF"), "t-value", RuleMode.WRITE, rule, 0, [rule], None, None
+    )
     ft = CelFieldExecutor().new_transform(ctx)
     return transform(ctx, msg.DESCRIPTOR, msg, ft)
 
 
 def _amounts(msg):
-    return [Decimal(int.from_bytes(d.value, "big", signed=True)).scaleb(-d.scale)
-            for d in msg.amounts]
+    return [Decimal(int.from_bytes(d.value, "big", signed=True)).scaleb(-d.scale) for d in msg.amounts]
 
 
 def test_repeated_decimal_transform_is_written_back_per_element():

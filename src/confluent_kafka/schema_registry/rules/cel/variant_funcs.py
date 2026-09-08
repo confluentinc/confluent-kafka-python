@@ -42,13 +42,14 @@ from confluent_kafka.schema_registry.rules.cel import variant_path
 
 try:
     from confluent_kafka.schema_registry.confluent.types import variant_pb2
+
     _PROTO_VARIANT_CLS: typing.Any = variant_pb2.Variant
 except ImportError:
     _PROTO_VARIANT_CLS = None
 
 _VARIANT_PROTO_NAME = "confluent.type.Variant"
 _EPOCH_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
-_INT32_MAX = 2 ** 31 - 1
+_INT32_MAX = 2**31 - 1
 
 # VariantType -> the coarse label variants.type returns, matching Java variantTypeName:
 # integer widths collapse to "int", float/double to "double", decimal widths to "decimal",
@@ -81,8 +82,10 @@ _TYPE_LABELS = {
 _INT_TYPES = (VariantType.BYTE, VariantType.SHORT, VariantType.INT, VariantType.LONG)
 _DECIMAL_TYPES = (VariantType.DECIMAL4, VariantType.DECIMAL8, VariantType.DECIMAL16)
 _TIMESTAMP_TYPES = (
-    VariantType.TIMESTAMP_TZ, VariantType.TIMESTAMP_NTZ,
-    VariantType.TIMESTAMP_NANOS_TZ, VariantType.TIMESTAMP_NANOS_NTZ,
+    VariantType.TIMESTAMP_TZ,
+    VariantType.TIMESTAMP_NTZ,
+    VariantType.TIMESTAMP_NANOS_TZ,
+    VariantType.TIMESTAMP_NANOS_NTZ,
 )
 _MICROS_TIMESTAMP_TYPES = (VariantType.TIMESTAMP_TZ, VariantType.TIMESTAMP_NTZ)
 
@@ -94,8 +97,7 @@ def _coerce_bytes(v: typing.Any) -> bytes:
         return v.tobytes()
     if isinstance(v, celtypes.BytesType):
         return bytes(v)
-    raise celpy.CELEvalError(
-        f"variant: expected bytes, got {type(v).__name__}")
+    raise celpy.CELEvalError(f"variant: expected bytes, got {type(v).__name__}")
 
 
 def _variant_or_absent(value: bytes, metadata: bytes) -> typing.Optional[Variant]:
@@ -124,10 +126,11 @@ def _to_variant(v: typing.Any) -> typing.Optional[Variant]:
         return _variant_or_absent(_coerce_bytes(v.value), _coerce_bytes(v.metadata))
     # celpy binds a proto-message field as a wrapper that keeps the message on ``.msg``.
     proto_msg = getattr(v, "msg", None)
-    if proto_msg is not None and getattr(
-            getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == _VARIANT_PROTO_NAME:
-        return _variant_or_absent(
-            _coerce_bytes(proto_msg.value), _coerce_bytes(proto_msg.metadata))
+    if (
+        proto_msg is not None
+        and getattr(getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == _VARIANT_PROTO_NAME
+    ):
+        return _variant_or_absent(_coerce_bytes(proto_msg.value), _coerce_bytes(proto_msg.metadata))
     # An Avro variant-logical field reaches CEL as a map with {"metadata", "value"} byte
     # entries (celpy MapType is a dict subclass).
     if isinstance(v, dict):
@@ -137,12 +140,12 @@ def _to_variant(v: typing.Any) -> typing.Optional[Variant]:
             return _variant_or_absent(_coerce_bytes(val), _coerce_bytes(md))
         if md is not None or val is not None:
             missing = "value" if val is None else "metadata"
-            raise celpy.CELEvalError(
-                f"variant: cannot convert map to Variant: missing '{missing}' entry")
+            raise celpy.CELEvalError(f"variant: cannot convert map to Variant: missing '{missing}' entry")
     if isinstance(v, (str, celtypes.StringType)):
         raise celpy.CELEvalError(
             "variant: cannot convert string to Variant; use variants.parseJson(s) for "
-            "strict JSON parsing or variants.tryParseJson(s) for soft mode")
+            "strict JSON parsing or variants.tryParseJson(s) for soft mode"
+        )
     raise celpy.CELEvalError(f"variant: cannot convert {type(v).__name__} to Variant")
 
 
@@ -154,8 +157,7 @@ def _variant(*args: typing.Any) -> typing.Optional[Variant]:
         if not metadata:
             # Passing empty metadata explicitly is a rule-authoring mistake rather than an
             # absent field, so it is reported instead of yielding null.
-            raise celpy.CELEvalError(
-                "variant(value, metadata): metadata is empty, so there is no variant to read")
+            raise celpy.CELEvalError("variant(value, metadata): metadata is empty, so there is no variant to read")
         return Variant(_coerce_bytes(args[0]), metadata)
     if len(args) != 1:
         raise celpy.CELEvalError(f"variant: expected 1 or 2 args, got {len(args)}")
@@ -203,8 +205,7 @@ def _is_null(o: typing.Any) -> celtypes.BoolType:
         coerced = _require_variant_or_null(o, "variants.isNull")
     except Exception:
         return celtypes.BoolType(False)
-    return celtypes.BoolType(
-        coerced is not None and coerced.get_type() == VariantType.NULL)
+    return celtypes.BoolType(coerced is not None and coerced.get_type() == VariantType.NULL)
 
 
 def _require_variant_or_null(o: typing.Any, fn: str) -> typing.Optional[Variant]:
@@ -315,18 +316,19 @@ def _variant_as(o: typing.Any, type_str: str, null_on_error: bool) -> typing.Any
         # Not extractable as a CEL scalar - always an error, even in the soft form.
         raise celpy.CELEvalError(
             f"variants.as: type '{type_str}' is not supported for extraction "
-            "(use variants.type/variants.path/variants.field/variants.index instead)")
+            "(use variants.type/variants.path/variants.field/variants.index instead)"
+        )
     else:
         if null_on_error:
             return None
         raise celpy.CELEvalError(
             f"variants.as: unknown type '{type_str}' (expected one of: string, int, "
-            "double, boolean, decimal, timestamp, bytes)")
+            "double, boolean, decimal, timestamp, bytes)"
+        )
     # Recognized type string, but the variant's actual type does not match.
     if null_on_error:
         return None
-    raise celpy.CELEvalError(
-        f"variants.as: variant is not {type_str}-typed (type={t.value})")
+    raise celpy.CELEvalError(f"variants.as: variant is not {type_str}-typed (type={t.value})")
 
 
 def _as(o: typing.Any, type_str: typing.Any) -> typing.Any:

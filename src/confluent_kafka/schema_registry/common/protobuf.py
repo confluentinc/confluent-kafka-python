@@ -358,8 +358,15 @@ def _message_factory(desc: Descriptor) -> Message:
 
 def _value_type_error(ctx, fd: FieldDescriptor, actual: str, expected: str) -> Exception:
     return RuleError(
-        "Rule returned " + actual + " for field '" + fd.full_name + "', which is a "
-        + fd.message_type.full_name + "; expected " + expected)
+        "Rule returned "
+        + actual
+        + " for field '"
+        + fd.full_name
+        + "', which is a "
+        + fd.message_type.full_name
+        + "; expected "
+        + expected
+    )
 
 
 def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
@@ -422,8 +429,7 @@ def _transform_field(
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
-            if (fd.type == FieldDescriptor.TYPE_MESSAGE
-                    and is_cel_leaf_message(fd.message_type)):
+            if fd.type == FieldDescriptor.TYPE_MESSAGE and is_cel_leaf_message(fd.message_type):
                 # The rule saw this field as a single value, so it hands back a decimal or a
                 # datetime rather than the message; encode it before writing.
                 #
@@ -766,8 +772,7 @@ def get_type(fd: FieldDescriptor) -> FieldType:
         # Report the same primitive type the Avro counterpart does, so that CEL_FIELD applies
         # to the field and a rule written against one format ports to the other.
         if is_cel_leaf_message(fd.message_type):
-            return (FieldType.BYTES if fd.message_type.full_name == DECIMAL_TYPE_NAME
-                    else FieldType.LONG)
+            return FieldType.BYTES if fd.message_type.full_name == DECIMAL_TYPE_NAME else FieldType.LONG
         return FieldType.RECORD
     if fd.type == FieldDescriptor.TYPE_ENUM:
         return FieldType.ENUM

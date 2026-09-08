@@ -51,8 +51,7 @@ def decimal_value(code, scale, unscaled, width):
 
 
 def test_parse_json_navigation_and_scalars():
-    v = vu.parse_json(
-        '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
+    v = vu.parse_json('{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
     assert v.get_type() == VariantType.OBJECT
     assert v.num_object_fields() == 5
     assert v.get_field_by_key("name").get_string() == "alice"
@@ -68,6 +67,7 @@ def test_field_by_key_binary_search_path():
     # More than the linear/binary-search threshold (32) fields exercises binary search.
     obj = {("k%02d" % i): i for i in range(40)}
     import json
+
     v = vu.parse_json(json.dumps(obj))
     assert v.get_field_by_key("k39").get_long() == 39
     assert v.get_field_by_key("k00").get_long() == 0
@@ -220,18 +220,21 @@ def test_decimal_large_unscaled_is_not_rounded():
         (prim(vu.TIMESTAMP_NTZ, struct.pack("<q", 1577836800000000)), '"2020-01-01T00:00:00"'),
         (prim(vu.TIMESTAMP_NTZ, struct.pack("<q", 1577836830000000)), '"2020-01-01T00:00:30"'),
         # Nanos.
-        (prim(vu.TIMESTAMP_NANOS, struct.pack("<q", 1577836800123456789)),
-         '"2020-01-01T00:00:00.123456789Z"'),
+        (prim(vu.TIMESTAMP_NANOS, struct.pack("<q", 1577836800123456789)), '"2020-01-01T00:00:00.123456789Z"'),
         # Time: seconds always present.
         (prim(vu.TIME, struct.pack("<q", 45296123456)), '"12:34:56.123456"'),
         (prim(vu.TIME, struct.pack("<q", 45240000000)), '"12:34:00"'),
         # Date.
         (prim(vu.DATE, struct.pack("<i", 18262)), '"2020-01-01"'),
         # UUID + binary.
-        (prim(vu.UUID, uuid_mod.UUID("00112233-4455-6677-8899-aabbccddeeff").bytes),
-         '"00112233-4455-6677-8899-aabbccddeeff"'),
-        (prim(vu.BINARY, struct.pack("<I", 4) + bytes([0, 1, 2, 3])),
-         '"' + base64.b64encode(bytes([0, 1, 2, 3])).decode() + '"'),
+        (
+            prim(vu.UUID, uuid_mod.UUID("00112233-4455-6677-8899-aabbccddeeff").bytes),
+            '"00112233-4455-6677-8899-aabbccddeeff"',
+        ),
+        (
+            prim(vu.BINARY, struct.pack("<I", 4) + bytes([0, 1, 2, 3])),
+            '"' + base64.b64encode(bytes([0, 1, 2, 3])).decode() + '"',
+        ),
     ],
 )
 def test_to_json_scalar_contract(variant, expected):
@@ -254,10 +257,10 @@ def test_to_json_non_ascii_string_is_raw_utf8():
     # Cross-language contract: non-ASCII must pass through raw (no \\uXXXX escapes),
     # matching Java/Rust/JS/C++. Control chars and quotes are still escaped.
     for text, expected in [
-        ("café", '"café"'),          # café -> raw, not "café"
+        ("café", '"café"'),  # café -> raw, not "café"
         ("日本語", '"日本語"'),  # 日本語 -> raw
-        ('a"b', '"a\\"b"'),                     # quote still escaped
-        ("a\tb\nc", '"a\\tb\\nc"'),             # control chars still escaped
+        ('a"b', '"a\\"b"'),  # quote still escaped
+        ("a\tb\nc", '"a\\tb\\nc"'),  # control chars still escaped
     ]:
         b = vu.VariantBuilder()
         b.append_string(text)
@@ -355,7 +358,7 @@ def test_wrong_getter_raises():
 def test_builder_matches_parse_json_byte_for_byte():
     # A big integer wider than 64 bits parses as a scale-0 DECIMAL16 - the one decimal
     # form parse_json emits - so the programmatic decimal append can match it exactly.
-    big = 10 ** 20
+    big = 10**20
     src = (
         '{"id":42,"name":"hello","active":true,"score":3.5,'
         '"amount":%d,"missing":null,"nums":[1,2,3],"nested":{"a":1}}' % big
@@ -364,7 +367,7 @@ def test_builder_matches_parse_json_byte_for_byte():
     b = vu.VariantBuilder()
     b.start_object()
     b.append_key("id")
-    b.append_byte(42)                      # parse_json encodes 42 as INT1
+    b.append_byte(42)  # parse_json encodes 42 as INT1
     b.append_key("name")
     b.append_string("hello")
     b.append_key("active")
@@ -480,8 +483,8 @@ def _java_nanos_to_micros(ns):
     """Java TimestampUtils.fromEpochNanos split, floored to the microsecond that a
     datetime can hold: sec = floorDiv(ns, 1e9), nanos = floorMod(ns, 1e9), then the
     nanos field floored to micros. Equals floor(ns / 1000)."""
-    sec = ns // 1_000_000_000          # Math.floorDiv
-    nanos = ns - sec * 1_000_000_000   # Math.floorMod, 0 <= nanos < 1e9
+    sec = ns // 1_000_000_000  # Math.floorDiv
+    nanos = ns - sec * 1_000_000_000  # Math.floorMod, 0 <= nanos < 1e9
     return sec * 1_000_000 + nanos // 1000
 
 
@@ -494,15 +497,15 @@ def _nanos_variant(ns, ntz=False):
     "ns",
     [
         0,
-        1,                              # 1 ns after epoch -> floors to epoch
-        999,                            # sub-micro positive -> floors to 0 us
+        1,  # 1 ns after epoch -> floors to epoch
+        999,  # sub-micro positive -> floors to 0 us
         1000,
-        1577836800123456789,            # 2020-01-01T00:00:00.123456789Z
-        -1,                             # 1 ns before epoch: floor -> -1 us (NOT 0)
-        -999,                           # sub-micro pre-epoch -> -1 us (NOT 0)
+        1577836800123456789,  # 2020-01-01T00:00:00.123456789Z
+        -1,  # 1 ns before epoch: floor -> -1 us (NOT 0)
+        -999,  # sub-micro pre-epoch -> -1 us (NOT 0)
         -1000,
-        -1500,                          # -1.5 us -> floor -> -2 us (NOT -1)
-        -1577836800123456789,           # deep pre-1970 nanos timestamp
+        -1500,  # -1.5 us -> floor -> -2 us (NOT -1)
+        -1577836800123456789,  # deep pre-1970 nanos timestamp
     ],
 )
 def test_variant_as_timestamp_nanos_floors_to_micros_like_java(ns):
@@ -540,5 +543,6 @@ def test_variant_as_timestamp_micros_types_are_used_as_is():
     assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", micros))) == expected
     assert _variant_get_timestamp(prim(vu.TIMESTAMP_NTZ, struct.pack("<q", micros))) == expected
     # Negative micros are used verbatim (already the finest datetime resolution).
-    assert (_variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", -1)))
-            == _EPOCH_UTC - _dt.timedelta(microseconds=1))
+    assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", -1))) == _EPOCH_UTC - _dt.timedelta(
+        microseconds=1
+    )
