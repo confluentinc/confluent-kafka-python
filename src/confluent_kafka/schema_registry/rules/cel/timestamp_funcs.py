@@ -169,7 +169,12 @@ def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
             raise celpy.CELEvalError(f"timestamp: epoch value must be int, got {type(value).__name__}")
         if isinstance(precision, (bool, celtypes.BoolType)) or not isinstance(precision, (int, celtypes.IntType)):
             raise celpy.CELEvalError(f"timestamp: precision must be int, got {type(precision).__name__}")
-        return _from_epoch(int(value), int(precision))
+        try:
+            return _from_epoch(int(value), int(precision))
+        except (OverflowError, ValueError, OSError) as e:
+            # Normalized the same way the one-argument overload does, so an out-of-range epoch
+            # surfaces as a rule error rather than escaping as a raw Python exception.
+            raise celpy.CELEvalError(f"timestamp: epoch value out of range: {int(value)}") from e
     if len(args) == 1:
         return _timestamp_one(args[0])
     return _BASE_TIMESTAMP(*args)

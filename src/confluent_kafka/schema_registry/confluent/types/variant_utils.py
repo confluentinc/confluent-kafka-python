@@ -34,6 +34,7 @@ import base64
 import datetime
 import decimal
 import json
+import math
 import struct
 import uuid as uuid_mod
 from enum import Enum
@@ -295,7 +296,8 @@ def _format_double(d: float) -> str:
         return "Infinity"
     if d == float("-inf"):
         return "-Infinity"
-    if d.is_integer() and abs(d) < 1e16:
+    # `int()` erases the sign of -0.0, which Java's Double.toString preserves ("-0.0").
+    if d.is_integer() and abs(d) < 1e16 and not (d == 0.0 and math.copysign(1.0, d) < 0):
         return "%d.0" % int(d)
     return repr(d)
 
@@ -312,7 +314,7 @@ def _format_float(f: float) -> str:
         return "Infinity"
     if f == float("-inf"):
         return "-Infinity"
-    if f == int(f) and abs(f) < 1e16:
+    if f == int(f) and abs(f) < 1e16 and not (f == 0.0 and math.copysign(1.0, f) < 0):
         return "%d.0" % int(f)
     for p in range(1, 10):
         s = "%.*g" % (p, f)
@@ -1034,21 +1036,22 @@ class VariantBuilder:
         self.value.extend(text)
 
     def _append_int(self, i: int) -> bool:
-        self._check_capacity(1 + 8)
+        # Capacity is checked against the width actually chosen, not the widest one: Java's
+        # appendByte/appendShort/appendInt/appendLong each check `1 + their own width`, so
+        # reserving 9 bytes up front would reject a one-byte write that fits.
         if I8_MIN <= i <= I8_MAX:
-            self.value.append(self._primitive_header(INT1))
-            self.value.extend(i.to_bytes(1, byteorder="little", signed=True))
+            code, width = INT1, 1
         elif I16_MIN <= i <= I16_MAX:
-            self.value.append(self._primitive_header(INT2))
-            self.value.extend(i.to_bytes(2, byteorder="little", signed=True))
+            code, width = INT2, 2
         elif I32_MIN <= i <= I32_MAX:
-            self.value.append(self._primitive_header(INT4))
-            self.value.extend(i.to_bytes(4, byteorder="little", signed=True))
+            code, width = INT4, 4
         elif I64_MIN <= i <= I64_MAX:
-            self.value.append(self._primitive_header(INT8))
-            self.value.extend(i.to_bytes(8, byteorder="little", signed=True))
+            code, width = INT8, 8
         else:
             return False
+        self._check_capacity(1 + width)
+        self.value.append(self._primitive_header(code))
+        self.value.extend(i.to_bytes(width, byteorder="little", signed=True))
         return True
 
     def _write_fixed_int(self, type_code: int, value: int, width: int) -> None:
@@ -1066,7 +1069,6 @@ class VariantBuilder:
         smallest of DECIMAL4/8/16 that fits."""
         if scale < 0:
             raise VariantError("cannot encode decimal with negative scale")
-        self._check_capacity(2 + 16)
         precision = len(str(abs(unscaled)))
         if scale <= MAX_DECIMAL4_PRECISION and precision <= MAX_DECIMAL4_PRECISION:
             code, width = DECIMAL4, 4
@@ -1076,6 +1078,8 @@ class VariantBuilder:
             code, width = DECIMAL16, 16
         else:
             raise VariantError("decimal exceeds maximum precision (38)")
+        # Java's appendDecimal checks `2 + width` inside each branch, after the width is known.
+        self._check_capacity(2 + width)
         self.value.append(self._primitive_header(code))
         self.value.append(scale)
         self.value.extend(unscaled.to_bytes(width, byteorder="little", signed=True))

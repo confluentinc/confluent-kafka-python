@@ -131,8 +131,10 @@ def _decimal(*args: typing.Any) -> Decimal:
         and getattr(getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal"
     ):
         return _from_proto_decimal(proto_msg)
-    if isinstance(v, bool):
-        # bool is a subclass of int in Python; reject before the int arm.
+    if isinstance(v, (bool, celtypes.BoolType)):
+        # bool is a subclass of int in Python, and celtypes.BoolType subclasses int rather
+        # than bool, so both have to be named here or a CEL bool becomes Decimal(1). Java has
+        # no decimal(bool) overload at all.
         raise celpy.CELEvalError("decimal: cannot convert bool to Decimal")
     if isinstance(v, int):
         return Decimal(v)
@@ -381,10 +383,14 @@ def _string(v: typing.Any) -> celtypes.StringType:
     sub-second component; delegates to celpy's stdlib string coercion for
     everything else.
     """
-    if isinstance(v, Decimal):
-        return celtypes.StringType(format(v, "f"))
     if isinstance(v, celtypes.TimestampType):
         return celtypes.StringType(format_timestamp(v))
+    # A decimal reached by selection (`this.amount`) is a celpy MessageType wrapper, not a
+    # Decimal. Java's string() resolves it through asDecimalOrNull, which accepts the
+    # confluent.type.Decimal message form as well as its own decimal.
+    d = decimal_boundary_value(v)
+    if d is not None:
+        return celtypes.StringType(format(d, "f"))
     return _STDLIB_STRING(v)
 
 
@@ -401,8 +407,9 @@ def _double(v: typing.Any) -> celtypes.DoubleType:
     precision, and out-of-range magnitudes become ``inf``; delegates to celpy's
     stdlib double coercion for everything else.
     """
-    if isinstance(v, Decimal):
-        return celtypes.DoubleType(float(v))
+    d = decimal_boundary_value(v)
+    if d is not None:
+        return celtypes.DoubleType(float(d))
     return _STDLIB_DOUBLE(v)
 
 

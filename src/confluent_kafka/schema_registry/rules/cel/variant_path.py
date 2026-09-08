@@ -23,7 +23,9 @@
 Resolution failures (missing field, out-of-bounds index, type mismatch) return ``None``
 from :func:`walk`; malformed paths raise :class:`ValueError` at parse time.
 
-Identifier names follow ``[A-Za-z_][A-Za-z0-9_]*``; use the quoted form for any other key.
+Identifier names follow ``[letter_][letter digit _]*``, where letter and digit are
+Unicode-aware (``str.isalpha`` / ``str.isalnum``), so accented and non-Latin names are
+identifiers too; use the quoted form for any other key.
 Negative indices are rejected (no RFC 9535 ``len + i`` semantics).
 
 Quoted-key escapes recognize only ``\\\\`` (a literal backslash) and backslash + the
@@ -142,11 +144,16 @@ def _read_index(cur: "_Cursor", path: str) -> int:
     if cur.has_more() and cur.peek() == "-":
         raise ValueError("negative indices are not supported in variant path: " + path)
     start = cur.pos
-    while cur.has_more() and cur.peek().isdigit():
+    # ASCII digits only, and bounded like Java's Integer.parseInt: a wider index
+    # is an error rather than an arbitrarily large Python int.
+    while cur.has_more() and "0" <= cur.peek() <= "9":
         cur.next()
     if cur.pos == start:
         raise ValueError("expected integer index in variant path: " + path)
-    return int(cur.src[start : cur.pos])
+    index = int(cur.src[start : cur.pos])
+    if index > 2147483647:
+        raise ValueError("index out of int range in variant path: " + path)
+    return index
 
 
 class _Cursor:

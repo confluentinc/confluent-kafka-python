@@ -175,10 +175,17 @@ def _parse_json(s: typing.Any) -> Variant:
 
 
 def _try_parse_json(s: typing.Any) -> typing.Optional[Variant]:
-    """``variants.tryParseJson(string)`` - soft; CEL null on any parse failure."""
+    """``variants.tryParseJson(string)`` - soft; CEL null on any parse failure.
+
+    Soft about *parsing*, not about the argument type: Java declares this binding over
+    ``String`` exactly as it does the strict form, so a non-string argument is a rule error
+    there. Stringifying instead turned ``tryParseJson(123)`` into a numeric variant.
+    """
+    if not isinstance(s, (str, celtypes.StringType)):
+        raise celpy.CELEvalError("variants.tryParseJson: expected a string")
     try:
         return vu.parse_json(str(s))
-    except Exception:  # noqa: BLE001 - soft form: any failure -> CEL null
+    except Exception:  # noqa: BLE001 - soft form: any parse failure -> CEL null
         return None
 
 
@@ -254,6 +261,11 @@ def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
     v = _require_variant_or_null(o, "variants.index")
     if v is None or v.get_type() != VariantType.ARRAY:
         return None
+    # Java binds this as (Object, Long), so a double or a bool has no matching overload.
+    # int() would have quietly floored 1.9 to element 1 and read true as element 1.
+    if isinstance(idx, (bool, celtypes.BoolType)) or not isinstance(idx, (int, celtypes.IntType)):
+        raise celpy.CELEvalError(
+            f"variants.index: expected an int index, got {type(idx).__name__}")
     i = int(idx)
     if i < 0 or i > _INT32_MAX:
         return None
