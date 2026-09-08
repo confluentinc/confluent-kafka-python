@@ -49,6 +49,9 @@ from google.protobuf import descriptor, message
 
 from confluent_kafka.schema_registry.common.protobuf import _is_repeated
 from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+    unscaled_to_bytes,
+)
 
 __all__ = ["convert"]
 
@@ -189,22 +192,9 @@ def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
-    # A decimal's scale is the negated exponent; a positive exponent (1E+3) has no scale of
-    # its own, so normalise it into the digits rather than writing a negative scale.
-    scale = -exponent
-    if scale < 0:
-        unscaled *= 10 ** (-scale)
-        scale = 0
-    target.value = _unscaled_bytes(unscaled)
-    target.scale = scale
-
-
-def _unscaled_bytes(unscaled: int) -> bytes:
-    """Minimal big-endian two's-complement encoding, matching the other clients."""
-    if unscaled == 0:
-        return b"\x00"
-    length = (unscaled.bit_length() + 8) // 8
-    return unscaled.to_bytes(length, byteorder="big", signed=True)
+    # Negated exponent, negative included - see set_decimal_message in common/protobuf.py.
+    target.value = unscaled_to_bytes(unscaled)
+    target.scale = -exponent
 
 
 def _set_timestamp(target: message.Message, value: datetime.datetime) -> None:

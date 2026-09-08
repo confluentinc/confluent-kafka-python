@@ -249,6 +249,12 @@ def _path(o: typing.Any, path: typing.Any) -> typing.Optional[Variant]:
 def _field(o: typing.Any, key: typing.Any) -> typing.Optional[Variant]:
     """``variants.field(dyn, string)`` - object field by key; CEL null on a miss or a
     non-object receiver."""
+    # Java binds this as (Object, String), so a non-string key has no matching overload;
+    # str(key) would have looked up "1" for variants.field(v, 1). Same contract as
+    # variants.index and variants.parseJson.
+    if not isinstance(key, (str, celtypes.StringType)):
+        raise celpy.CELEvalError(
+            f"variants.field: expected a string key, got {type(key).__name__}")
     v = _require_variant_or_null(o, "variants.field")
     if v is None or v.get_type() != VariantType.OBJECT:
         return None
