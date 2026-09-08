@@ -349,7 +349,11 @@ def _to_json(v: typing.Any) -> typing.Any:
     return celtypes.StringType(variant.to_json())
 
 
-VARIANT_FUNCS: typing.Dict[str, celpy.CELFunction] = {
+# Typed as Any rather than celpy.CELFunction: these functions return this client's own
+# Decimal and Variant values, which are not in celpy's declared return union - the CEL
+# surface is extended with opaque types celpy does not know. celpy dispatches them fine
+# at runtime; only its annotation is narrower than what an extension can return.
+VARIANT_FUNCS: typing.Dict[str, typing.Any] = {
     "variant": _variant,
     "variants.parseJson": _parse_json,
     "variants.tryParseJson": _try_parse_json,

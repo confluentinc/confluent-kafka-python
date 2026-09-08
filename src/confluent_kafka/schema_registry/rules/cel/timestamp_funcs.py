@@ -58,7 +58,9 @@ except ImportError:  # pragma: no cover
 try:
     from celpy.evaluation import base_functions as _base_functions
 
-    _BASE_TIMESTAMP: typing.Callable[..., celtypes.TimestampType] = _base_functions.get(
+    # celpy's own callable, declared as returning the whole CEL value union rather than a
+    # TimestampType specifically - so the annotation follows what it hands back.
+    _BASE_TIMESTAMP: typing.Callable[..., typing.Any] = _base_functions.get(
         "timestamp", celtypes.TimestampType
     )
 except ImportError:  # pragma: no cover
@@ -209,6 +211,10 @@ def format_timestamp(t: Datetime) -> str:
     return text + "Z"
 
 
-TIMESTAMP_FUNCS: typing.Dict[str, celpy.CELFunction] = {
+# Typed as Any rather than celpy.CELFunction: these functions return this client's own
+# Decimal and Variant values, which are not in celpy's declared return union - the CEL
+# surface is extended with opaque types celpy does not know. celpy dispatches them fine
+# at runtime; only its annotation is narrower than what an extension can return.
+TIMESTAMP_FUNCS: typing.Dict[str, typing.Any] = {
     "timestamp": _timestamp,
 }
