@@ -37,7 +37,7 @@ import json
 import struct
 import uuid as uuid_mod
 from enum import Enum
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Format constants (see VariantFormat.java).
@@ -601,7 +601,12 @@ class Variant:
                 parts.append(json.dumps(key, ensure_ascii=False) + ":" + child.to_json())
             return "{" + ",".join(parts) + "}"
         if t == VariantType.ARRAY:
-            parts = [self.get_element_at_index(i).to_json() for i in range(self.num_array_elements())]
+            parts = []
+            for i in range(self.num_array_elements()):
+                element = self.get_element_at_index(i)
+                if element is None:
+                    raise VariantError("array element count exceeds the encoded elements")
+                parts.append(element.to_json())
             return "[" + ",".join(parts) + "]"
         if t == VariantType.NULL:
             return "null"
@@ -732,7 +737,7 @@ class VariantBuilder:
 
     def __init__(self, size_limit: int = DEFAULT_SIZE_LIMIT):
         self.value = bytearray()
-        self.dictionary = {}
+        self.dictionary: Dict[str, int] = {}
         self.dictionary_keys: List[bytes] = []
         self.size_limit = size_limit
         self._stack: List[Any] = []
@@ -905,7 +910,7 @@ class VariantBuilder:
             return
         ctx = self._stack[-1]
         if isinstance(ctx, _ObjectContext):
-            if not ctx.has_pending_key:
+            if not ctx.has_pending_key or ctx.pending_key is None:
                 raise VariantError("a value in an object must follow append_key")
             ctx.fields.append(_FieldEntry(ctx.pending_key, ctx.pending_id, len(self.value) - ctx.start))
             ctx.pending_key = None

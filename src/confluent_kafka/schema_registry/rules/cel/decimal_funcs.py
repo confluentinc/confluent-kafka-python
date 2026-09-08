@@ -291,6 +291,20 @@ def _decimals_sign(a: typing.Any) -> celtypes.IntType:
 # ---- rounding family ----
 
 
+def _exponent_of(d: Decimal) -> int:
+    """The decimal's exponent, as an int.
+
+    ``Decimal.as_tuple().exponent`` is ``int | Literal['n', 'N', 'F']`` - the strings stand
+    for NaN, sNaN and Infinity - so it cannot be compared or negated as it comes. ``_d``
+    rejects a non-finite value before this is reached; the check keeps that guarantee local
+    rather than assumed.
+    """
+    exponent = d.as_tuple().exponent
+    if not isinstance(exponent, int):
+        raise celpy.CELEvalError(f"decimal: not a finite number '{d}'")
+    return exponent
+
+
 def _decimals_round(*args: typing.Any) -> Decimal:
     """Round to the given scale (HALF_UP). One-arg form rounds to integer."""
     if len(args) == 1:
@@ -313,13 +327,13 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
     if len(args) == 1:
         d = _d(args[0])
         # current scale = -exponent. Early-return if 0 >= current_scale.
-        if d.as_tuple().exponent >= 0:
+        if _exponent_of(d) >= 0:
             return d
         return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
     if len(args) == 2:
         d = _d(args[0])
         scale = int(args[1])
-        if scale >= -d.as_tuple().exponent:
+        if scale >= -_exponent_of(d):
             return d
         return d.quantize(Decimal(1).scaleb(-scale), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
     raise celpy.CELEvalError(f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
@@ -334,8 +348,16 @@ def _decimals_ceil(a: typing.Any) -> Decimal:
 
 
 def _d(v: typing.Any) -> Decimal:
-    """Coerce a rule-argument value to Decimal for operator dispatch."""
+    """Coerce a rule-argument value to Decimal for operator dispatch.
+
+    Non-finite values are rejected here as well as in the string constructor: Java's and
+    Rust's decimals cannot represent NaN or an infinity at all, so no operator should see
+    one. An already-Decimal argument - from arithmetic, or from a decimal field - is the
+    path that skipped the constructor's check.
+    """
     if isinstance(v, Decimal):
+        if not v.is_finite():
+            raise celpy.CELEvalError(f"decimal: not a finite number '{v}'")
         return v
     return _decimal(v)
 
@@ -478,7 +500,11 @@ DECIMAL_OPERATOR_FUNCS: typing.Dict[str, typing.Any] = {
 }
 
 
-DECIMAL_FUNCS: typing.Dict[str, celpy.CELFunction] = {
+# Typed as Any rather than celpy.CELFunction: these functions return this client's own
+# Decimal and Variant values, which are not in celpy's declared return union - the CEL
+# surface is extended with opaque types celpy does not know. celpy dispatches them fine
+# at runtime; only its annotation is narrower than what an extension can return.
+DECIMAL_FUNCS: typing.Dict[str, typing.Any] = {
     "decimal": _decimal,
     "decimals.eq": _decimals_eq,
     "decimals.lt": _decimals_lt,
