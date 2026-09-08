@@ -56,8 +56,14 @@ def to_proto_decimal(d: Decimal) -> decimal_pb2.Decimal:
     unscaled = int("".join(map(str, digits)) or "0")
     if sign:
         unscaled = -unscaled
-    value = unscaled.to_bytes(_twos_complement_length(unscaled), "big", signed=True)
+    value = unscaled_to_bytes(unscaled)
     return decimal_pb2.Decimal(value=value, scale=scale)
+
+
+def unscaled_to_bytes(unscaled: int) -> bytes:
+    """Minimal big-endian two's-complement encoding of an unscaled integer, matching
+    ``BigInteger.toByteArray()``. The single implementation for every writer in this client."""
+    return unscaled.to_bytes(_twos_complement_length(unscaled), "big", signed=True)
 
 
 def _twos_complement_length(n: int) -> int:

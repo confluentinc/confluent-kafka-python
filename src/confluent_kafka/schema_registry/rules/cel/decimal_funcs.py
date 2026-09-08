@@ -53,10 +53,31 @@ _DIV_CONTEXT = decimal.Context(prec=38, rounding=decimal.ROUND_HALF_UP)
 _EXACT_CONTEXT = decimal.Context(prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
 
 
+_INT32_MIN = -(2**31)
+_INT32_MAX = 2**31 - 1
+
+
+def _require_int_scale(scale: typing.Any, fn: str) -> int:
+    """A scale argument as an int, mirroring Java's ``requireIntScale``.
+
+    Java declares every scale parameter as ``Long`` and narrows it with ``Math.toIntExact``,
+    so a double or a bool has no matching overload there and an out-of-int-range value is an
+    error rather than a wildly wrong Decimal. Go, C#, C++ and Rust carry the same check.
+    A *negative* scale is legitimate - ``BigDecimal.setScale(-2)`` rounds to hundreds - so
+    only the type and the width are constrained here.
+    """
+    if isinstance(scale, (bool, celtypes.BoolType)) or not isinstance(scale, (int, celtypes.IntType)):
+        raise celpy.CELEvalError(f"{fn}: scale must be int, got {type(scale).__name__}")
+    s = int(scale)
+    if s < _INT32_MIN or s > _INT32_MAX:
+        raise celpy.CELEvalError(f"{fn}: scale out of int range: {s}")
+    return s
+
+
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
     """Construct a Decimal from raw two's-complement big-endian bytes + scale."""
     raw = _coerce_bytes(value)
-    s = int(scale)
+    s = _require_int_scale(scale, "decimal(bytes, scale)")
     if len(raw) == 0:
         return Decimal(0).scaleb(-s, context=_EXACT_CONTEXT)
     return Decimal(int.from_bytes(raw, "big", signed=True)).scaleb(-s, context=_EXACT_CONTEXT)
@@ -307,13 +328,23 @@ def _exponent_of(d: Decimal) -> int:
     return exponent
 
 
+def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:
+    """``d`` at ``scale``. An in-range but unrepresentably wide scale raises
+    ``decimal.InvalidOperation``, which would escape the CEL error handler as a raw Python
+    exception; it is reported as a rule error instead."""
+    try:
+        return d.quantize(Decimal(1).scaleb(-scale), rounding=rounding, context=_EXACT_CONTEXT)
+    except decimal.InvalidOperation as e:
+        raise celpy.CELEvalError(f"{fn}: cannot represent a scale of {scale}") from e
+
+
 def _decimals_round(*args: typing.Any) -> Decimal:
     """Round to the given scale (HALF_UP). One-arg form rounds to integer."""
     if len(args) == 1:
         return _d(args[0]).quantize(Decimal(1), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
     if len(args) == 2:
-        scale = int(args[1])
-        return _d(args[0]).quantize(Decimal(1).scaleb(-scale), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
+        scale = _require_int_scale(args[1], "decimals.round")
+        return _quantize(_d(args[0]), scale, decimal.ROUND_HALF_UP, "decimals.round")
     raise celpy.CELEvalError(f"decimals.round: expected 1 or 2 args, got {len(args)}")
 
 
@@ -334,10 +365,10 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
         return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
     if len(args) == 2:
         d = _d(args[0])
-        scale = int(args[1])
+        scale = _require_int_scale(args[1], "decimals.trunc")
         if scale >= -_exponent_of(d):
             return d
-        return d.quantize(Decimal(1).scaleb(-scale), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
+        return _quantize(d, scale, decimal.ROUND_DOWN, "decimals.trunc")
     raise celpy.CELEvalError(f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
 
 

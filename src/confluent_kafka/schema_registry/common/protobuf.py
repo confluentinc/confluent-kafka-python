@@ -57,6 +57,9 @@ from confluent_kafka.schema_registry.serde import (
     evaluate_validation_rule,
 )
 from confluent_kafka.serialization import SerializationError
+from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+    unscaled_to_bytes,
+)
 
 __all__ = [
     '_bytes',
@@ -294,23 +297,13 @@ def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
+    # The scale is the negated exponent, negative included: BigDecimal("1E+3") reports
+    # unscaled 1 with scale -3, and the proto field is a signed int32, so normalising a
+    # positive exponent into the digits would write a different value than the JVM does.
     scale = -exponent
-    if scale < 0:
-        # A positive exponent (1E+3) has no scale of its own; normalise it into the digits
-        # rather than writing a negative scale.
-        unscaled *= 10 ** (-scale)
-        scale = 0
     target.value = unscaled_to_bytes(unscaled)
     target.precision = len(digits)
     target.scale = scale
-
-
-def unscaled_to_bytes(unscaled: int) -> bytes:
-    """Minimal big-endian two's-complement encoding, matching the other clients."""
-    if unscaled == 0:
-        return b"\x00"
-    length = (unscaled.bit_length() + 8) // 8
-    return unscaled.to_bytes(length, byteorder="big", signed=True)
 
 
 def set_timestamp_message(target: Message, value: datetime.datetime) -> None:
@@ -855,12 +848,10 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
 
     unscaled_datum = 10**delta * unscaled_datum
 
-    bytes_req = (unscaled_datum.bit_length() + 8) // 8
-
     if sign:
         unscaled_datum = -unscaled_datum
 
-    bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
+    bytes = unscaled_to_bytes(unscaled_datum)
 
     result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes

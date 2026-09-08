@@ -204,7 +204,13 @@ def format_timestamp(t: Datetime) -> str:
     offset it carries, as the Java reference does.
     """
     utc = t.astimezone(timezone.utc)
-    text = utc.strftime("%Y-%m-%dT%H:%M:%S")
+    # Formatted from the numeric components rather than through strftime: %Y is
+    # platform-dependent below year 1000 (glibc emits "1" where BSD emits "0001"), and RFC
+    # 3339's date-fullyear is 4DIGIT, which is also what Java's Instant.toString gives.
+    text = (
+        f"{utc.year:04d}-{utc.month:02d}-{utc.day:02d}T"
+        f"{utc.hour:02d}:{utc.minute:02d}:{utc.second:02d}"
+    )
     micros = utc.microsecond
     if micros:
         if micros % 1000 == 0:
