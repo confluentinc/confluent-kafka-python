@@ -24,9 +24,9 @@ from google.protobuf import message
 
 from confluent_kafka.schema_registry import RuleKind, Schema
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
+from confluent_kafka.schema_registry.rules.cel import protobuf_result_writer
 from confluent_kafka.schema_registry.rules.cel.cel_field_presence import InterpretedRunner
 from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel, _scalar_field_value_to_cel
-from confluent_kafka.schema_registry.rules.cel import protobuf_result_writer
 from confluent_kafka.schema_registry.rules.cel.extra_func import EXTRA_FUNCS
 from confluent_kafka.schema_registry.serde import FieldContext, RuleContext, RuleExecutor
 
@@ -53,6 +53,7 @@ def _to_plain_containers(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_to_plain_containers(v) for v in value]
     return value
+
 
 # A date logical type annotates an Avro int, where the int stores the number
 # of days from the unix epoch, 1 January 1970 (ISO calendar).
@@ -127,8 +128,7 @@ class CelExecutor(RuleExecutor):
         # python's pattern. Each rule evaluation sees a freshly-captured UTC
         # instant.
         if "now" in expr and "now" not in args:
-            args["now"] = celtypes.TimestampType(
-                datetime.datetime.now(tz=datetime.timezone.utc))
+            args["now"] = celtypes.TimestampType(datetime.datetime.now(tz=datetime.timezone.utc))
         result = prog.evaluate(args)
         if isinstance(result, celtypes.BoolType):
             return bool(result)

@@ -35,9 +35,8 @@ from confluent_kafka.schema_registry.rules.cel.timestamp_funcs import format_tim
 
 try:
     from confluent_kafka.schema_registry.confluent.types import decimal_pb2
-    from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
-        from_proto_decimal as _from_proto_decimal,
-    )
+    from confluent_kafka.schema_registry.confluent.types.decimal_utils import from_proto_decimal as _from_proto_decimal
+
     _PROTO_DECIMAL_CLS: typing.Any = decimal_pb2.Decimal
 except ImportError:
     _PROTO_DECIMAL_CLS = None
@@ -51,8 +50,7 @@ _DIV_CONTEXT = decimal.Context(prec=38, rounding=decimal.ROUND_HALF_UP)
 # Exact/unbounded context for operations Java computes exactly (add/sub/mul/mod,
 # setScale/quantize, scaleb) — matches java.math.BigDecimal's exact semantics rather
 # than the thread-local default context (prec=28). Only div/sqrt cap at 38 (_DIV_CONTEXT).
-_EXACT_CONTEXT = decimal.Context(
-    prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
+_EXACT_CONTEXT = decimal.Context(prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
 
 
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
@@ -71,9 +69,7 @@ def _coerce_bytes(v: typing.Any) -> bytes:
         return v.tobytes()
     if isinstance(v, celtypes.BytesType):
         return bytes(v)
-    raise celpy.CELEvalError(
-        f"decimal: expected bytes for the (bytes, scale) overload, got "
-        f"{type(v).__name__}")
+    raise celpy.CELEvalError(f"decimal: expected bytes for the (bytes, scale) overload, got " f"{type(v).__name__}")
 
 
 def _decimal_from_string(text: str, original: typing.Any) -> Decimal:
@@ -124,15 +120,16 @@ def _decimal(*args: typing.Any) -> Decimal:
     # Generic proto Message duck-typing — accept any message whose descriptor
     # full_name is confluent.type.Decimal (covers DynamicMessage or alternate
     # generated bindings).
-    if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == \
-            "confluent.type.Decimal":
+    if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == "confluent.type.Decimal":
         return _from_proto_decimal(v)
     # celpy binds a proto-message field into CEL as a MessageType wrapper (a MapType that
     # keeps the underlying message on ``.msg``), so `decimal(message.decField)` for a
     # confluent.type.Decimal field arrives here rather than as a raw message. Unwrap it.
     proto_msg = getattr(v, "msg", None)
-    if proto_msg is not None and getattr(
-            getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal":
+    if (
+        proto_msg is not None
+        and getattr(getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal"
+    ):
         return _from_proto_decimal(proto_msg)
     if isinstance(v, bool):
         # bool is a subclass of int in Python; reject before the int arm.
@@ -150,12 +147,13 @@ def _decimal(*args: typing.Any) -> Decimal:
         raise celpy.CELEvalError(
             "decimal: raw bytes need a scale; use decimal(bytes, scale) or set "
             "useLogicalTypeConverters=true on the Avro client so decimal fields "
-            "arrive as Decimal")
-    raise celpy.CELEvalError(
-        f"decimal: cannot convert {type(v).__name__} to Decimal")
+            "arrive as Decimal"
+        )
+    raise celpy.CELEvalError(f"decimal: cannot convert {type(v).__name__} to Decimal")
 
 
 # ---- comparison ----
+
 
 def decimal_boundary_value(v: typing.Any) -> typing.Optional[Decimal]:
     """A ``confluent.type.Decimal`` message as a :class:`~decimal.Decimal`, else ``None``.
@@ -183,8 +181,10 @@ def decimal_boundary_value(v: typing.Any) -> typing.Optional[Decimal]:
         return _from_proto_decimal(v)
     # celpy wraps a proto message as a MessageType keeping the message on ``.msg``.
     proto_msg = getattr(v, "msg", None)
-    if proto_msg is not None and getattr(
-            getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal":
+    if (
+        proto_msg is not None
+        and getattr(getattr(proto_msg, "DESCRIPTOR", None), "full_name", "") == "confluent.type.Decimal"
+    ):
         return _from_proto_decimal(proto_msg)
     return None
 
@@ -210,6 +210,7 @@ def _decimals_ge(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
 
 
 # ---- arithmetic ----
+
 
 def _decimals_add(a: typing.Any, b: typing.Any) -> Decimal:
     return _EXACT_CONTEXT.add(_d(a), _d(b))
@@ -245,6 +246,7 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
 
 # ---- selection ----
 
+
 def _decimals_greatest(a: typing.Any, b: typing.Any) -> Decimal:
     return max(_d(a), _d(b))
 
@@ -254,6 +256,7 @@ def _decimals_least(a: typing.Any, b: typing.Any) -> Decimal:
 
 
 # ---- square root ----
+
 
 def _decimals_sqrt(a: typing.Any) -> Decimal:
     """Square root with 38-digit HALF_UP precision (same context as div).
@@ -268,6 +271,7 @@ def _decimals_sqrt(a: typing.Any) -> Decimal:
 
 
 # ---- unary ----
+
 
 def _decimals_neg(a: typing.Any) -> Decimal:
     return _d(a).copy_negate()
@@ -286,18 +290,15 @@ def _decimals_sign(a: typing.Any) -> celtypes.IntType:
 
 # ---- rounding family ----
 
+
 def _decimals_round(*args: typing.Any) -> Decimal:
     """Round to the given scale (HALF_UP). One-arg form rounds to integer."""
     if len(args) == 1:
-        return _d(args[0]).quantize(
-            Decimal(1), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
+        return _d(args[0]).quantize(Decimal(1), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
     if len(args) == 2:
         scale = int(args[1])
-        return _d(args[0]).quantize(
-            Decimal(1).scaleb(-scale), rounding=decimal.ROUND_HALF_UP,
-            context=_EXACT_CONTEXT)
-    raise celpy.CELEvalError(
-        f"decimals.round: expected 1 or 2 args, got {len(args)}")
+        return _d(args[0]).quantize(Decimal(1).scaleb(-scale), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
+    raise celpy.CELEvalError(f"decimals.round: expected 1 or 2 args, got {len(args)}")
 
 
 def _decimals_trunc(*args: typing.Any) -> Decimal:
@@ -314,28 +315,22 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
         # current scale = -exponent. Early-return if 0 >= current_scale.
         if d.as_tuple().exponent >= 0:
             return d
-        return d.quantize(
-            Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
+        return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
     if len(args) == 2:
         d = _d(args[0])
         scale = int(args[1])
         if scale >= -d.as_tuple().exponent:
             return d
-        return d.quantize(
-            Decimal(1).scaleb(-scale), rounding=decimal.ROUND_DOWN,
-            context=_EXACT_CONTEXT)
-    raise celpy.CELEvalError(
-        f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
+        return d.quantize(Decimal(1).scaleb(-scale), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
+    raise celpy.CELEvalError(f"decimals.trunc: expected 1 or 2 args, got {len(args)}")
 
 
 def _decimals_floor(a: typing.Any) -> Decimal:
-    return _d(a).quantize(
-        Decimal(1), rounding=decimal.ROUND_FLOOR, context=_EXACT_CONTEXT)
+    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_FLOOR, context=_EXACT_CONTEXT)
 
 
 def _decimals_ceil(a: typing.Any) -> Decimal:
-    return _d(a).quantize(
-        Decimal(1), rounding=decimal.ROUND_CEILING, context=_EXACT_CONTEXT)
+    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_CEILING, context=_EXACT_CONTEXT)
 
 
 def _d(v: typing.Any) -> Decimal:
@@ -433,27 +428,32 @@ def _cel_equals(a: typing.Any, b: typing.Any) -> bool:
     if da is not None or db is not None:
         # A decimal is never equal to a non-decimal.
         return False
-    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) \
-            and (_has_decimal(a) or _has_decimal(b)):
-        return len(a) == len(b) and all(
-            _cel_equals(x, y) for x, y in zip(a, b))
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)) and (_has_decimal(a) or _has_decimal(b)):
+        return len(a) == len(b) and all(_cel_equals(x, y) for x, y in zip(a, b))
     if isinstance(a, dict) and isinstance(b, dict) and (_has_decimal(a) or _has_decimal(b)):
-        return len(a) == len(b) and all(
-            k in b and _cel_equals(v, b[k]) for k, v in a.items())
+        return len(a) == len(b) and all(k in b and _cel_equals(v, b[k]) for k, v in a.items())
     return bool(celpy.evaluation.bool_eq(a, b))
 
 
 def _decimal_aware_eq(a: typing.Any, b: typing.Any) -> typing.Any:
-    if _as_decimal_or_none(a) is None and _as_decimal_or_none(b) is None \
-            and not _has_decimal(a) and not _has_decimal(b):
+    if (
+        _as_decimal_or_none(a) is None
+        and _as_decimal_or_none(b) is None
+        and not _has_decimal(a)
+        and not _has_decimal(b)
+    ):
         # No decimal anywhere: hand it straight back to the base implementation, errors and all.
         return celpy.evaluation.bool_eq(a, b)
     return celtypes.BoolType(_cel_equals(a, b))
 
 
 def _decimal_aware_ne(a: typing.Any, b: typing.Any) -> typing.Any:
-    if _as_decimal_or_none(a) is None and _as_decimal_or_none(b) is None \
-            and not _has_decimal(a) and not _has_decimal(b):
+    if (
+        _as_decimal_or_none(a) is None
+        and _as_decimal_or_none(b) is None
+        and not _has_decimal(a)
+        and not _has_decimal(b)
+    ):
         return celpy.evaluation.bool_ne(a, b)
     return celtypes.BoolType(not _cel_equals(a, b))
 

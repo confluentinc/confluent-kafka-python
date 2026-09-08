@@ -39,6 +39,7 @@ is fewer conversions and fewer places to lose fidelity. The behaviours the JVM c
 for free from the JSON mapping - null clearing a field, and a key matching either the
 declared name or the JSON name - are reproduced explicitly below.
 """
+
 import datetime
 import decimal
 from typing import Any, Mapping, Optional
@@ -87,9 +88,7 @@ def _fill(out: message.Message, values: Mapping) -> None:
         _set_field(out, fd, value)
 
 
-def _find_field(
-    desc: descriptor.Descriptor, name: str
-) -> Optional[descriptor.FieldDescriptor]:
+def _find_field(desc: descriptor.Descriptor, name: str) -> Optional[descriptor.FieldDescriptor]:
     """Resolves a result key to a field by declared name, then by JSON name.
 
     A rule may legitimately return either, so matching only the declared name would silently
@@ -105,9 +104,7 @@ def _is_null(value: Any) -> bool:
     return value is None or isinstance(value, celtypes.NullType)
 
 
-def _set_field(
-    out: message.Message, fd: descriptor.FieldDescriptor, value: Any
-) -> None:
+def _set_field(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -> None:
     # protobuf >=7 dropped the instance .label attribute; the client's own helper covers
     # both runtimes.
     if _is_repeated(fd):
@@ -136,9 +133,7 @@ def _set_map(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -
             target[k] = _scalar(value_fd, v)
 
 
-def _set_repeated(
-    out: message.Message, fd: descriptor.FieldDescriptor, value: Any
-) -> None:
+def _set_repeated(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -> None:
     if isinstance(value, (str, bytes)) or not hasattr(value, "__iter__"):
         return
     target = getattr(out, fd.name)
@@ -152,9 +147,7 @@ def _set_repeated(
             target.append(_scalar(fd, item))
 
 
-def _set_message(
-    target: message.Message, fd: descriptor.FieldDescriptor, value: Any
-) -> None:
+def _set_message(target: message.Message, fd: descriptor.FieldDescriptor, value: Any) -> None:
     """Writes one message-valued field, inverting how the CEL binding read it.
 
     The three value types do not arrive as maps of their own fields once a rule has computed
@@ -192,8 +185,7 @@ def _set_message(
 def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     sign, digits, exponent = value.as_tuple()
     if not isinstance(exponent, int):
-        raise ValueError(
-            "cannot write a non-finite decimal to " + _DECIMAL_TYPE_NAME)
+        raise ValueError("cannot write a non-finite decimal to " + _DECIMAL_TYPE_NAME)
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled

@@ -50,11 +50,17 @@ def walk(root: Variant, path: str) -> Optional[Variant]:
         if current is None:
             return None
         if kind == "field":
-            current = (current.get_field_by_key(arg)  # type: ignore[arg-type]
-                       if current.get_type() == VariantType.OBJECT else None)
+            current = (
+                current.get_field_by_key(arg)  # type: ignore[arg-type]
+                if current.get_type() == VariantType.OBJECT
+                else None
+            )
         else:  # "index"
-            current = (current.get_element_at_index(arg)  # type: ignore[arg-type]
-                       if current.get_type() == VariantType.ARRAY else None)
+            current = (
+                current.get_element_at_index(arg)  # type: ignore[arg-type]
+                if current.get_type() == VariantType.ARRAY
+                else None
+            )
     return current
 
 
@@ -92,9 +98,7 @@ def parse(path: str) -> Tuple[Segment, ...]:
 
 def _read_ident(cur: "_Cursor", path: str) -> str:
     if not cur.has_more() or not (cur.peek().isalpha() or cur.peek() == "_"):
-        raise ValueError(
-            "expected identifier (starting with a letter or '_') after '.' in variant path: "
-            + path)
+        raise ValueError("expected identifier (starting with a letter or '_') after '.' in variant path: " + path)
     start = cur.pos
     cur.next()
     while cur.has_more():
@@ -103,7 +107,7 @@ def _read_ident(cur: "_Cursor", path: str) -> str:
             cur.next()
         else:
             break
-    return cur.src[start:cur.pos]
+    return cur.src[start : cur.pos]
 
 
 def _read_quoted_key(cur: "_Cursor", path: str) -> str:
@@ -118,15 +122,15 @@ def _read_quoted_key(cur: "_Cursor", path: str) -> str:
             # rather than being silently decoded to the wrong key. Literal characters
             # (including non-ASCII) need no escaping and pass through as-is.
             if not cur.has_more():
-                raise ValueError(
-                    "unterminated escape at end of quoted key in variant path: " + path)
+                raise ValueError("unterminated escape at end of quoted key in variant path: " + path)
             esc = cur.next()
             if esc == "\\" or esc == quote:
                 out.append(esc)
             else:
                 raise ValueError(
                     "unsupported escape '\\" + esc + "' in quoted key of variant path "
-                    "(only '\\\\' and '\\" + quote + "' are allowed): " + path)
+                    "(only '\\\\' and '\\" + quote + "' are allowed): " + path
+                )
         elif ch == quote:
             return "".join(out)
         else:
@@ -142,7 +146,7 @@ def _read_index(cur: "_Cursor", path: str) -> int:
         cur.next()
     if cur.pos == start:
         raise ValueError("expected integer index in variant path: " + path)
-    return int(cur.src[start:cur.pos])
+    return int(cur.src[start : cur.pos])
 
 
 class _Cursor:

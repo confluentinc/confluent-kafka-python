@@ -30,6 +30,7 @@ incidental: this client's Avro write-back hands fastavro the rule's result more 
 unchanged, so whether fastavro can fill an omitted field is the whole question. An
 executor-level test cannot see it.
 """
+
 import json
 
 from confluent_kafka.schema_registry import Schema
@@ -66,13 +67,9 @@ def _round_trip(subject_suffix, expr):
     """Serializes the fixture under one message-level CEL transform and reads it back."""
     topic = _TOPIC + "-" + subject_suffix
     client = SchemaRegistryClient.new_client({"url": "mock://"})
-    rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None,
-                expr, None, None, False)
-    client.register_schema(topic + "-value",
-                           Schema(json.dumps(_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])))
-    ser = AvroSerializer(
-        client, schema_str=None,
-        conf={"auto.register.schemas": False, "use.latest.version": True})
+    rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None, expr, None, None, False)
+    client.register_schema(topic + "-value", Schema(json.dumps(_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])))
+    ser = AvroSerializer(client, schema_str=None, conf={"auto.register.schemas": False, "use.latest.version": True})
     ctx = SerializationContext(topic, MessageField.VALUE)
     # Each is on its own call: tools/unasync.py strips "await " by word boundary, so
     # "await (" survives the rewrite and the generated sync file will not parse.
@@ -101,7 +98,8 @@ def test_a_field_the_rule_does_not_name_takes_its_declared_default():
 def test_naming_every_field_round_trips():
     """The must-fail twin. Without it, "the other fields took their defaults" is equally
     consistent with the transform having stopped working altogether."""
-    out = _round_trip("all", '{"kept": message.kept, "withDefault": message.withDefault, '
-                             '"nullable": message.nullable}')
+    out = _round_trip(
+        "all", '{"kept": message.kept, "withDefault": message.withDefault, ' '"nullable": message.nullable}'
+    )
 
     assert out == _RECORD

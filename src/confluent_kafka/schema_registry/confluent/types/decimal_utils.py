@@ -44,8 +44,7 @@ def to_proto_decimal(d: Decimal) -> decimal_pb2.Decimal:
     """
     sign, digits, exponent = d.as_tuple()
     if not isinstance(exponent, int):
-        raise ValueError(
-            f"cannot convert non-finite Decimal '{d}' to confluent.type.Decimal")
+        raise ValueError(f"cannot convert non-finite Decimal '{d}' to confluent.type.Decimal")
     scale = -exponent
     unscaled = int("".join(map(str, digits)) or "0")
     if sign:

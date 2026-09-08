@@ -51,8 +51,7 @@ MAX_SHORT_STR_SIZE = 0x3F
 # Exact/unbounded context so scaling an unscaled value with >28 significant digits
 # is not silently rounded by the thread-local default context (prec=28) — matches
 # java.math.BigDecimal's exact scaleb/setScale semantics.
-_EXACT_CONTEXT = decimal.Context(
-    prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
+_EXACT_CONTEXT = decimal.Context(prec=decimal.MAX_PREC, Emax=decimal.MAX_EMAX, Emin=decimal.MIN_EMIN)
 
 # Basic types (low 2 bits of the header byte).
 PRIMITIVE = 0
@@ -104,11 +103,11 @@ I64_MIN = -0x8000000000000000
 UUID_SIZE = 16
 
 MAX_DECIMAL4_PRECISION = 9
-MAX_DECIMAL4_VALUE = 10 ** MAX_DECIMAL4_PRECISION
+MAX_DECIMAL4_VALUE = 10**MAX_DECIMAL4_PRECISION
 MAX_DECIMAL8_PRECISION = 18
-MAX_DECIMAL8_VALUE = 10 ** MAX_DECIMAL8_PRECISION
+MAX_DECIMAL8_VALUE = 10**MAX_DECIMAL8_PRECISION
 MAX_DECIMAL16_PRECISION = 38
-MAX_DECIMAL16_VALUE = 10 ** MAX_DECIMAL16_PRECISION
+MAX_DECIMAL16_VALUE = 10**MAX_DECIMAL16_PRECISION
 
 _EPOCH_DATE = datetime.date(1970, 1, 1)
 _EPOCH_UTC = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
@@ -154,6 +153,7 @@ class VariantType(Enum):
 # Low-level byte helpers.
 # ---------------------------------------------------------------------------
 
+
 def _check_index(pos: int, length: int) -> None:
     if pos < 0 or pos >= length:
         raise VariantError("malformed variant: index out of bounds")
@@ -162,7 +162,7 @@ def _check_index(pos: int, length: int) -> None:
 def _read_long(data: bytes, pos: int, num_bytes: int, signed: bool) -> int:
     _check_index(pos, len(data))
     _check_index(pos + num_bytes - 1, len(data))
-    return int.from_bytes(data[pos:pos + num_bytes], byteorder="little", signed=signed)
+    return int.from_bytes(data[pos : pos + num_bytes], byteorder="little", signed=signed)
 
 
 def _get_type_info(value: bytes, pos: int) -> Tuple[int, int]:
@@ -183,7 +183,7 @@ def _get_metadata_key(metadata: bytes, key_id: int) -> str:
     if offset > next_offset:
         raise VariantError("malformed variant: non-monotonic metadata offsets")
     _check_index(string_start + next_offset - 1, len(metadata))
-    return metadata[string_start + offset:string_start + next_offset].decode("utf-8")
+    return metadata[string_start + offset : string_start + next_offset].decode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +195,7 @@ def _get_metadata_key(metadata: bytes, key_id: int) -> str:
 # the seconds field when both seconds and fraction are zero); the Java reference is aligned
 # to always emit seconds so NTZ stays consistent with the TZ form.
 # ---------------------------------------------------------------------------
+
 
 def _frac_nanos(nanos: int) -> str:
     """Fractional-second suffix using Java's 0/3/6/9-digit grouping (empty if zero)."""
@@ -219,7 +220,14 @@ def _format_instant(total_nanos: int) -> str:
     """ISO-8601 instant with 'Z', seconds always present - matches Instant.toString()."""
     dt, nano = _ymd_hms(total_nanos, datetime.timezone.utc)
     return "%04d-%02d-%02dT%02d:%02d:%02d%sZ" % (
-        dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, _frac_nanos(nano))
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second,
+        _frac_nanos(nano),
+    )
 
 
 def _format_local_datetime(total_nanos: int) -> str:
@@ -229,7 +237,14 @@ def _format_local_datetime(total_nanos: int) -> str:
     keeping NTZ consistent with the TZ (Instant) form."""
     dt, nano = _ymd_hms(total_nanos, None)
     return "%04d-%02d-%02dT%02d:%02d:%02d%s" % (
-        dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, _frac_nanos(nano))
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second,
+        _frac_nanos(nano),
+    )
 
 
 # The range a TIME may occupy, in microseconds since midnight: 00:00:00 through 23:59:59.999999.
@@ -250,8 +265,8 @@ _MAX_DATE_EPOCH_DAY = 2932896
 def _check_date_range(epoch_day: int) -> int:
     if epoch_day < _MIN_DATE_EPOCH_DAY or epoch_day > _MAX_DATE_EPOCH_DAY:
         raise VariantError(
-            "date epoch day (%d) must be in range [%d, %d]"
-            % (epoch_day, _MIN_DATE_EPOCH_DAY, _MAX_DATE_EPOCH_DAY))
+            "date epoch day (%d) must be in range [%d, %d]" % (epoch_day, _MIN_DATE_EPOCH_DAY, _MAX_DATE_EPOCH_DAY)
+        )
     return epoch_day
 
 
@@ -259,8 +274,8 @@ def _format_local_time(micros: int) -> str:
     """ISO local time, seconds always present (see :func:`_format_local_datetime`)."""
     if micros < _MIN_TIME_MICROS or micros > _MAX_TIME_MICROS:
         raise VariantError(
-            "time microseconds of day (%d) must be in range [%d, %d]"
-            % (micros, _MIN_TIME_MICROS, _MAX_TIME_MICROS))
+            "time microseconds of day (%d) must be in range [%d, %d]" % (micros, _MIN_TIME_MICROS, _MAX_TIME_MICROS)
+        )
     nano_of_day = micros * 1000
     seconds, nano = divmod(nano_of_day, 1_000_000_000)
     hour, rem = divmod(seconds, 3600)
@@ -315,6 +330,7 @@ def _format_float(f: float) -> str:
 # Variant reader.
 # ---------------------------------------------------------------------------
 
+
 class Variant:
     """A read-only view over a Variant (value + metadata) at a byte position. Navigation
     (``get_field_by_key`` / ``get_element_at_index``) returns a sub-``Variant`` sharing the
@@ -329,8 +345,7 @@ class Variant:
         self.pos = pos
         _check_index(0, len(self.metadata))
         if (self.metadata[0] & VERSION_MASK) != VERSION:
-            raise VariantError(
-                "unsupported variant metadata version: %d" % (self.metadata[0] & VERSION_MASK))
+            raise VariantError("unsupported variant metadata version: %d" % (self.metadata[0] & VERSION_MASK))
 
     # -- type ---------------------------------------------------------------
 
@@ -424,8 +439,7 @@ class Variant:
             return _read_long(self.value, self.pos + 1, 2, signed=True)
         if type_info in (INT4, DATE):
             return _read_long(self.value, self.pos + 1, 4, signed=True)
-        if type_info in (INT8, TIMESTAMP, TIMESTAMP_NTZ, TIME,
-                         TIMESTAMP_NANOS, TIMESTAMP_NANOS_NTZ):
+        if type_info in (INT8, TIMESTAMP, TIMESTAMP_NTZ, TIME, TIMESTAMP_NANOS, TIMESTAMP_NANOS_NTZ):
             return _read_long(self.value, self.pos + 1, 8, signed=True)
         raise VariantError("variant is not an integer-backed type")
 
@@ -435,7 +449,7 @@ class Variant:
         _, type_info = self._primitive_info()
         if type_info == FLOAT:
             _check_index(self.pos + 4, len(self.value))
-            return struct.unpack("<f", self.value[self.pos + 1:self.pos + 5])[0]
+            return struct.unpack("<f", self.value[self.pos + 1 : self.pos + 5])[0]
         raise VariantError("variant is not a float")
 
     def get_double(self) -> float:
@@ -444,7 +458,7 @@ class Variant:
         _, type_info = self._primitive_info()
         if type_info == DOUBLE:
             _check_index(self.pos + 8, len(self.value))
-            return struct.unpack("<d", self.value[self.pos + 1:self.pos + 9])[0]
+            return struct.unpack("<d", self.value[self.pos + 1 : self.pos + 9])[0]
         raise VariantError("variant is not a double")
 
     def get_decimal(self) -> decimal.Decimal:
@@ -458,8 +472,7 @@ class Variant:
             _check_decimal(unscaled, scale, MAX_DECIMAL8_VALUE, MAX_DECIMAL8_PRECISION)
         elif type_info == DECIMAL16:
             _check_index(self.pos + 17, len(self.value))
-            unscaled = int.from_bytes(
-                self.value[self.pos + 2:self.pos + 18], byteorder="little", signed=True)
+            unscaled = int.from_bytes(self.value[self.pos + 2 : self.pos + 18], byteorder="little", signed=True)
             _check_decimal(unscaled, scale, MAX_DECIMAL16_VALUE, MAX_DECIMAL16_PRECISION)
         else:
             raise VariantError("variant is not a decimal")
@@ -472,7 +485,7 @@ class Variant:
         length = _read_long(self.value, self.pos + 1, U32_SIZE, signed=False)
         start = self.pos + 1 + U32_SIZE
         _check_index(start + length - 1, len(self.value))
-        return bytes(self.value[start:start + length])
+        return bytes(self.value[start : start + length])
 
     def get_uuid(self) -> uuid_mod.UUID:
         _, type_info = self._primitive_info()
@@ -480,7 +493,7 @@ class Variant:
             raise VariantError("variant is not a uuid")
         start = self.pos + 1
         _check_index(start + UUID_SIZE - 1, len(self.value))
-        return uuid_mod.UUID(bytes=bytes(self.value[start:start + UUID_SIZE]))  # big-endian
+        return uuid_mod.UUID(bytes=bytes(self.value[start : start + UUID_SIZE]))  # big-endian
 
     def get_string(self) -> str:
         _check_index(self.pos, len(self.value))
@@ -494,7 +507,7 @@ class Variant:
         else:
             raise VariantError("variant is not a string")
         _check_index(start + length - 1, len(self.value))
-        return self.value[start:start + length].decode("utf-8")
+        return self.value[start : start + length].decode("utf-8")
 
     # -- object / array navigation -----------------------------------------
 
@@ -546,8 +559,7 @@ class Variant:
             for i in range(num_fields):
                 key_id = _read_long(self.value, id_start + id_size * i, id_size, signed=False)
                 if _get_metadata_key(self.metadata, key_id) == key:
-                    offset = _read_long(
-                        self.value, offset_start + offset_size * i, offset_size, signed=False)
+                    offset = _read_long(self.value, offset_start + offset_size * i, offset_size, signed=False)
                     return Variant(self.value, self.metadata, data_start + offset)
             return None
         low, high = 0, num_fields - 1
@@ -560,24 +572,21 @@ class Variant:
             elif mid_key > key:
                 high = mid - 1
             else:
-                offset = _read_long(
-                    self.value, offset_start + offset_size * mid, offset_size, signed=False)
+                offset = _read_long(self.value, offset_start + offset_size * mid, offset_size, signed=False)
                 return Variant(self.value, self.metadata, data_start + offset)
         return None
 
     def get_field_at_index(self, idx: int) -> Tuple[str, "Variant"]:
         """Returns the (key, value) of the field at ``idx`` (fields are key-sorted)."""
         key_id, value_pos = self._field_id_and_offset(idx)
-        return _get_metadata_key(self.metadata, key_id), Variant(
-            self.value, self.metadata, value_pos)
+        return _get_metadata_key(self.metadata, key_id), Variant(self.value, self.metadata, value_pos)
 
     def get_element_at_index(self, index: int) -> Optional["Variant"]:
         """Returns the array element at ``index``, or ``None`` if out of bounds."""
         num_fields, offset_size, offset_start, data_start = self._array_info()
         if index < 0 or index >= num_fields:
             return None
-        offset = _read_long(
-            self.value, offset_start + offset_size * index, offset_size, signed=False)
+        offset = _read_long(self.value, offset_start + offset_size * index, offset_size, signed=False)
         return Variant(self.value, self.metadata, data_start + offset)
 
     # -- JSON ---------------------------------------------------------------
@@ -592,8 +601,7 @@ class Variant:
                 parts.append(json.dumps(key, ensure_ascii=False) + ":" + child.to_json())
             return "{" + ",".join(parts) + "}"
         if t == VariantType.ARRAY:
-            parts = [self.get_element_at_index(i).to_json()
-                     for i in range(self.num_array_elements())]
+            parts = [self.get_element_at_index(i).to_json() for i in range(self.num_array_elements())]
             return "[" + ",".join(parts) + "]"
         if t == VariantType.NULL:
             return "null"
@@ -611,8 +619,7 @@ class Variant:
             # Fixed-point (never scientific), matching Java's toPlainString contract.
             return format(self.get_decimal(), "f")
         if t == VariantType.DATE:
-            return '"' + (_EPOCH_DATE + datetime.timedelta(
-                days=_check_date_range(self.get_long()))).isoformat() + '"'
+            return '"' + (_EPOCH_DATE + datetime.timedelta(days=_check_date_range(self.get_long()))).isoformat() + '"'
         if t == VariantType.TIMESTAMP_TZ:
             return '"' + _format_instant(self.get_long() * 1000) + '"'
         if t == VariantType.TIMESTAMP_NTZ:
@@ -638,6 +645,7 @@ def _check_decimal(unscaled: int, scale: int, max_unscaled: int, max_scale: int)
 # ---------------------------------------------------------------------------
 # Module-level convenience API.
 # ---------------------------------------------------------------------------
+
 
 def from_bytes(value: bytes, metadata: bytes) -> Variant:
     """Construct a Variant from its raw ``value`` + ``metadata`` byte strings."""
@@ -678,6 +686,7 @@ def parse_json(json_str: str) -> Variant:
 # wider than 64 bits.
 # ---------------------------------------------------------------------------
 
+
 class _FieldEntry:
     __slots__ = ("key", "id", "offset")
 
@@ -689,6 +698,7 @@ class _FieldEntry:
 
 class _ObjectContext:
     """Nesting-stack frame for an in-progress object."""
+
     __slots__ = ("start", "fields", "pending_key", "pending_id", "has_pending_key")
 
     def __init__(self, start: int):
@@ -701,6 +711,7 @@ class _ObjectContext:
 
 class _ArrayContext:
     """Nesting-stack frame for an in-progress array."""
+
     __slots__ = ("start", "offsets")
 
     def __init__(self, start: int):
@@ -896,8 +907,7 @@ class VariantBuilder:
         if isinstance(ctx, _ObjectContext):
             if not ctx.has_pending_key:
                 raise VariantError("a value in an object must follow append_key")
-            ctx.fields.append(
-                _FieldEntry(ctx.pending_key, ctx.pending_id, len(self.value) - ctx.start))
+            ctx.fields.append(_FieldEntry(ctx.pending_key, ctx.pending_id, len(self.value) - ctx.start))
             ctx.pending_key = None
             ctx.has_pending_key = False
         else:  # _ArrayContext
@@ -980,14 +990,16 @@ class VariantBuilder:
 
     @staticmethod
     def _array_header(large_size: bool, offset_size: int) -> int:
-        return ((int(large_size) << (BASIC_TYPE_BITS + 2))
-                | ((offset_size - 1) << BASIC_TYPE_BITS) | ARRAY)
+        return (int(large_size) << (BASIC_TYPE_BITS + 2)) | ((offset_size - 1) << BASIC_TYPE_BITS) | ARRAY
 
     @staticmethod
     def _object_header(large_size: bool, id_size: int, offset_size: int) -> int:
-        return ((int(large_size) << (BASIC_TYPE_BITS + 4))
-                | ((id_size - 1) << (BASIC_TYPE_BITS + 2))
-                | ((offset_size - 1) << BASIC_TYPE_BITS) | OBJECT)
+        return (
+            (int(large_size) << (BASIC_TYPE_BITS + 4))
+            | ((id_size - 1) << (BASIC_TYPE_BITS + 2))
+            | ((offset_size - 1) << BASIC_TYPE_BITS)
+            | OBJECT
+        )
 
     def _add_key(self, key: str) -> int:
         if key in self.dictionary:
@@ -1086,15 +1098,15 @@ class VariantBuilder:
         header_size = 1 + size_bytes + (num_offsets + 1) * offset_size
         self._check_capacity(header_size)
         self.value.extend(bytearray(header_size))
-        self.value[start + header_size:] = bytes(self.value[start:start + data_size])
+        self.value[start + header_size :] = bytes(self.value[start : start + data_size])
         offset_start = start + 1 + size_bytes
-        self.value[start:start + 1] = bytes([self._array_header(large_size, offset_size)])
-        self.value[start + 1:offset_start] = num_offsets.to_bytes(size_bytes, byteorder="little")
+        self.value[start : start + 1] = bytes([self._array_header(large_size, offset_size)])
+        self.value[start + 1 : offset_start] = num_offsets.to_bytes(size_bytes, byteorder="little")
         offset_list = bytearray()
         for offset in offsets:
             offset_list.extend(offset.to_bytes(offset_size, byteorder="little"))
         offset_list.extend(data_size.to_bytes(offset_size, byteorder="little"))
-        self.value[offset_start:offset_start + len(offset_list)] = offset_list
+        self.value[offset_start : offset_start + len(offset_list)] = offset_list
 
     def _finish_writing_object(self, start: int, fields: List[_FieldEntry]) -> None:
         num_fields = len(fields)
@@ -1108,11 +1120,9 @@ class VariantBuilder:
         header_size = 1 + size_bytes + num_fields * id_size + (num_fields + 1) * offset_size
         self._check_capacity(header_size)
         self.value.extend(bytearray(header_size))
-        self.value[start + header_size:] = bytes(self.value[start:start + data_size])
-        self.value[start:start + 1] = bytes(
-            [self._object_header(large_size, id_size, offset_size)])
-        self.value[start + 1:start + 1 + size_bytes] = num_fields.to_bytes(
-            size_bytes, byteorder="little")
+        self.value[start + header_size :] = bytes(self.value[start : start + data_size])
+        self.value[start : start + 1] = bytes([self._object_header(large_size, id_size, offset_size)])
+        self.value[start + 1 : start + 1 + size_bytes] = num_fields.to_bytes(size_bytes, byteorder="little")
         id_start = start + 1 + size_bytes
         offset_start = id_start + num_fields * id_size
         id_list = bytearray()
@@ -1121,8 +1131,8 @@ class VariantBuilder:
             id_list.extend(field.id.to_bytes(id_size, byteorder="little"))
             offset_list.extend(field.offset.to_bytes(offset_size, byteorder="little"))
         offset_list.extend(data_size.to_bytes(offset_size, byteorder="little"))
-        self.value[id_start:id_start + len(id_list)] = id_list
-        self.value[offset_start:offset_start + len(offset_list)] = offset_list
+        self.value[id_start : id_start + len(id_list)] = id_list
+        self.value[offset_start : offset_start + len(offset_list)] = offset_list
 
 
 def _integer_size(value: int) -> int:

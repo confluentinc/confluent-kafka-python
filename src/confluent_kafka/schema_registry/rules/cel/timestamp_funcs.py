@@ -39,7 +39,6 @@ There is no ``timestamp.of`` namespace any more: these are overloads of the stan
 constructor in all seven clients.
 """
 
-import datetime
 import typing
 from datetime import datetime as Datetime
 from datetime import timedelta, timezone
@@ -60,7 +59,8 @@ try:
     from celpy.evaluation import base_functions as _base_functions
 
     _BASE_TIMESTAMP: typing.Callable[..., celtypes.TimestampType] = _base_functions.get(
-        "timestamp", celtypes.TimestampType)
+        "timestamp", celtypes.TimestampType
+    )
 except ImportError:  # pragma: no cover
     _BASE_TIMESTAMP = celtypes.TimestampType
 
@@ -99,8 +99,8 @@ def _from_epoch(value: int, precision: int) -> celtypes.TimestampType:
         micros = value // 1_000
     else:
         raise celpy.CELEvalError(
-            f"timestamp: unknown precision {precision}; expected 0 (seconds), "
-            "3 (millis), 6 (micros) or 9 (nanos)")
+            f"timestamp: unknown precision {precision}; expected 0 (seconds), " "3 (millis), 6 (micros) or 9 (nanos)"
+        )
     return celtypes.TimestampType(_EPOCH_UTC + timedelta(microseconds=micros))
 
 
@@ -113,8 +113,7 @@ def _from_proto_timestamp(t: typing.Any) -> celtypes.TimestampType:
     """
     seconds = int(t.seconds)
     nanos = int(t.nanos)
-    return celtypes.TimestampType(
-        _EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
+    return celtypes.TimestampType(_EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
 
 
 def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:
@@ -135,14 +134,14 @@ def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:
             raise celpy.CELEvalError(
                 "timestamp: naive datetime (no timezone) cannot be converted. "
                 "Use the regular timestamp-* logical type (UTC by spec), or pass "
-                "an offset-adjusted epoch value via timestamp(value, precision).")
+                "an offset-adjusted epoch value via timestamp(value, precision)."
+            )
         return celtypes.TimestampType(v)
     if _ProtoTimestamp is not None and isinstance(v, _ProtoTimestamp):
         return _from_proto_timestamp(v)
     # Generic proto Timestamp duck-typing for DynamicMessage / alternate
     # generated bindings.
-    if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == \
-            "google.protobuf.Timestamp":
+    if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == "google.protobuf.Timestamp":
         return _from_proto_timestamp(v)
     if isinstance(v, (int, celtypes.IntType)):
         # A bare int is epoch seconds, matching cel-java's int64_to_timestamp
@@ -150,8 +149,7 @@ def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:
         try:
             return _from_epoch(int(v), _PRECISION_SECONDS)
         except (OverflowError, ValueError, OSError) as e:
-            raise celpy.CELEvalError(
-                f"timestamp: epoch seconds value out of range: {int(v)}") from e
+            raise celpy.CELEvalError(f"timestamp: epoch seconds value out of range: {int(v)}") from e
     # str (lenient RFC 3339) and anything else the base implementation handles.
     return _BASE_TIMESTAMP(v)
 
@@ -167,14 +165,10 @@ def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
     if len(args) == 2:
         value, precision = args
         # Bools before ints: BoolType subclasses int (see _timestamp_one).
-        if isinstance(value, (bool, celtypes.BoolType)) \
-                or not isinstance(value, (int, celtypes.IntType)):
-            raise celpy.CELEvalError(
-                f"timestamp: epoch value must be int, got {type(value).__name__}")
-        if isinstance(precision, (bool, celtypes.BoolType)) \
-                or not isinstance(precision, (int, celtypes.IntType)):
-            raise celpy.CELEvalError(
-                f"timestamp: precision must be int, got {type(precision).__name__}")
+        if isinstance(value, (bool, celtypes.BoolType)) or not isinstance(value, (int, celtypes.IntType)):
+            raise celpy.CELEvalError(f"timestamp: epoch value must be int, got {type(value).__name__}")
+        if isinstance(precision, (bool, celtypes.BoolType)) or not isinstance(precision, (int, celtypes.IntType)):
+            raise celpy.CELEvalError(f"timestamp: precision must be int, got {type(precision).__name__}")
         return _from_epoch(int(value), int(precision))
     if len(args) == 1:
         return _timestamp_one(args[0])
