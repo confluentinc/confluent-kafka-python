@@ -597,14 +597,15 @@ blocks:
             - sem-version python 3.11
             - python -m pip install uv
             - uv venv _venv314t --python 3.14t
-            - $env:VIRTUAL_ENV = "$PWD\_venv314t"; $env:PATH = "$PWD\_venv314t\Scripts;" + $env:PATH
-            - uv pip install -r requirements\requirements-tests-install-nogil.txt
+            - . .\_venv314t\Scripts\Activate.ps1
+            - python -m ensurepip
+            - python -m pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
             - cd artifacts
             - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
             - cd ..
             - python -c "import glob, sys; found = glob.glob('artifacts/wheelhouse/*-cp314t-win_amd64.whl'); print(found); sys.exit(0 if found else 1)"
-            - uv pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
             - ".\\tools\\mingw-w64\\setup-msys2.ps1"
             - C:\msys64\usr\bin\bash.exe tools/verify-free-threaded-wheel.sh _venv314t/Scripts/python.exe
             - python -m pytest tests --ignore=tests\integration --timeout 1200
