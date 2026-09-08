@@ -165,18 +165,21 @@ def test_decimal_unwraps_a_confluent_type_decimal_message(validator):
 # The boundary conversion only sees what is bound, so ``this.a`` stays a confluent.type.Decimal
 # message; comparing those structurally - field by field over unscaled bytes and scale - calls
 # 1.50 and 1.5 unequal. Containers and ``in`` follow the same rule, or they contradict ``==``.
-@pytest.mark.parametrize("expr,expected", [
-    ("this.a == this.b", True),
-    ("this.a != this.b", False),
-    ("[this.a] == [this.b]", True),
-    ("{'k': this.a} == {'k': this.b}", True),
-    ("this.a in [this.b]", True),
-    ("decimals.eq(this.a, this.b)", True),
-    # Negative controls.
-    ("this.a == decimal('9')", False),
-    ("[this.a] == [decimal('9')]", False),
-    ("this.a in [decimal('9')]", False),
-])
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        ("this.a == this.b", True),
+        ("this.a != this.b", False),
+        ("[this.a] == [this.b]", True),
+        ("{'k': this.a} == {'k': this.b}", True),
+        ("this.a in [this.b]", True),
+        ("decimals.eq(this.a, this.b)", True),
+        # Negative controls.
+        ("this.a == decimal('9')", False),
+        ("[this.a] == [decimal('9')]", False),
+        ("this.a in [decimal('9')]", False),
+    ],
+)
 def test_nested_proto_decimal_equality(validator, expr, expected):
     def dec(unscaled, scale):
         return decimal_pb2.Decimal(value=unscaled.to_bytes(2, "big"), scale=scale)
@@ -187,12 +190,22 @@ def test_nested_proto_decimal_equality(validator, expr, expected):
 
 
 # Overriding the equality operators must not disturb anything that has no decimal in it.
-@pytest.mark.parametrize("expr,expected", [
-    ("1 == 1", True), ("1 == 2", False), ("1 != 2", True),
-    ("'a' == 'a'", True), ("[1, 2] == [1, 2]", True), ("[1, 2] == [2, 1]", False),
-    ("{'a': 1} == {'a': 1}", True), ("2 in [1, 2]", True), ("3 in [1, 2]", False),
-    ("b'x' == b'x'", True), ("null == null", True),
-])
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        ("1 == 1", True),
+        ("1 == 2", False),
+        ("1 != 2", True),
+        ("'a' == 'a'", True),
+        ("[1, 2] == [1, 2]", True),
+        ("[1, 2] == [2, 1]", False),
+        ("{'a': 1} == {'a': 1}", True),
+        ("2 in [1, 2]", True),
+        ("3 in [1, 2]", False),
+        ("b'x' == b'x'", True),
+        ("null == null", True),
+    ],
+)
 def test_equality_unchanged_without_decimals(validator, expr, expected):
     assert validator.execute(rule(expr), None, {"unused": 1}) is expected
 
@@ -236,11 +249,11 @@ def test_proto_decimal_needs_no_constructor(validator, expr, expected):
     "expr, expected",
     [
         # #30 exact add/mul — no silent rounding of the >28-digit result.
-        ('string(decimals.add(decimal("1E38"), decimal("1")))',
-         "100000000000000000000000000000000000001"),
-        ('string(decimals.mul(decimal("12345678901234567890"), '
-         'decimal("98765432109876543210")))',
-         "1219326311370217952237463801111263526900"),
+        ('string(decimals.add(decimal("1E38"), decimal("1")))', "100000000000000000000000000000000000001"),
+        (
+            'string(decimals.mul(decimal("12345678901234567890"), ' 'decimal("98765432109876543210")))',
+            "1219326311370217952237463801111263526900",
+        ),
         # Scale preservation still holds for ordinary-magnitude operands.
         ('string(decimals.mul(decimal("2.0"), decimal("3.0")))', "6.00"),
         ('string(decimals.add(decimal("1.5"), decimal("1.25")))', "2.75"),
@@ -249,13 +262,11 @@ def test_proto_decimal_needs_no_constructor(validator, expr, expected):
         ('string(decimals.round(decimal("1234.5"), -2))', "1200"),
         ('string(decimals.trunc(decimal("1234"), -2))', "1200"),
         # #32 no 28-digit cap on floor (30-digit value passes through, no error).
-        ('string(decimals.floor(decimal("123456789012345678901234567890")))',
-         "123456789012345678901234567890"),
+        ('string(decimals.floor(decimal("123456789012345678901234567890")))', "123456789012345678901234567890"),
         # #33 exact mod — quotient exceeds 38 digits, but remainder is exact.
         ('string(decimals.mod(decimal("1E40"), decimal("3")))', "1"),
         # #34 decimal(dyn) from a >28-digit string round-trips exactly.
-        ('string(decimal("12345678901234567890123456789012345"))',
-         "12345678901234567890123456789012345"),
+        ('string(decimal("12345678901234567890123456789012345"))', "12345678901234567890123456789012345"),
     ],
 )
 def test_decimal_ops_match_java_bigdecimal_exact_semantics(validator, expr, expected):
@@ -347,8 +358,7 @@ def test_decimal_equality_is_numeric_scale_insensitive(validator, expr, expected
 # Variant CEL functions
 # --------------------------------------------------------------------------------------
 
-_VARIANT_JSON = (
-    '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}')
+_VARIANT_JSON = '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"explicit":null}'
 
 
 # `this` is bound to a JSON string; variants.parseJson(this) turns it into a Variant, then
@@ -365,8 +375,7 @@ _VARIANT_JSON = (
         "variants.isNull(variants.field(variants.parseJson(this), 'explicit'))",
         "!variants.isNull(variants.field(variants.parseJson(this), 'missing'))",
         "variants.as(variants.path(variants.parseJson(this), '$.nested.x'), 'int') == 1",
-        "variants.as(variants.index("
-        "variants.field(variants.parseJson(this), 'scores'), 2), 'int') == 30",
+        "variants.as(variants.index(" "variants.field(variants.parseJson(this), 'scores'), 2), 'int') == 30",
         # tryAs returns CEL null on a type mismatch (age is not a string).
         "variants.tryAs(variants.field(variants.parseJson(this), 'age'), 'string') == null",
         "variants.toJson(variants.field(variants.parseJson(this), 'nested')) == '{\"x\":1}'",
@@ -385,10 +394,14 @@ def test_avro_variant_field_into_cel(validator):
 
     import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
 
-    schema = fastavro.parse_schema({
-        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
-        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
-    })
+    schema = fastavro.parse_schema(
+        {
+            "type": "record",
+            "name": "confluent.type.Variant",
+            "logicalType": "variant",
+            "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+        }
+    )
     built = vu.parse_json('{"name":"alice","age":30}')
     value, metadata = built.value, built.metadata
     buf = io.BytesIO()
@@ -396,9 +409,12 @@ def test_avro_variant_field_into_cel(validator):
     buf.seek(0)
     decoded = fastavro.schemaless_reader(buf, schema)
     assert isinstance(decoded, vu.Variant)
-    assert validator.execute(
-        rule("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"),
-        None, decoded) is True
+    assert (
+        validator.execute(
+            rule("variants.as(variants.field(variant(this), 'name'), 'string') == 'alice'"), None, decoded
+        )
+        is True
+    )
 
 
 # A confluent.type.Variant proto field is bound into CEL as a celpy MessageType wrapper;
@@ -435,11 +451,14 @@ _BARE_VARIANT_CASES = [
 # "not null" for a variant that holds an explicit JSON null. The bare-object cases above cannot
 # catch this: isNull on an object is False either way, so only a variant that *is* null
 # discriminates.
-@pytest.mark.parametrize("expr,expected", [
-    ("variants.isNull(this)", True),
-    # The wrapped form has always worked and must keep working.
-    ("variants.isNull(variant(this))", True),
-])
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        ("variants.isNull(this)", True),
+        # The wrapped form has always worked and must keep working.
+        ("variants.isNull(variant(this))", True),
+    ],
+)
 def test_proto_variant_is_null_coerces_bare_receiver(validator, expr, expected):
     built = vu.parse_json("null")
     v = variant_pb2.Variant(value=built.value, metadata=built.metadata)
@@ -460,10 +479,14 @@ def test_avro_variant_needs_no_constructor(validator, expr, expected):
 
     import confluent_kafka.schema_registry.common.avro  # noqa: F401  (registers the logical type)
 
-    schema = fastavro.parse_schema({
-        "type": "record", "name": "confluent.type.Variant", "logicalType": "variant",
-        "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
-    })
+    schema = fastavro.parse_schema(
+        {
+            "type": "record",
+            "name": "confluent.type.Variant",
+            "logicalType": "variant",
+            "fields": [{"name": "metadata", "type": "bytes"}, {"name": "value", "type": "bytes"}],
+        }
+    )
     built = vu.parse_json('{"name":"alice","age":30}')
     buf = io.BytesIO()
     fastavro.schemaless_writer(buf, schema, vu.Variant(built.value, built.metadata))
@@ -511,10 +534,8 @@ def test_absent_avro_variant_reads_as_null(validator, expr):
 def test_explicit_null_variant_is_not_absent(validator):
     # Absent must stay distinguishable from a variant that genuinely holds JSON null: the
     # former is CEL null, the latter a present variant whose type is NULL.
-    assert validator.execute(
-        rule("variants.isNull(variants.parseJson('null'))"), None, "null") is True
-    assert validator.execute(
-        rule("variants.type(variants.parseJson('null')) != null"), None, "null") is True
+    assert validator.execute(rule("variants.isNull(variants.parseJson('null'))"), None, "null") is True
+    assert validator.execute(rule("variants.type(variants.parseJson('null')) != null"), None, "null") is True
 
 
 def test_variant_from_empty_metadata_bytes_is_rejected(validator):
@@ -593,8 +614,7 @@ def test_variant_parse_json_empty_raises(validator, src):
         # Negative epoch floors toward -inf: -500 ns -> the microsecond before the epoch.
         'timestamp(-500, 9) == timestamp("1969-12-31T23:59:59.999999Z")',
         # A large micros value keeps its microsecond (float division would have lost it).
-        'timestamp(253402300799000001, 6) == '
-        'timestamp("9999-12-31T23:59:59.000001Z")',
+        'timestamp(253402300799000001, 6) == ' 'timestamp("9999-12-31T23:59:59.000001Z")',
         # millis/micros/seconds precisions are exact.
         'timestamp(1500, 3) == timestamp("1970-01-01T00:00:01.500000Z")',
         'timestamp(1, 6) == timestamp("1970-01-01T00:00:00.000001Z")',
@@ -619,16 +639,14 @@ def test_timestamp_rejects_precision_outside_the_set(validator, precision):
     # With the unit a number rather than a name, rejecting anything outside
     # {0, 3, 6, 9} is the only thing between a typo and a silently wrong instant.
     with pytest.raises(RuleError) as excinfo:
-        validator.execute(
-            rule(f"timestamp(1700000000, {precision}) == timestamp(0)"), None, 1)
+        validator.execute(rule(f"timestamp(1700000000, {precision}) == timestamp(0)"), None, 1)
     assert "unknown precision" in str(excinfo.value.__cause__)
 
 
 def test_timestamp_datetime_components_form_still_works(validator):
     # celpy's components form takes three or more args, so it never collides with
     # the two-arg precision form.
-    assert validator.execute(
-        rule('timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")'), None, 1) is True
+    assert validator.execute(rule('timestamp(2009, 2, 13) == timestamp("2009-02-13T00:00:00Z")'), None, 1) is True
 
 
 # --------------------------------------------------------------------------------------
@@ -934,6 +952,5 @@ def test_string_timestamp_nanos_limited_to_microseconds(validator):
     # where Java renders 9 (".123456789Z"). That is the same pre-existing limit that floors the
     # value itself in timestamp_funcs._from_epoch, not something the formatting introduces.
     assert (
-        validator.execute(rule("string(timestamp(1700000000123456789, 9))"), None, 1)
-        == "2023-11-14T22:13:20.123456Z"
+        validator.execute(rule("string(timestamp(1700000000123456789, 9))"), None, 1) == "2023-11-14T22:13:20.123456Z"
     )

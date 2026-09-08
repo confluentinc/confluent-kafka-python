@@ -29,6 +29,7 @@ a null only in the *record* case, where there are no fields to walk - and leaves
 each format's walk. The protobuf walk still skips an unset field, which is correct there: a field
 with presence that is unset has no value, and writing one back would materialise it.
 """
+
 import json
 from decimal import Decimal
 
@@ -45,8 +46,7 @@ _SCHEMA = {
     "fields": [
         {
             "name": "amount",
-            "type": ["null", {"type": "bytes", "logicalType": "decimal",
-                              "precision": 8, "scale": 2}],
+            "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 8, "scale": 2}],
             "confluent:tags": ["AMOUNT"],
         },
         {"name": "plain", "type": "string"},
@@ -60,10 +60,20 @@ _INLINE_TAGS = {"Nullable.amount": {"AMOUNT"}}
 
 
 def _run(expr, amount):
-    rule = Rule("r", None, RuleKind.CONDITION, RuleMode.WRITE, "CEL_FIELD",
-                ["AMOUNT"], None, expr, None, None, False)
-    ctx = RuleContext(None, None, None, Schema(json.dumps(_SCHEMA), "AVRO"), "t-value",
-                      RuleMode.WRITE, rule, 0, [rule], _INLINE_TAGS, None)
+    rule = Rule("r", None, RuleKind.CONDITION, RuleMode.WRITE, "CEL_FIELD", ["AMOUNT"], None, expr, None, None, False)
+    ctx = RuleContext(
+        None,
+        None,
+        None,
+        Schema(json.dumps(_SCHEMA), "AVRO"),
+        "t-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        _INLINE_TAGS,
+        None,
+    )
     ft = CelFieldExecutor().new_transform(ctx)
     return transform(ctx, _SCHEMA, {"amount": amount, "plain": "hi"}, ft)
 
@@ -96,7 +106,6 @@ def test_unguarded_rule_on_a_null_raises():
 
 def test_a_present_value_still_evaluates_normally():
     """The must-pass twin: removing the skip must not break the ordinary case."""
-    assert _run('decimals.gt(decimal(value), decimal("10.00"))',
-                Decimal("12.34")) is not None
+    assert _run('decimals.gt(decimal(value), decimal("10.00"))', Decimal("12.34")) is not None
     with pytest.raises((RuleConditionError, RuleError)):
         _run('decimals.gt(decimal(value), decimal("100.00"))', Decimal("12.34"))

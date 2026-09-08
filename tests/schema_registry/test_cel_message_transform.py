@@ -27,7 +27,7 @@ The transform has **replace** semantics: the map is the new message, so an unnam
 dropped and a ``null`` clears its field. Those are covered here too, because they are the
 part a rule author is most likely to be surprised by.
 """
-import datetime
+
 from decimal import Decimal
 
 from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant, parse_json
@@ -71,10 +71,10 @@ def _message():
 
 
 def _transform(expr, msg=None):
-    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL",
-                None, None, expr, None, None, False)
-    ctx = RuleContext(None, None, None, Schema(_SCHEMA, "PROTOBUF"), "t-value",
-                      RuleMode.WRITE, rule, 0, [rule], None, None)
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None, expr, None, None, False)
+    ctx = RuleContext(
+        None, None, None, Schema(_SCHEMA, "PROTOBUF"), "t-value", RuleMode.WRITE, rule, 0, [rule], None, None
+    )
     return CelExecutor().transform(ctx, _message() if msg is None else msg)
 
 
@@ -83,8 +83,10 @@ def _decimal_of(msg):
     return Decimal(unscaled).scaleb(-msg.amount.scale)
 
 
-_ALL = ('"amount": message.amount, "ts": message.ts, '
-        '"data": message.data, "label": message.label, "count": message.count')
+_ALL = (
+    '"amount": message.amount, "ts": message.ts, '
+    '"data": message.data, "label": message.label, "count": message.count'
+)
 
 
 def test_pass_through_returns_a_message_unchanged():
@@ -106,7 +108,8 @@ def test_computed_decimal_is_written_back():
     confluent.type.Decimal message - unscaled bytes plus the scale."""
     result = _transform(
         '{"amount": decimals.add(decimal(message.amount), decimal("1.00")), '
-        '"ts": message.ts, "data": message.data, "label": message.label}')
+        '"ts": message.ts, "data": message.data, "label": message.label}'
+    )
 
     assert _decimal_of(result) == Decimal("13.34")
     assert result.amount.scale == 2
@@ -119,7 +122,8 @@ def test_computed_timestamp_is_written_back():
     google.protobuf.Timestamp - and keep its sub-second part."""
     result = _transform(
         '{"amount": message.amount, "ts": message.ts + duration("60s"), '
-        '"data": message.data, "label": message.label}')
+        '"data": message.data, "label": message.label}'
+    )
 
     assert result.ts.seconds == 1700000060
     assert result.ts.nanos == 123000000
@@ -132,7 +136,8 @@ def test_computed_variant_is_written_back():
     {"name":"bob"} share it and comparing metadata would prove nothing."""
     result = _transform(
         '{"amount": message.amount, "ts": message.ts, '
-        '"data": variants.parseJson("{\\"name\\":\\"bob\\"}"), "label": message.label}')
+        '"data": variants.parseJson("{\\"name\\":\\"bob\\"}"), "label": message.label}'
+    )
 
     assert Variant(result.data.value, result.data.metadata).to_json() == '{"name":"bob"}'
 
@@ -160,8 +165,7 @@ def test_a_field_the_rule_does_not_name_is_dropped():
 def test_null_clears_a_field():
     """The idiom for preserving absence across a transform that echoes a field:
     `has(x) ? x : null`. Without a null arm there would be no way to express it."""
-    result = _transform(
-        '{"amount": null, "ts": message.ts, "data": message.data, "label": message.label}')
+    result = _transform('{"amount": null, "ts": message.ts, "data": message.data, "label": message.label}')
 
     assert not result.HasField("amount")
     assert result.HasField("ts")
@@ -179,17 +183,27 @@ def test_echoing_an_absent_field_materialises_it():
     echoed = _transform('{"amount": message.amount, "label": message.label}', absent)
     assert echoed.HasField("amount")
 
-    guarded = _transform(
-        '{"amount": has(message.amount) ? message.amount : null, "label": message.label}',
-        absent)
+    guarded = _transform('{"amount": has(message.amount) ? message.amount : null, "label": message.label}', absent)
     assert not guarded.HasField("amount")
 
 
 def test_condition_rules_are_unaffected():
     """A CONDITION returns a bool, which must not be run through the message rebuild."""
-    rule = Rule("r", None, RuleKind.CONDITION, RuleMode.WRITE, "CEL", None, None,
-                'decimals.gt(message.amount, decimal("10.00"))', None, None, False)
-    ctx = RuleContext(None, None, None, Schema(_SCHEMA, "PROTOBUF"), "t-value",
-                      RuleMode.WRITE, rule, 0, [rule], None, None)
+    rule = Rule(
+        "r",
+        None,
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.gt(message.amount, decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    ctx = RuleContext(
+        None, None, None, Schema(_SCHEMA, "PROTOBUF"), "t-value", RuleMode.WRITE, rule, 0, [rule], None, None
+    )
 
     assert CelExecutor().transform(ctx, _message()) is True

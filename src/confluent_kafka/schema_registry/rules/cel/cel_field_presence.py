@@ -37,8 +37,7 @@ def in_has() -> bool:
 # Method-call macros that the standard CEL evaluator handles directly via
 # `member_dot_arg`. We must never intercept these — they're not user-registered
 # functions and must keep their stdlib semantics.
-_RESERVED_MACROS = frozenset(
-    ["map", "filter", "all", "exists", "exists_one", "reduce", "min"])
+_RESERVED_MACROS = frozenset(["map", "filter", "all", "exists", "exists_one", "reduce", "min"])
 
 
 def _extract_namespace_path(tree: Any) -> Optional[str]:
@@ -106,10 +105,7 @@ class InterpretedRunner(celpy.InterpretedRunner):
                 ``"hi".startsWith("h")``, ``ts.getDate()``, ``list.all(...)``
                 etc. working).
                 """
-                if (
-                    isinstance(tree, lark.Tree)
-                    and len(tree.children) >= 2
-                ):
+                if isinstance(tree, lark.Tree) and len(tree.children) >= 2:
                     member_tree = tree.children[0]
                     method_token = tree.children[1]
                     if (
@@ -120,8 +116,7 @@ class InterpretedRunner(celpy.InterpretedRunner):
                         path = _extract_namespace_path(member_tree)
                         if path is not None:
                             candidate = f"{path}.{method_token.value}"
-                            funcs = getattr(
-                                self.activation, "functions", None)
+                            funcs = getattr(self.activation, "functions", None)
                             if funcs is not None and candidate in funcs:
                                 # The dotted-function name is registered —
                                 # dispatch it directly. Precedence: a

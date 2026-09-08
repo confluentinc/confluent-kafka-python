@@ -30,6 +30,7 @@ incidental: this client's Avro write-back hands fastavro the rule's result more 
 unchanged, so whether fastavro can fill an omitted field is the whole question. An
 executor-level test cannot see it.
 """
+
 import json
 
 from confluent_kafka.schema_registry import Schema
@@ -66,13 +67,11 @@ async def _round_trip(subject_suffix, expr):
     """Serializes the fixture under one message-level CEL transform and reads it back."""
     topic = _TOPIC + "-" + subject_suffix
     client = AsyncSchemaRegistryClient.new_client({"url": "mock://"})
-    rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None,
-                expr, None, None, False)
-    await client.register_schema(topic + "-value",
-                           Schema(json.dumps(_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])))
+    rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None, expr, None, None, False)
+    await client.register_schema(topic + "-value", Schema(json.dumps(_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])))
     ser = await AsyncAvroSerializer(
-        client, schema_str=None,
-        conf={"auto.register.schemas": False, "use.latest.version": True})
+        client, schema_str=None, conf={"auto.register.schemas": False, "use.latest.version": True}
+    )
     ctx = SerializationContext(topic, MessageField.VALUE)
     # Each await is on its own call: tools/unasync.py strips "await " by word boundary, so
     # "await (" survives the rewrite and the generated sync file will not parse.
@@ -101,7 +100,8 @@ async def test_a_field_the_rule_does_not_name_takes_its_declared_default():
 async def test_naming_every_field_round_trips():
     """The must-fail twin. Without it, "the other fields took their defaults" is equally
     consistent with the transform having stopped working altogether."""
-    out = await _round_trip("all", '{"kept": message.kept, "withDefault": message.withDefault, '
-                             '"nullable": message.nullable}')
+    out = await _round_trip(
+        "all", '{"kept": message.kept, "withDefault": message.withDefault, ' '"nullable": message.nullable}'
+    )
 
     assert out == _RECORD

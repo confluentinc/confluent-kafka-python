@@ -1179,10 +1179,15 @@ _AVRO_DECIMAL_SCHEMA = {
     'type': 'record',
     'name': 'test',
     'fields': [
-        {'name': 'decField', 'type': {
-            'type': 'bytes', 'logicalType': 'decimal',
-            'precision': 10, 'scale': 2,
-        }},
+        {
+            'name': 'decField',
+            'type': {
+                'type': 'bytes',
+                'logicalType': 'decimal',
+                'precision': 10,
+                'scale': 2,
+            },
+        },
     ],
 }
 
@@ -1265,8 +1270,17 @@ async def test_avro_cel_decimal_needs_no_constructor():
 
     async def serialize(expr):
         rule = Rule(
-            "test-cel", "", RuleKind.CONDITION, RuleMode.WRITE, "CEL", None, None,
-            expr, None, None, False,
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
         )
         await client.register_schema(
             _SUBJECT,
@@ -1279,8 +1293,7 @@ async def test_avro_cel_decimal_needs_no_constructor():
     assert await serialize('decimals.eq(message.decField, decimal("12.34"))') is not None
     assert await serialize('decimals.gt(message.decField, decimal("10.00"))') is not None
     # The wrapped form must keep working (decimal(...) re-entry).
-    assert await serialize(
-        'decimals.eq(decimal(message.decField), decimal("12.34"))') is not None
+    assert await serialize('decimals.eq(decimal(message.decField), decimal("12.34"))') is not None
     # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
     assert await serialize('message.decField == decimal("12.340")') is not None
     # The schema's scale is applied, not guessed: as scale 0 this would be 1234.
@@ -1444,8 +1457,17 @@ async def test_avro_cel_timestamp_millis_needs_no_constructor():
 
     async def serialize(expr, value):
         rule = Rule(
-            "test-cel", "", RuleKind.CONDITION, RuleMode.WRITE, "CEL", None, None,
-            expr, None, None, False,
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
         )
         await client.register_schema(
             _SUBJECT,
@@ -1460,8 +1482,7 @@ async def test_avro_cel_timestamp_millis_needs_no_constructor():
     # Bare comparison against `now`.
     assert await serialize('message.tsField < now', past) is not None
     # The schema's millis unit is applied, not guessed, and the accessors work directly.
-    assert await serialize(
-        'message.tsField == timestamp("2023-11-14T22:13:20.123Z")', exact) is not None
+    assert await serialize('message.tsField == timestamp("2023-11-14T22:13:20.123Z")', exact) is not None
     assert await serialize('message.tsField.getFullYear() == 2023', exact) is not None
     # Negative control: a future value must fail, so the comparison really happens.
     with pytest.raises(SerializationError) as e:
