@@ -1242,11 +1242,17 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, [correct_partitions]).result(timeout=1)
 
 
-def _poll_until_callback_raises(admin, timeout_s=5.0, step_s=0.2):
-    """poll() repeatedly, under a bounded deadline, until a callback raises."""
+def _poll_until_callback_raises(admin, timeout_s=5.0, step_s=0.2, ignore=()):
+    """poll() repeatedly, under a bounded deadline, until a callback raises.
+
+    Exception types in `ignore` are swallowed so polling continues until the callback under test raises.
+    """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        admin.poll(timeout=step_s)
+        try:
+            admin.poll(timeout=step_s)
+        except ignore:
+            pass
     pytest.fail(f"no callback raised within {timeout_s}s")
 
 
@@ -1320,9 +1326,10 @@ def test_admin_multiple_callbacks_different_error_types():
         }
     )
 
-    # Test that error_cb callback raises an exception (it's triggered by connection failures)
+    # error_cb is triggered by the connection failure.
+    # stats_cb can raise its ValueError first, so skip past it.
     with pytest.raises(RuntimeError):
-        _poll_until_callback_raises(admin)
+        _poll_until_callback_raises(admin, ignore=(ValueError,))
 
     # Verify that error_cb was called
     assert len(callbacks_called) > 0
