@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
+import _thread
 import os
-import signal
 import time
 import uuid
 
@@ -33,16 +33,19 @@ DEFAULT_BOOTSTRAP_SERVERS = 'localhost:9092'
 class TestUtils:
     @staticmethod
     def send_sigint_after_delay(delay_seconds):
-        """Send SIGINT to current process after delay.
+        """Raise KeyboardInterrupt in the main thread after a delay, as Ctrl+C would.
 
         Utility function for testing interruptible poll/flush/consume operations.
-        Used to simulate Ctrl+C in automated tests.
+
+        Uses _thread.interrupt_main() instead of os.kill(os.getpid(), SIGINT)
+        as it works on every platform. On Windows os.kill() with SIGINT
+        kills the whole pytest run.
 
         Args:
-            delay_seconds: Delay in seconds before sending SIGINT
+            delay_seconds: Delay in seconds before interrupting
         """
         time.sleep(delay_seconds)
-        os.kill(os.getpid(), signal.SIGINT)
+        _thread.interrupt_main()
 
     # TODO KIP-932: broker_version() previously branched on
     # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
