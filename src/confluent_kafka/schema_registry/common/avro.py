@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, cast
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
+from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     VALIDATION_RULES_PROP,
     FieldTransform,
@@ -24,6 +25,31 @@ from confluent_kafka.schema_registry.serde import (
 )
 
 from .schema_registry_client import RuleKind, Schema
+
+
+# The Avro `variant` logical type: a record {metadata: bytes, value: bytes} carrying a
+# Spark/Parquet Variant. A field with this logical type decodes to / encodes from a Variant,
+# so serde consumers and CEL rules see a first-class Variant rather than raw bytes. fastavro
+# keys logical handlers by "<avro-type>-<logicalType>" = "record-variant"; this is the Python
+# counterpart of Java's io.confluent.avro.type.VariantConversion.
+def _variant_from_avro(data, writer_schema, reader_schema=None):  # noqa: ARG001
+    return Variant(bytes(data["value"]), bytes(data["metadata"]))
+
+
+def _variant_to_avro(data, schema):  # noqa: ARG001
+    if isinstance(data, Variant):
+        return {"metadata": data.metadata, "value": data.value}
+    return data
+
+
+try:
+    from fastavro import read as _fastavro_read
+    from fastavro import write as _fastavro_write
+
+    _fastavro_read.LOGICAL_READERS["record-variant"] = _variant_from_avro
+    _fastavro_write.LOGICAL_WRITERS["record-variant"] = _variant_to_avro
+except Exception:  # pragma: no cover - guards against a fastavro API shape change
+    pass
 
 __all__ = [
     'AvroMessage',
@@ -116,7 +142,11 @@ def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]
 def transform(
     ctx: RuleContext, schema: AvroSchema, message: AvroMessage, field_transform: FieldTransform
 ) -> AvroMessage:
-    if message is None or schema is None:
+    # Only the schema being absent stops the walk. A `None` *value* is the null branch of a
+    # `["null", T]` union and has to reach the rule: the reference binds it as CEL null so a
+    # rule can guard with `value == null`, and returning early here skipped the rule entirely -
+    # indistinguishable, to the caller, from a rule that ran and passed.
+    if schema is None:
         return message
     field_ctx = ctx.current_field()
     if field_ctx is not None:
@@ -142,6 +172,11 @@ def transform(
                 return message
             return {key: transform(ctx, schema["values"], value, field_transform) for key, value in message.items()}
         elif schema_type == 'record':
+            # A null record has no fields to walk. Guarded before the isinstance check below
+            # so a legitimate null does not log an "incompatible message type" warning; the
+            # reference guards the record case, and only the record case, the same way.
+            if message is None:
+                return message
             if not isinstance(message, dict):
                 log.warning("Incompatible message type for record schema")
                 return message
