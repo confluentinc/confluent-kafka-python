@@ -321,8 +321,10 @@ def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
     rejects it, and truncating would write a different number than the rule computed. An
     integral float or Decimal is accepted, as protobuf JSON accepts ``2.0`` for an int32.
     """
-    if isinstance(value, bool):
-        # bool is an int subclass in Python; protobuf JSON does not accept true for an int.
+    if isinstance(value, (bool, celtypes.BoolType)):
+        # Both spellings: bool is an int subclass in Python, and celtypes.BoolType subclasses
+        # int rather than bool - so naming only `bool` caught the case CEL never produces and
+        # let a real CEL `true` through as 1. protobuf JSON refuses true for an integer field.
         raise ValueError(f"cannot write bool to integer field '{fd.name}'")
     if isinstance(value, decimal.Decimal):
         if value != value.to_integral_value():
