@@ -824,6 +824,17 @@ def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or name.startswith('google/protobuf/') or name.startswith('google/type/')
 
 
+# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
+# which is 646456993 decimal digits, and setScale reports anything wider as "BigInteger would
+# overflow supported range". Bisected against the JDK on BigDecimal("1.23"): setScale(1e8) and
+# setScale(-1e8) succeed, setScale(646456993) and setScale(-1e9) do not.
+#
+# `rules/cel/decimal_funcs._quantize` bounds its own rescale by the same JDK limit for the same
+# reason. The two cannot share one constant: this module needs the protobuf runtime, which is
+# an optional extra, and that one has to import without it.
+_MAX_COEFFICIENT_DIGITS = 646456993
+
+
 def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # type: ignore[name-defined]
     """
     Converts a Decimal to a Protobuf value.
@@ -844,16 +855,41 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
         unscaled_datum = (unscaled_datum * 10) + digit
 
     if delta >= 0:
+        # Widening: the coefficient grows by `delta` digits, and the JVM refuses a result
+        # wider than BigInteger can hold - instantly, where `10**delta` grinds first and then
+        # *succeeds*. Measured against the JDK and this function: setScale(1, 1e7) is accepted
+        # by both (1.4s there, 5s and a 4 MB field here), setScale(1, 1e9) throws
+        # "BigInteger would overflow supported range" there while here it ran past a 240s
+        # timeout still working towards a several-hundred-megabyte value.
+        if delta + len(digits) > _MAX_COEFFICIENT_DIGITS:
+            raise ValueError("Scale provided is too wide for the decimal")
         unscaled_datum = 10**delta * unscaled_datum
     else:
         # Narrowing the scale, which BigDecimal.setScale(scale) allows whenever no rounding is
         # needed - only the digits being dropped have to be zeros. Refusing every reduction
         # rejected exact conversions: Decimal("1.50") at scale 1, or Decimal("1000") at the
         # negative scale -3 that protobuf_to_decimal itself can produce.
-        divisor = 10 ** (-delta)
-        if unscaled_datum % divisor != 0:
-            raise ValueError("Scale provided does not match the decimal")
-        unscaled_datum //= divisor
+        #
+        # Whether the dropped digits are zeros is read off the digit tuple rather than
+        # discovered by dividing. Building a 10**-delta divisor just to find a non-zero
+        # remainder cost 178s at a scale of -1e8 and would run for hours at -1e9, to reach a
+        # rejection the trailing digits already prove. The JVM answers the same, reaching it
+        # through the division ("Rounding necessary"), so only the path changes.
+        drop = -delta
+        if unscaled_datum != 0:
+            trailing_zeros = 0
+            for digit in reversed(digits):
+                if digit != 0:
+                    break
+                trailing_zeros += 1
+            if drop > trailing_zeros:
+                raise ValueError("Scale provided does not match the decimal")
+            # drop <= trailing_zeros <= len(digits) now, so the divisor is no wider than the
+            # coefficient already in hand.
+            unscaled_datum //= 10**drop
+        # A zero is the exception: it has no digits to lose, so it narrows to any scale. The
+        # JVM agrees and gets there without the division - setScale(-1e9) on BigDecimal("0")
+        # is exact and instant, while this function would have spent hours on the divisor.
 
     if sign:
         unscaled_datum = -unscaled_datum
