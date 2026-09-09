@@ -300,11 +300,25 @@ def test_decimal_from_bytes_scale_is_exact(validator):
         'decimal("1_000") > decimal("0")',
         # Surrounding whitespace: Java rejects; Python's Decimal strips it.
         "decimal('  5  ') > decimal('0')",
+        # An exponent that will not fit BigDecimal's signed-int scale. Measured against the
+        # JVM, the accepted band is symmetric -- |exponent| <= INT32_MAX -- with both
+        # +/-2147483648 a NumberFormatException there. Python's Decimal accepts them, and
+        # rendering one as fixed-point would try to materialise billions of digits.
+        'decimal("1e-2147483648") > decimal("0")',
+        'decimal("1e2147483648") > decimal("0")',
+        'decimal("1E+2147483648") > decimal("0")',
     ],
 )
 def test_decimal_rejects_inputs_java_bigdecimal_rejects(validator, expr):
     with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
         validator.execute(rule(expr), None, 1)
+
+
+# The other side of the band: the widest exponents the JVM *accepts* must keep working, so
+# the guard above cannot be off by one.
+@pytest.mark.parametrize("expr", ['decimal("1e-2147483647")', 'decimal("1e2147483647")'])
+def test_decimal_accepts_the_widest_exponents_java_accepts(validator, expr):
+    assert validator.execute(rule(f"{expr} != decimal(\"0\")"), None, 1) is True
 
 
 # A NaN/Infinity double routed through ``decimal(<double>)`` must also be

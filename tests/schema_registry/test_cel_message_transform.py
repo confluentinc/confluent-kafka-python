@@ -207,3 +207,108 @@ def test_condition_rules_are_unaffected():
     )
 
     assert CelExecutor().transform(ctx, _message()) is True
+
+
+def _wrapper_descriptor():
+    """A message with one field per protobuf wrapper type, plus a Duration.
+
+    Built at runtime rather than added to value_types.proto so this needs no regenerated
+    ``_pb2`` fixture (the checked-in ones are deliberately free of protoc's runtime-version
+    gate, which a regeneration would reintroduce).
+    """
+    from google.protobuf import descriptor_pb2, descriptor_pool, duration_pb2, message_factory, wrappers_pb2
+
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name, fdp.package, fdp.syntax = "wrappers_probe.proto", "tests.wrap", "proto3"
+    fdp.dependency.extend(["google/protobuf/wrappers.proto", "google/protobuf/duration.proto"])
+    msg = fdp.message_type.add()
+    msg.name = "Wrapped"
+    types = [
+        "StringValue", "BytesValue", "Int32Value", "Int64Value", "UInt32Value",
+        "UInt64Value", "FloatValue", "DoubleValue", "BoolValue", "Duration",
+    ]
+    for number, type_name in enumerate(types, start=1):
+        field = msg.field.add()
+        field.name = type_name.lower()
+        field.number = number
+        field.type = descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE
+        field.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+        field.type_name = ".google.protobuf." + type_name
+        field.json_name = type_name.lower()
+
+    pool = descriptor_pool.DescriptorPool()
+    for dep in (wrappers_pb2.DESCRIPTOR, duration_pb2.DESCRIPTOR):
+        proto = descriptor_pb2.FileDescriptorProto()
+        dep.CopyToProto(proto)
+        pool.Add(proto)
+    pool.Add(fdp)
+    desc = pool.FindMessageTypeByName("tests.wrap.Wrapped")
+    return desc, message_factory.GetMessageClass(desc)
+
+
+def _wrapped_message():
+    _, cls = _wrapper_descriptor()
+    msg = cls()
+    msg.stringvalue.value = "hello"
+    msg.bytesvalue.value = b"\x01\x02"
+    msg.int32value.value = 7
+    msg.int64value.value = 2**40
+    msg.uint32value.value = 9
+    msg.uint64value.value = 2**40 + 1
+    msg.floatvalue.value = 1.5
+    msg.doublevalue.value = 2.25
+    msg.boolvalue.value = True
+    msg.duration.seconds, msg.duration.nanos = 3, 500000000
+    return msg
+
+
+def test_wrappers_and_duration_survive_an_identity_transform():
+    """The CEL binding unwraps a wrapper to the scalar it holds and a Duration to a CEL
+    duration, so the write-back has to put them back. It only handled Decimal/Timestamp/
+    Variant/mapping, so every one of these fields came back **empty** - silent data loss on
+    an identity transform. The JVM gets this right for free: its message-level write-back
+    goes through protobuf JSON, whose parser reads "hello" into a StringValue and "3s" into a
+    Duration.
+    """
+    from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    original = _wrapped_message()
+    assert convert(_msg_to_cel(original), original) == original
+
+
+def test_negative_duration_keeps_matching_signs():
+    """A Duration's seconds and nanos must share a sign; timedelta normalises microseconds to
+    be non-negative (-3.5s is days=-1, seconds=86396, microseconds=500000), so splitting it
+    by floor division produced seconds=-3 with nanos=+499000000."""
+    from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _wrapper_descriptor()
+    original = cls()
+    original.duration.seconds, original.duration.nanos = -3, -500000000
+    result = convert(_msg_to_cel(original), original)
+    assert (result.duration.seconds, result.duration.nanos) == (-3, -500000000)
+
+
+def test_message_level_decimal_sets_precision_like_the_field_level_writer():
+    """Java's ProtobufResultWriter sets precision from the value (``dec.precision()``); this
+    writer left it at zero, so the same computed decimal produced different
+    confluent.type.Decimal bytes depending on the rule's scope. Safe to set here because this
+    writer never rescales, so len(digits) is the digit count of the unscaled value written.
+    """
+    from confluent_kafka.schema_registry.common.protobuf import set_decimal_message
+    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
+
+    # (value, java BigDecimal.precision(), java scale())
+    for text, precision, scale in [
+        ("12.34", 4, 2), ("12.3400", 6, 4), ("1E+3", 1, -3), ("0.00", 1, 2), ("100", 3, 0),
+    ]:
+        message_level = decimal_pb2.Decimal()
+        _set_decimal(message_level, Decimal(text))
+        field_level = decimal_pb2.Decimal()
+        set_decimal_message(field_level, Decimal(text))
+
+        assert (message_level.precision, message_level.scale) == (precision, scale), text
+        assert message_level.SerializeToString() == field_level.SerializeToString(), text
