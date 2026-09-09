@@ -1152,6 +1152,19 @@ def test_rendering_still_works_below_the_ceiling(validator):
         "variants.tryAs(variants.parseJson('\"x\"'), 1) == null",
         "variants.tryAs(variants.parseJson('\"x\"'), true) == null",
         "variants.as(variants.parseJson('\"x\"'), 1) == 'x'",
+        # variants.path was the one overload in this family with no check at all: `str(path)`
+        # looked up the path "1" for variants.path(v, 1). Java declares it `(DYN, STRING)`,
+        # the same as variants.field, and Go, JS and C++ enforce that in the declared overload
+        # too - so a non-string path has no matching overload on any of them, whatever the
+        # receiver holds. Note that these three failed before the check as well, but for the
+        # wrong reason - "1" is a malformed JSONPath - so it is
+        # test_variant_path_rejects_a_non_string_path below that pins the type error itself.
+        "variants.path(variants.parseJson('{\"a\":1}'), 1) == null",
+        "variants.path(variants.parseJson('{\"a\":1}'), 1.5) == null",
+        "variants.path(variants.parseJson('{\"a\":1}'), true) == null",
+        # A receiver that is not a variant at all, which used to short-circuit to CEL null
+        # before the path's type was ever looked at. This one does distinguish the fix.
+        "variants.path(variants.tryParseJson('nope'), 1) == null",
     ],
 )
 def test_variant_argument_types_are_checked_before_the_receiver(validator, expr):
@@ -1170,10 +1183,50 @@ def test_variant_argument_types_are_checked_before_the_receiver(validator, expr)
         "variants.tryAs(variants.parseJson('\"x\"'), 'string') == 'x'",
         "variants.tryAs(variants.parseJson('\"x\"'), 'int') == null",
         "variants.as(variants.parseJson('\"x\"'), 'string') == 'x'",
+        # A well-typed path still navigates, misses still answer CEL null, and a non-variant
+        # receiver is still CEL null rather than an error once the path's type is right.
+        "variants.as(variants.path(variants.parseJson('{\"a\":1}'), '$.a'), 'int') == 1",
+        "variants.path(variants.parseJson('{\"a\":1}'), '$.b') == null",
+        "variants.path(variants.tryParseJson('nope'), '$.a') == null",
     ],
 )
 def test_variant_well_typed_arguments_still_work(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
+
+
+# The type error itself, asserted on the message rather than through a rule, because the rule
+# wrapper does not carry the detail - and because a stringified path happens to be a malformed
+# JSONPath too, so "it raised" does not distinguish the two causes. The receiver is varied to
+# show the check does not depend on it: Java rejects the call at compile time, so the argument
+# error cannot be contingent on what the receiver holds.
+@pytest.mark.parametrize(
+    "receiver",
+    [
+        None,                                   # a null receiver
+        celtypes.IntType(1),                    # not a variant at all
+        vu.parse_json('{"a":1}'),               # a perfectly good object
+        vu.parse_json('[1,2]'),
+    ],
+)
+@pytest.mark.parametrize("path", [celtypes.IntType(1), celtypes.DoubleType(1.5),
+                                  celtypes.BoolType(True), None])
+def test_variant_path_rejects_a_non_string_path(receiver, path):
+    from confluent_kafka.schema_registry.rules.cel import variant_funcs
+
+    with pytest.raises(celpy.CELEvalError, match="variants.path: expected a string path"):
+        variant_funcs._path(receiver, path)
+
+
+# The must-fail twin: a string path is accepted for every one of those receivers, and a
+# non-variant receiver is still CEL null rather than an error.
+def test_variant_path_accepts_a_string_path():
+    from confluent_kafka.schema_registry.rules.cel import variant_funcs
+
+    assert variant_funcs._path(vu.parse_json('{"a":1}'), "$.a") is not None
+    assert variant_funcs._path(vu.parse_json('{"a":1}'), "$.missing") is None
+    assert variant_funcs._path(None, "$.a") is None
+    # celtypes.StringType as well as str, since that is what a CEL literal produces.
+    assert variant_funcs._path(vu.parse_json('{"a":1}'), celtypes.StringType("$.a")) is not None
 
 
 # Arithmetic is bounded by *width*, and the dividing line is not arithmetic vs. rescale - it

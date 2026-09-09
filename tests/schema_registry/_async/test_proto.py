@@ -330,3 +330,56 @@ def test_decimal_to_protobuf_writes_the_digit_count(decimal, scale, precision):
     assert msg.scale == scale
 
 
+# The digit count is counted arithmetically, not through `len(str(abs(unscaled)))`. CPython caps
+# str <-> int conversion at 4300 digits, so the string form raised `ValueError: Exceeds the limit
+# (4300 digits) for integer string conversion` for a coefficient this function otherwise accepts
+# (`_MAX_COEFFICIENT_DIGITS` is 646456993 here) - and raised it *after* `result.value` had been
+# assigned. Every expected value below is measured on the JDK, which is what the count mirrors:
+#   BigDecimal("1").setScale(4300)    -> precision 4301
+#   BigDecimal("1").setScale(5000)    -> precision 5001
+#   BigDecimal("1").setScale(1000000) -> precision 1000001
+#   BigDecimal("0").setScale(5000)    -> precision 1
+@pytest.mark.parametrize(
+    "decimal, scale, precision",
+    [
+        ("1", 4299, 4300),      # the widest the string form managed
+        ("1", 4300, 4301),      # the first it refused
+        ("1", 5000, 5001),
+        ("1", 100000, 100001),
+        ("12.34", 5000, 5002),  # digits and delta both contribute
+        # Zero has the digit tuple (0,) at every scale, so it needs the special case; the
+        # reference agrees that it is 1 and not 1 + delta.
+        ("0", 5000, 1),
+        ("0", 100000, 1),
+    ],
+)
+def test_decimal_to_protobuf_counts_wide_precision_without_str(decimal, scale, precision):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert msg.precision == precision
+    assert msg.scale == scale
+    # And the value itself still round-trips, so the count describes what was written.
+    assert protobuf_to_decimal(msg) == Decimal(decimal)
+
+
+# The arithmetic count has to agree with the string form everywhere the string form is legal,
+# which is what makes it a refactor rather than a second implementation. It is exact in both
+# rescale directions only because this function refuses an inexact narrowing: widening appends
+# `delta` zeros with no carry, and narrowing only drops digits already proven to be zeros. A
+# rounding rescale could carry - 9.9 to scale 0 is 10, one digit becoming two - and would need
+# the count taken after the fact.
+def test_precision_count_matches_the_string_form():
+    checked = 0
+    for text in ["0", "0.00", "-0.00", "1", "12.34", "1.50", "1000", "0.001", "-999.5",
+                 "9.9", "99.99", "1E+3", "1E-3", "100", "123456789012345678901234567890",
+                 "0.0000000001", "-1.50", "1.000000", "9" * 100, "1" + "0" * 200]:
+        for scale in range(-8, 12):
+            try:
+                msg = decimal_to_protobuf(Decimal(text), scale)
+            except ValueError:
+                continue  # an inexact narrowing, which this function refuses
+            unscaled = int.from_bytes(msg.value, byteorder="big", signed=True)
+            assert msg.precision == len(str(abs(unscaled))), (text, scale)
+            checked += 1
+    assert checked > 200
+
+
