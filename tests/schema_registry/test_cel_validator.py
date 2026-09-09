@@ -1074,3 +1074,60 @@ def test_variant_argument_types_are_checked_before_the_receiver(validator, expr)
 )
 def test_variant_well_typed_arguments_still_work(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
+
+
+# `_EXACT_CONTEXT` gives the arithmetic BigDecimal's *exactness*, but Python's Decimal has a far
+# wider exponent range than BigDecimal's signed-int32 scale, so an exact operation the JVM
+# rejects returned a value here instead. decimals.mul on two 1e2147483647 operands gave exponent
+# 4294967294 - a scale no confluent.type.Decimal can carry, which failed late in the protobuf
+# write-back, and which string() would try to render as four billion digits.
+#
+# BigDecimal's domain is the int32 scale plus BigInteger's coefficient (Integer.MAX_VALUE bits =
+# 646456993 digits), and the operations reach the two limits differently: multiplication adds the
+# exponents and so overflows the scale, addition aligns them and so overflows the coefficient,
+# and remainder is bounded by the *integral quotient* the JVM computes on the way. Every case
+# below is measured against the JDK; the accepted list is as important as the rejected one,
+# because a bound on the adjusted exponent instead of the scale would falsely refuse
+# 1e2147483647 * 10.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # Scale out of int32 range: multiplication adds the exponents.
+        'decimals.mul(decimal("1e2147483647"), decimal("1e2147483647")) != decimal("0")',
+        'decimals.mul(decimal("1e-2147483647"), decimal("1e-2147483647")) != decimal("0")',
+        # Coefficient past BigInteger: addition aligns the operands on the finer scale.
+        'decimals.add(decimal("1e2147483647"), decimal("1")) != decimal("0")',
+        'decimals.add(decimal("1e-2147483647"), decimal("1")) != decimal("0")',
+        'decimals.sub(decimal("1e2147483647"), decimal("1e-2147483647")) != decimal("0")',
+        # The integral quotient, which is what the JVM's remainder builds.
+        'decimals.mod(decimal("1e2147483647"), decimal("3")) != decimal("0")',
+        'decimals.mod(decimal("1e2147483647"), decimal("1e-2147483647")) != decimal("0")',
+    ],
+)
+def test_exact_arithmetic_rejects_what_bigdecimal_rejects(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        # Ordinary arithmetic, unchanged.
+        ('string(decimals.mul(decimal("1.5"), decimal("2.5")))', "3.75"),
+        ('string(decimals.add(decimal("12.34"), decimal("1.5")))', "13.84"),
+        ('string(decimals.sub(decimal("12.34"), decimal("1.5")))', "10.84"),
+        ('string(decimals.mod(decimal("12.34"), decimal("1.5")))', "0.34"),
+        ('string(decimals.mod(decimal("1E40"), decimal("3")))', "1"),
+        # The widest operands the JVM still accepts. A bound on the adjusted exponent rather
+        # than the scale would refuse the first of these, whose result is 10E+2147483647.
+        ('decimals.mul(decimal("1e2147483647"), decimal("10")) != decimal("0")', True),
+        ('decimals.mul(decimal("1e2147483647"), decimal("1e-2147483647")) == decimal("1")', True),
+        ('decimals.add(decimal("1e2147483647"), decimal("1e2147483647")) != decimal("0")', True),
+        ('decimals.sub(decimal("1e2147483647"), decimal("1e2147483646")) != decimal("0")', True),
+        ('decimals.add(decimal("1e1000"), decimal("1e-1000")) != decimal("0")', True),
+        ('decimals.mod(decimal("1e-2147483647"), decimal("1e2147483647")) != decimal("0")', True),
+    ],
+)
+def test_exact_arithmetic_accepts_what_bigdecimal_accepts(validator, expr, expected):
+    result = validator.execute(rule(expr), None, 1)
+    assert result is expected if expected is True else result == expected
