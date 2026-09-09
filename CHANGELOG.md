@@ -2,11 +2,6 @@
 
 ## v2.15.1
 
-### Enhancements
-
-- Add support for inline validation rules (#2326)
-
-
 ### Fixes
 
 - `DeserializingConsumer` and `DeserializingShareConsumer` now deserialize the
