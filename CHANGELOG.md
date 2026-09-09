@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.15.1
+## v2.15.1 (rc1)
 
 ### Fixes
 
