@@ -974,21 +974,25 @@ def test_string_timestamp_nanos_limited_to_microseconds(validator):
     )
 
 
-# ``_quantize`` built its quantizer with the *ambient* decimal context, whose Emin of -999999
-# made ``Decimal(1).scaleb(1000000)`` raise ``decimal.Overflow`` - so a negative scale past a
-# million was refused for values the JVM rounds happily, and Overflow is not an
-# InvalidOperation so it escaped the handler as a raw Python exception rather than a rule
-# error. Building the quantizer in _EXACT_CONTEXT alone goes too far the other way: libmpdec
-# then honours any int32 scale and materialises the whole coefficient (a scale of 2**31-1
-# costs 918 MB in quantize and 9.2 GB once anything calls as_tuple() on the result), where
-# the JVM raises ArithmeticException. The bound is BigInteger's own capacity.
+# Rescaling is bounded by this client's own width ceiling (`_SANE_WIDTH`, 10**7 digits), not
+# by BigDecimal's. That is a deliberate divergence: BigInteger tops out at Integer.MAX_VALUE
+# bits = 646456993 digits, and reproducing that bound across six decimal libraries is neither
+# achievable nor the point. What matters is that a wide rescale becomes a *rule error* rather
+# than resource exhaustion, which is the one failure a framework cannot attribute after the
+# fact. Java is the only client in the family that fails cleanly on width; this stands in.
 #
-# Measured against the JDK on BigDecimal("1.23"), 3 digits at scale 2:
-#   setScale(1e6 / 1e7 / 1e8)         -> OK
-#   setScale(646456993)               -> THROW "BigInteger would overflow supported range"
-#   setScale(-1e6 / -1e7 / -1e8)      -> OK
-#   setScale(-1e9), setScale(+-2**31) -> THROW
-# and on BigDecimal("1e1000000"): setScale(-1000000) -> OK (a no-op), setScale(1000000) -> OK.
+# The bound has to be enforced here rather than delegated, because libmpdec honours any int32
+# scale and materialises the whole coefficient: a scale of 2**31-1 costs 918 MB inside
+# quantize and 9.2 GB once anything calls as_tuple() on the result.
+#
+# The quantizer itself is built in _EXACT_CONTEXT, not the ambient one, for an unrelated
+# reason kept here because it is the same call: the ambient Emin of -999999 made
+# `Decimal(1).scaleb(1000000)` raise decimal.Overflow, so a negative scale past a million was
+# refused for values the JVM rounds happily - and Overflow is not an InvalidOperation, so it
+# escaped as a raw Python exception rather than a rule error.
+#
+# So the accepted/rejected split below is *this client's* limit, and the JDK column is
+# recorded only where the two now differ.
 @pytest.mark.parametrize(
     "expr",
     [
@@ -996,38 +1000,134 @@ def test_string_timestamp_nanos_limited_to_microseconds(validator):
         'string(decimals.round(decimal("1e1000000"), -1000000)) != ""',
         'string(decimals.round(decimal("1.23"), -1000000)) != ""',
         'string(decimals.trunc(decimal("1.23"), -1000000)) != ""',
-        # A wide scale in the other direction, and the widest the JVM accepts here.
+        # A wide scale in the other direction, at 10**6 - an order under the ceiling.
         'decimals.round(decimal("1e1000000"), 1000000) != decimal("0")',
-        'decimals.round(decimal("1.23"), 100000000) != decimal("0")',
+        # *Coarsening* a scale is free at any distance - the coefficient shrinks rather than
+        # grows - so none of these is bounded. Measured, all instant and all one digit wide:
+        # 1.23 at scale -1000000 / -100000000 / -2000000000, and 1e-1000000 and 1e-100000000
+        # at scale 0. Java agrees: BigDecimal("1.23").setScale(-100000000) is precision 1.
+        # An `abs(shift) + digits` formula refused every one of them.
         'decimals.round(decimal("1.23"), -100000000) == decimal("0")',
+        'decimals.round(decimal("1.23"), -1000000000) == decimal("0")',
+        'decimals.trunc(decimal("1.23"), -1000000000) == decimal("0")',
+        'decimals.round(decimal("1e-20000000")) == decimal("0")',
+        'decimals.floor(decimal("1e-20000000")) == decimal("0")',
+        'decimals.ceil(decimal("1e-20000000")) == decimal("1")',
+        'decimals.trunc(decimal("1e-20000000")) == decimal("0")',
+        'decimals.round(decimal("1e-100000000")) == decimal("0")',
+        # A coarsened result can leave the int32 scale domain - 1.23 at scale -2147483648 is
+        # 0E+2147483648 - and that is refused at the wire, not here, the same way mul's result
+        # is (see test_cel_message_transform). The operator itself is free.
+        'decimals.round(decimal("1.23"), -2147483648) == decimal("0")',
+        'decimals.round(decimal("1e1000000"), -2147483648) == decimal("0")',
         # A no-op in Java too, via its `intScale >= v.scale()` early return, so no rescale
         # happens and no bound applies.
         'string(decimals.trunc(decimal("1.23"), 2147483647)) == "1.23"',
+        # Zero rescales for free at any scale, so the width formula must exempt it - measured,
+        # both directions cost nothing and the result stays compact. BigDecimal agrees:
+        # `new BigDecimal(BigInteger.ZERO, 2147483647)` is precision 1. Without the exemption
+        # these are false rejections of values the reference handles.
+        'decimals.round(decimal(b"", 2147483647), 0) == decimal("0")',
+        'decimals.round(decimal("0"), 2147483647) == decimal("0")',
+        'decimals.floor(decimal(b"", 2147483647)) == decimal("0")',
+        'decimals.ceil(decimal(b"", 2147483647)) == decimal("0")',
     ],
 )
-def test_round_accepts_the_wide_scales_java_accepts(validator, expr):
+def test_round_accepts_the_wide_scales_within_this_clients_ceiling(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
 
 
 @pytest.mark.parametrize(
     "expr",
     [
-        # The JVM's first rejection, and the extremes _require_int_scale still lets through.
+        # Only *expanding* a scale costs anything, and these are just past the 10**7 ceiling.
+        # The JDK accepts them - setScale(1e8) on 1.23 is a 100000001-digit BigDecimal, 952 MB
+        # measured here - and this client refuses them, by design.
+        'decimals.round(decimal("1.23"), 100000000) != decimal("0")',
         'decimals.round(decimal("1.23"), 646456993) != decimal("0")',
         'decimals.round(decimal("1.23"), 1000000000) != decimal("0")',
         'decimals.round(decimal("1.23"), 2147483647) != decimal("0")',
-        'decimals.round(decimal("1.23"), -1000000000) != decimal("0")',
-        'decimals.round(decimal("1.23"), -2147483648) != decimal("0")',
-        'decimals.round(decimal("1e1000000"), -2147483648) != decimal("0")',
-        # trunc reaches the rescale only for a *coarser* target: Java early-returns when
-        # `intScale >= v.scale()`, which this client mirrors, so trunc(1.23, 2**31-1) is a
-        # no-op in both and belongs in the accepted list above.
-        'decimals.trunc(decimal("1.23"), -1000000000) != decimal("0")',
+        # trunc is absent on purpose: Java early-returns when `intScale >= v.scale()`, which
+        # this client mirrors, so trunc only ever *coarsens* - and coarsening is free. It
+        # cannot reach an expanding rescale by any argument, which is why the one-argument
+        # forms below list it as unguarded rather than guarded.
     ],
 )
-def test_round_rejects_the_wide_scales_java_rejects(validator, expr):
+def test_round_rejects_the_scales_past_this_clients_ceiling(validator, expr):
     with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
         validator.execute(rule(expr), None, 1)
+
+
+# The one-argument forms quantize to scale 0 and so are rescales too, but three of the five
+# call sites did not go through the guarded helper - `round(x)`, `floor(x)` and `ceil(x)`
+# reached `d.quantize(Decimal(1), ...)` directly. Each is a multi-GB allocation reachable from
+# a rule that names no scale at all, which is the failure mode of a guard hung off one helper
+# rather than off the operation. `trunc(x)` was safe only by accident, via its early return.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # Scale 0 is a coarsening for a fractional value, so the one-argument forms are
+        # bounded only when the value's *integer* part is what has to be built: 1e20000000 at
+        # scale 0 is a 20000001-digit coefficient. (Which also means these three call sites
+        # were unguarded for the wrong reason before - the bug was real, the demonstration
+        # of it was not.)
+        'decimals.round(decimal("1e20000000")) != decimal("0")',
+        'decimals.floor(decimal("1e20000000")) != decimal("0")',
+        'decimals.ceil(decimal("1e20000000")) != decimal("0")',
+    ],
+)
+def test_the_one_argument_rounding_family_is_guarded_too(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+# An order of magnitude under the ceiling, the same expressions answer.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimals.round(decimal("1e1000000")) != decimal("0")',
+        'decimals.floor(decimal("1e1000000")) != decimal("0")',
+        'decimals.ceil(decimal("1e1000000")) != decimal("0")',
+        # trunc never rescales here at all - its `scale >= current scale` early return fires
+        # for any value with a non-negative exponent - so it is unbounded by construction.
+        'decimals.trunc(decimal("1e1000000")) != decimal("0")',
+        'decimals.trunc(decimal("1e20000000")) != decimal("0")',
+        'decimals.trunc(decimal("1e-2000000000"), -1000000000) == decimal("0")',
+        'decimals.round(decimal("2.5")) == decimal("3")',
+        'decimals.floor(decimal("-1.5")) == decimal("-2")',
+        'decimals.ceil(decimal("1.5")) == decimal("2")',
+        'decimals.trunc(decimal("-1.9")) == decimal("-1")',
+    ],
+)
+def test_the_one_argument_rounding_family_still_answers(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+# Rendering is the third width site, and it does not come from a rescale: `div` holds its
+# coefficient to 38 digits while its exponent runs free, so the value below is cheap to
+# compute and four billion characters to print. Measured: rendering a 10**8-digit value costs
+# 204 MB. No zero shortcut here, unlike the rescale guard - a zero at an extreme scale renders
+# as that many zeros.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'string(decimals.div(decimal("1e-2147483647"), decimal("1e2147483647"))) != ""',
+        'string(decimal("1e2147483647")) != ""',
+        'string(decimal("1e-2147483647")) != ""',
+        'string(decimal(b"", 2147483647)) != ""',
+    ],
+)
+def test_rendering_a_wide_plain_form_is_refused(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+def test_rendering_still_works_below_the_ceiling(validator):
+    assert validator.execute(rule('string(decimal("12.34")) == "12.34"'), None, 1) is True
+    assert validator.execute(rule('string(decimal("1e1000000")) != ""'), None, 1) is True
+    # The value the guard is computed from is the plain form, not the coefficient: this one
+    # has a single digit and a million-place exponent.
+    assert validator.execute(rule('string(decimal("1e-1000000")) != ""'), None, 1) is True
 
 
 # variants.index is declared (DYN, INT) and variants.as / variants.tryAs (DYN, STRING), so a
@@ -1076,35 +1176,45 @@ def test_variant_well_typed_arguments_still_work(validator, expr):
     assert validator.execute(rule(expr), None, 1) is True
 
 
-# `_EXACT_CONTEXT` gives the arithmetic BigDecimal's *exactness*, but Python's Decimal has a far
-# wider exponent range than BigDecimal's signed-int32 scale, so an exact operation the JVM
-# rejects returned a value here instead. decimals.mul on two 1e2147483647 operands gave exponent
-# 4294967294 - a scale no confluent.type.Decimal can carry, which failed late in the protobuf
-# write-back, and which string() would try to render as four billion digits.
+# Arithmetic is bounded by *width*, and the dividing line is not arithmetic vs. rescale - it
+# is whether the operation has to align two exponents. `add` and `sub` do: the narrower
+# operand is expanded into the wider one's positional frame before a single digit is computed.
+# `remainder` is in the same family but is bounded by its integral quotient, which libmpdec
+# short-circuits when the dividend is the smaller operand. `mul` does not align - it adds the
+# exponents and multiplies the coefficients. `div` does not - it holds the coefficient to the
+# context precision. Comparison does not - libmpdec short-circuits on the adjusted exponent.
 #
-# BigDecimal's domain is the int32 scale plus BigInteger's coefficient (Integer.MAX_VALUE bits =
-# 646456993 digits), and the operations reach the two limits differently: multiplication adds the
-# exponents and so overflows the scale, addition aligns them and so overflows the coefficient,
-# and remainder is bounded by the *integral quotient* the JVM computes on the way. Every case
-# below is measured against the JDK; the accepted list is as important as the rejected one,
-# because a bound on the adjusted exponent instead of the scale would falsely refuse
-# 1e2147483647 * 10.
+# Measured, peak RSS, operands 1e2147483647 and 3:
+#
+#   mul, div, <, ==, compare, min, neg, abs             13 MB
+#   add                                               1738 MB
+#   sub                                               1738 MB
+#   remainder                                         1733 MB
+#   add(1e2147483647, 1e-2147483647)                  3125 MB
+#   remainder(1e-2147483647, 1e2147483647)              13 MB   <- quotient is 0
+#   remainder(1e2147483647, 1e2147483000)               13 MB   <- quotient is 647 digits
+#
+# So three of six arithmetic operations reach a multi-GB allocation from a single expression
+# over two operands each cheap to construct. An earlier design guarded `mul` and `div` on a
+# prediction of BigDecimal's own domain errors - the operations that turn out to cost nothing
+# - and this is the correction. `mul` is now unguarded; a result whose scale no int32 can
+# carry is refused at the wire boundary instead, where it is actually a problem (see
+# test_cel_message_transform).
 @pytest.mark.parametrize(
     "expr",
     [
-        # Scale out of int32 range: multiplication adds the exponents.
-        'decimals.mul(decimal("1e2147483647"), decimal("1e2147483647")) != decimal("0")',
-        'decimals.mul(decimal("1e-2147483647"), decimal("1e-2147483647")) != decimal("0")',
-        # Coefficient past BigInteger: addition aligns the operands on the finer scale.
+        # Alignment: the narrower operand expands into the wider one's frame.
         'decimals.add(decimal("1e2147483647"), decimal("1")) != decimal("0")',
         'decimals.add(decimal("1e-2147483647"), decimal("1")) != decimal("0")',
+        'decimals.add(decimal("1e2147483647"), decimal("1e-2147483647")) != decimal("0")',
         'decimals.sub(decimal("1e2147483647"), decimal("1e-2147483647")) != decimal("0")',
-        # The integral quotient, which is what the JVM's remainder builds.
+        # remainder, via the integral quotient it has to produce.
         'decimals.mod(decimal("1e2147483647"), decimal("3")) != decimal("0")',
         'decimals.mod(decimal("1e2147483647"), decimal("1e-2147483647")) != decimal("0")',
+        'decimals.mod(decimal("1.5"), decimal("1e-2147483647")) != decimal("0")',
     ],
 )
-def test_exact_arithmetic_rejects_what_bigdecimal_rejects(validator, expr):
+def test_alignment_width_is_refused(validator, expr):
     with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
         validator.execute(rule(expr), None, 1)
 
@@ -1118,16 +1228,45 @@ def test_exact_arithmetic_rejects_what_bigdecimal_rejects(validator, expr):
         ('string(decimals.sub(decimal("12.34"), decimal("1.5")))', "10.84"),
         ('string(decimals.mod(decimal("12.34"), decimal("1.5")))', "0.34"),
         ('string(decimals.mod(decimal("1E40"), decimal("3")))', "1"),
-        # The widest operands the JVM still accepts. A bound on the adjusted exponent rather
-        # than the scale would refuse the first of these, whose result is 10E+2147483647.
+        # mul and div are not guarded at all, at any width - measured, they cost nothing.
+        # The first two were refused by the earlier design; both are exact and cheap.
+        ('decimals.mul(decimal("1e2147483647"), decimal("1e2147483647")) != decimal("0")', True),
+        ('decimals.mul(decimal("1e-2147483647"), decimal("1e-2147483647")) != decimal("0")', True),
         ('decimals.mul(decimal("1e2147483647"), decimal("10")) != decimal("0")', True),
         ('decimals.mul(decimal("1e2147483647"), decimal("1e-2147483647")) == decimal("1")', True),
+        ('decimals.div(decimal("1e-2147483647"), decimal("1e2147483647")) != decimal("0")', True),
+        # Comparison of two extreme operands, which short-circuits on the adjusted exponent.
+        ('decimals.lt(decimal("1e-2147483647"), decimal("1e2147483647"))', True),
+        ('decimal("1e2147483647") != decimal("1e-2147483647")', True),
+        # Alignment that stays narrow because the exponents are close, however extreme they
+        # both are. A guard on the operands' magnitudes rather than their difference would
+        # falsely refuse all of these.
         ('decimals.add(decimal("1e2147483647"), decimal("1e2147483647")) != decimal("0")', True),
         ('decimals.sub(decimal("1e2147483647"), decimal("1e2147483646")) != decimal("0")', True),
         ('decimals.add(decimal("1e1000"), decimal("1e-1000")) != decimal("0")', True),
+        # remainder whose integral quotient is small, however far apart the operands are.
         ('decimals.mod(decimal("1e-2147483647"), decimal("1e2147483647")) != decimal("0")', True),
+        ('decimals.mod(decimal("1e2147483647"), decimal("1e2147483000")) == decimal("0")', True),
     ],
 )
-def test_exact_arithmetic_accepts_what_bigdecimal_accepts(validator, expr, expected):
+def test_the_cheap_operations_stay_unguarded(validator, expr, expected):
     result = validator.execute(rule(expr), None, 1)
     assert result is expected if expected is True else result == expected
+
+
+# The coefficient arriving from the wire is the width risk on the (bytes, scale) constructor;
+# the scale is not, because `scaleb` only sets the exponent. Checked from the byte count
+# before `int.from_bytes` builds the integer - one byte carries about 2.41 decimal digits -
+# and against the *encodable* ceiling rather than the computation one, since a coefficient
+# this client cannot write back is not worth reading in.
+def test_a_wide_coefficient_from_bytes_is_refused(validator):
+    # 4300 digits is about 1785 bytes, so this is comfortably past it without needing a
+    # multi-megabyte literal.
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule('decimal(b"' + "\\x01" * 4000 + '", 0) != decimal("0")'), None, 1)
+
+
+def test_an_ordinary_coefficient_from_bytes_still_works(validator):
+    assert validator.execute(rule('decimal(b"\\x04\\xd2", 2) == decimal("12.34")'), None, 1) is True
+    # An extreme scale on a small coefficient is fine: it only sets the exponent.
+    assert validator.execute(rule('decimal(b"\\x01", 2147483647) != decimal("0")'), None, 1) is True

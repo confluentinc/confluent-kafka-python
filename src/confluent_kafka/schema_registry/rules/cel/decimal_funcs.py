@@ -93,11 +93,19 @@ def _drop_negative_zero(d: Decimal) -> Decimal:
 
 
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
-    """Construct a Decimal from raw two's-complement big-endian bytes + scale."""
+    """Construct a Decimal from raw two's-complement big-endian bytes + scale.
+
+    The scale itself costs nothing here - ``scaleb`` only sets the exponent, so a coefficient
+    at an extreme scale stays compact and the width guard fires later, where the digits are
+    actually needed. The *coefficient* is the width risk on this path, and it is checked
+    before ``int.from_bytes`` builds it: one byte carries about 2.41 decimal digits.
+    """
     raw = _coerce_bytes(value)
     s = _require_int_scale(scale, "decimal(bytes, scale)")
     if len(raw) == 0:
         return Decimal(0).scaleb(-s, context=_EXACT_CONTEXT)
+    _require_sane_width(int(len(raw) * 2.408) + 1, "decimal(bytes, scale)", "the coefficient",
+                        _SANE_COEFFICIENT)
     return Decimal(int.from_bytes(raw, "big", signed=True)).scaleb(-s, context=_EXACT_CONTEXT)
 
 
@@ -261,12 +269,30 @@ def _decimals_ge(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
 # ---- arithmetic ----
 
 
-# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
-# which is 646456993 decimal digits. With the int32 scale, these two bound the whole domain of
-# an exact BigDecimal result - and `_EXACT_CONTEXT` deliberately has neither bound, because
-# Python's own limits (MAX_PREC, MAX_EMAX) are there to stop the *default* context rounding at
-# 28 digits, not to model BigDecimal. So the domain is checked here instead.
-_MAX_COEFFICIENT_DIGITS = 646456993
+# The width ceiling for a computation. Deliberately *not* BigDecimal's - BigInteger tops out
+# at Integer.MAX_VALUE bits, which is 646456993 decimal digits, and reproducing that bound is
+# neither achievable across six libraries nor the point. This is a round number chosen so no
+# single rule evaluation can exhaust memory: 10**7 digits is ~4 MB of libmpdec coefficient
+# (packed 19 digits to a 64-bit word) and ~10 MB rendered. Values above it are refused as a
+# rule error, which is the one thing a resource exhaustion cannot be turned into after the
+# fact. Java is the only client in the family that fails cleanly on width; this stands in for
+# that, as a bound rather than as a domain model.
+_SANE_WIDTH = 10_000_000
+
+# A far tighter bound on what can be *encoded*, which is a different resource. The wire form
+# is the unscaled integer in base 256, and decimal <-> binary radix conversion is quadratic in
+# every client: measured in the C++ client, its digit-string codec takes 0.04 s at 10**4
+# digits, 4.2 s at 10**5 and ~420 s at 10**6, and mpdecimal's own mpd_qexport_u32 is only
+# about 10x better with the same quadratic shape. So a value can be cheap to hold, cheap to
+# compute with, and still unserialisable.
+#
+# 4300 is not arbitrary: it is CPython's own int_max_str_digits, the limit it puts on
+# str <-> int conversion for exactly this reason. This client already could not encode a wider
+# coefficient - `int("9" * 5000)` raises ValueError "Exceeds the limit (4300 digits) for
+# integer string conversion" - so the bound is pre-existing and the only thing added is that
+# it now reads as a decimal error instead of a CPython internal one. Held as a literal rather
+# than read from `sys` so the accepted set does not shift with a host's own setting.
+_SANE_COEFFICIENT = 4300
 
 
 def _adjusted_of(d: Decimal) -> int:
@@ -276,41 +302,79 @@ def _adjusted_of(d: Decimal) -> int:
     return d.adjusted()
 
 
-def _require_bigdecimal_result(exponent: int, digits: int, fn: str) -> None:
-    """Refuse a result BigDecimal could not hold, from its predicted shape alone.
+def _rescaled_digits(target_scale: int, d: Decimal) -> int:
+    """Digits in the coefficient ``d`` would have at ``target_scale``.
 
-    Python's Decimal has a far wider exponent range than BigDecimal's signed-int32 scale, so
-    an exact operation the JVM rejects returned a value here instead: `decimals.mul` on two
-    1e2147483647 operands gave exponent 4294967294, which no confluent.type.Decimal scale can
-    carry, and which `string()` would try to render as four billion digits. The check is on
-    the *predicted* shape rather than the computed result, so the digits are never built.
+    Only *expanding* a scale costs anything - the coefficient grows by the difference.
+    Coarsening one is free at any distance, and the earlier ``abs(shift) + digits`` form
+    refused it wrongly. Measured, all instant and all one digit wide:
 
-    Both limits are needed, because the operations reach them differently - multiplication
-    adds the exponents and so overflows the scale, while addition aligns them and so overflows
-    the coefficient. Measured against the JDK:
+    * ``1.23`` at scale -1000000, -100000000, -2000000000  -> 0E+1000000 ... 0E+2000000000
+    * ``1e-1000000`` and ``1e-100000000`` at scale 0        -> 0
 
-    * 1e2147483647 * 1e2147483647     -> ArithmeticException: Overflow
-    * 1e-2147483647 * 1e-2147483647   -> ArithmeticException: Underflow
-    * 1e2147483647 * 10               -> OK, precision 2 scale -2147483647
-    * 1e1000 * 1e1000                 -> OK, precision 1 scale -2000
-    * 1e2147483647 + 1                -> "BigInteger would overflow supported range"
-    * 1e-2147483647 + 1               -> same
-    * 1e2147483647 - 1e-2147483647    -> ArithmeticException: Underflow
+    against ``1.23`` at scale 100000000, which is 952 MB and a 100000001-digit coefficient.
+    Java agrees on both sides: ``BigDecimal("1.23").setScale(-100000000)`` is precision 1.
+
+    Computed from ``(exponent, adjusted)`` rather than from the value, so the digits the
+    caller is about to refuse are never built - ``as_tuple()`` on a wide value is itself the
+    allocation being guarded (9.2 GB for a 2**31-digit coefficient).
     """
-    if not (_INT32_MIN <= -exponent <= _INT32_MAX):
+    exponent = _exponent_of(d)
+    digits = _adjusted_of(d) - exponent + 1
+    return max(1, digits + target_scale + exponent)
+
+
+def _plain_form_length(d: Decimal) -> int:
+    """Characters in ``d``'s plain (non-scientific) rendering, to within a couple.
+
+    Unlike a rescale, this *does* pay for the exponent in both directions: a positive
+    exponent writes that many trailing zeros and a negative one that many leading zeros, so
+    ``0E-2147483647`` renders as two billion characters even though its coefficient is one
+    digit.
+    """
+    exponent = _exponent_of(d)
+    digits = _adjusted_of(d) - exponent + 1
+    return digits + abs(exponent)
+
+
+def _require_sane_width(needed: int, fn: str, what: str, limit: int = _SANE_WIDTH) -> None:
+    """Refuse a positional form too wide to build.
+
+    Three unrelated-looking things reduce to this one quantity, because each has to
+    materialise a value in positional form:
+
+    * **aligning two exponents** - ``add`` and ``sub`` expand the narrower operand into the
+      wider one's frame before computing a single digit; ``remainder`` is the same family but
+      is bounded by its integral quotient instead (see :func:`_decimals_mod`);
+    * **rescaling** - ``round``/``trunc``/``floor``/``ceil`` produce a coefficient at the
+      target scale;
+    * **rendering** - ``string()`` writes every digit out.
+
+    ``mul``, ``div``, comparison, negation and ``abs`` are absent deliberately: ``mul`` adds
+    the exponents and multiplies the coefficients, ``div`` holds the coefficient to the
+    context precision and lets the exponent absorb the difference, and libmpdec's comparison
+    short-circuits on the adjusted exponent. Measured on operands 1e2147483647 and 3, peak
+    RSS: ``mul``, ``div``, ``<``, ``==``, ``compare``, ``min``, ``neg``, ``abs`` all 13 MB;
+    ``add`` 1738 MB, ``sub`` 1738 MB, ``remainder`` 1733 MB; and
+    ``add(1e2147483647, 1e-2147483647)`` 3125 MB. So the guard follows *alignment*, not
+    arithmetic - a single expression over two cheaply constructed operands is enough.
+    """
+    if needed > limit:
         raise celpy.CELEvalError(
-            f"{fn}: the result needs a scale of {-exponent}, which is out of int range")
-    if digits > _MAX_COEFFICIENT_DIGITS:
-        raise celpy.CELEvalError(
-            f"{fn}: the result needs {digits} digits, more than a decimal can hold")
+            f"{fn}: {what} needs {needed} digits, past this client's {limit}-digit limit")
 
 
 def _require_additive_domain(x: Decimal, y: Decimal, fn: str) -> None:
-    """Addition and subtraction align the operands on the finer scale, so the result carries
-    the smaller exponent and a coefficient spanning both magnitudes."""
+    """Addition and subtraction align the operands on the finer scale, so the aligned frame
+    carries the smaller exponent and spans both magnitudes.
+
+    No exemption for a zero operand: aligning ``0E-2147483647`` with ``1`` still expands the
+    *one* into the zero's scale, which is a 2**31-digit coefficient. Only a lone value being
+    rescaled gets the zero shortcut (see :func:`_quantize`).
+    """
     exponent = min(_exponent_of(x), _exponent_of(y))
     adjusted = max(_adjusted_of(x), _adjusted_of(y)) + 1
-    _require_bigdecimal_result(exponent, adjusted - exponent + 1, fn)
+    _require_sane_width(adjusted - exponent + 1, fn, "aligning the operands")
 
 
 def _decimals_add(a: typing.Any, b: typing.Any) -> Decimal:
@@ -326,13 +390,11 @@ def _decimals_sub(a: typing.Any, b: typing.Any) -> Decimal:
 
 
 def _decimals_mul(a: typing.Any, b: typing.Any) -> Decimal:
-    x, y = _d(a), _d(b)
-    # Multiplication adds the exponents and the digit counts.
-    _require_bigdecimal_result(
-        _exponent_of(x) + _exponent_of(y),
-        (_adjusted_of(x) - _exponent_of(x) + 1) + (_adjusted_of(y) - _exponent_of(y) + 1),
-        "decimals.mul")
-    return _EXACT_CONTEXT.multiply(x, y)
+    # No width guard: multiplication adds the exponents and multiplies the coefficients, so
+    # the result is as compact as its operands. It was guarded here once, on a prediction of
+    # BigDecimal's own domain errors; that prediction is what this design stopped doing, and
+    # the operations it guarded turned out to be the cheap ones.
+    return _EXACT_CONTEXT.multiply(_d(a), _d(b))
 
 
 def _decimals_div(a: typing.Any, b: typing.Any) -> Decimal:
@@ -352,19 +414,23 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
     da, db = _d(a), _d(b)
     if db == 0:
         raise celpy.CELEvalError("decimals.mod: division by zero")
-    # The remainder itself is small - its magnitude is bounded by both operands - but the JVM
-    # computes it as `this.subtract(this.divideToIntegralValue(divisor).multiply(divisor))`,
-    # so the *integral quotient* is what has to fit. That is why 1e2147483647 mod 3 is refused
-    # there ("BigInteger would overflow supported range") while 1e-2147483647 mod 1e2147483647
-    # is fine at precision 1, scale 2147483647, and 1E40 mod 3 is fine too.
-    exponent = min(_exponent_of(da), _exponent_of(db))
-    adjusted = min(_adjusted_of(da), _adjusted_of(db))
-    _require_bigdecimal_result(exponent, adjusted - exponent + 1, "decimals.mod")
+    # The remainder itself is small - its magnitude is bounded by both operands - but the
+    # *integral quotient* has to be produced to get there, and that is the width. Not the
+    # aligned frame add and sub are guarded on: libmpdec short-circuits when the operands'
+    # magnitudes are close or the dividend is the smaller, so the frame over-refuses. Measured
+    # (peak RSS), with the aligned frame in the last column for contrast:
+    #
+    #   1e2147483647 mod 3               2^31 quotient digits   1733 MB    2^31 frame
+    #   1.5 mod 1e-2147483647            2^31                   1519 MB    2^31
+    #   1e2147483647 mod 1e-2147483647   4.3e9                  2568 MB    4.3e9
+    #   1e-2147483647 mod 1e2147483647   0                        13 MB    4.3e9  <- free
+    #   1e2147483647 mod 1e2147483000    647                      13 MB    4.3e9  <- free
+    #   1e40 mod 3                       40                       13 MB
+    #
+    # so the last two are what the frame would have cost us, and both are values the JVM
+    # accepts: `1e-2147483647 mod 1e2147483647` is the dividend itself at precision 1.
     quotient_digits = max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
-    if quotient_digits > _MAX_COEFFICIENT_DIGITS:
-        raise celpy.CELEvalError(
-            f"decimals.mod: the integral quotient needs {quotient_digits} digits, "
-            "more than a decimal can hold")
+    _require_sane_width(quotient_digits, "decimals.mod", "the integral quotient")
     return _EXACT_CONTEXT.remainder(da, db)
 
 
@@ -429,21 +495,8 @@ def _exponent_of(d: Decimal) -> int:
     return exponent
 
 
-# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
-# which is 646456993 decimal digits, and setScale reports anything wider as "BigInteger would
-# overflow supported range". Rescaling needs that many digits for the result in one direction
-# and for the power of ten it divides by in the other, so one bound covers both. Checked
-# against the JDK on BigDecimal("1.23"), which has 3 digits at scale 2:
-#   setScale(1e6, 1e7, 1e8)      -> OK      (result 1000001 .. 100000001 digits)
-#   setScale(646456993)          -> THROW   (646456994)
-#   setScale(-1e6, -1e7, -1e8)   -> OK      (1000005 .. 100000005)
-#   setScale(-1e9), setScale(+-2**31)  -> THROW
-# and on BigDecimal("1e1000000"): setScale(-1000000) -> OK, setScale(1000000) -> OK with
-# precision 2000001, which is exactly what the estimate below gives.
-
-
 def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:
-    """``d`` at ``scale``, or a rule error.
+    """``d`` at ``scale``, or a rule error. The single Guard B site.
 
     Two things have to hold, and they pull in opposite directions.
 
@@ -458,17 +511,22 @@ def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:
     any int32 scale, and quantizing to one materialises the whole coefficient. A scale of
     2**31-1 costs 918 MB inside ``quantize`` (2**31 digits, packed 19 to a 64-bit word) and
     9.2 GB the moment anything calls ``as_tuple()`` on the result - which ``_exponent_of``
-    and the protobuf writer's ``_set_decimal`` both do. The JVM raises ArithmeticException
-    there instead, so the shift is bounded the way BigInteger's capacity bounds it.
+    and the protobuf writer's ``_set_decimal`` both do. So the shift is bounded, by
+    :data:`_SANE_WIDTH`.
+
+    Every rounding call site goes through here, the one-argument forms included. Three of the
+    five did not, and each was a multi-GB allocation reachable from a rule with no scale
+    argument at all: ``round(x)``, ``floor(x)`` and ``ceil(x)`` on a value with a large
+    negative exponent quantize to scale 0. That is the failure mode of a guard hung off one
+    helper rather than off the operation.
     """
-    exponent = _exponent_of(d)
-    # `adjusted() - exponent + 1` is the digit count, without building the as_tuple() digits
-    # tuple to count them - which for a wide value is the very allocation being guarded.
-    # `d`'s own scale is the negated exponent, as BigDecimal counts it.
-    needed = abs(scale + exponent) + (d.adjusted() - exponent + 1)
-    if needed > _MAX_COEFFICIENT_DIGITS:
-        raise celpy.CELEvalError(
-            f"{fn}: a scale of {scale} needs {needed} digits, more than a decimal can hold")
+    # Zero is one digit at any scale. Rescaling it never expands anything - measured, both
+    # directions are free, and its result stays compact - and BigDecimal agrees:
+    # `new BigDecimal(BigInteger.ZERO, 2147483647)` is precision 1. Without this, the width
+    # formula reads the exponent and refuses `round(decimal(b"", 2147483647))`, a false
+    # rejection of a value the reference handles.
+    if d:
+        _require_sane_width(_rescaled_digits(scale, d), fn, f"a scale of {scale}")
     try:
         return d.quantize(
             Decimal(1).scaleb(-scale, context=_EXACT_CONTEXT),
@@ -482,7 +540,7 @@ def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:
 def _decimals_round(*args: typing.Any) -> Decimal:
     """Round to the given scale (HALF_UP). One-arg form rounds to integer."""
     if len(args) == 1:
-        return _d(args[0]).quantize(Decimal(1), rounding=decimal.ROUND_HALF_UP, context=_EXACT_CONTEXT)
+        return _quantize(_d(args[0]), 0, decimal.ROUND_HALF_UP, "decimals.round")
     if len(args) == 2:
         scale = _require_int_scale(args[1], "decimals.round")
         return _quantize(_d(args[0]), scale, decimal.ROUND_HALF_UP, "decimals.round")
@@ -503,7 +561,7 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
         # current scale = -exponent. Early-return if 0 >= current_scale.
         if _exponent_of(d) >= 0:
             return d
-        return d.quantize(Decimal(1), rounding=decimal.ROUND_DOWN, context=_EXACT_CONTEXT)
+        return _quantize(d, 0, decimal.ROUND_DOWN, "decimals.trunc")
     if len(args) == 2:
         d = _d(args[0])
         scale = _require_int_scale(args[1], "decimals.trunc")
@@ -514,11 +572,11 @@ def _decimals_trunc(*args: typing.Any) -> Decimal:
 
 
 def _decimals_floor(a: typing.Any) -> Decimal:
-    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_FLOOR, context=_EXACT_CONTEXT)
+    return _quantize(_d(a), 0, decimal.ROUND_FLOOR, "decimals.floor")
 
 
 def _decimals_ceil(a: typing.Any) -> Decimal:
-    return _d(a).quantize(Decimal(1), rounding=decimal.ROUND_CEILING, context=_EXACT_CONTEXT)
+    return _quantize(_d(a), 0, decimal.ROUND_CEILING, "decimals.ceil")
 
 
 def _d(v: typing.Any) -> Decimal:
@@ -562,6 +620,14 @@ def _string(v: typing.Any) -> celtypes.StringType:
     # confluent.type.Decimal message form as well as its own decimal.
     d = decimal_boundary_value(v)
     if d is not None:
+        # Guard C. `format(d, "f")` writes every digit of the positional form, and that form
+        # can be enormous for a value that was cheap to compute: `div` holds its coefficient
+        # to 38 digits while its exponent runs free, so
+        # `decimals.div(decimal("1e-2147483647"), decimal("1e2147483647"))` costs nothing and
+        # renders as four billion characters. Measured: rendering a 10**8-digit value takes
+        # 204 MB. No zero shortcut here, unlike the rescale guard - a zero at an extreme
+        # scale renders as that many zeros.
+        _require_sane_width(_plain_form_length(d), "string", "the plain form")
         return celtypes.StringType(format(_drop_negative_zero(d), "f"))
     return _STDLIB_STRING(v)
 
