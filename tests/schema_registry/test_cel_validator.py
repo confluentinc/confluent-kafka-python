@@ -337,7 +337,11 @@ def test_decimal_rejects_non_finite_double(validator, value):
         ('string(decimal("123.45"))', "123.45"),
         ('string(decimal("1e40"))', "10000000000000000000000000000000000000000"),
         ('string(decimal("-0.5"))', "-0.5"),
-        ('string(decimal("-0"))', "-0"),
+        # BigDecimal has no negative zero: BigDecimal("-0").toPlainString() is "0" (signum 0),
+        # and a scale survives the sign being dropped ("-0.00" -> "0.00").
+        ('string(decimal("-0"))', "0"),
+        ('string(decimal("-0.00"))', "0.00"),
+        ('string(decimals.round(decimal("-0.4"), 0))', "0"),
         ('string(decimal("+5"))', "5"),
     ],
 )
