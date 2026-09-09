@@ -31,6 +31,7 @@ from confluent_kafka.schema_registry.protobuf import (
 )
 from confluent_kafka.schema_registry.serde import SchemaId
 from confluent_kafka.serialization import SerializationError
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2
 from tests.integration.schema_registry.data.proto import DependencyTestProto_pb2, metadata_proto_pb2
 
 
@@ -158,3 +159,174 @@ def test_proto_decimal(decimal, scale):
     converted = decimal_to_protobuf(input, scale)
     result = protobuf_to_decimal(converted)
     assert result == input
+
+# BigDecimal.setScale(scale) narrows a scale whenever no rounding is needed -- only the digits
+# being dropped must be zeros. decimal_to_protobuf used to refuse every reduction (`delta < 0`),
+# which rejected exact conversions: Decimal("1.50") at scale 1, and the negative scale that
+# protobuf_to_decimal itself produces for a value like 1E+3. Values requiring real rounding are
+# still refused, as setScale does without a rounding mode.
+@pytest.mark.parametrize(
+    "decimal, scale, unscaled, out_scale",
+    [
+        ("12.3400", 2, 1234, 2),      # trailing zeros dropped, exact
+        ("1.50", 1, 15, 1),
+        ("-1.50", 1, -15, 1),
+        ("1000", -3, 1, -3),          # negative scale, exact
+        ("-1000", -3, -1, -3),
+        ("0.00", 0, 0, 0),
+        ("12.34", 4, 123400, 4),      # widening still works
+        ("12.34", 2, 1234, 2),        # exact match still works
+    ],
+)
+def test_proto_decimal_narrows_scale_losslessly(decimal, scale, unscaled, out_scale):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert int.from_bytes(msg.value, byteorder="big", signed=True) == unscaled
+    assert msg.scale == out_scale
+
+
+@pytest.mark.parametrize("decimal, scale", [("12.345", 2), ("1.01", 1), ("999", -1)])
+def test_proto_decimal_rejects_lossy_scale(decimal, scale):
+    with pytest.raises(ValueError, match="Scale provided does not match the decimal"):
+        decimal_to_protobuf(Decimal(decimal), scale)
+
+
+# Both rescaling directions used to build a power of ten before deciding anything, which the
+# requested scale sizes: `10**-delta` for the exactness check when narrowing, `10**delta` for
+# the coefficient when widening. Measured against this function before the guards:
+#
+#   scale -1e7  ->  5.2s to reach a ValueError
+#   scale -1e8  ->  178s to reach the same ValueError
+#   scale  1e7  ->  5.3s and a 4.1 MB field written
+#   scale  1e8  ->  did not finish inside 240s
+#
+# BigDecimal.setScale(scale) is the reference for the whole function, and it answers these
+# without the arithmetic. Measured against the JDK:
+#
+#   setScale(1, -1e7)             THROW ArithmeticException: Rounding necessary
+#   setScale(0, -1e9)             OK, scale=-1000000000, instant - a zero has no digits to lose
+#   setScale(0.00, -1e9)          OK, same
+#   setScale(1, 1e7)              OK, precision 10000001 (1.4s - the JVM pays here too)
+#   setScale(1, 1e9)              THROW ArithmeticException: BigInteger would overflow ...
+#   setScale(1E+1000000000, 0)    THROW, same
+@pytest.mark.parametrize(
+    "decimal, scale",
+    [
+        # Narrowing a non-zero value past its trailing zeros: the JVM's "Rounding necessary".
+        ("1", -10000000),
+        ("1", -1000000000),
+        ("1.23", -1000000000),
+        # Widening past what a BigInteger coefficient can hold.
+        ("1", 1000000000),
+        ("1E+1000000000", 0),
+        ("12.34", 2000000000),
+    ],
+)
+def test_proto_decimal_rejects_the_scales_java_rejects(decimal, scale):
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal(decimal), scale)
+
+
+@pytest.mark.parametrize(
+    "decimal, scale, unscaled",
+    [
+        # A zero narrows to any scale, which is what setScale does with a zero coefficient.
+        ("0", -1000000000, 0),
+        ("0.00", -1000000000, 0),
+        ("0E+10", -1000000000, 0),
+        # And the ordinary cases keep working.
+        ("1000", -3, 1),
+        ("1.50", 1, 15),
+    ],
+)
+def test_proto_decimal_accepts_the_scales_java_accepts(decimal, scale, unscaled):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert int.from_bytes(msg.value, byteorder="big", signed=True) == unscaled
+    assert msg.scale == scale
+
+
+# A timing bound, because the cost *is* the defect: the answer was already right, it just took
+# 5.2s to give at this scale and 178s one power of ten further out. The fixed path measures
+# 0.000s, so a one-second budget separates them by three orders of magnitude and cannot flake.
+def test_proto_decimal_rejects_a_wide_scale_without_the_arithmetic():
+    import time
+
+    start = time.monotonic()
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal("1"), -10000000)
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal("1"), 10000000000)
+    assert time.monotonic() - start < 1.0
+
+# `protobuf_to_decimal` deliberately does **not** apply the message's precision, and these are
+# the cases that tell the two policies apart.
+#
+# Java reads it as `new BigDecimal(unscaled, scale, new MathContext(precision))`, so a precision
+# narrower than the coefficient's digit count *rounds the value on read*. Every client - this one
+# included - writes precision as the unscaled value's own digit count, which makes that
+# MathContext a guaranteed no-op, so it only ever has an effect on a message from a foreign
+# producer carrying a declared/column precision. There its effect is to silently round data the
+# producer sent exactly, which is why six of the seven clients ignore it and this path now does
+# too. See ~/Documents/decimals.md section 2.
+#
+# The values below are what the reference would have returned for the same inputs, kept in the
+# comments so the divergence is legible: unscaled 125 at precision 2 is 1.3E+2 on the JVM.
+@pytest.mark.parametrize(
+    "unscaled, scale, precision, expected",
+    [
+        ("12325", 0, 4, "12325"),      # JVM, rounding to 4 digits: 1.233E+4
+        ("125", 0, 2, "125"),          # JVM: 1.3E+2
+        ("-125", 0, 2, "-125"),        # JVM: -1.3E+2
+        ("12315", 0, 4, "12315"),      # JVM: 1.232E+4
+        ("135", 0, 2, "135"),          # JVM: 1.4E+2
+        ("12345", 2, 3, "123.45"),     # JVM: 123
+        # Where precision is at least the digit count - i.e. everything this client family
+        # writes - the two policies agree, and always did.
+        ("1234", 2, 4, "12.34"),
+        ("0", 2, 1, "0.00"),
+        ("1", -3, 1, "1E+3"),          # negative scale survives
+        # And precision 0, which the reference cannot produce but three of our write paths did
+        # until now: MathContext(0) is UNLIMITED, so this agreed too.
+        ("12345", 2, 0, "123.45"),
+    ],
+)
+def test_protobuf_to_decimal_ignores_precision(unscaled, scale, precision, expected):
+    msg = decimal_pb2.Decimal(
+        value=int(unscaled).to_bytes(16, byteorder="big", signed=True),
+        scale=scale,
+        precision=precision,
+    )
+    assert str(protobuf_to_decimal(msg)) == expected
+
+
+# The other half of section 2: the same message read through the CEL binding and through the
+# serde must give the same value. It did not - this path applied precision and that one never
+# has - so unscaled 125 at precision 2 was 1.3E+2 here and 125 there.
+def test_both_read_paths_agree_on_precision():
+    from confluent_kafka.schema_registry.confluent.types.decimal_utils import from_proto_decimal
+
+    msg = decimal_pb2.Decimal(
+        value=(125).to_bytes(2, byteorder="big", signed=True), scale=0, precision=2)
+    assert protobuf_to_decimal(msg) == from_proto_decimal(msg)
+
+
+# decimal_to_protobuf left `precision` at 0, which the reference cannot produce -
+# `BigDecimal.precision()` is never less than 1, zero's precision being 1 - so a JVM consumer
+# rewrites such a message on its next touch. It now carries the unscaled value's digit count,
+# derived from the integer actually written so a rescale cannot leave it stale.
+@pytest.mark.parametrize(
+    "decimal, scale, precision",
+    [
+        ("12.34", 2, 4),
+        ("1000", -3, 1),      # unscaled 1
+        ("0", 0, 1),          # BigDecimal.ZERO.precision() == 1
+        ("0.00", 2, 1),
+        ("-1.50", 1, 2),      # the sign is not a digit
+        ("12.3400", 2, 4),    # after the exact narrowing, not before
+    ],
+)
+def test_decimal_to_protobuf_writes_the_digit_count(decimal, scale, precision):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert msg.precision == precision
+    assert msg.scale == scale
+
+
