@@ -59,7 +59,11 @@ def to_proto_decimal(d: Decimal) -> decimal_pb2.Decimal:
     if sign:
         unscaled = -unscaled
     value = unscaled_to_bytes(unscaled)
-    return decimal_pb2.Decimal(value=value, scale=scale)
+    # Precision is the unscaled value's digit count, as Java's DecimalUtils.fromBigDecimal sets
+    # it. Safe here because the scale is derived from the value rather than requested, so
+    # len(digits) is exactly the digit count of the unscaled value being written - a reader
+    # that treats precision as a MathContext cannot then round it or shift its scale.
+    return decimal_pb2.Decimal(value=value, precision=len(digits), scale=scale)
 
 
 def unscaled_to_bytes(unscaled: int) -> bytes:

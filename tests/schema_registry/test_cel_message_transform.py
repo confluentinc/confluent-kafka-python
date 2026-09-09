@@ -30,6 +30,8 @@ part a rule author is most likely to be surprised by.
 
 from decimal import Decimal
 
+import pytest
+
 from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant, parse_json
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
@@ -299,6 +301,7 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
     """
     from confluent_kafka.schema_registry.common.protobuf import set_decimal_message
     from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.types.decimal_utils import to_proto_decimal
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
 
     # (value, java BigDecimal.precision(), java scale())
@@ -309,6 +312,82 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
         _set_decimal(message_level, Decimal(text))
         field_level = decimal_pb2.Decimal()
         set_decimal_message(field_level, Decimal(text))
+        # to_proto_decimal is the third writer; all three must agree byte for byte, so a
+        # consumer that honours precision cannot see one value two ways.
+        standalone = to_proto_decimal(Decimal(text))
 
         assert (message_level.precision, message_level.scale) == (precision, scale), text
         assert message_level.SerializeToString() == field_level.SerializeToString(), text
+        assert standalone.SerializeToString() == field_level.SerializeToString(), text
+
+
+def _int_descriptor():
+    """A message with integer, double and repeated-string fields, built at runtime."""
+    from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name, fdp.package, fdp.syntax = "int_coercion.proto", "tests.ic", "proto3"
+    msg = fdp.message_type.add()
+    msg.name = "Ints"
+    spec = [
+        ("i32", 1, descriptor_pb2.FieldDescriptorProto.TYPE_INT32, 1),
+        ("u32", 2, descriptor_pb2.FieldDescriptorProto.TYPE_UINT32, 1),
+        ("dbl", 3, descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE, 1),
+        ("codes", 4, descriptor_pb2.FieldDescriptorProto.TYPE_STRING, 3),
+    ]
+    for name, number, ftype, label in spec:
+        field = msg.field.add()
+        field.name, field.number, field.type, field.label = name, number, ftype, label
+        field.json_name = name
+
+    pool = descriptor_pool.DescriptorPool()
+    pool.Add(fdp)
+    desc = pool.FindMessageTypeByName("tests.ic.Ints")
+    return desc, message_factory.GetMessageClass(desc)
+
+
+# int() silently truncated, so a CEL double of 1.9 landed in an int32 field as 1 and a
+# fractional Decimal lost its fraction. The JVM's message-level write-back goes through a
+# protobuf JSON parse, which refuses a non-integral value and range-checks the result.
+# Measured against protobuf-java 4.35.1:
+#   Int32Value <- 1.9        -> REJECT "Not an int32 value: 1.9"
+#   Int32Value <- 2.0        -> 2
+#   Int32Value <- 2147483648 -> REJECT "Not an int32 value"
+def test_integer_fields_reject_non_integral_and_out_of_range():
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _int_descriptor()
+    original = cls()
+
+    def write(field, value):
+        return convert({field: value}, original)
+
+    # Integral values are accepted, whatever their Python type.
+    assert write("i32", 2.0).i32 == 2
+    assert write("i32", 2).i32 == 2
+    assert write("i32", Decimal("3")).i32 == 3
+    # A double field still takes a fractional value.
+    assert write("dbl", 1.9).dbl == 1.9
+
+    for value in (1.9, Decimal("1.5")):
+        with pytest.raises(ValueError, match="non-integral"):
+            write("i32", value)
+    with pytest.raises(ValueError, match="out of range"):
+        write("i32", 2**31)
+    with pytest.raises(ValueError, match="out of range"):
+        write("u32", -1)
+    # bool is an int subclass in Python; protobuf JSON does not accept true for an int.
+    with pytest.raises(ValueError, match="bool"):
+        write("i32", True)
+
+
+# A protobuf repeated field cannot hold null. Dropping the element changed the list's length
+# and hid the mistake; the JVM says "Repeated field elements cannot be null in field: ...".
+def test_null_element_in_a_repeated_field_is_rejected():
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _int_descriptor()
+    original = cls()
+    assert list(convert({"codes": ["a", "b"]}, original).codes) == ["a", "b"]
+    with pytest.raises(ValueError, match="cannot write null to repeated field 'codes'"):
+        convert({"codes": ["a", None, "b"]}, original)
