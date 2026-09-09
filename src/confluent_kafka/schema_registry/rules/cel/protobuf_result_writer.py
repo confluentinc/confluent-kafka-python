@@ -303,22 +303,56 @@ def _boolean(fd: descriptor.FieldDescriptor, value: Any) -> bool:
 _FLOAT32_LIMIT = 3.4028234663852886e38 * (1 + 1e-6)
 
 
+def _is_finite(value: Any) -> bool:
+    """Whether the value itself is finite. Only a float or a Decimal can be otherwise; a
+    Python int always is, and ``math.isfinite`` would raise OverflowError on a wide one."""
+    if isinstance(value, decimal.Decimal):
+        return value.is_finite()
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return True
+
+
 def _floating(fd: descriptor.FieldDescriptor, value: Any) -> float:
     """``value`` as a float field's value, or a rule error.
 
     A bool is an int subclass in Python and ``celtypes.BoolType`` subclasses int, so both
     spellings have to be named before the numeric check - the same reason ``_integral``
     names them.
+
+    Overflow is judged on the *source*, not the result. ``float()`` saturates a finite but
+    too-large value to an infinity, and the range check below reads that infinity as one the
+    rule asked for and lets it through - so ``Decimal("1e1000")`` was silently written as inf
+    to a double field, and a double field had no range check at all. A wide Python int is the
+    same case reported differently: ``float(10**400)`` raises OverflowError, which escaped as
+    a raw Python exception rather than a rule error.
+
+    An *explicitly* non-finite value does pass, because protobuf JSON has canonical spellings
+    for those and the JVM's parser takes them. Measured against protobuf-java 4.35.1:
+
+    * double <- 1e308        -> 1.0E308
+    * double <- 1e309, 1e1000, -1e1000  -> "Out of range double value"
+    * double <- "Infinity", "-Infinity", "NaN"  -> accepted as-is
+    * float  <- 1e39, 1e1000 -> "Out of range float value"
+    * float  <- "Infinity", "NaN"  -> accepted as-is
     """
     if isinstance(value, (bool, celtypes.BoolType)):
         raise ValueError(f"cannot write bool to float field '{fd.name}'")
     if not isinstance(value, (int, float, decimal.Decimal)):
         raise ValueError(
             f"cannot write {type(value).__name__} to float field '{fd.name}'")
-    as_float = float(value)
-    # NaN and the infinities pass through: parseFloat accepts those explicitly.
-    if (fd.type == descriptor.FieldDescriptor.TYPE_FLOAT
-            and math.isfinite(as_float) and abs(as_float) > _FLOAT32_LIMIT):
+    source_is_finite = _is_finite(value)
+    try:
+        as_float = float(value)
+    except OverflowError as e:
+        raise ValueError(
+            f"out of range value for float field '{fd.name}': {value}") from e
+    if not source_is_finite:
+        return as_float
+    if not math.isfinite(as_float):
+        raise ValueError(
+            f"out of range value for float field '{fd.name}': {value}")
+    if fd.type == descriptor.FieldDescriptor.TYPE_FLOAT and abs(as_float) > _FLOAT32_LIMIT:
         raise ValueError(
             f"out of range float value for field '{fd.name}': {as_float}")
     return as_float
@@ -393,6 +427,12 @@ _INT_RANGES = {
 }
 
 
+# Digits in the widest protobuf integer, 2**64-1. A value whose leading digit sits past this
+# cannot fit any of the ranges below, so its magnitude settles the question before the digits
+# are ever built.
+_MAX_INT_DIGITS = 20
+
+
 def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
     """``value`` as an int for an integer-valued field, or a rule error.
 
@@ -406,6 +446,17 @@ def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
         # let a real CEL `true` through as 1. protobuf JSON refuses true for an integer field.
         raise ValueError(f"cannot write bool to integer field '{fd.name}'")
     if isinstance(value, decimal.Decimal):
+        if not value.is_finite():
+            raise ValueError(
+                f"cannot write non-finite {value} to integer field '{fd.name}'")
+        # Magnitude first, before int() materialises the digits. The widest protobuf integer
+        # is 2**64-1, twenty digits, so anything with a larger adjusted exponent is out of
+        # range for every one of them - and int(Decimal("1e100000000")) would spend minutes
+        # building a hundred million digits just to reach that same rejection, which the JVM
+        # reports off the token without building the number.
+        if value.adjusted() > _MAX_INT_DIGITS - 1:
+            raise ValueError(
+                f"value {value} is out of range for field '{fd.name}'")
         if value != value.to_integral_value():
             raise ValueError(
                 f"cannot write non-integral {value} to integer field '{fd.name}'")
