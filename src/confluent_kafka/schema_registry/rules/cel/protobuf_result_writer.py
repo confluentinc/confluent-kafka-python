@@ -126,7 +126,11 @@ def _set_field(out: message.Message, fd: descriptor.FieldDescriptor, value: Any)
 
 def _set_map(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -> None:
     if not isinstance(value, Mapping):
-        return
+        # Silence here dropped the field from the rebuilt message, turning a rule-authoring
+        # type error into lost data. The JVM's message-level path rejects the same mismatch,
+        # because it writes through a protobuf JSON parse.
+        raise ValueError(
+            f"cannot write {type(value).__name__} to map field '{fd.name}'")
     target = getattr(out, fd.name)
     value_fd = fd.message_type.fields_by_name["value"]
     for k, v in value.items():
@@ -139,8 +143,12 @@ def _set_map(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -
 
 
 def _set_repeated(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -> None:
-    if isinstance(value, (str, bytes)) or not hasattr(value, "__iter__"):
-        return
+    # A Mapping is iterable, so without naming it here a map result silently wrote the map's
+    # *keys* as the list - corruption rather than loss. A scalar or a string wrote an empty
+    # list. Both are rule-authoring type errors that the JVM's protobuf JSON parse rejects.
+    if isinstance(value, (str, bytes, Mapping)) or not hasattr(value, "__iter__"):
+        raise ValueError(
+            f"cannot write {type(value).__name__} to repeated field '{fd.name}'")
     target = getattr(out, fd.name)
     del target[:]
     for item in value:

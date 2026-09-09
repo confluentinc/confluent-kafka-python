@@ -45,7 +45,15 @@ except ImportError:
 
 # 38-digit precision with HALF_UP rounding — matches Flink/PostgreSQL NUMERIC
 # division.
-_DIV_CONTEXT = decimal.Context(prec=38, rounding=decimal.ROUND_HALF_UP)
+# Emax/Emin are widened alongside: the default +/-999999 is far narrower than the exponent
+# range the constructor accepts (BigDecimal's signed-int scale), so dividing a legitimately
+# constructed value such as decimal("1e1000000") overflowed where Java returns a result.
+_DIV_CONTEXT = decimal.Context(
+    prec=38,
+    rounding=decimal.ROUND_HALF_UP,
+    Emax=decimal.MAX_EMAX,
+    Emin=decimal.MIN_EMIN,
+)
 
 # Exact/unbounded context for operations Java computes exactly (add/sub/mul/mod,
 # setScale/quantize, scaleb) — matches java.math.BigDecimal's exact semantics rather
@@ -72,6 +80,16 @@ def _require_int_scale(scale: typing.Any, fn: str) -> int:
     if s < _INT32_MIN or s > _INT32_MAX:
         raise celpy.CELEvalError(f"{fn}: scale out of int range: {s}")
     return s
+
+
+def _drop_negative_zero(d: Decimal) -> Decimal:
+    """A zero without a sign, because BigDecimal has no negative zero.
+
+    ``BigDecimal("-0").toPlainString()`` is ``"0"`` and its signum is 0, while Python's Decimal
+    keeps the sign and renders ``"-0"``. ``abs`` preserves the scale, so ``-0.00`` becomes
+    ``0.00`` rather than ``0`` - matching ``BigDecimal("-0.00").toPlainString()``.
+    """
+    return abs(d) if not d and d.is_signed() else d
 
 
 def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
@@ -125,7 +143,7 @@ def _decimal_from_string(text: str, original: typing.Any) -> Decimal:
     exponent = d.as_tuple().exponent
     if not isinstance(exponent, int) or exponent < -_INT32_MAX or exponent > _INT32_MAX:
         raise celpy.CELEvalError(f"decimal: invalid number '{original}'")
-    return d
+    return _drop_negative_zero(d)
 
 
 def _decimal(*args: typing.Any) -> Decimal:
@@ -429,7 +447,7 @@ def _string(v: typing.Any) -> celtypes.StringType:
     # confluent.type.Decimal message form as well as its own decimal.
     d = decimal_boundary_value(v)
     if d is not None:
-        return celtypes.StringType(format(d, "f"))
+        return celtypes.StringType(format(_drop_negative_zero(d), "f"))
     return _STDLIB_STRING(v)
 
 

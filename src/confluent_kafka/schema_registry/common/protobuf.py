@@ -4,7 +4,7 @@ import decimal
 import io
 import sys
 from collections import deque
-from decimal import MAX_PREC, Context, Decimal
+from decimal import MAX_EMAX, MAX_PREC, MIN_EMIN, ROUND_HALF_UP, Context, Decimal
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
 from google.protobuf import __version__ as _protobuf_version
@@ -879,7 +879,17 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     """
     unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
 
-    decimal_context = Context(prec=value.precision if value.precision > 0 else MAX_PREC)
+    # Java reads this as `new BigDecimal(unscaled, scale, new MathContext(precision))`, and a
+    # MathContext rounds HALF_UP. Python's Context defaults to HALF_EVEN, so a tie landed on the
+    # other side: unscaled 125 at precision 2 gave 1.2E+2 where Java gives 1.3E+2. Emax/Emin are
+    # widened for the same reason the other contexts in this client are - the default +/-999999
+    # is narrower than the int32 scale this message's field permits.
+    decimal_context = Context(
+        prec=value.precision if value.precision > 0 else MAX_PREC,
+        rounding=ROUND_HALF_UP,
+        Emax=MAX_EMAX,
+        Emin=MIN_EMIN,
+    )
     return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)
 
 

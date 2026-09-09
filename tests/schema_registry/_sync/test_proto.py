@@ -31,6 +31,7 @@ from confluent_kafka.schema_registry.protobuf import (
 )
 from confluent_kafka.schema_registry.serde import SchemaId
 from confluent_kafka.serialization import SerializationError
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2
 from tests.integration.schema_registry.data.proto import DependencyTestProto_pb2, metadata_proto_pb2
 
 
@@ -187,4 +188,36 @@ def test_proto_decimal_narrows_scale_losslessly(decimal, scale, unscaled, out_sc
 def test_proto_decimal_rejects_lossy_scale(decimal, scale):
     with pytest.raises(ValueError, match="Scale provided does not match the decimal"):
         decimal_to_protobuf(Decimal(decimal), scale)
+
+# `protobuf_to_decimal` applies the message's precision as a rounding limit, which is what Java
+# does (`new BigDecimal(unscaled, scale, new MathContext(precision))`). A MathContext rounds
+# HALF_UP, but Python's Context defaults to HALF_EVEN, so ties landed on the other side --
+# unscaled 125 at precision 2 gave 1.2E+2 where Java gives 1.3E+2. Expectations below are the
+# JVM's output for the same inputs.
+#
+# Only ties at a precision narrower than the value's digit count are affected. Every client now
+# writes precision as the value's own digit count, which makes the limit a no-op, so this reaches
+# only messages from a producer that puts a declared/column precision in the field.
+@pytest.mark.parametrize(
+    "unscaled, scale, precision, expected",
+    [
+        ("12325", 0, 4, "1.233E+4"),   # HALF_EVEN would give 1.232E+4
+        ("125", 0, 2, "1.3E+2"),       # HALF_EVEN would give 1.2E+2
+        ("-125", 0, 2, "-1.3E+2"),     # away from zero, not toward even
+        ("12315", 0, 4, "1.232E+4"),   # not a tie: both modes agree
+        ("135", 0, 2, "1.4E+2"),       # tie where both modes agree
+        ("12345", 2, 3, "123"),        # the limit applied to a scaled value
+        ("1234", 2, 4, "12.34"),       # precision == digit count: a no-op
+        ("0", 2, 1, "0.00"),
+        ("1", -3, 1, "1E+3"),          # negative scale survives
+    ],
+)
+def test_protobuf_to_decimal_rounds_half_up_like_java(unscaled, scale, precision, expected):
+    msg = decimal_pb2.Decimal(
+        value=int(unscaled).to_bytes(16, byteorder="big", signed=True),
+        scale=scale,
+        precision=precision,
+    )
+    assert str(protobuf_to_decimal(msg)) == expected
+
 
