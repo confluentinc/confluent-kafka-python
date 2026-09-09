@@ -28,6 +28,7 @@ dropped and a ``null`` clears its field. Those are covered here too, because the
 part a rule author is most likely to be surprised by.
 """
 
+import math
 from decimal import Decimal
 
 import pytest
@@ -321,12 +322,16 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
         assert standalone.SerializeToString() == field_level.SerializeToString(), text
 
 
-def _int_descriptor():
-    """A message with integer, double and repeated-string fields, built at runtime."""
+def _scalar_descriptor():
+    """A message with one field of each scalar kind, built at runtime."""
     from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
 
     fdp = descriptor_pb2.FileDescriptorProto()
     fdp.name, fdp.package, fdp.syntax = "int_coercion.proto", "tests.ic", "proto3"
+    choices = fdp.enum_type.add()
+    choices.name = "Choice"
+    choices.value.add(name="ZERO", number=0)
+    choices.value.add(name="ONE", number=1)
     msg = fdp.message_type.add()
     msg.name = "Ints"
     spec = [
@@ -334,11 +339,18 @@ def _int_descriptor():
         ("u32", 2, descriptor_pb2.FieldDescriptorProto.TYPE_UINT32, 1),
         ("dbl", 3, descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE, 1),
         ("codes", 4, descriptor_pb2.FieldDescriptorProto.TYPE_STRING, 3),
+        ("text", 5, descriptor_pb2.FieldDescriptorProto.TYPE_STRING, 1),
+        ("flag", 6, descriptor_pb2.FieldDescriptorProto.TYPE_BOOL, 1),
+        ("blob", 7, descriptor_pb2.FieldDescriptorProto.TYPE_BYTES, 1),
+        ("choice", 8, descriptor_pb2.FieldDescriptorProto.TYPE_ENUM, 1),
+        ("flt", 9, descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT, 1),
     ]
     for name, number, ftype, label in spec:
         field = msg.field.add()
         field.name, field.number, field.type, field.label = name, number, ftype, label
         field.json_name = name
+        if ftype == descriptor_pb2.FieldDescriptorProto.TYPE_ENUM:
+            field.type_name = ".tests.ic.Choice"
 
     pool = descriptor_pool.DescriptorPool()
     pool.Add(fdp)
@@ -356,7 +368,7 @@ def _int_descriptor():
 def test_integer_fields_reject_non_integral_and_out_of_range():
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
 
-    _, cls = _int_descriptor()
+    _, cls = _scalar_descriptor()
     original = cls()
 
     def write(field, value):
@@ -387,12 +399,153 @@ def test_integer_fields_reject_non_integral_and_out_of_range():
             write("i32", value)
 
 
+# The other three scalar arms narrowed unconditionally, so a wrong-typed result was accepted
+# and silently changed meaning: bytes(5) fabricated five NUL bytes, bool("false") wrote true,
+# float(True) wrote 1.0, and str() turned any value at all into a string field's text.
+#
+# Every rejection below is one protobuf's own JSON parser makes, which is what the JVM's
+# write-back parses the result map with. Measured against protobuf-java 4.35.1:
+#   bool  <- 0, "TRUE", ""  -> REJECT "Invalid bool value"
+#   bytes <- 5, [97, 98]    -> REJECT
+#   float <- true           -> REJECT "Not a double value: true"
+#   int   <- 1.9, true      -> REJECT "Not an int32 value"
+#
+# That parser is also lenient the other way - it stringifies a number into a string field,
+# reads "true"/"false" as a bool and a numeric string as a number - and these tests pin the
+# decision *not* to follow it. Those coercions only exist because its input crossed a JSON
+# transport, which this writer does not; each one turns a rule-authoring mistake into data.
+def test_string_fields_take_only_a_string():
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    assert convert({"text": celtypes.StringType("ok")}, original).text == "ok"
+
+    # The JVM would stringify each of these (1 -> "1", true -> "true"). Deliberately not.
+    for value in (celtypes.IntType(1), celtypes.DoubleType(1.5), celtypes.BoolType(True),
+                  celtypes.BytesType(b"ab"), celtypes.ListType([celtypes.IntType(1)])):
+        with pytest.raises(ValueError, match="to string field 'text'"):
+            convert({"text": value}, original)
+
+
+def test_bool_fields_do_not_use_python_truthiness():
+    """The string "false" is the case that matters: truthiness wrote *true* for it."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    assert convert({"flag": celtypes.BoolType(True)}, original).flag is True
+    assert convert({"flag": celtypes.BoolType(False)}, original).flag is False
+
+    # A number is refused by the JVM too, so bool(0) accepted what it rejects.
+    for value in (celtypes.IntType(0), celtypes.IntType(1), celtypes.DoubleType(1.0)):
+        with pytest.raises(ValueError, match="to bool field 'flag'"):
+            convert({"flag": value}, original)
+    # "true"/"false" are the JVM's own lenient spellings, not followed here; the rest it
+    # rejects outright.
+    for value in (celtypes.StringType("true"), celtypes.StringType("false"),
+                  celtypes.StringType("TRUE"), celtypes.StringType("yes"),
+                  celtypes.StringType("")):
+        with pytest.raises(ValueError, match="to bool field 'flag'"):
+            convert({"flag": value}, original)
+
+
+def test_bytes_fields_take_only_a_byte_string():
+    """bytes(5) fabricates five NUL bytes out of a number the JVM refuses."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    assert convert({"blob": celtypes.BytesType(b"ab")}, original).blob == b"ab"
+
+    with pytest.raises(ValueError, match="to bytes field 'blob'"):
+        convert({"blob": celtypes.IntType(5)}, original)
+    for value in (celtypes.BoolType(True),
+                  celtypes.ListType([celtypes.IntType(97), celtypes.IntType(98)])):
+        with pytest.raises(ValueError, match="to bytes field 'blob'"):
+            convert({"blob": value}, original)
+    # The JVM base64-decodes a string here, because base64 is how bytes cross its JSON
+    # transport. This writer builds against the descriptor, so a CEL string is text that was
+    # never encoded and is not reinterpreted as bytes.
+    with pytest.raises(ValueError, match="to bytes field 'blob'"):
+        convert({"blob": celtypes.StringType("YWI=")}, original)
+
+
+def test_float_fields_take_only_a_number():
+    """A bool gets the same guard an integer field gives it, and so does a numeric string."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    # Every numeric kind a rule can compute still reaches a float field.
+    assert convert({"dbl": celtypes.DoubleType(1.5)}, original).dbl == 1.5
+    assert convert({"dbl": celtypes.IntType(3)}, original).dbl == 3.0
+    assert convert({"dbl": celtypes.UintType(3)}, original).dbl == 3.0
+    assert convert({"dbl": Decimal("1.5")}, original).dbl == 1.5
+
+    for value in (True, celtypes.BoolType(True), celtypes.BoolType(False)):
+        with pytest.raises(ValueError, match="bool"):
+            convert({"dbl": value}, original)
+    # "1.5" and "NaN" are the JVM's lenient numeric strings, not followed here.
+    for value in (celtypes.StringType("1.5"), celtypes.StringType("NaN"),
+                  celtypes.StringType("abc")):
+        with pytest.raises(ValueError, match="to float field 'dbl'"):
+            convert({"dbl": value}, original)
+
+
+def test_a_float_field_range_checks_the_narrowing():
+    """CEL has one floating type, so a `float` field is a narrowing that can overflow.
+    float(1e40) gave inf; the JVM says "Out of range float value: 1.0e40". The 1e-6 slack and
+    the pass-through for NaN/infinity are both JsonFormat.parseFloat's own behaviour."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    # approx because the value comes back as its float32 self, not the double that went in.
+    assert convert({"flt": celtypes.DoubleType(3.4028235e38)}, original).flt == pytest.approx(
+        3.4028235e38)
+    assert convert({"flt": celtypes.DoubleType(1.5)}, original).flt == 1.5
+    assert math.isnan(convert({"flt": celtypes.DoubleType(float("nan"))}, original).flt)
+    assert math.isinf(convert({"flt": celtypes.DoubleType(float("inf"))}, original).flt)
+
+    for value in (celtypes.DoubleType(1e40), celtypes.DoubleType(-1e40)):
+        with pytest.raises(ValueError, match="out of range float value"):
+            convert({"flt": value}, original)
+    # A double field takes the same value: only the 32-bit narrowing is range-checked.
+    assert convert({"dbl": celtypes.DoubleType(1e40)}, original).dbl == 1e40
+
+
+def test_an_enum_still_takes_a_symbol_name():
+    """Not a coercion: a name is protobuf JSON's canonical enum form and CEL has no enum
+    type, so a string is the only way a rule can name a symbol. The JVM accepts it too."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    assert convert({"choice": celtypes.StringType("ONE")}, original).choice == 1
+    assert convert({"choice": celtypes.IntType(1)}, original).choice == 1
+    with pytest.raises(ValueError, match="bool"):
+        convert({"choice": celtypes.BoolType(True)}, original)
+
+
 # A protobuf repeated field cannot hold null. Dropping the element changed the list's length
 # and hid the mistake; the JVM says "Repeated field elements cannot be null in field: ...".
 def test_null_element_in_a_repeated_field_is_rejected():
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
 
-    _, cls = _int_descriptor()
+    _, cls = _scalar_descriptor()
     original = cls()
     assert list(convert({"codes": ["a", "b"]}, original).codes) == ["a", "b"]
     with pytest.raises(ValueError, match="cannot write null to repeated field 'codes'"):

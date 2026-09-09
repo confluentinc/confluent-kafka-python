@@ -42,6 +42,7 @@ declared name or the JSON name - are reproduced explicitly below.
 
 import datetime
 import decimal
+import math
 from typing import Any, Mapping, Optional
 
 import celpy.celtypes as celtypes
@@ -277,19 +278,98 @@ def _set_timestamp(target: message.Message, value: datetime.datetime) -> None:
     target.nanos = delta.microseconds * 1000
 
 
+def _text(fd: descriptor.FieldDescriptor, value: Any) -> str:
+    """``value`` as a string field's value, or a rule error."""
+    if not isinstance(value, str):
+        raise ValueError(
+            f"cannot write {type(value).__name__} to string field '{fd.name}'")
+    return str(value)
+
+
+def _boolean(fd: descriptor.FieldDescriptor, value: Any) -> bool:
+    """``value`` as a bool field's value, or a rule error.
+
+    Truthiness is not the rule: it read the string "false" as true, and accepted the
+    numbers protobuf JSON refuses.
+    """
+    if not isinstance(value, (bool, celtypes.BoolType)):
+        raise ValueError(
+            f"cannot write {type(value).__name__} to bool field '{fd.name}'")
+    return bool(value)
+
+
+# The widest float32 magnitude, with the 1e-6 slack JsonFormat.parseFloat allows. CEL has one
+# floating type, so writing to a `float` field is a narrowing that can overflow; float(1e40)
+# gave inf, where the JVM says "Out of range float value: 1.0e40".
+_FLOAT32_LIMIT = 3.4028234663852886e38 * (1 + 1e-6)
+
+
+def _floating(fd: descriptor.FieldDescriptor, value: Any) -> float:
+    """``value`` as a float field's value, or a rule error.
+
+    A bool is an int subclass in Python and ``celtypes.BoolType`` subclasses int, so both
+    spellings have to be named before the numeric check - the same reason ``_integral``
+    names them.
+    """
+    if isinstance(value, (bool, celtypes.BoolType)):
+        raise ValueError(f"cannot write bool to float field '{fd.name}'")
+    if not isinstance(value, (int, float, decimal.Decimal)):
+        raise ValueError(
+            f"cannot write {type(value).__name__} to float field '{fd.name}'")
+    as_float = float(value)
+    # NaN and the infinities pass through: parseFloat accepts those explicitly.
+    if (fd.type == descriptor.FieldDescriptor.TYPE_FLOAT
+            and math.isfinite(as_float) and abs(as_float) > _FLOAT32_LIMIT):
+        raise ValueError(
+            f"out of range float value for field '{fd.name}': {as_float}")
+    return as_float
+
+
 def _scalar(fd: descriptor.FieldDescriptor, value: Any) -> Any:
-    """Narrows a celpy value to what protobuf's setter accepts."""
+    """Narrows a celpy value to what protobuf's setter accepts.
+
+    A field takes a value of its own kind, and nothing else. Narrowing unconditionally
+    accepted wrong-typed results and silently changed their meaning: ``bytes(5)``
+    fabricated five NUL bytes out of a number, ``bool("false")`` wrote **true**, and
+    ``float(True)`` wrote 1.0. A number and a bool are both writable to a *string* field
+    with `str`, which is worse still - no error, and a rule-authoring mistake becomes data.
+
+    The JVM's write-back renders the result map to JSON and parses it with protobuf's own
+    JSON parser, so that parser's rejections are the contract, and this matches all of them
+    (measured against protobuf-java 4.35.1):
+
+    * bool  <- 0, "TRUE", ""    -> "Invalid bool value"
+    * bytes <- 5, [97, 98]      -> refused
+    * float <- true             -> "Not a double value: true"
+    * int   <- 1.9, true        -> "Not an int32 value"
+
+    That parser is also *lenient* in one direction, which this deliberately does not follow:
+    it stringifies a number or a bool into a string field (1 -> "1"), reads the exact
+    strings "true"/"false" as a bool, and reads a numeric string as a number. Those are
+    artifacts of crossing a JSON transport, which this writer does not do - it builds
+    against the descriptor (see the module note) - and every coercion of that kind turns a
+    rule-authoring mistake into silently wrong data instead of an error. Refusing them is
+    the cross-client contract; the JVM accepting a base64 *string* for a bytes field is the
+    same artifact, so a CEL string is never reinterpreted as bytes either.
+
+    An **enum** is the one exception, and not a coercion: a symbol name is protobuf JSON's
+    canonical form for an enum and CEL has no enum type, so a string is the only way a rule
+    can name a symbol. ``_integral`` passes it through for protobuf's own setter to resolve.
+    """
     if fd.type == descriptor.FieldDescriptor.TYPE_BYTES:
+        if not isinstance(value, (bytes, bytearray, memoryview)):
+            raise ValueError(
+                f"cannot write {type(value).__name__} to bytes field '{fd.name}'")
         return bytes(value)
     if fd.type == descriptor.FieldDescriptor.TYPE_STRING:
-        return str(value)
+        return _text(fd, value)
     if fd.type == descriptor.FieldDescriptor.TYPE_BOOL:
-        return bool(value)
+        return _boolean(fd, value)
     if fd.type in (
         descriptor.FieldDescriptor.TYPE_FLOAT,
         descriptor.FieldDescriptor.TYPE_DOUBLE,
     ):
-        return float(value)
+        return _floating(fd, value)
     # Integer-valued fields (and enums, which take an int). int() silently truncated, so a CEL
     # double of 1.9 landed as 1 and a fractional Decimal lost its fraction. The JVM's
     # message-level write-back goes through a protobuf JSON parse, which refuses a non-integral
