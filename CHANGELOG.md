@@ -1,10 +1,9 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.x.0
+## v2.15.1
 
 ### Enhancements
 
-- Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
