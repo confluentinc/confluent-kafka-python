@@ -189,6 +189,74 @@ def test_proto_decimal_rejects_lossy_scale(decimal, scale):
     with pytest.raises(ValueError, match="Scale provided does not match the decimal"):
         decimal_to_protobuf(Decimal(decimal), scale)
 
+
+# Both rescaling directions used to build a power of ten before deciding anything, which the
+# requested scale sizes: `10**-delta` for the exactness check when narrowing, `10**delta` for
+# the coefficient when widening. Measured against this function before the guards:
+#
+#   scale -1e7  ->  5.2s to reach a ValueError
+#   scale -1e8  ->  178s to reach the same ValueError
+#   scale  1e7  ->  5.3s and a 4.1 MB field written
+#   scale  1e8  ->  did not finish inside 240s
+#
+# BigDecimal.setScale(scale) is the reference for the whole function, and it answers these
+# without the arithmetic. Measured against the JDK:
+#
+#   setScale(1, -1e7)             THROW ArithmeticException: Rounding necessary
+#   setScale(0, -1e9)             OK, scale=-1000000000, instant - a zero has no digits to lose
+#   setScale(0.00, -1e9)          OK, same
+#   setScale(1, 1e7)              OK, precision 10000001 (1.4s - the JVM pays here too)
+#   setScale(1, 1e9)              THROW ArithmeticException: BigInteger would overflow ...
+#   setScale(1E+1000000000, 0)    THROW, same
+@pytest.mark.parametrize(
+    "decimal, scale",
+    [
+        # Narrowing a non-zero value past its trailing zeros: the JVM's "Rounding necessary".
+        ("1", -10000000),
+        ("1", -1000000000),
+        ("1.23", -1000000000),
+        # Widening past what a BigInteger coefficient can hold.
+        ("1", 1000000000),
+        ("1E+1000000000", 0),
+        ("12.34", 2000000000),
+    ],
+)
+def test_proto_decimal_rejects_the_scales_java_rejects(decimal, scale):
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal(decimal), scale)
+
+
+@pytest.mark.parametrize(
+    "decimal, scale, unscaled",
+    [
+        # A zero narrows to any scale, which is what setScale does with a zero coefficient.
+        ("0", -1000000000, 0),
+        ("0.00", -1000000000, 0),
+        ("0E+10", -1000000000, 0),
+        # And the ordinary cases keep working.
+        ("1000", -3, 1),
+        ("1.50", 1, 15),
+    ],
+)
+def test_proto_decimal_accepts_the_scales_java_accepts(decimal, scale, unscaled):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert int.from_bytes(msg.value, byteorder="big", signed=True) == unscaled
+    assert msg.scale == scale
+
+
+# A timing bound, because the cost *is* the defect: the answer was already right, it just took
+# 5.2s to give at this scale and 178s one power of ten further out. The fixed path measures
+# 0.000s, so a one-second budget separates them by three orders of magnitude and cannot flake.
+def test_proto_decimal_rejects_a_wide_scale_without_the_arithmetic():
+    import time
+
+    start = time.monotonic()
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal("1"), -10000000)
+    with pytest.raises(ValueError):
+        decimal_to_protobuf(Decimal("1"), 10000000000)
+    assert time.monotonic() - start < 1.0
+
 # `protobuf_to_decimal` applies the message's precision as a rounding limit, which is what Java
 # does (`new BigDecimal(unscaled, scale, new MathContext(precision))`). A MathContext rounds
 # HALF_UP, but Python's Context defaults to HALF_EVEN, so ties landed on the other side --
