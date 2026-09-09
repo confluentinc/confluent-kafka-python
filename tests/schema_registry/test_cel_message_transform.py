@@ -386,6 +386,7 @@ def _scalar_descriptor():
         ("blob", 7, descriptor_pb2.FieldDescriptorProto.TYPE_BYTES, 1),
         ("choice", 8, descriptor_pb2.FieldDescriptorProto.TYPE_ENUM, 1),
         ("flt", 9, descriptor_pb2.FieldDescriptorProto.TYPE_FLOAT, 1),
+        ("u64", 10, descriptor_pb2.FieldDescriptorProto.TYPE_UINT64, 1),
     ]
     for name, number, ftype, label in spec:
         field = msg.field.add()
@@ -565,6 +566,92 @@ def test_a_float_field_range_checks_the_narrowing():
             convert({"flt": value}, original)
     # A double field takes the same value: only the 32-bit narrowing is range-checked.
     assert convert({"dbl": celtypes.DoubleType(1e40)}, original).dbl == 1e40
+
+
+# Overflow has to be judged on the *source*, not the result. `float()` saturates a finite but
+# too-large value to an infinity, and a range check on the result reads that infinity as one the
+# rule asked for and lets it through - so Decimal("1e1000") was written as inf, and a double
+# field had no range check at all. A wide Python int is the same case reported differently:
+# float(10**400) raises OverflowError, which escaped as a raw Python exception rather than a
+# rule error. An *explicitly* non-finite value does pass, because protobuf JSON has canonical
+# spellings for those. Measured against protobuf-java 4.35.1:
+#
+#   double <- 1e308                          1.0E308
+#   double <- 1e309, 1e1000, -1e1000         REJECT "Out of range double value"
+#   double <- "Infinity", "-Infinity", "NaN" accepted as-is
+#   float  <- 1e39, 1e1000                   REJECT "Out of range float value"
+#   float  <- "Infinity", "NaN"              accepted as-is
+def test_a_finite_value_that_overflows_is_refused():
+    from decimal import Decimal as D
+
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+
+    # The double field had no range check at all, so all four of these were written as inf.
+    for value in (D("1e1000"), D("-1e1000"), D("1e309"), D("-1e309")):
+        with pytest.raises(ValueError, match="out of range value for float field 'dbl'"):
+            convert({"dbl": value}, original)
+    # The float field's check was evaded by the saturation itself.
+    for value in (D("1e1000"), D("1e39")):
+        with pytest.raises(ValueError, match="out of range"):
+            convert({"flt": value}, original)
+    # A Python int wider than a double raised OverflowError, not a rule error.
+    with pytest.raises(ValueError, match="out of range value for float field 'dbl'"):
+        convert({"dbl": 10**400}, original)
+
+    # The widest value that still fits, so the guard cannot be off by an order of magnitude.
+    assert convert({"dbl": D("1e308")}, original).dbl == 1e308
+    assert convert({"dbl": celtypes.IntType(3)}, original).dbl == 3.0
+
+
+def test_an_explicitly_non_finite_value_still_passes():
+    """The JVM's parser takes protobuf JSON's canonical "Infinity"/"-Infinity"/"NaN", so a
+    rule that computes one deliberately is not an overflow."""
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    assert math.isinf(convert({"dbl": celtypes.DoubleType(float("inf"))}, original).dbl)
+    assert math.isinf(convert({"dbl": celtypes.DoubleType(float("-inf"))}, original).dbl)
+    assert math.isnan(convert({"dbl": celtypes.DoubleType(float("nan"))}, original).dbl)
+    assert math.isinf(convert({"flt": celtypes.DoubleType(float("inf"))}, original).flt)
+    assert math.isnan(convert({"flt": celtypes.DoubleType(float("nan"))}, original).flt)
+    # And a Decimal cannot be non-finite without saying so either.
+    from decimal import Decimal as D
+
+    assert math.isnan(convert({"dbl": D("NaN")}, original).dbl)
+
+
+# The same class in the integer arm, found while checking the above: `int()` was called before
+# the range check, so int(Decimal("1e100000000")) spent minutes building a hundred million
+# digits to reach a rejection its magnitude already settled. The JVM reports that off the token
+# without building the number. The timing bound is generous: the fixed path is instant.
+def test_an_out_of_range_integer_is_refused_without_building_it():
+    import time
+    from decimal import Decimal as D
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _scalar_descriptor()
+    original = cls()
+    start = time.monotonic()
+    for value in (D("1e100000000"), D("-1e100000000"), D("1e30")):
+        with pytest.raises(ValueError, match="out of range"):
+            convert({"i32": value}, original)
+    assert time.monotonic() - start < 1.0
+    # A non-finite Decimal is not an integer either.
+    for value in (D("NaN"), D("Infinity")):
+        with pytest.raises(ValueError):
+            convert({"i32": value}, original)
+    # And the values that do fit still convert.
+    assert convert({"i32": D("2")}, original).i32 == 2
+    assert convert({"u64": D("18446744073709551615")}, original).u64 == 2**64 - 1
 
 
 def test_an_enum_still_takes_a_symbol_name():
