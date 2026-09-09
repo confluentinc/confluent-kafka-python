@@ -48,6 +48,7 @@ import celpy.celtypes as celtypes
 from google.protobuf import descriptor, message
 
 from confluent_kafka.schema_registry.common.protobuf import _is_repeated
+from confluent_kafka.schema_registry.rules.cel.constraints import _WRAPPER_TYPES
 from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
 from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
     unscaled_to_bytes,
@@ -57,6 +58,7 @@ __all__ = ["convert"]
 
 _DECIMAL_TYPE_NAME = "confluent.type.Decimal"
 _VARIANT_TYPE_NAME = "confluent.type.Variant"
+_DURATION_TYPE_NAME = "google.protobuf.Duration"
 _TIMESTAMP_TYPE_NAME = "google.protobuf.Timestamp"
 
 _EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
@@ -180,9 +182,64 @@ def _set_message(target: message.Message, fd: descriptor.FieldDescriptor, value:
         target.value = bytes(value.value)
         return
 
+    # A wrapper, or a Duration. The CEL binding unwraps these on the way in - a StringValue
+    # field is bound as a plain string, a Duration as a CEL duration (see
+    # _MSG_TYPE_URL_TO_CTOR in constraints.py) - so the inverse has to put them back. Without
+    # it an identity transform over such a field wrote an empty message and the value was
+    # silently lost. The JVM gets this for free: its message-level write-back goes through
+    # protobuf JSON, whose parser reads "hello" into a StringValue and "3s" into a Duration.
+    if full_name in _WRAPPER_TYPES:
+        _set_wrapper(target, value)
+        return
+    if full_name == _DURATION_TYPE_NAME and isinstance(value, datetime.timedelta):
+        _set_duration(target, value)
+        return
+
     # A nested message the rule rebuilt field by field.
     if isinstance(value, Mapping):
         _fill(target, value)
+        return
+
+    # A message the rule echoed unchanged rather than rebuilding.
+    if isinstance(value, message.Message) and value.DESCRIPTOR.full_name == full_name:
+        target.CopyFrom(value)
+        return
+
+    raise ValueError(
+        f"cannot write {type(value).__name__} to {full_name} (field '{fd.name}')")
+
+
+def _set_duration(target: message.Message, value: datetime.timedelta) -> None:
+    """Sets a ``google.protobuf.Duration`` from a timedelta.
+
+    Split by truncation toward zero, not by floor division: a Duration's ``seconds`` and
+    ``nanos`` must carry the same sign, whereas timedelta normalises to a non-negative
+    microseconds component (-3.5s is stored as days=-1, seconds=86396, microseconds=500000).
+    """
+    total_us = (value.days * 86400 + value.seconds) * 1_000_000 + value.microseconds
+    sign = -1 if total_us < 0 else 1
+    magnitude = abs(total_us)
+    target.seconds = sign * (magnitude // 1_000_000)
+    target.nanos = sign * (magnitude % 1_000_000) * 1000
+
+
+def _set_wrapper(target: message.Message, value: Any) -> None:
+    """Sets a wrapper's single ``value`` field from the scalar the rule returned."""
+    fd = target.DESCRIPTOR.fields_by_name["value"]
+    if fd.type == descriptor.FieldDescriptor.TYPE_BOOL:
+        # celtypes.BoolType subclasses int, not bool, so protobuf would reject it as-is.
+        target.value = bool(value)
+    elif fd.type == descriptor.FieldDescriptor.TYPE_BYTES:
+        target.value = bytes(value)
+    elif fd.type == descriptor.FieldDescriptor.TYPE_STRING:
+        target.value = str(value)
+    elif fd.type in (
+        descriptor.FieldDescriptor.TYPE_FLOAT,
+        descriptor.FieldDescriptor.TYPE_DOUBLE,
+    ):
+        target.value = float(value)
+    else:
+        target.value = int(value)
 
 
 def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
@@ -193,7 +250,12 @@ def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     if sign:
         unscaled = -unscaled
     # Negated exponent, negative included - see set_decimal_message in common/protobuf.py.
+    # Precision is the unscaled value's digit count, as Java's ProtobufResultWriter sets it
+    # (`m.put("precision", dec.precision())`). Safe to set here because this writer never
+    # rescales: len(digits) is exactly the digit count of the unscaled value being written,
+    # so the MathContext the reader builds from it cannot round the value or shift its scale.
     target.value = unscaled_to_bytes(unscaled)
+    target.precision = len(digits)
     target.scale = -exponent
 
 

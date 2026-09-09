@@ -117,6 +117,14 @@ def _decimal_from_string(text: str, original: typing.Any) -> Decimal:
         raise celpy.CELEvalError(f"decimal: invalid number '{original}'") from ex
     if not d.is_finite():
         raise celpy.CELEvalError(f"decimal: invalid number '{original}'")
+    # BigDecimal holds its scale in a signed int and rejects a literal whose exponent will not
+    # fit, so `1e-2147483648` is a NumberFormatException there while Python's Decimal accepts
+    # it happily. Measured against the JVM, the accepted band is symmetric: |exponent| <=
+    # INT32_MAX, with both +/-2147483648 refused. Left unchecked, rendering such a value as
+    # fixed-point would try to materialise billions of digits.
+    exponent = d.as_tuple().exponent
+    if not isinstance(exponent, int) or exponent < -_INT32_MAX or exponent > _INT32_MAX:
+        raise celpy.CELEvalError(f"decimal: invalid number '{original}'")
     return d
 
 
