@@ -839,14 +839,21 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
 
     delta = exp + scale  # type: ignore[operator]
 
-    if delta < 0:
-        raise ValueError("Scale provided does not match the decimal")
-
     unscaled_datum = 0
     for digit in digits:
         unscaled_datum = (unscaled_datum * 10) + digit
 
-    unscaled_datum = 10**delta * unscaled_datum
+    if delta >= 0:
+        unscaled_datum = 10**delta * unscaled_datum
+    else:
+        # Narrowing the scale, which BigDecimal.setScale(scale) allows whenever no rounding is
+        # needed - only the digits being dropped have to be zeros. Refusing every reduction
+        # rejected exact conversions: Decimal("1.50") at scale 1, or Decimal("1000") at the
+        # negative scale -3 that protobuf_to_decimal itself can produce.
+        divisor = 10 ** (-delta)
+        if unscaled_datum % divisor != 0:
+            raise ValueError("Scale provided does not match the decimal")
+        unscaled_datum //= divisor
 
     if sign:
         unscaled_datum = -unscaled_datum
