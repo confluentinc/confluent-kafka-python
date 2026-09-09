@@ -237,6 +237,16 @@ def _require_variant_or_null(o: typing.Any, fn: str) -> typing.Optional[Variant]
 def _path(o: typing.Any, path: typing.Any) -> typing.Optional[Variant]:
     """``variants.path(dyn, string)`` - navigate a JSONPath subset; CEL null on a miss;
     malformed path raises."""
+    # Java declares this `(DYN, STRING)`, so a non-string path has no matching overload there
+    # whatever the receiver holds - and Go, JS and C++ enforce it the same way, in the declared
+    # overload. celpy has no overload-set concept, so the check has to be explicit; without it
+    # `str(path)` looked up the path "1" for variants.path(v, 1). Checked *before* the receiver
+    # for the same reason: the argument error does not depend on the receiver's shape, so a
+    # null receiver must not turn a mistyped call into CEL null. Same contract as
+    # variants.field, variants.index, variants.as and variants.tryAs.
+    if not isinstance(path, (str, celtypes.StringType)):
+        raise celpy.CELEvalError(
+            f"variants.path: expected a string path, got {type(path).__name__}")
     v = _require_variant_or_null(o, "variants.path")
     if v is None:
         return None
