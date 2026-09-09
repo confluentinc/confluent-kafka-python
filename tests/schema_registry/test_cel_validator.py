@@ -1272,6 +1272,41 @@ def test_alignment_width_is_refused(validator, expr):
         validator.execute(rule(expr), None, 1)
 
 
+# Expanding a *zero* is free, so the aligned frame is set by the operands that actually have
+# digits - which means several of these turn on *which* operand expands rather than on how far
+# apart the scales are. A zero also keeps whatever scale it was built with, so its adjusted
+# exponent says nothing about the cost, which is what an earlier estimate got wrong.
+#
+# Every row measured on both libmpdec and the JDK, and they agree throughout:
+#
+#   0E+2e9 + 0E-2e9      free, 1 digit            precision 1
+#   0E+2e9 + 1           free, 1 digit            precision 1, scale 0 (the zero expands)
+#   0E+2e9 mod 1E-2e9    free, 1 digit            precision 1
+#   0E-2e9 mod 1E+2e9    free, 1 digit            precision 1
+#   1 + 0E-2e9           1601 MB, 2e9+1 digits    ArithmeticException  (the *one* expands)
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimals.eq(decimals.add(decimal("0E+2000000000"), decimal("0E-2000000000")), decimal("0"))',
+        'decimals.eq(decimals.sub(decimal("0E+2000000000"), decimal("0E-2000000000")), decimal("0"))',
+        'decimals.eq(decimals.add(decimal("0E+2000000000"), decimal("1")), decimal("1"))',
+        'decimals.eq(decimals.mod(decimal("0E+2000000000"), decimal("1E-2000000000")), decimal("0"))',
+        'decimals.eq(decimals.mod(decimal("0E-2000000000"), decimal("1E+2000000000")), decimal("0"))',
+        'decimals.eq(decimals.mod(decimal("0"), decimal("3")), decimal("0"))',
+    ],
+)
+def test_expanding_a_zero_operand_is_free(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+# The row that must still be refused, because here the *one* is what expands into the zero's
+# scale. A blanket zero exemption would have let this through.
+def test_a_nonzero_operand_expanding_into_a_zeros_scale_is_refused(validator):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(
+            rule('decimals.add(decimal("1"), decimal("0E-2000000000")) != decimal("0")'), None, 1)
+
+
 @pytest.mark.parametrize(
     "expr, expected",
     [

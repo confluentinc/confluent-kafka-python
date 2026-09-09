@@ -364,17 +364,41 @@ def _require_sane_width(needed: int, fn: str, what: str, limit: int = _SANE_WIDT
             f"{fn}: {what} needs {needed} digits, past this client's {limit}-digit limit")
 
 
-def _require_additive_domain(x: Decimal, y: Decimal, fn: str) -> None:
-    """Addition and subtraction align the operands on the finer scale, so the aligned frame
-    carries the smaller exponent and spans both magnitudes.
+def _operand_width(target_scale: int, d: Decimal) -> int:
+    """Digits ``d`` needs once expanded to ``target_scale``.
 
-    No exemption for a zero operand: aligning ``0E-2147483647`` with ``1`` still expands the
-    *one* into the zero's scale, which is a 2**31-digit coefficient. Only a lone value being
-    rescaled gets the zero shortcut (see :func:`_quantize`).
+    A **zero** contributes one digit whatever the distance, because expanding a zero appends no
+    digits - and that is what decides several of these cases, since alignment expands only the
+    operand whose scale is coarser. Measured on libmpdec, and the reference agrees on every
+    row:
+
+    ==========================  ==========================  ===============================
+    expression                  libmpdec                    JDK
+    ==========================  ==========================  ===============================
+    ``0E+2e9 + 0E-2e9``         free, 1 digit               precision 1
+    ``0E+2e9 + 1``              free, 1 digit               precision 1
+    ``0E+2e9 mod 1E-2e9``       free, 1 digit               precision 1
+    ``0E-2e9 + 1``              **1601 MB**, 2e9+1 digits   ArithmeticException
+    ==========================  ==========================  ===============================
+
+    The last row is the one that must still be refused, and the difference is purely which
+    operand expands: aligning to scale 0 expands the zero (free), aligning to scale 2e9
+    expands the *one* (2e9 digits).
     """
-    exponent = min(_exponent_of(x), _exponent_of(y))
-    adjusted = max(_adjusted_of(x), _adjusted_of(y)) + 1
-    _require_sane_width(adjusted - exponent + 1, fn, "aligning the operands")
+    if not d:
+        return 1
+    exponent = _exponent_of(d)
+    digits = _adjusted_of(d) - exponent + 1
+    return digits + target_scale + exponent
+
+
+def _require_additive_domain(x: Decimal, y: Decimal, fn: str) -> None:
+    """Addition and subtraction align both operands on the finer scale, so the frame is the
+    widest either of them needs there - computed per operand, because a zero costs nothing to
+    expand however far it moves (see :func:`_operand_width`)."""
+    target_scale = -min(_exponent_of(x), _exponent_of(y))
+    needed = max(_operand_width(target_scale, x), _operand_width(target_scale, y)) + 1
+    _require_sane_width(needed, fn, "aligning the operands")
 
 
 def _decimals_add(a: typing.Any, b: typing.Any) -> Decimal:
@@ -429,7 +453,13 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
     #
     # so the last two are what the frame would have cost us, and both are values the JVM
     # accepts: `1e-2147483647 mod 1e2147483647` is the dividend itself at precision 1.
-    quotient_digits = max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
+    # A zero dividend has a quotient of zero whatever the scales, and the adjusted exponent
+    # says nothing useful about it - a zero keeps whatever scale it was built with, so
+    # `0E+2e9 mod 1E-2e9` estimated 4e9 digits for a result that is just zero. Measured free on
+    # libmpdec, and the JDK returns 0 at precision 1.
+    quotient_digits = (
+        1 if not da else max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
+    )
     _require_sane_width(quotient_digits, "decimals.mod", "the integral quotient")
     return _EXACT_CONTEXT.remainder(da, db)
 
