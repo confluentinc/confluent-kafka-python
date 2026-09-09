@@ -18,7 +18,7 @@
 
 import asyncio as _locks
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from cachetools import LRUCache
 
@@ -29,7 +29,6 @@ from confluent_kafka.schema_registry import (
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.common.serde import (
-    DLQ_RULE_NAME_HEADER,
     STRATEGY_TYPE_MAP,
     ErrorAction,
     FieldTransformer,
@@ -41,11 +40,6 @@ from confluent_kafka.schema_registry.common.serde import (
     RuleError,
     SchemaId,
     SubjectNameStrategyType,
-    ValidationRuleError,
-    ValidationRuleExecutor,
-    ValidationRulesExecution,
-    default_validation_rule_executor,
-    get_original_key,
 )
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, RuleSet, Schema
@@ -259,9 +253,6 @@ class AsyncBaseSerde(object):
         '_subject_name_conf',
         '_subject_name_func',
         '_field_transformer',
-        '_validation_rules_execution',
-        '_validation_rules_fail_fast',
-        '_validation_rule_executor',
     ]
 
     _use_schema_id: Optional[int]
@@ -273,65 +264,6 @@ class AsyncBaseSerde(object):
     _subject_name_conf: Optional[dict]
     _subject_name_func: Callable[..., Any]
     _field_transformer: Optional[FieldTransformer]
-    _validation_rules_execution: ValidationRulesExecution
-    _validation_rules_fail_fast: bool
-    _validation_rule_executor: Optional[ValidationRuleExecutor]
-
-    def configure_validation_rules(self, conf: dict) -> None:
-        """
-        Pop and validate the inline validation rule configs from ``conf``.
-
-        When execution is not DISABLED the executor is resolved eagerly, so a missing
-        dependency surfaces at serializer construction rather than at the first record.
-        """
-        execution = conf.pop('validation.rules.execution', ValidationRulesExecution.DISABLED)
-        try:
-            self._validation_rules_execution = ValidationRulesExecution(execution)
-        except ValueError:
-            raise ValueError(
-                "validation.rules.execution must be one of {}".format(
-                    ", ".join(m.value for m in ValidationRulesExecution)
-                )
-            )
-
-        self._validation_rules_fail_fast = cast(bool, conf.pop('validation.rules.fail.fast', False))
-        if not isinstance(self._validation_rules_fail_fast, bool):
-            raise ValueError("validation.rules.fail.fast must be a boolean value")
-
-        executor = conf.pop('validation.rules.executor', None)
-        if self._validation_rules_execution == ValidationRulesExecution.DISABLED:
-            # Nothing will be validated, so don't import the CEL machinery.
-            self._validation_rule_executor = executor
-            return
-        if executor is None:
-            executor = default_validation_rule_executor()
-        if not isinstance(executor, ValidationRuleExecutor):
-            raise ValueError("validation.rules.executor must be a ValidationRuleExecutor instance")
-        self._validation_rule_executor = executor
-
-    def _validation_enabled(self, phase: Optional[ValidationRulesExecution] = None) -> bool:
-        """
-        True when inline validation rules should run at ``phase``.
-
-        Pass no phase when there is a single validation point — a serialization path
-        that applies no domain rules has nothing to run before or after, so any
-        enabled mode validates there.
-        """
-        if phase is None:
-            return self._validation_rules_execution != ValidationRulesExecution.DISABLED
-        return self._validation_rules_execution == phase
-
-    def _raise_validation_violations(self, violations: List[ValidationRuleError]) -> None:
-        """
-        Raise a single SerializationError aggregating every violation found.
-        """
-        if not violations:
-            return
-        count = len(violations)
-        lines = ["Validation rule failed ({} violation{}):".format(count, "" if count == 1 else "s")]
-        for violation in violations:
-            lines.append("  - {}".format(violation))
-        raise SerializationError("\n".join(lines))
 
     def configure_subject_name_strategy(
         self,
@@ -428,19 +360,9 @@ class AsyncBaseSerde(object):
         message: Any,
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer: Optional[FieldTransformer],
-        original_message: Any = None,
     ) -> Any:
         return self._execute_rules_with_phase(
-            ser_ctx,
-            subject,
-            RulePhase.DOMAIN,
-            rule_mode,
-            source,
-            target,
-            message,
-            inline_tags,
-            field_transformer,
-            original_message,
+            ser_ctx, subject, RulePhase.DOMAIN, rule_mode, source, target, message, inline_tags, field_transformer
         )
 
     def _execute_rules_with_phase(
@@ -454,12 +376,9 @@ class AsyncBaseSerde(object):
         message: Any,
         inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer: Optional[FieldTransformer],
-        original_message: Any = None,
     ) -> Any:
         if message is None or target is None:
             return message
-        if original_message is None:
-            original_message = message
         enabled_env: Optional[str] = None
         rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
@@ -487,10 +406,6 @@ class AsyncBaseSerde(object):
         if not rules:
             return message
 
-        is_key = ser_ctx is not None and ser_ctx.field == MessageField.KEY
-        original_key = original_message if is_key else get_original_key()
-        original_value = None if is_key else original_message
-
         for index in range(len(rules)):
             rule = rules[index]
             ctx = RuleContext(
@@ -505,12 +420,8 @@ class AsyncBaseSerde(object):
                 rules,
                 inline_tags,
                 field_transformer,
-                original_key,
-                original_value,
             )
             if self._is_disabled(ctx, rule):
-                continue
-            if self._is_dlq_replay(ctx, rule):
                 continue
             if rule.mode == RuleMode.WRITEREAD:
                 if rule_mode != RuleMode.READ and rule_mode != RuleMode.WRITE:
@@ -592,29 +503,6 @@ class AsyncBaseSerde(object):
             return True
         return rule.disabled
 
-    def _is_dlq_replay(self, ctx: RuleContext, rule: Rule) -> bool:
-        # A __rule.name header means this record came from a DLQ; skip that rule
-        # so it doesn't fail again.
-        headers = ctx.ser_ctx.headers if ctx.ser_ctx is not None else None
-        if not headers or rule.name is None:
-            return False
-        value: Any = None
-        if isinstance(headers, dict):
-            value = headers.get(DLQ_RULE_NAME_HEADER)
-        else:
-            for k, v in headers:
-                # last occurrence wins when a header key repeats
-                if k == DLQ_RULE_NAME_HEADER:
-                    value = v
-        if value is None:
-            return False
-        if isinstance(value, (bytes, bytearray)):
-            try:
-                value = value.decode('utf-8')
-            except UnicodeDecodeError:
-                return False
-        return value == rule.name
-
     def _run_action(
         self,
         ctx: RuleContext,
@@ -656,27 +544,6 @@ class AsyncBaseSerde(object):
         elif action_name == 'NONE':
             return NoneAction()
         return self._rule_registry.get_action(action_name)
-
-    async def aclose(self):
-        # Close only the executors/actions this serde owns via a dedicated
-        # registry. Members of the shared global registry are process-lifetime and
-        # used by other serdes, so closing them here would tear down live resources.
-        from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-
-        if self._rule_registry is None or self._rule_registry is RuleRegistry.get_global_instance():
-            return
-        # Close actions before executors, each isolated so one failure can't skip
-        # the rest (a buggy executor must not cost buffered DLQ records).
-        for action in self._rule_registry.get_actions():
-            try:
-                action.close()
-            except Exception as e:
-                log.warning("Error closing rule action %s: %s", type(action).__name__, e)
-        for executor in self._rule_registry.get_executors():
-            try:
-                executor.close()
-            except Exception as e:
-                log.warning("Error closing rule executor %s: %s", type(executor).__name__, e)
 
 
 class AsyncBaseSerializer(AsyncBaseSerde, Serializer):
