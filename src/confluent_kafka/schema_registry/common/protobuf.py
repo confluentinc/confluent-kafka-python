@@ -824,6 +824,12 @@ def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or name.startswith('google/protobuf/') or name.startswith('google/type/')
 
 
+# Exact, with the exponent range widened: the default +/-999999 is narrower than the int32
+# scale a confluent.type.Decimal field permits, and the 28-digit default precision would
+# silently round a wide unscaled value.
+_EXACT_CONTEXT = Context(prec=MAX_PREC, rounding=ROUND_HALF_UP, Emax=MAX_EMAX, Emin=MIN_EMIN)
+
+
 # The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
 # which is 646456993 decimal digits, and setScale reports anything wider as "BigInteger would
 # overflow supported range". Bisected against the JDK on BigDecimal("1.23"): setScale(1e8) and
@@ -898,7 +904,15 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
 
     result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes
-    result.precision = 0
+    # The unscaled value's digit count, which is what BigDecimal.precision() reports and what
+    # every other write path in this client family carries. Left at 0 here, this was one of
+    # three paths whose output a JVM consumer rewrites on its next touch: `precision()` is
+    # never less than 1, so 0 is a value the reference cannot produce, and its reader
+    # normalises it away.
+    #
+    # Derived from `unscaled_datum` - the integer about to be written - rather than from the
+    # input, so a rescale above cannot leave it stale.
+    result.precision = len(str(abs(unscaled_datum)))
     result.scale = scale
     return result
 
@@ -915,18 +929,19 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     """
     unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
 
-    # Java reads this as `new BigDecimal(unscaled, scale, new MathContext(precision))`, and a
-    # MathContext rounds HALF_UP. Python's Context defaults to HALF_EVEN, so a tie landed on the
-    # other side: unscaled 125 at precision 2 gave 1.2E+2 where Java gives 1.3E+2. Emax/Emin are
-    # widened for the same reason the other contexts in this client are - the default +/-999999
-    # is narrower than the int32 scale this message's field permits.
-    decimal_context = Context(
-        prec=value.precision if value.precision > 0 else MAX_PREC,
-        rounding=ROUND_HALF_UP,
-        Emax=MAX_EMAX,
-        Emin=MIN_EMIN,
-    )
-    return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)
+    # `precision` is deliberately not applied. Java reads it as
+    # `new BigDecimal(unscaled, scale, new MathContext(precision))`, but every client - this one
+    # included - writes it as the unscaled value's own digit count, which makes that MathContext
+    # a guaranteed no-op. It has an effect only on a message from a foreign producer carrying a
+    # *declared column* precision, and there its effect is to silently round data the producer
+    # sent exactly. Six of the seven clients already ignore it; this path was the one that did
+    # not, so the same message read here and through the CEL binding gave two different values
+    # (unscaled 125 at precision 2: 1.3E+2 here, 125 there).
+    #
+    # Emax/Emin are widened because the default +/-999999 is narrower than the int32 scale this
+    # message's field permits.
+    return _EXACT_CONTEXT.create_decimal(unscaled_datum).scaleb(
+        -value.scale, _EXACT_CONTEXT)
 
 
 def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[name-defined]

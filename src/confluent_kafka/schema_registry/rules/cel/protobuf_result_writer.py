@@ -299,6 +299,25 @@ def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     sign, digits, exponent = value.as_tuple()
     if not isinstance(exponent, int):
         raise ValueError("cannot write a non-finite decimal to " + _DECIMAL_TYPE_NAME)
+    # `scale` is an int32 on the wire. The operators no longer predict which results
+    # BigDecimal could hold - each library's own exponent range is delegated and documented -
+    # so a value outside that range now reaches here instead: `decimals.mul` on two
+    # 1e2147483647 operands is exact and cheap, and needs a scale of -4294967294. Assigning
+    # it raises a bare `ValueError: Value out of range` from the protobuf runtime; this says
+    # what the value was and which field could not hold it.
+    if not (-(2**31) <= -exponent <= 2**31 - 1):
+        raise ValueError(
+            f"decimal needs a scale of {-exponent}, which does not fit the int32 scale field "
+            f"of {_DECIMAL_TYPE_NAME}")
+    # The coefficient goes out in base 256, and str <-> int radix conversion is quadratic, so
+    # CPython caps it: `int("9" * 5000)` raises ValueError "Exceeds the limit (4300 digits) for
+    # integer string conversion". That cap is the real ceiling on what this client can encode -
+    # far below any width a rule can compute - and it reached callers as a CPython internal
+    # error naming neither the field nor the decimal. Checked first so it reads as one.
+    if len(digits) > _MAX_COEFFICIENT_DIGITS:
+        raise ValueError(
+            f"decimal coefficient has {len(digits)} digits, past the "
+            f"{_MAX_COEFFICIENT_DIGITS} this client can encode into {_DECIMAL_TYPE_NAME}")
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
@@ -474,6 +493,11 @@ _INT_RANGES = {
 # cannot fit any of the ranges below, so its magnitude settles the question before the digits
 # are ever built.
 _MAX_INT_DIGITS = 20
+
+# CPython's own int_max_str_digits, the cap it puts on str <-> int conversion because decimal
+# to binary radix conversion is quadratic. It is what actually bounds the coefficient this
+# client can write, and it matches the bound the C++ client had to adopt for its own codec.
+_MAX_COEFFICIENT_DIGITS = 4300
 
 
 def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:

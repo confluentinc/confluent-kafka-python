@@ -364,6 +364,51 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
         assert standalone.SerializeToString() == field_level.SerializeToString(), text
 
 
+# `mul` is no longer guarded on its result's shape - each library's own exponent range is
+# delegated and documented, and multiplication is measurably cheap at any width. So a value
+# whose scale no int32 can carry now reaches the writer instead of being refused by the
+# operator: two 1e2147483647 operands multiply exactly, and need a scale of -4294967294.
+# Assigning that raises a bare `ValueError: Value out of range` from the protobuf runtime;
+# the writer names the value and the field instead.
+def test_a_scale_that_does_not_fit_int32_is_refused_at_the_wire():
+    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
+
+    for text in ["1e4294967294", "1e-4294967294"]:
+        with pytest.raises(ValueError, match="does not fit the int32 scale field"):
+            _set_decimal(decimal_pb2.Decimal(), Decimal(text))
+
+    # The boundary itself still writes, from both sides.
+    for text, scale in [("1e-2147483647", 2147483647), ("1e2147483647", -2147483647)]:
+        target = decimal_pb2.Decimal()
+        _set_decimal(target, Decimal(text))
+        assert target.scale == scale, text
+
+
+# The coefficient, not the scale, is what actually bounds what this client can write. The wire
+# form is the unscaled integer in base 256, and decimal <-> binary radix conversion is
+# quadratic: CPython caps str <-> int at 4300 digits for exactly that reason (measured in the
+# C++ sibling, whose own codec takes 0.04 s at 10**4 digits, 4.2 s at 10**5 and ~420 s at
+# 10**6, with mpdecimal's mpd_qexport_u32 only about 10x better and the same quadratic shape).
+#
+# So the cap is pre-existing - `int("9" * 5000)` has always raised - and reached callers as
+# CPython's "Exceeds the limit (4300 digits) for integer string conversion", naming neither
+# the decimal nor the field. It now names both.
+def test_a_coefficient_past_what_can_be_encoded_is_refused():
+    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
+
+    for digits in [4301, 5000, 100000]:
+        with pytest.raises(ValueError, match="past the 4300 this client can encode"):
+            _set_decimal(decimal_pb2.Decimal(), Decimal("9" * digits))
+
+    # The boundary itself still writes, and so does anything narrower.
+    for digits in [1, 38, 4300]:
+        target = decimal_pb2.Decimal()
+        _set_decimal(target, Decimal("9" * digits))
+        assert target.precision == digits
+
+
 def _scalar_descriptor():
     """A message with one field of each scalar kind, built at runtime."""
     from google.protobuf import descriptor_pb2, descriptor_pool, message_factory

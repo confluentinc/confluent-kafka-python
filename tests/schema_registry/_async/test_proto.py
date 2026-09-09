@@ -257,35 +257,76 @@ def test_proto_decimal_rejects_a_wide_scale_without_the_arithmetic():
         decimal_to_protobuf(Decimal("1"), 10000000000)
     assert time.monotonic() - start < 1.0
 
-# `protobuf_to_decimal` applies the message's precision as a rounding limit, which is what Java
-# does (`new BigDecimal(unscaled, scale, new MathContext(precision))`). A MathContext rounds
-# HALF_UP, but Python's Context defaults to HALF_EVEN, so ties landed on the other side --
-# unscaled 125 at precision 2 gave 1.2E+2 where Java gives 1.3E+2. Expectations below are the
-# JVM's output for the same inputs.
+# `protobuf_to_decimal` deliberately does **not** apply the message's precision, and these are
+# the cases that tell the two policies apart.
 #
-# Only ties at a precision narrower than the value's digit count are affected. Every client now
-# writes precision as the value's own digit count, which makes the limit a no-op, so this reaches
-# only messages from a producer that puts a declared/column precision in the field.
+# Java reads it as `new BigDecimal(unscaled, scale, new MathContext(precision))`, so a precision
+# narrower than the coefficient's digit count *rounds the value on read*. Every client - this one
+# included - writes precision as the unscaled value's own digit count, which makes that
+# MathContext a guaranteed no-op, so it only ever has an effect on a message from a foreign
+# producer carrying a declared/column precision. There its effect is to silently round data the
+# producer sent exactly, which is why six of the seven clients ignore it and this path now does
+# too. See ~/Documents/decimals.md section 2.
+#
+# The values below are what the reference would have returned for the same inputs, kept in the
+# comments so the divergence is legible: unscaled 125 at precision 2 is 1.3E+2 on the JVM.
 @pytest.mark.parametrize(
     "unscaled, scale, precision, expected",
     [
-        ("12325", 0, 4, "1.233E+4"),   # HALF_EVEN would give 1.232E+4
-        ("125", 0, 2, "1.3E+2"),       # HALF_EVEN would give 1.2E+2
-        ("-125", 0, 2, "-1.3E+2"),     # away from zero, not toward even
-        ("12315", 0, 4, "1.232E+4"),   # not a tie: both modes agree
-        ("135", 0, 2, "1.4E+2"),       # tie where both modes agree
-        ("12345", 2, 3, "123"),        # the limit applied to a scaled value
-        ("1234", 2, 4, "12.34"),       # precision == digit count: a no-op
+        ("12325", 0, 4, "12325"),      # JVM, rounding to 4 digits: 1.233E+4
+        ("125", 0, 2, "125"),          # JVM: 1.3E+2
+        ("-125", 0, 2, "-125"),        # JVM: -1.3E+2
+        ("12315", 0, 4, "12315"),      # JVM: 1.232E+4
+        ("135", 0, 2, "135"),          # JVM: 1.4E+2
+        ("12345", 2, 3, "123.45"),     # JVM: 123
+        # Where precision is at least the digit count - i.e. everything this client family
+        # writes - the two policies agree, and always did.
+        ("1234", 2, 4, "12.34"),
         ("0", 2, 1, "0.00"),
         ("1", -3, 1, "1E+3"),          # negative scale survives
+        # And precision 0, which the reference cannot produce but three of our write paths did
+        # until now: MathContext(0) is UNLIMITED, so this agreed too.
+        ("12345", 2, 0, "123.45"),
     ],
 )
-def test_protobuf_to_decimal_rounds_half_up_like_java(unscaled, scale, precision, expected):
+def test_protobuf_to_decimal_ignores_precision(unscaled, scale, precision, expected):
     msg = decimal_pb2.Decimal(
         value=int(unscaled).to_bytes(16, byteorder="big", signed=True),
         scale=scale,
         precision=precision,
     )
     assert str(protobuf_to_decimal(msg)) == expected
+
+
+# The other half of section 2: the same message read through the CEL binding and through the
+# serde must give the same value. It did not - this path applied precision and that one never
+# has - so unscaled 125 at precision 2 was 1.3E+2 here and 125 there.
+def test_both_read_paths_agree_on_precision():
+    from confluent_kafka.schema_registry.confluent.types.decimal_utils import from_proto_decimal
+
+    msg = decimal_pb2.Decimal(
+        value=(125).to_bytes(2, byteorder="big", signed=True), scale=0, precision=2)
+    assert protobuf_to_decimal(msg) == from_proto_decimal(msg)
+
+
+# decimal_to_protobuf left `precision` at 0, which the reference cannot produce -
+# `BigDecimal.precision()` is never less than 1, zero's precision being 1 - so a JVM consumer
+# rewrites such a message on its next touch. It now carries the unscaled value's digit count,
+# derived from the integer actually written so a rescale cannot leave it stale.
+@pytest.mark.parametrize(
+    "decimal, scale, precision",
+    [
+        ("12.34", 2, 4),
+        ("1000", -3, 1),      # unscaled 1
+        ("0", 0, 1),          # BigDecimal.ZERO.precision() == 1
+        ("0.00", 2, 1),
+        ("-1.50", 1, 2),      # the sign is not a digit
+        ("12.3400", 2, 4),    # after the exact narrowing, not before
+    ],
+)
+def test_decimal_to_protobuf_writes_the_digit_count(decimal, scale, precision):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert msg.precision == precision
+    assert msg.scale == scale
 
 
