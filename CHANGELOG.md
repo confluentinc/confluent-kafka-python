@@ -15,8 +15,8 @@
 - Use `asyncio.get_running_loop()` instead of `asyncio.get_event_loop()` to avoid creating a new event loop and raise an error in case a loop isn't available (@AlexCai26, #2339).
 
 
-confluent-kafka-python 2.15.1rc1 is based on librdkafka 2.15.1-RC1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1-RC1)
+confluent-kafka-python 2.15.1rc1 is based on librdkafka 2.15.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
