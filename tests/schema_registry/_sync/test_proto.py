@@ -158,3 +158,33 @@ def test_proto_decimal(decimal, scale):
     converted = decimal_to_protobuf(input, scale)
     result = protobuf_to_decimal(converted)
     assert result == input
+
+# BigDecimal.setScale(scale) narrows a scale whenever no rounding is needed -- only the digits
+# being dropped must be zeros. decimal_to_protobuf used to refuse every reduction (`delta < 0`),
+# which rejected exact conversions: Decimal("1.50") at scale 1, and the negative scale that
+# protobuf_to_decimal itself produces for a value like 1E+3. Values requiring real rounding are
+# still refused, as setScale does without a rounding mode.
+@pytest.mark.parametrize(
+    "decimal, scale, unscaled, out_scale",
+    [
+        ("12.3400", 2, 1234, 2),      # trailing zeros dropped, exact
+        ("1.50", 1, 15, 1),
+        ("-1.50", 1, -15, 1),
+        ("1000", -3, 1, -3),          # negative scale, exact
+        ("-1000", -3, -1, -3),
+        ("0.00", 0, 0, 0),
+        ("12.34", 4, 123400, 4),      # widening still works
+        ("12.34", 2, 1234, 2),        # exact match still works
+    ],
+)
+def test_proto_decimal_narrows_scale_losslessly(decimal, scale, unscaled, out_scale):
+    msg = decimal_to_protobuf(Decimal(decimal), scale)
+    assert int.from_bytes(msg.value, byteorder="big", signed=True) == unscaled
+    assert msg.scale == out_scale
+
+
+@pytest.mark.parametrize("decimal, scale", [("12.345", 2), ("1.01", 1), ("999", -1)])
+def test_proto_decimal_rejects_lossy_scale(decimal, scale):
+    with pytest.raises(ValueError, match="Scale provided does not match the decimal"):
+        decimal_to_protobuf(Decimal(decimal), scale)
+

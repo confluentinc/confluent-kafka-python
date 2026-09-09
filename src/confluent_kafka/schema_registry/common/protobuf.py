@@ -1,4 +1,6 @@
 import base64
+import datetime
+import decimal
 import io
 import sys
 from collections import deque
@@ -41,18 +43,23 @@ from google.type import (
 
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
     FieldType,
     RuleConditionError,
     RuleContext,
+    RuleError,
     ValidationRule,
     ValidationRuleError,
     ValidationRuleExecutor,
     evaluate_validation_rule,
 )
 from confluent_kafka.serialization import SerializationError
+from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+    unscaled_to_bytes,
+)
 
 __all__ = [
     '_bytes',
@@ -73,6 +80,8 @@ __all__ = [
     '_is_builtin',
     'decimal_to_protobuf',
     'protobuf_to_decimal',
+    'variant_to_protobuf',
+    'protobuf_to_variant',
 ]
 
 # Convert an int to bytes (inverse of ord())
@@ -253,6 +262,104 @@ def _init_pool(pool: DescriptorPool):
 
     pool.AddSerializedFile(meta_pb2.DESCRIPTOR.serialized_pb)
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
+    pool.AddSerializedFile(variant_pb2.DESCRIPTOR.serialized_pb)
+
+
+# Message types a CEL rule works with as a single value rather than as a record.
+#
+# Avro carries the same concepts as logical types on a primitive, so the field is a leaf there
+# and a CEL_FIELD rule reaches it. In protobuf they are messages, and without this the walk
+# descends into their internals and transforms `value`/`scale` or `seconds`/`nanos` one at a
+# time instead - which is not what the rule asked for, and which an untagged rule would do
+# silently. Ported from the JVM client's ProtobufSchema.isCelLeafMessage (#4538).
+#
+# Variant is deliberately *not* a leaf: it is a record in Avro too, so skipping it is the
+# behaviour that matches, and a variant is reached with a message-level CEL rule instead.
+DECIMAL_TYPE_NAME = "confluent.type.Decimal"
+TIMESTAMP_TYPE_NAME = "google.protobuf.Timestamp"
+
+
+def is_cel_leaf_message(desc: Optional[Descriptor]) -> bool:
+    """Whether *desc* is a message type bound to CEL as a single value."""
+    return desc is not None and desc.full_name in (DECIMAL_TYPE_NAME, TIMESTAMP_TYPE_NAME)
+
+
+def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
+    """Writes a Python Decimal into a confluent.type.Decimal message.
+
+    Precision and scale describe the value itself rather than a declared column width, which is
+    the same mapping the JVM client uses (DecimalUtils.fromBigDecimal) and the reverse of how a
+    decimal is read back.
+    """
+    sign, digits, exponent = value.as_tuple()
+    if not isinstance(exponent, int):
+        raise ValueError("cannot write a non-finite decimal to " + DECIMAL_TYPE_NAME)
+    unscaled = int("".join(str(d) for d in digits) or "0")
+    if sign:
+        unscaled = -unscaled
+    # The scale is the negated exponent, negative included: BigDecimal("1E+3") reports
+    # unscaled 1 with scale -3, and the proto field is a signed int32, so normalising a
+    # positive exponent into the digits would write a different value than the JVM does.
+    scale = -exponent
+    target.value = unscaled_to_bytes(unscaled)
+    target.precision = len(digits)
+    target.scale = scale
+
+
+def set_timestamp_message(target: Message, value: datetime.datetime) -> None:
+    """Writes a datetime into a google.protobuf.Timestamp message."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    delta = value - _EPOCH
+    target.seconds = delta.days * 86400 + delta.seconds
+    target.nanos = delta.microseconds * 1000
+
+
+_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def rebuild_value_type(ctx, fd: FieldDescriptor, value: Any) -> Message:
+    """Rebuilds a leaf value-type message from what a CEL_FIELD rule returned.
+
+    An identity rule hands back the message it was given; a computed rule hands back a Python
+    Decimal or datetime, which has to be encoded. Anything else is a rule-authoring mistake and
+    is reported as one rather than written as a default.
+    """
+    desc = fd.message_type
+    if value is None:
+        raise _value_type_error(ctx, fd, "null", "a decimal or timestamp")
+    if isinstance(value, Message) and value.DESCRIPTOR.full_name == desc.full_name:
+        # Already the right message, which is what an identity rule produces.
+        return value
+    out = _message_factory(desc)
+    if desc.full_name == DECIMAL_TYPE_NAME:
+        if not isinstance(value, decimal.Decimal):
+            raise _value_type_error(ctx, fd, type(value).__name__, "a decimal")
+        set_decimal_message(out, value)
+        return out
+    if not isinstance(value, datetime.datetime):
+        raise _value_type_error(ctx, fd, type(value).__name__, "a timestamp")
+    set_timestamp_message(out, value)
+    return out
+
+
+def _message_factory(desc: Descriptor) -> Message:
+    """A new message of *desc*'s type, built from the descriptor so that a message parsed
+    dynamically from a registered schema is written back in kind."""
+    return message_factory.GetMessageClass(desc)()
+
+
+def _value_type_error(ctx, fd: FieldDescriptor, actual: str, expected: str) -> Exception:
+    return RuleError(
+        "Rule returned "
+        + actual
+        + " for field '"
+        + fd.full_name
+        + "', which is a "
+        + fd.message_type.full_name
+        + "; expected "
+        + expected
+    )
 
 
 def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
@@ -262,7 +369,7 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
         return [transform(ctx, descriptor, item, field_transform) for item in message]
     if isinstance(message, dict):
         return {key: transform(ctx, descriptor, value, field_transform) for key, value in message.items()}
-    if isinstance(message, Message):
+    if isinstance(message, Message) and not is_cel_leaf_message(message.DESCRIPTOR):
         # Driven by the runtime message's fields, each matched by name to the
         # schema-side descriptor, which is the one carrying the inline tags. The two
         # can differ under use.latest.version, and only the runtime field can be read
@@ -315,6 +422,19 @@ def _transform_field(
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
+            if fd.type == FieldDescriptor.TYPE_MESSAGE and is_cel_leaf_message(fd.message_type):
+                # The rule saw this field as a single value, so it hands back a decimal or a
+                # datetime rather than the message; encode it before writing.
+                #
+                # A repeated leaf field needs the same treatment per element. The walk applies
+                # the rule to each element, so what comes back is a *list* of decimals - and
+                # writing those raw failed with "Expected a message object, but got
+                # Decimal(...)". Only the singular case was rebuilt before, so a field rule
+                # over a repeated value type could not be written back at all.
+                if _is_repeated(fd):
+                    new_value = [rebuild_value_type(ctx, fd, item) for item in new_value]
+                else:
+                    new_value = rebuild_value_type(ctx, fd, new_value)
             _set_field(fd, message, new_value)
     finally:
         ctx.exit_field()
@@ -642,6 +762,10 @@ def get_type(fd: FieldDescriptor) -> FieldType:
     if is_map_field(fd):
         return FieldType.MAP
     if fd.type == FieldDescriptor.TYPE_MESSAGE:
+        # Report the same primitive type the Avro counterpart does, so that CEL_FIELD applies
+        # to the field and a rule written against one format ports to the other.
+        if is_cel_leaf_message(fd.message_type):
+            return FieldType.BYTES if fd.message_type.full_name == DECIMAL_TYPE_NAME else FieldType.LONG
         return FieldType.RECORD
     if fd.type == FieldDescriptor.TYPE_ENUM:
         return FieldType.ENUM
@@ -715,21 +839,26 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
 
     delta = exp + scale  # type: ignore[operator]
 
-    if delta < 0:
-        raise ValueError("Scale provided does not match the decimal")
-
     unscaled_datum = 0
     for digit in digits:
         unscaled_datum = (unscaled_datum * 10) + digit
 
-    unscaled_datum = 10**delta * unscaled_datum
-
-    bytes_req = (unscaled_datum.bit_length() + 8) // 8
+    if delta >= 0:
+        unscaled_datum = 10**delta * unscaled_datum
+    else:
+        # Narrowing the scale, which BigDecimal.setScale(scale) allows whenever no rounding is
+        # needed - only the digits being dropped have to be zeros. Refusing every reduction
+        # rejected exact conversions: Decimal("1.50") at scale 1, or Decimal("1000") at the
+        # negative scale -3 that protobuf_to_decimal itself can produce.
+        divisor = 10 ** (-delta)
+        if unscaled_datum % divisor != 0:
+            raise ValueError("Scale provided does not match the decimal")
+        unscaled_datum //= divisor
 
     if sign:
         unscaled_datum = -unscaled_datum
 
-    bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
+    bytes = unscaled_to_bytes(unscaled_datum)
 
     result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes
@@ -752,3 +881,32 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
 
     decimal_context = Context(prec=value.precision if value.precision > 0 else MAX_PREC)
     return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)
+
+
+def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[name-defined]
+    """
+    Converts a Variant to a ``confluent.type.Variant`` Protobuf message.
+
+    Args:
+        value (Variant): The Variant to convert.
+
+    Returns:
+        The Protobuf value.
+    """
+    result = variant_pb2.Variant()  # type: ignore[attr-defined]
+    result.metadata = value.metadata
+    result.value = value.value
+    return result
+
+
+def protobuf_to_variant(value: variant_pb2.Variant) -> Variant:  # type: ignore[name-defined]
+    """
+    Converts a ``confluent.type.Variant`` Protobuf message to a Variant.
+
+    Args:
+        value (variant_pb2.Variant): The Protobuf value to convert.
+
+    Returns:
+        The Variant value.
+    """
+    return Variant(value.value, value.metadata)
