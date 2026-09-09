@@ -376,9 +376,15 @@ def test_integer_fields_reject_non_integral_and_out_of_range():
         write("i32", 2**31)
     with pytest.raises(ValueError, match="out of range"):
         write("u32", -1)
-    # bool is an int subclass in Python; protobuf JSON does not accept true for an int.
-    with pytest.raises(ValueError, match="bool"):
-        write("i32", True)
+    # Both boolean spellings. bool is an int subclass in Python, and celtypes.BoolType
+    # subclasses int rather than bool - so guarding only `bool` caught the case CEL never
+    # produces while a real CEL `true` was written as 1. protobuf JSON refuses true for an
+    # integer field ("Not an int32 value: true").
+    from celpy import celtypes
+
+    for value in (True, celtypes.BoolType(True), celtypes.BoolType(False)):
+        with pytest.raises(ValueError, match="bool"):
+            write("i32", value)
 
 
 # A protobuf repeated field cannot hold null. Dropping the element changed the list's length
