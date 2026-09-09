@@ -4,13 +4,6 @@
 
 ### Enhancements
 
-- Minor fix for subjectPrefix parameter in subjects API (#2311)
-- Schema Registry: add support for the DLQ (dead-letter-queue) rule action
-  (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
-  topic and the original serialize/deserialize call still raises. With the
-  default (global) `RuleRegistry` the DLQ is best-effort; set
-  `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
-  shutdown) for durability.
 - Add support for inline validation rules (#2326)
 
 
@@ -20,9 +13,7 @@
   message key before the value, matching `SerializingProducer` and the Java
   client. When both key and value fail to deserialize, the key error is now
   surfaced instead of the value error.
-
-### Fixes
-
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Fix race conditions (#2315)
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
