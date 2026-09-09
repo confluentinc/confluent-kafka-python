@@ -264,14 +264,18 @@ def _field(o: typing.Any, key: typing.Any) -> typing.Optional[Variant]:
 def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
     """``variants.index(dyn, int)`` - array element by index; CEL null on out-of-bounds or a
     non-array receiver."""
-    v = _require_variant_or_null(o, "variants.index")
-    if v is None or v.get_type() != VariantType.ARRAY:
-        return None
-    # Java binds this as (Object, Long), so a double or a bool has no matching overload.
-    # int() would have quietly floored 1.9 to element 1 and read true as element 1.
+    # The index is checked before the receiver, the way variants.field checks its key. Java
+    # declares this overload as (DYN, INT), so a double or a bool fails to bind whatever the
+    # receiver turns out to hold; checking the receiver first made the argument's own type
+    # depend on it, and `variants.index(anObject, 1.5)` answered CEL null instead of
+    # reporting the wrong type. int() would then have quietly floored 1.9 to element 1 and
+    # read true as element 1.
     if isinstance(idx, (bool, celtypes.BoolType)) or not isinstance(idx, (int, celtypes.IntType)):
         raise celpy.CELEvalError(
             f"variants.index: expected an int index, got {type(idx).__name__}")
+    v = _require_variant_or_null(o, "variants.index")
+    if v is None or v.get_type() != VariantType.ARRAY:
+        return None
     i = int(idx)
     if i < 0 or i > _INT32_MAX:
         return None
@@ -349,14 +353,29 @@ def _variant_as(o: typing.Any, type_str: str, null_on_error: bool) -> typing.Any
     raise celpy.CELEvalError(f"variants.as: variant is not {type_str}-typed (type={t.value})")
 
 
+def _require_type_name(type_str: typing.Any, fn: str) -> str:
+    """The type-name argument as a string.
+
+    Java declares both overloads as (DYN, STRING), so a non-string second argument fails to
+    bind. `str()` accepted anything, which mattered most for the soft form: `variants.tryAs(v,
+    1)` stringified to "1", took the unknown-type branch and returned CEL **null**. Null is
+    tryAs's answer for a type *mismatch*, not for a call that names no type at all, so a
+    wrong-typed argument was indistinguishable from a variant of the wrong shape.
+    """
+    if not isinstance(type_str, (str, celtypes.StringType)):
+        raise celpy.CELEvalError(
+            f"{fn}: expected a string type name, got {type(type_str).__name__}")
+    return str(type_str)
+
+
 def _as(o: typing.Any, type_str: typing.Any) -> typing.Any:
     """``variants.as(dyn, string)`` - typed extraction; raises on type mismatch."""
-    return _variant_as(o, str(type_str), null_on_error=False)
+    return _variant_as(o, _require_type_name(type_str, "variants.as"), null_on_error=False)
 
 
 def _try_as(o: typing.Any, type_str: typing.Any) -> typing.Any:
     """``variants.tryAs(dyn, string)`` - typed extraction; CEL null on type mismatch."""
-    return _variant_as(o, str(type_str), null_on_error=True)
+    return _variant_as(o, _require_type_name(type_str, "variants.tryAs"), null_on_error=True)
 
 
 def _to_json(v: typing.Any) -> typing.Any:

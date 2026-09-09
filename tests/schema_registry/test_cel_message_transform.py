@@ -294,6 +294,48 @@ def test_negative_duration_keeps_matching_signs():
     assert (result.duration.seconds, result.duration.nanos) == (-3, -500000000)
 
 
+# A wrapper's `value` field had its own copy of the scalar conversions, and the copy was the
+# unguarded one: an Int32Value took 1.9 as 1 and a BoolValue took the string "false" as *true*,
+# while the identical plain fields refused both. The JVM draws no such distinction -
+# JsonFormat's parseWrapperFieldValue hands the value to the same parseFieldValue a plain field
+# goes through, so the accept/reject sets are identical. Measured against protobuf-java 4.35.1
+# with each wrapper as a nested field:
+#   Int32Value  <- 2 / 2.0 -> 2;  <- 1.9, 2147483648, true -> REJECT
+#   BoolValue   <- true -> true;  <- 0 -> REJECT "Invalid bool value: 0"
+#   BytesValue  <- 5 -> REJECT;   FloatValue <- 1.0e40 -> REJECT "Out of range float value"
+#   DoubleValue <- 3 -> 3.0;      <- true -> REJECT "Not a double value: true"
+def test_a_wrapper_field_is_narrowed_like_a_plain_scalar():
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _wrapper_descriptor()
+    original = cls()
+
+    # Exact conversions still reach the wrapper.
+    assert convert({"int32value": celtypes.DoubleType(2.0)}, original).int32value.value == 2
+    assert convert({"doublevalue": celtypes.IntType(3)}, original).doublevalue.value == 3.0
+    assert convert({"boolvalue": celtypes.BoolType(True)}, original).boolvalue.value is True
+    assert convert({"stringvalue": celtypes.StringType("ok")}, original).stringvalue.value == "ok"
+    assert convert({"bytesvalue": celtypes.BytesType(b"ab")}, original).bytesvalue.value == b"ab"
+
+    # The same rejections a plain field of that type makes.
+    for field, value in [
+        ("int32value", celtypes.DoubleType(1.9)),
+        ("int32value", celtypes.IntType(2**31)),
+        ("int32value", celtypes.BoolType(True)),
+        ("boolvalue", celtypes.IntType(0)),
+        ("boolvalue", celtypes.StringType("false")),
+        ("stringvalue", celtypes.IntType(1)),
+        ("bytesvalue", celtypes.IntType(5)),
+        ("doublevalue", celtypes.BoolType(True)),
+        ("floatvalue", celtypes.DoubleType(1e40)),
+        ("uint32value", celtypes.IntType(-1)),
+    ]:
+        with pytest.raises(ValueError):
+            convert({field: value}, original)
+
+
 def test_message_level_decimal_sets_precision_like_the_field_level_writer():
     """Java's ProtobufResultWriter sets precision from the value (``dec.precision()``); this
     writer left it at zero, so the same computed decimal produced different
