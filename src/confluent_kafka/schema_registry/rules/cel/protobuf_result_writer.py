@@ -235,22 +235,21 @@ def _set_duration(target: message.Message, value: datetime.timedelta) -> None:
 
 
 def _set_wrapper(target: message.Message, value: Any) -> None:
-    """Sets a wrapper's single ``value`` field from the scalar the rule returned."""
-    fd = target.DESCRIPTOR.fields_by_name["value"]
-    if fd.type == descriptor.FieldDescriptor.TYPE_BOOL:
-        # celtypes.BoolType subclasses int, not bool, so protobuf would reject it as-is.
-        target.value = bool(value)
-    elif fd.type == descriptor.FieldDescriptor.TYPE_BYTES:
-        target.value = bytes(value)
-    elif fd.type == descriptor.FieldDescriptor.TYPE_STRING:
-        target.value = str(value)
-    elif fd.type in (
-        descriptor.FieldDescriptor.TYPE_FLOAT,
-        descriptor.FieldDescriptor.TYPE_DOUBLE,
-    ):
-        target.value = float(value)
-    else:
-        target.value = int(value)
+    """Sets a wrapper's single ``value`` field from the scalar the rule returned.
+
+    Narrowed by ``_scalar``, the same as a plain scalar field of that type. This arm had its
+    own copy of the conversions, and the copy was the unguarded one: an Int32Value took 1.9 as
+    1 and a BoolValue took the string "false" as *true*, while the identical plain fields
+    refused both. The JVM makes no such distinction - JsonFormat's parseWrapperFieldValue
+    hands the value to the same parseFieldValue a plain field goes through, so the wrapper's
+    accept/reject set is identical. Measured against protobuf-java 4.35.1:
+
+    * Int32Value  <- 1.9, 2147483648, true -> refused; 2.0 -> 2
+    * BoolValue   <- 0                     -> "Invalid bool value: 0"
+    * FloatValue  <- 1.0e40                -> "Out of range float value"
+    * DoubleValue <- true                  -> "Not a double value: true"
+    """
+    target.value = _scalar(target.DESCRIPTOR.fields_by_name["value"], value)
 
 
 def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:

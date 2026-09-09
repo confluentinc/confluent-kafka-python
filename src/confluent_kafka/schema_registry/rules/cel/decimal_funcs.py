@@ -354,13 +354,54 @@ def _exponent_of(d: Decimal) -> int:
     return exponent
 
 
+# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
+# which is 646456993 decimal digits, and setScale reports anything wider as "BigInteger would
+# overflow supported range". Rescaling needs that many digits for the result in one direction
+# and for the power of ten it divides by in the other, so one bound covers both. Checked
+# against the JDK on BigDecimal("1.23"), which has 3 digits at scale 2:
+#   setScale(1e6, 1e7, 1e8)      -> OK      (result 1000001 .. 100000001 digits)
+#   setScale(646456993)          -> THROW   (646456994)
+#   setScale(-1e6, -1e7, -1e8)   -> OK      (1000005 .. 100000005)
+#   setScale(-1e9), setScale(+-2**31)  -> THROW
+# and on BigDecimal("1e1000000"): setScale(-1000000) -> OK, setScale(1000000) -> OK with
+# precision 2000001, which is exactly what the estimate below gives.
+_MAX_COEFFICIENT_DIGITS = 646456993
+
+
 def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:
-    """``d`` at ``scale``. An in-range but unrepresentably wide scale raises
-    ``decimal.InvalidOperation``, which would escape the CEL error handler as a raw Python
-    exception; it is reported as a rule error instead."""
+    """``d`` at ``scale``, or a rule error.
+
+    Two things have to hold, and they pull in opposite directions.
+
+    The quantizer is built in ``_EXACT_CONTEXT``, not the ambient one. The default context's
+    Emin of -999999 made ``Decimal(1).scaleb(1000000)`` raise ``decimal.Overflow``, so a
+    negative scale past a million was refused for values the JVM rounds happily:
+    ``BigDecimal("1e1000000").setScale(-1000000)`` is a no-op, and ``setScale(-1000000)`` on
+    1.23 gives 0E+1000000. ``Overflow`` is not an ``InvalidOperation`` either, so it escaped
+    the handler below as a raw Python exception rather than a rule error.
+
+    Building it in ``_EXACT_CONTEXT`` alone goes too far the other way: libmpdec then honours
+    any int32 scale, and quantizing to one materialises the whole coefficient. A scale of
+    2**31-1 costs 918 MB inside ``quantize`` (2**31 digits, packed 19 to a 64-bit word) and
+    9.2 GB the moment anything calls ``as_tuple()`` on the result - which ``_exponent_of``
+    and the protobuf writer's ``_set_decimal`` both do. The JVM raises ArithmeticException
+    there instead, so the shift is bounded the way BigInteger's capacity bounds it.
+    """
+    exponent = _exponent_of(d)
+    # `adjusted() - exponent + 1` is the digit count, without building the as_tuple() digits
+    # tuple to count them - which for a wide value is the very allocation being guarded.
+    # `d`'s own scale is the negated exponent, as BigDecimal counts it.
+    needed = abs(scale + exponent) + (d.adjusted() - exponent + 1)
+    if needed > _MAX_COEFFICIENT_DIGITS:
+        raise celpy.CELEvalError(
+            f"{fn}: a scale of {scale} needs {needed} digits, more than a decimal can hold")
     try:
-        return d.quantize(Decimal(1).scaleb(-scale), rounding=rounding, context=_EXACT_CONTEXT)
-    except decimal.InvalidOperation as e:
+        return d.quantize(
+            Decimal(1).scaleb(-scale, context=_EXACT_CONTEXT),
+            rounding=rounding,
+            context=_EXACT_CONTEXT,
+        )
+    except (decimal.InvalidOperation, decimal.Overflow, decimal.Underflow) as e:
         raise celpy.CELEvalError(f"{fn}: cannot represent a scale of {scale}") from e
 
 

@@ -972,3 +972,105 @@ def test_string_timestamp_nanos_limited_to_microseconds(validator):
     assert (
         validator.execute(rule("string(timestamp(1700000000123456789, 9))"), None, 1) == "2023-11-14T22:13:20.123456Z"
     )
+
+
+# ``_quantize`` built its quantizer with the *ambient* decimal context, whose Emin of -999999
+# made ``Decimal(1).scaleb(1000000)`` raise ``decimal.Overflow`` - so a negative scale past a
+# million was refused for values the JVM rounds happily, and Overflow is not an
+# InvalidOperation so it escaped the handler as a raw Python exception rather than a rule
+# error. Building the quantizer in _EXACT_CONTEXT alone goes too far the other way: libmpdec
+# then honours any int32 scale and materialises the whole coefficient (a scale of 2**31-1
+# costs 918 MB in quantize and 9.2 GB once anything calls as_tuple() on the result), where
+# the JVM raises ArithmeticException. The bound is BigInteger's own capacity.
+#
+# Measured against the JDK on BigDecimal("1.23"), 3 digits at scale 2:
+#   setScale(1e6 / 1e7 / 1e8)         -> OK
+#   setScale(646456993)               -> THROW "BigInteger would overflow supported range"
+#   setScale(-1e6 / -1e7 / -1e8)      -> OK
+#   setScale(-1e9), setScale(+-2**31) -> THROW
+# and on BigDecimal("1e1000000"): setScale(-1000000) -> OK (a no-op), setScale(1000000) -> OK.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # Copilot's case, and the one that raised an uncaught decimal.Overflow.
+        'string(decimals.round(decimal("1e1000000"), -1000000)) != ""',
+        'string(decimals.round(decimal("1.23"), -1000000)) != ""',
+        'string(decimals.trunc(decimal("1.23"), -1000000)) != ""',
+        # A wide scale in the other direction, and the widest the JVM accepts here.
+        'decimals.round(decimal("1e1000000"), 1000000) != decimal("0")',
+        'decimals.round(decimal("1.23"), 100000000) != decimal("0")',
+        'decimals.round(decimal("1.23"), -100000000) == decimal("0")',
+        # A no-op in Java too, via its `intScale >= v.scale()` early return, so no rescale
+        # happens and no bound applies.
+        'string(decimals.trunc(decimal("1.23"), 2147483647)) == "1.23"',
+    ],
+)
+def test_round_accepts_the_wide_scales_java_accepts(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
+
+
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # The JVM's first rejection, and the extremes _require_int_scale still lets through.
+        'decimals.round(decimal("1.23"), 646456993) != decimal("0")',
+        'decimals.round(decimal("1.23"), 1000000000) != decimal("0")',
+        'decimals.round(decimal("1.23"), 2147483647) != decimal("0")',
+        'decimals.round(decimal("1.23"), -1000000000) != decimal("0")',
+        'decimals.round(decimal("1.23"), -2147483648) != decimal("0")',
+        'decimals.round(decimal("1e1000000"), -2147483648) != decimal("0")',
+        # trunc reaches the rescale only for a *coarser* target: Java early-returns when
+        # `intScale >= v.scale()`, which this client mirrors, so trunc(1.23, 2**31-1) is a
+        # no-op in both and belongs in the accepted list above.
+        'decimals.trunc(decimal("1.23"), -1000000000) != decimal("0")',
+    ],
+)
+def test_round_rejects_the_wide_scales_java_rejects(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+# variants.index is declared (DYN, INT) and variants.as / variants.tryAs (DYN, STRING), so a
+# wrong-typed second argument fails to bind on the JVM whatever the receiver holds. Both
+# checks used to come *after* the receiver was inspected, or not at all:
+#
+#   * variants.index(anObject, 1.5) answered CEL null - the receiver was not an array, so the
+#     index's own type was never reached, and the argument error depended on runtime shape;
+#   * variants.tryAs(v, 1) stringified the 1 to "1", took the unknown-type branch and
+#     returned CEL null. Null is tryAs's answer for a type *mismatch*, so a call that names
+#     no type at all was indistinguishable from a variant of the wrong shape.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        # A non-array receiver: the index type is still what is wrong with the call.
+        "variants.index(variants.parseJson('{\"a\":1}'), 1.5) == null",
+        "variants.index(variants.parseJson('{\"a\":1}'), true) == null",
+        # And an array receiver, where the check already fired.
+        "variants.index(variants.parseJson('[1,2]'), 1.5) == null",
+        "variants.index(variants.parseJson('[1,2]'), true) == null",
+        # A type name that is not a string.
+        "variants.tryAs(variants.parseJson('\"x\"'), 1) == null",
+        "variants.tryAs(variants.parseJson('\"x\"'), true) == null",
+        "variants.as(variants.parseJson('\"x\"'), 1) == 'x'",
+    ],
+)
+def test_variant_argument_types_are_checked_before_the_receiver(validator, expr):
+    with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
+        validator.execute(rule(expr), None, 1)
+
+
+# The must-fail twins: the well-typed calls still work, in both receiver shapes.
+@pytest.mark.parametrize(
+    "expr",
+    [
+        "variants.index(variants.parseJson('[10,20,30]'), 2) != null",
+        "variants.index(variants.parseJson('[10,20,30]'), 9) == null",
+        # A non-array receiver is still CEL null, not an error, once the index type is right.
+        "variants.index(variants.parseJson('{\"a\":1}'), 0) == null",
+        "variants.tryAs(variants.parseJson('\"x\"'), 'string') == 'x'",
+        "variants.tryAs(variants.parseJson('\"x\"'), 'int') == null",
+        "variants.as(variants.parseJson('\"x\"'), 'string') == 'x'",
+    ],
+)
+def test_variant_well_typed_arguments_still_work(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
