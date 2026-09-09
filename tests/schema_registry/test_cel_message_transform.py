@@ -669,6 +669,140 @@ def test_an_enum_still_takes_a_symbol_name():
         convert({"choice": celtypes.BoolType(True)}, original)
 
 
+def _oneof_descriptor():
+    """A message with a two-member oneof and a snake_case field, built at runtime."""
+    from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name, fdp.package, fdp.syntax = "oneof_probe.proto", "tests.oo", "proto3"
+    msg = fdp.message_type.add()
+    msg.name = "Choice"
+    msg.oneof_decl.add(name="choice")
+    field_type = descriptor_pb2.FieldDescriptorProto
+    msg.field.add(name="a", number=1, type=field_type.TYPE_INT32,
+                  label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="a")
+    msg.field.add(name="b", number=2, type=field_type.TYPE_INT32,
+                  label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="b")
+    msg.field.add(name="total_amount", number=3, type=field_type.TYPE_INT32,
+                  label=field_type.LABEL_OPTIONAL, json_name="totalAmount")
+
+    pool = descriptor_pool.DescriptorPool()
+    pool.Add(fdp)
+    desc = pool.FindMessageTypeByName("tests.oo.Choice")
+    return desc, message_factory.GetMessageClass(desc)
+
+
+# Two result entries can name the same slot, and applying both left the outcome to the order the
+# rule happened to write them in: `{a: 1, b: 2}` kept b and `{b: 2, a: 1}` kept a, both reported
+# as a successful transform. JsonFormat refuses both shapes, and the two have *opposite* null
+# handling - mergeField's hasField test sits before its null early-return, mergeOneofField's
+# after. Measured against protobuf-java 4.35.1:
+#
+#   {"a":1,"b":2} / {"b":2,"a":1}          REJECT "...belonging to the same oneof has already
+#                                                  been set"
+#   {"a":1,"b":null} / {"a":null,"b":2}    accept - a null is treated as absent
+#   {"total_amount":1,"totalAmount":2}     REJECT "Field p.M.total_amount has already been set."
+#   {"total_amount":1,"totalAmount":null}  REJECT - the same, because the value was already set
+#   {"total_amount":null,"totalAmount":null}  accept - neither null set anything
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"a": 1, "b": 2},
+        {"b": 2, "a": 1},
+        {"a": 1, "b": 2, "total_amount": 3},
+    ],
+)
+def test_two_members_of_one_oneof_are_rejected(values):
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _oneof_descriptor()
+    celified = {k: celtypes.IntType(v) for k, v in values.items()}
+    with pytest.raises(ValueError, match="more than one member of oneof"):
+        convert(celified, cls())
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"total_amount": 1, "totalAmount": 2},
+        {"total_amount": 1, "totalAmount": None},
+    ],
+)
+def test_naming_one_field_twice_is_rejected(values):
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _oneof_descriptor()
+    celified = {k: (None if v is None else celtypes.IntType(v)) for k, v in values.items()}
+    with pytest.raises(ValueError, match="names field 'tests.oo.Choice.total_amount' twice"):
+        convert(celified, cls())
+
+
+# The accepted half, which is where the two rules differ: a null does not count towards a oneof
+# collision but does count as having set a field.
+def test_a_null_does_not_collide_with_its_oneof_sibling():
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _oneof_descriptor()
+    assert convert({"a": celtypes.IntType(1), "b": None}, cls()).a == 1
+    assert convert({"a": None, "b": celtypes.IntType(2)}, cls()).b == 2
+    assert convert({"a": None, "b": None}, cls()).WhichOneof("choice") is None
+    # Two nulls for one field set nothing, so neither is a duplicate.
+    assert convert({"total_amount": None, "totalAmount": None}, cls()).total_amount == 0
+    # A null first, then a value, is the same: the null set nothing to collide with.
+    assert convert({"total_amount": None, "totalAmount": celtypes.IntType(1)},
+                   cls()).total_amount == 1
+    # And one member of the oneof plus an unrelated field is fine.
+    out = convert({"a": celtypes.IntType(1), "total_amount": celtypes.IntType(3)}, cls())
+    assert (out.a, out.total_amount) == (1, 3)
+
+
+# A protobuf map value cannot be null either, and dropping the entry reported success while
+# deleting it. The JVM's write-back parse says "Map value cannot be null." - measured against
+# protobuf-java 4.35.1 on {"mp": {"a":1,"b":null}}.
+def test_a_null_map_value_is_rejected():
+    from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    _, cls = _map_descriptor()
+    original = cls()
+    assert dict(convert({"counts": {"a": celtypes.IntType(1)}}, original).counts) == {"a": 1}
+    with pytest.raises(ValueError, match="null value to map field 'counts'"):
+        convert({"counts": {"a": celtypes.IntType(1), "b": None}}, original)
+
+
+def _map_descriptor():
+    """A message with a map<string, int32> field, built at runtime."""
+    from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+
+    fdp = descriptor_pb2.FileDescriptorProto()
+    fdp.name, fdp.package, fdp.syntax = "map_probe.proto", "tests.mp", "proto3"
+    msg = fdp.message_type.add()
+    msg.name = "Counts"
+    entry = msg.nested_type.add()
+    entry.name = "CountsEntry"
+    entry.options.map_entry = True
+    field_type = descriptor_pb2.FieldDescriptorProto
+    entry.field.add(name="key", number=1, type=field_type.TYPE_STRING,
+                    label=field_type.LABEL_OPTIONAL, json_name="key")
+    entry.field.add(name="value", number=2, type=field_type.TYPE_INT32,
+                    label=field_type.LABEL_OPTIONAL, json_name="value")
+    msg.field.add(name="counts", number=1, type=field_type.TYPE_MESSAGE,
+                  type_name=".tests.mp.Counts.CountsEntry",
+                  label=field_type.LABEL_REPEATED, json_name="counts")
+
+    pool = descriptor_pool.DescriptorPool()
+    pool.Add(fdp)
+    desc = pool.FindMessageTypeByName("tests.mp.Counts")
+    return desc, message_factory.GetMessageClass(desc)
+
+
 # A protobuf repeated field cannot hold null. Dropping the element changed the list's length
 # and hid the mistake; the JVM says "Repeated field elements cannot be null in field: ...".
 def test_null_element_in_a_repeated_field_is_rejected():
