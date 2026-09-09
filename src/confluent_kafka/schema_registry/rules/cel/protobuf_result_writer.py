@@ -153,7 +153,9 @@ def _set_repeated(out: message.Message, fd: descriptor.FieldDescriptor, value: A
     del target[:]
     for item in value:
         if _is_null(item):
-            continue
+            # Dropping it changed the list's length and hid the mistake. protobuf JSON says
+            # "Repeated field elements cannot be null in field: ..." and refuses the document.
+            raise ValueError(f"cannot write null to repeated field '{fd.name}'")
         if fd.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             _set_message(target.add(), fd, item)
         else:
@@ -288,8 +290,59 @@ def _scalar(fd: descriptor.FieldDescriptor, value: Any) -> Any:
         descriptor.FieldDescriptor.TYPE_DOUBLE,
     ):
         return float(value)
-    if fd.type == descriptor.FieldDescriptor.TYPE_ENUM:
-        return int(value)
+    # Integer-valued fields (and enums, which take an int). int() silently truncated, so a CEL
+    # double of 1.9 landed as 1 and a fractional Decimal lost its fraction. The JVM's
+    # message-level write-back goes through a protobuf JSON parse, which refuses a non-integral
+    # value ("Not an int32 value: 1.9") while accepting an integral one (2.0 -> 2), and
+    # range-checks the result. Measured against protobuf-java 4.35.1.
+    return _integral(fd, value)
+
+
+# Inclusive value ranges for protobuf's integer scalar types, which its JSON parser enforces.
+_INT_RANGES = {
+    descriptor.FieldDescriptor.TYPE_INT32: (-(2**31), 2**31 - 1),
+    descriptor.FieldDescriptor.TYPE_SINT32: (-(2**31), 2**31 - 1),
+    descriptor.FieldDescriptor.TYPE_SFIXED32: (-(2**31), 2**31 - 1),
+    descriptor.FieldDescriptor.TYPE_UINT32: (0, 2**32 - 1),
+    descriptor.FieldDescriptor.TYPE_FIXED32: (0, 2**32 - 1),
+    descriptor.FieldDescriptor.TYPE_INT64: (-(2**63), 2**63 - 1),
+    descriptor.FieldDescriptor.TYPE_SINT64: (-(2**63), 2**63 - 1),
+    descriptor.FieldDescriptor.TYPE_SFIXED64: (-(2**63), 2**63 - 1),
+    descriptor.FieldDescriptor.TYPE_UINT64: (0, 2**64 - 1),
+    descriptor.FieldDescriptor.TYPE_FIXED64: (0, 2**64 - 1),
+    descriptor.FieldDescriptor.TYPE_ENUM: (-(2**31), 2**31 - 1),
+}
+
+
+def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
+    """``value`` as an int for an integer-valued field, or a rule error.
+
+    A fractional value is a rule-authoring mistake rather than something to round: the JVM
+    rejects it, and truncating would write a different number than the rule computed. An
+    integral float or Decimal is accepted, as protobuf JSON accepts ``2.0`` for an int32.
+    """
+    if isinstance(value, bool):
+        # bool is an int subclass in Python; protobuf JSON does not accept true for an int.
+        raise ValueError(f"cannot write bool to integer field '{fd.name}'")
     if isinstance(value, decimal.Decimal):
-        return int(value)
-    return int(value) if isinstance(value, (int, float)) else value
+        if value != value.to_integral_value():
+            raise ValueError(
+                f"cannot write non-integral {value} to integer field '{fd.name}'")
+        as_int = int(value)
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(
+                f"cannot write non-integral {value!r} to integer field '{fd.name}'")
+        as_int = int(value)
+    elif isinstance(value, int):
+        as_int = int(value)
+    else:
+        # Not a number at all - left for protobuf's own setter to reject, which names the
+        # field and the offending type.
+        return value
+
+    bounds = _INT_RANGES.get(fd.type)
+    if bounds is not None and not (bounds[0] <= as_int <= bounds[1]):
+        raise ValueError(
+            f"value {as_int} is out of range for field '{fd.name}'")
+    return as_int
