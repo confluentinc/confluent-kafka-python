@@ -261,16 +261,78 @@ def _decimals_ge(a: typing.Any, b: typing.Any) -> celtypes.BoolType:
 # ---- arithmetic ----
 
 
+# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
+# which is 646456993 decimal digits. With the int32 scale, these two bound the whole domain of
+# an exact BigDecimal result - and `_EXACT_CONTEXT` deliberately has neither bound, because
+# Python's own limits (MAX_PREC, MAX_EMAX) are there to stop the *default* context rounding at
+# 28 digits, not to model BigDecimal. So the domain is checked here instead.
+_MAX_COEFFICIENT_DIGITS = 646456993
+
+
+def _adjusted_of(d: Decimal) -> int:
+    """``d.adjusted()``, guarded for a non-finite value the way ``_exponent_of`` is."""
+    if not d.is_finite():
+        raise celpy.CELEvalError(f"decimal: not a finite number '{d}'")
+    return d.adjusted()
+
+
+def _require_bigdecimal_result(exponent: int, digits: int, fn: str) -> None:
+    """Refuse a result BigDecimal could not hold, from its predicted shape alone.
+
+    Python's Decimal has a far wider exponent range than BigDecimal's signed-int32 scale, so
+    an exact operation the JVM rejects returned a value here instead: `decimals.mul` on two
+    1e2147483647 operands gave exponent 4294967294, which no confluent.type.Decimal scale can
+    carry, and which `string()` would try to render as four billion digits. The check is on
+    the *predicted* shape rather than the computed result, so the digits are never built.
+
+    Both limits are needed, because the operations reach them differently - multiplication
+    adds the exponents and so overflows the scale, while addition aligns them and so overflows
+    the coefficient. Measured against the JDK:
+
+    * 1e2147483647 * 1e2147483647     -> ArithmeticException: Overflow
+    * 1e-2147483647 * 1e-2147483647   -> ArithmeticException: Underflow
+    * 1e2147483647 * 10               -> OK, precision 2 scale -2147483647
+    * 1e1000 * 1e1000                 -> OK, precision 1 scale -2000
+    * 1e2147483647 + 1                -> "BigInteger would overflow supported range"
+    * 1e-2147483647 + 1               -> same
+    * 1e2147483647 - 1e-2147483647    -> ArithmeticException: Underflow
+    """
+    if not (_INT32_MIN <= -exponent <= _INT32_MAX):
+        raise celpy.CELEvalError(
+            f"{fn}: the result needs a scale of {-exponent}, which is out of int range")
+    if digits > _MAX_COEFFICIENT_DIGITS:
+        raise celpy.CELEvalError(
+            f"{fn}: the result needs {digits} digits, more than a decimal can hold")
+
+
+def _require_additive_domain(x: Decimal, y: Decimal, fn: str) -> None:
+    """Addition and subtraction align the operands on the finer scale, so the result carries
+    the smaller exponent and a coefficient spanning both magnitudes."""
+    exponent = min(_exponent_of(x), _exponent_of(y))
+    adjusted = max(_adjusted_of(x), _adjusted_of(y)) + 1
+    _require_bigdecimal_result(exponent, adjusted - exponent + 1, fn)
+
+
 def _decimals_add(a: typing.Any, b: typing.Any) -> Decimal:
-    return _EXACT_CONTEXT.add(_d(a), _d(b))
+    x, y = _d(a), _d(b)
+    _require_additive_domain(x, y, "decimals.add")
+    return _EXACT_CONTEXT.add(x, y)
 
 
 def _decimals_sub(a: typing.Any, b: typing.Any) -> Decimal:
-    return _EXACT_CONTEXT.subtract(_d(a), _d(b))
+    x, y = _d(a), _d(b)
+    _require_additive_domain(x, y, "decimals.sub")
+    return _EXACT_CONTEXT.subtract(x, y)
 
 
 def _decimals_mul(a: typing.Any, b: typing.Any) -> Decimal:
-    return _EXACT_CONTEXT.multiply(_d(a), _d(b))
+    x, y = _d(a), _d(b)
+    # Multiplication adds the exponents and the digit counts.
+    _require_bigdecimal_result(
+        _exponent_of(x) + _exponent_of(y),
+        (_adjusted_of(x) - _exponent_of(x) + 1) + (_adjusted_of(y) - _exponent_of(y) + 1),
+        "decimals.mul")
+    return _EXACT_CONTEXT.multiply(x, y)
 
 
 def _decimals_div(a: typing.Any, b: typing.Any) -> Decimal:
@@ -287,10 +349,23 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
     Java BigDecimal.remainder and SQL MOD. A zero divisor raises the canonical
     message.
     """
-    db = _d(b)
+    da, db = _d(a), _d(b)
     if db == 0:
         raise celpy.CELEvalError("decimals.mod: division by zero")
-    return _EXACT_CONTEXT.remainder(_d(a), db)
+    # The remainder itself is small - its magnitude is bounded by both operands - but the JVM
+    # computes it as `this.subtract(this.divideToIntegralValue(divisor).multiply(divisor))`,
+    # so the *integral quotient* is what has to fit. That is why 1e2147483647 mod 3 is refused
+    # there ("BigInteger would overflow supported range") while 1e-2147483647 mod 1e2147483647
+    # is fine at precision 1, scale 2147483647, and 1E40 mod 3 is fine too.
+    exponent = min(_exponent_of(da), _exponent_of(db))
+    adjusted = min(_adjusted_of(da), _adjusted_of(db))
+    _require_bigdecimal_result(exponent, adjusted - exponent + 1, "decimals.mod")
+    quotient_digits = max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
+    if quotient_digits > _MAX_COEFFICIENT_DIGITS:
+        raise celpy.CELEvalError(
+            f"decimals.mod: the integral quotient needs {quotient_digits} digits, "
+            "more than a decimal can hold")
+    return _EXACT_CONTEXT.remainder(da, db)
 
 
 # ---- selection ----
@@ -365,7 +440,6 @@ def _exponent_of(d: Decimal) -> int:
 #   setScale(-1e9), setScale(+-2**31)  -> THROW
 # and on BigDecimal("1e1000000"): setScale(-1000000) -> OK, setScale(1000000) -> OK with
 # precision 2000001, which is exactly what the estimate below gives.
-_MAX_COEFFICIENT_DIGITS = 646456993
 
 
 def _quantize(d: Decimal, scale: int, rounding: str, fn: str) -> Decimal:

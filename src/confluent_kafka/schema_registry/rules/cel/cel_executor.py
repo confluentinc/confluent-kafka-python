@@ -47,10 +47,19 @@ def _to_plain_containers(value: Any) -> Any:
 
     Keys are normalised too: a celpy ``StringType`` is a str subclass and hashes alike, so this
     is for the benefit of anything downstream that checks the type rather than the value.
+
+    A tuple stays a tuple. fastavro selects a union branch from a ``(record_name, value)``
+    pair, which is the only way to disambiguate two branches of the same shape, and
+    ``common/avro.py`` preserves that pair through the field-level walk for exactly that
+    reason. ``_value_to_cel`` has no tuple arm, so such a pair reaches a rule unconverted and
+    comes back out of an identity transform unchanged - and flattening it to a list left
+    fastavro with a value it refuses outright ("['B', {'x': 5}] (type list) do not match ...").
     """
     if isinstance(value, dict):
         return {str(k): _to_plain_containers(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, tuple):
+        return tuple(_to_plain_containers(v) for v in value)
+    if isinstance(value, list):
         return [_to_plain_containers(v) for v in value]
     return value
 

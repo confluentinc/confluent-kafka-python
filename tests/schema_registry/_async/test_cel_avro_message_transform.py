@@ -105,3 +105,70 @@ async def test_naming_every_field_round_trips():
     )
 
     assert out == _RECORD
+
+
+# fastavro selects a union branch from a `(record_name, value)` pair, which is the only way to
+# disambiguate two branches of the same shape, and `common/avro.py` preserves that pair through
+# the field-level walk for exactly that reason. `_value_to_cel` has no tuple arm, so such a pair
+# reaches a rule unconverted and comes back out of an identity transform unchanged - but
+# `_to_plain_containers` flattened it to a list, and fastavro then refused the value outright:
+#
+#   ValueError: ['B', {'x': 5}] (type <class 'list'>) do not match [{'type': 'record', ...}]
+#
+# The JVM has no tuple notation - a GenericRecord carries its own schema, so the branch is never
+# ambiguous there - so the reference behaviour is simply that an identity transform preserves the
+# branch selection, which is what this asserts.
+_AMBIGUOUS_UNION_SCHEMA = {
+    "type": "record",
+    "name": "Outer",
+    "fields": [
+        {
+            "name": "u",
+            "type": [
+                {"type": "record", "name": "A", "fields": [{"name": "x", "type": "int"}]},
+                {"type": "record", "name": "B", "fields": [{"name": "x", "type": "int"}]},
+            ],
+        }
+    ],
+}
+
+
+async def _round_trip_union(subject_suffix, expr, record):
+    topic = _TOPIC + "-" + subject_suffix
+    client = AsyncSchemaRegistryClient.new_client({"url": "mock://"})
+    rule = Rule("r", "", RuleKind.TRANSFORM, RuleMode.WRITE, "CEL", None, None, expr, None, None, False)
+    schema = Schema(json.dumps(_AMBIGUOUS_UNION_SCHEMA), "AVRO", [], None, RuleSet(None, [rule]))
+    await client.register_schema(topic + "-value", schema)
+    ser = await AsyncAvroSerializer(
+        client, schema_str=None, conf={"auto.register.schemas": False, "use.latest.version": True}
+    )
+    ctx = SerializationContext(topic, MessageField.VALUE)
+    payload = await ser(record, ctx)
+    deser = await AsyncAvroDeserializer(client)
+    return await deser(payload, ctx)
+
+
+async def test_a_union_branch_selected_by_tuple_survives_the_transform():
+    """The two branches have identical field shapes, so the tuple is load-bearing: without it
+    fastavro cannot tell A from B, and flattening it made the value match neither."""
+    out = await _round_trip_union("union-tuple", '{"u": message.u}', {"u": ("B", {"x": 5})})
+
+    assert out["u"] == {"x": 5}
+
+
+async def test_the_tuple_contents_are_still_normalised():
+    """Preserving the tuple must not stop the recursion: the value inside it is a dict that
+    still has to reach fastavro as a plain one, which is what the whole function is for."""
+    from confluent_kafka.schema_registry.rules.cel.cel_executor import _to_plain_containers
+    from celpy import celtypes
+
+    inner = celtypes.MapType()
+    inner[celtypes.StringType("x")] = celtypes.IntType(5)
+    out = _to_plain_containers({"u": (celtypes.StringType("B"), inner)})
+
+    assert isinstance(out["u"], tuple)
+    # The branch name stays a celpy StringType, which is a str subclass, so fastavro's
+    # comparison against the record name works: only dict *keys* are normalised, as the
+    # function's own docstring says.
+    assert out["u"][0] == "B"
+    assert out["u"][1] == {"x": 5} and type(out["u"][1]) is dict
