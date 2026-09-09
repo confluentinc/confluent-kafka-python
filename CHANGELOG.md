@@ -4,7 +4,6 @@
 
 ### Enhancements
 
-- Pass context when clients make KEK calls to DEK Registry (#2308)
 - Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
   (`DlqAction`). When a rule fails, the record is teed to a configured DLQ

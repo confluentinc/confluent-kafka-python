@@ -51,9 +51,8 @@ class MockDekRegistryClient(DekRegistryClient):
         shared: bool = False,
         kms_props: Optional[Dict[str, str]] = None,
         doc: Optional[str] = None,
-        context: Optional[str] = None,
     ) -> Kek:
-        cache_key = KekId(name=name, deleted=False, context=context)
+        cache_key = KekId(name=name, deleted=False)
         kek = self._kek_cache.get_kek(cache_key)
         if kek is not None:
             return kek
@@ -71,8 +70,8 @@ class MockDekRegistryClient(DekRegistryClient):
 
         return kek
 
-    def get_kek(self, name: str, deleted: bool = False, context: Optional[str] = None) -> Kek:
-        cache_key = KekId(name=name, deleted=deleted, context=context)
+    def get_kek(self, name: str, deleted: bool = False) -> Kek:
+        cache_key = KekId(name=name, deleted=deleted)
         kek = self._kek_cache.get_kek(cache_key)
         if kek is not None:
             return kek
