@@ -79,18 +79,58 @@ def convert(result: Any, msg: Any) -> Any:
 
 
 def _fill(out: message.Message, values: Mapping) -> None:
+    """Applies a result map to ``out``, one entry per declared field.
+
+    Two entries can name the same slot, and applying both would leave the outcome to the
+    order the rule happened to write them in. ``JsonFormat`` refuses both shapes, and the two
+    have *opposite* null handling, which is the part worth stating:
+
+    * **The same field twice.** ``_find_field`` accepts a field's declared name and its JSON
+      name, so ``total_amount`` and ``totalAmount`` are one field. ``mergeField`` tests
+      ``builder.hasField`` before its null early-return, so a null after a value is refused
+      ("Field p.M.total_amount has already been set.") while a null after a null is not.
+    * **Two members of one oneof.** Setting a member clears its siblings, so applying both
+      kept whichever came last - `{a: 1, b: 2}` kept b and `{b: 2, a: 1}` kept a.
+      ``mergeOneofField`` refuses this ("Cannot set field p.M.b because another field p.M.a
+      belonging to the same oneof has already been set"), but only after returning early for
+      a null, so a null does *not* count - which agrees with this writer's own rule that a
+      null clears rather than sets.
+
+    Measured against protobuf-java 4.35.1. A proto3 ``optional`` field sits in a synthetic
+    oneof of exactly one member, so it can never collide with a sibling.
+    """
     desc = out.DESCRIPTOR
+    # field number -> the result key that set it; oneof name -> the field that filled it.
+    set_by: dict = {}
+    oneof_by: dict = {}
     for key, value in values.items():
-        fd = _find_field(desc, str(key))
+        name = str(key)
+        fd = _find_field(desc, name)
         if fd is None:
             # A key the schema does not declare has nowhere to go. Dropping it matches the
             # JVM client, whose JSON parse ignores unknown fields.
             continue
+        # Before the null branch, because that is where the JVM's hasField test sits.
+        first = set_by.get(fd.number)
+        if first is not None:
+            a, b = sorted((first, name))
+            raise ValueError(
+                f"result names field '{fd.full_name}' twice, as '{a}' and '{b}'")
         if _is_null(value):
             # An explicit null clears the field, which is how a rule preserves an absent
             # value across a transform that echoes it.
             out.ClearField(fd.name)
             continue
+        set_by[fd.number] = name
+        oneof = fd.containing_oneof
+        if oneof is not None:
+            sibling = oneof_by.get(oneof.full_name)
+            if sibling is not None and sibling != fd.name:
+                a, b = sorted((sibling, fd.name))
+                raise ValueError(
+                    f"result sets more than one member of oneof '{oneof.full_name}': "
+                    f"'{a}' and '{b}'")
+            oneof_by[oneof.full_name] = fd.name
         _set_field(out, fd, value)
 
 
@@ -136,7 +176,10 @@ def _set_map(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -
     value_fd = fd.message_type.fields_by_name["value"]
     for k, v in value.items():
         if _is_null(v):
-            continue
+            # Dropping the entry reported success while deleting it. A protobuf map value
+            # cannot be null and the JVM's write-back parse says exactly that: "Map value
+            # cannot be null." - the counterpart of the repeated-element check below.
+            raise ValueError(f"cannot write a null value to map field '{fd.name}'")
         if value_fd.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             _set_message(target[k], value_fd, v)
         else:
