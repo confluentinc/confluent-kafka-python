@@ -296,7 +296,13 @@ def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
     return v.get_element_at_index(i)
 
 
-def _variant_get_timestamp(v: Variant) -> celtypes.TimestampType:
+# The CEL timestamp range in epoch seconds, matching the reference's
+# TimestampUtils.MIN/MAX_EPOCH_SECOND.
+_MIN_EPOCH_SECOND = -62135596800
+_MAX_EPOCH_SECOND = 253402300799
+
+
+def _variant_get_timestamp(v: Variant) -> typing.Optional[celtypes.TimestampType]:
     """Backing for ``variants.as(v, 'timestamp')``.
 
     MICROS-precision variants (TIMESTAMP_TZ/NTZ) store microseconds since the epoch and
@@ -310,9 +316,19 @@ def _variant_get_timestamp(v: Variant) -> celtypes.TimestampType:
     exactly as Java does -- e.g. -1 ns -> -1 us, never 0. The only residual difference
     from Java is the sub-microsecond nanoseconds that a ``datetime`` cannot represent;
     this is an inherent limit of the CEL timestamp type, not a rounding discrepancy.
+
+    Returns ``None`` when the value falls outside the CEL timestamp range (0001-9999). A
+    variant timestamp spans the whole int64 range, so that is reachable from data; ``None``
+    rather than an exception because the caller decides -- ``variants.as`` raises and names the
+    range, ``variants.tryAs`` answers CEL null, the same split those two already apply to a type
+    mismatch. ``datetime`` cannot represent such a value at all, so the arithmetic below would
+    raise ``OverflowError`` and escape ``tryAs`` as well.
     """
     raw = v.get_long()
     micros = raw if v.get_type() in _MICROS_TIMESTAMP_TYPES else raw // 1000
+    seconds = micros // 1_000_000
+    if seconds < _MIN_EPOCH_SECOND or seconds > _MAX_EPOCH_SECOND:
+        return None
     return celtypes.TimestampType(_EPOCH_UTC + timedelta(microseconds=micros))
 
 
@@ -344,7 +360,15 @@ def _variant_as(o: typing.Any, type_str: str, null_on_error: bool) -> typing.Any
             return v.get_decimal()
     elif type_str == "timestamp":
         if t in _TIMESTAMP_TYPES:
-            return _variant_get_timestamp(v)
+            ts = _variant_get_timestamp(v)
+            if ts is not None:
+                return ts
+            if null_on_error:
+                return None
+            raise celpy.CELEvalError(
+                f"variants.as: timestamp {v.get_long()} is outside "
+                "0001-01-01T00:00:00Z..9999-12-31T23:59:59.999999999Z"
+            )
     elif type_str == "bytes":
         if t == VariantType.BINARY:
             return celtypes.BytesType(v.get_binary())
