@@ -24,7 +24,6 @@ from jsonschema import ValidationError
 from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from referencing import Registry, Resource
-from referencing._core import Resolver
 
 from confluent_kafka.schema_registry import (
     RuleMode,
@@ -42,7 +41,6 @@ from confluent_kafka.schema_registry.common.json_schema import (
     _json_loads,
     _retrieve_via_httpx,
     transform,
-    validate_message,
 )
 from confluent_kafka.schema_registry.common.schema_registry_client import RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -51,11 +49,8 @@ from confluent_kafka.schema_registry.serde import (
     BaseSerializer,
     ParsedSchemaCache,
     SchemaId,
-    ValidationRulesExecution,
-    clear_original_key,
-    set_original_key,
 )
-from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
+from confluent_kafka.serialization import SerializationContext, SerializationError
 
 __all__ = ['_resolve_named_schema', 'JSONSerializer', 'JSONDeserializer']
 
@@ -249,9 +244,6 @@ class JSONSerializer(BaseSerializer):
         'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate': True,
-        'validation.rules.execution': ValidationRulesExecution.DISABLED,
-        'validation.rules.fail.fast': False,
-        'validation.rules.executor': None,
     }
 
     def __init_impl(
@@ -332,8 +324,6 @@ class JSONSerializer(BaseSerializer):
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
 
-        self.configure_validation_rules(conf_copy)
-
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
 
@@ -349,8 +339,6 @@ class JSONSerializer(BaseSerializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-        for action in self._rule_registry.get_actions():
-            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -360,18 +348,6 @@ class JSONSerializer(BaseSerializer):
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
-        try:
-            if obj is None:
-                return None
-            return self.__serialize_impl(obj, ctx)
-        finally:
-            # Track the key for use when serializing the value, such as for a DLQ
-            if ctx is not None and ctx.field == MessageField.KEY:
-                set_original_key(obj)
-            else:
-                clear_original_key()
-
-    def __serialize_impl(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -450,25 +426,13 @@ class JSONSerializer(BaseSerializer):
                         rule_ctx, parsed_schema, ref_registry, ref_resolver, "$", msg, field_transform
                     )
 
-                if self._validation_enabled(ValidationRulesExecution.BEFORE_DOMAIN_RULES):
-                    self._validate_inline_rules(parsed_schema, ref_registry, ref_resolver, value)
-
                 if ctx is not None and subject is not None:
                     value = self._execute_rules(
                         ctx, subject, RuleMode.WRITE, None, latest_schema.schema, value, None, field_transformer
                     )
-
-                if self._validation_enabled(ValidationRulesExecution.AFTER_DOMAIN_RULES):
-                    self._validate_inline_rules(parsed_schema, ref_registry, ref_resolver, value)
         else:
             schema = self._schema
             parsed_schema, ref_registry = self._parsed_schema, self._ref_registry
-            # No domain rules run on this path, so before/after collapse to one point.
-            if self._validation_enabled() and parsed_schema is not None and ref_registry is not None:
-                root_resource = Resource.from_contents(parsed_schema, default_specification=DEFAULT_SPEC)
-                self._validate_inline_rules(
-                    parsed_schema, ref_registry, ref_registry.resolver_with_root(root_resource), value
-                )
 
         if self._validate and schema is not None and parsed_schema is not None and ref_registry is not None:
             try:
@@ -492,28 +456,6 @@ class JSONSerializer(BaseSerializer):
                 )
 
             return self._schema_id_serializer(buffer, ctx, schema_id)
-
-    def _validate_inline_rules(
-        self,
-        parsed_schema: Optional[JsonSchema],
-        ref_registry: Registry,
-        ref_resolver: Resolver,
-        value: Any,
-    ) -> None:
-        """
-        Evaluate the schema's inline validation rules against ``value``, raising a
-        single SerializationError listing every violation found.
-        """
-        self._raise_validation_violations(
-            validate_message(
-                self._validation_rule_executor,
-                parsed_schema,
-                ref_registry,
-                ref_resolver,
-                value,
-                self._validation_rules_fail_fast,
-            )
-        )
 
     def _get_parsed_schema(self, schema: Optional[Schema]) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
@@ -719,8 +661,6 @@ class JSONDeserializer(BaseDeserializer):
 
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-        for action in self._rule_registry.get_actions():
-            action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
 
     __init__ = __init_impl
 
@@ -728,18 +668,6 @@ class JSONDeserializer(BaseDeserializer):
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
-        try:
-            if data is None:
-                return None
-            return self.__deserialize_impl(data, ctx)
-        finally:
-            # Track the key for use when deserializing the value, such as for a DLQ
-            if ctx is not None and ctx.field == MessageField.KEY:
-                set_original_key(data)
-            else:
-                clear_original_key()
-
-    def __deserialize_impl(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -790,7 +718,7 @@ class JSONDeserializer(BaseDeserializer):
 
         if ctx is not None and subject is not None:
             payload = self._execute_rules_with_phase(
-                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None, data
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ, None, writer_schema_raw, payload, None, None
             )
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
@@ -830,7 +758,7 @@ class JSONDeserializer(BaseDeserializer):
 
             if ctx is not None and subject is not None:
                 obj_dict = self._execute_rules(
-                    ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, None, field_transformer, data
+                    ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, None, field_transformer
                 )
 
         if self._validate:

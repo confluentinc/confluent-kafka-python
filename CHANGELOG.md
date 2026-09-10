@@ -1,20 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.x.0
-
-### Enhancements
-
-- Add support for saving Azure key version with DEK (#2306)
-- Pass context when clients make KEK calls to DEK Registry (#2308)
-- Minor fix for subjectPrefix parameter in subjects API (#2311)
-- Schema Registry: add support for the DLQ (dead-letter-queue) rule action
-  (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
-  topic and the original serialize/deserialize call still raises. With the
-  default (global) `RuleRegistry` the DLQ is best-effort; set
-  `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
-  shutdown) for durability.
-- Add support for inline validation rules (#2326)
-
+## v2.15.1 (rc1)
 
 ### Fixes
 
@@ -22,13 +8,16 @@
   message key before the value, matching `SerializingProducer` and the Java
   client. When both key and value fail to deserialize, the key error is now
   surfaced instead of the value error.
-
-### Fixes
-
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Fix race conditions (#2315)
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
 - Use `asyncio.get_running_loop()` instead of `asyncio.get_event_loop()` to avoid creating a new event loop and raise an error in case a loop isn't available (@AlexCai26, #2339).
+
+
+confluent-kafka-python 2.15.1rc1 is based on librdkafka 2.15.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.15.0
