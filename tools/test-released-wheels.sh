@@ -25,7 +25,7 @@ fi
 
 # Loop through each Python version and execute the code
 for version in "${python_versions[@]}"; do
-    if [ "$version" = "3.8" -o "$version" = "3.9" ]; then
+    if [ "$version" = "3.8" ]; then
         export MISE_PYTHON_GITHUB_ATTESTATIONS=false
     else
         # Attestation verification is available for Python versions >= 3.10
