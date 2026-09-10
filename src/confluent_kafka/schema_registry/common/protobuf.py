@@ -1016,7 +1016,9 @@ def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[
     """
     result = variant_pb2.Variant()  # type: ignore[attr-defined]
     result.metadata = value.metadata
-    result.value = value.value
+    # standalone_value_bytes, not .value: a navigated sub-variant's own value starts at its
+    # position, and .value is the whole shared buffer.
+    result.value = value.standalone_value_bytes()
     return result
 
 

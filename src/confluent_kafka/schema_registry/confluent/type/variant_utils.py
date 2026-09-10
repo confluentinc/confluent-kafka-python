@@ -349,6 +349,25 @@ class Variant:
         if (self.metadata[0] & VERSION_MASK) != VERSION:
             raise VariantError("unsupported variant metadata version: %d" % (self.metadata[0] & VERSION_MASK))
 
+    # -- bytes --------------------------------------------------------------
+
+    def standalone_value_bytes(self) -> bytes:
+        """The value bytes from this node's start - what any write-back has to use.
+
+        ``self.value`` is the whole buffer, shared across sub-variants, so a navigated
+        variant's own value begins at ``self.pos``. Handing ``self.value`` to an encoder
+        writes the *parent root* rather than the selected value: measured, a field navigated
+        out of ``{"a":1,"secret":"..."}`` came back as the whole document. Every other client
+        has this accessor (Go ``StandaloneValueBytes``, C++ ``standaloneValueBytes``, Rust
+        ``standalone_value_bytes``, C# ``StandaloneValueBytes``), and Java's ``getValueBuffer``
+        is a positioned ``ByteBuffer``.
+
+        Like all of those, this slices to the end of the buffer rather than to the node's exact
+        extent, so a navigated value still carries its later siblings' bytes. Decoding ignores
+        them - the encoding is self-delimiting.
+        """
+        return self.value[self.pos:] if self.pos else self.value
+
     # -- equality -----------------------------------------------------------
 
     def __eq__(self, other: object) -> bool:
@@ -363,10 +382,11 @@ class Variant:
             return True
         if not isinstance(other, Variant):
             return NotImplemented
-        return self.value[self.pos:] == other.value[other.pos:] and self.metadata == other.metadata
+        return (self.standalone_value_bytes() == other.standalone_value_bytes()
+                and self.metadata == other.metadata)
 
     def __hash__(self) -> int:
-        return hash((self.value[self.pos:], self.metadata))
+        return hash((self.standalone_value_bytes(), self.metadata))
 
     # -- type ---------------------------------------------------------------
 

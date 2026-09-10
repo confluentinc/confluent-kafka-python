@@ -38,7 +38,9 @@ def _variant_from_avro(data, writer_schema, reader_schema=None):  # noqa: ARG001
 
 def _variant_to_avro(data, schema):  # noqa: ARG001
     if isinstance(data, Variant):
-        return {"metadata": data.metadata, "value": data.value}
+        # standalone_value_bytes, not .value: a navigated sub-variant's own value starts at
+        # its position, and .value is the whole shared buffer.
+        return {"metadata": data.metadata, "value": data.standalone_value_bytes()}
     return data
 
 

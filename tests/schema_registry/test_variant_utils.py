@@ -546,3 +546,47 @@ def test_variant_as_timestamp_micros_types_are_used_as_is():
     assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", -1))) == _EPOCH_UTC - _dt.timedelta(
         microseconds=1
     )
+
+
+# A navigated sub-variant's own value starts at its position, so a write-back has to use
+# standalone_value_bytes(). ``.value`` is the whole shared buffer, and handing that to an
+# encoder reconstructed the *parent root*: measured, the "a" field of
+# {"a":1,"secret":"TOPSECRET"} came back as the whole document, so a rule that narrowed a
+# variant to a safe subtree wrote the original instead.
+def test_standalone_value_bytes_start_at_the_position():
+    from confluent_kafka.schema_registry.confluent.type.variant_utils import (
+        Variant, parse_json, to_json_string,
+    )
+
+    doc = parse_json('{"a":1,"secret":"TOPSECRET"}')
+    child = doc.get_field_by_key("a")
+
+    assert child.pos > 0
+    assert child.value == doc.value          # the whole buffer is shared
+    assert to_json_string(child) == "1"      # the accessors honour pos
+    assert to_json_string(Variant(child.standalone_value_bytes(), child.metadata)) == "1"
+
+    # A root variant is unaffected: its position is already zero.
+    assert doc.standalone_value_bytes() == doc.value
+
+
+def test_the_write_back_paths_use_the_standalone_bytes():
+    from confluent_kafka.schema_registry.common.avro import _variant_to_avro
+    from confluent_kafka.schema_registry.common.protobuf import variant_to_protobuf
+    from confluent_kafka.schema_registry.confluent.type.variant_utils import (
+        Variant, parse_json, to_json_string,
+    )
+
+    doc = parse_json('{"a":1,"secret":"TOPSECRET"}')
+    child = doc.get_field_by_key("a")
+
+    rec = _variant_to_avro(child, None)
+    assert to_json_string(Variant(rec["value"], rec["metadata"])) == "1"
+
+    pb = variant_to_protobuf(child)
+    assert to_json_string(Variant(pb.value, pb.metadata)) == "1"
+
+    # And a whole document still writes as itself.
+    root = _variant_to_avro(doc, None)
+    assert to_json_string(Variant(root["value"], root["metadata"])) == \
+        '{"a":1,"secret":"TOPSECRET"}'
