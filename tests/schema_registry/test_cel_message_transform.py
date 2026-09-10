@@ -280,6 +280,53 @@ def test_wrappers_and_duration_survive_an_identity_transform():
     assert convert(_msg_to_cel(original), original) == original
 
 
+# A CEL timestamp is a datetime and a CEL duration a timedelta, both microsecond-resolution, so
+# a nanos field cannot survive the conversion. It does not have to: an echoed value is copied
+# from the message it was read from. Without that, a rule rewriting some *other* field turned
+# nanos 1 into 0 - while the decimal in the same message came back byte-identical, because its
+# binding already kept the source. These values are chosen to discriminate: the tests above use
+# 123000000 and 500000000, whole microsecond counts that cannot detect the truncation.
+@pytest.mark.parametrize("nanos", [123456789, 1, 999999999])
+def test_an_echoed_timestamp_keeps_its_nanos(nanos):
+    msg = _message()
+    msg.ts.nanos = nanos
+
+    # Identity, and a rule that rewrites a sibling field and merely passes ts along.
+    identity = _transform("{" + _ALL + "}", msg)
+    sibling = _transform(
+        "{" + _ALL.replace('"label": message.label', '"label": message.label + "!"') + "}", msg
+    )
+
+    assert identity.ts.nanos == nanos
+    assert sibling.ts.nanos == nanos
+    assert sibling.label == "hi!"
+
+
+@pytest.mark.parametrize("nanos", [123456789, 1, 999999999])
+def test_an_echoed_duration_keeps_its_nanos(nanos):
+    from confluent_kafka.schema_registry.rules.cel.constraints import _msg_to_cel
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import convert
+
+    original = _wrapped_message()
+    original.duration.seconds, original.duration.nanos = 3, nanos
+
+    assert convert(_msg_to_cel(original), original).duration.nanos == nanos
+
+
+# ...and a *computed* timestamp still lands on the microsecond ceiling, which is inherent to
+# datetime and already documented for `timestamp(x, 9)` and `string(ts)`. Pinned so the fix
+# above is not mistaken for nanosecond arithmetic.
+def test_a_computed_timestamp_keeps_the_microsecond_ceiling():
+    msg = _message()
+    msg.ts.nanos = 123456789
+
+    result = _transform(
+        "{" + _ALL.replace('"ts": message.ts', '"ts": message.ts + duration("0s")') + "}", msg
+    )
+
+    assert result.ts.nanos == 123456000
+
+
 def test_negative_duration_keeps_matching_signs():
     """A Duration's seconds and nanos must share a sign; timedelta normalises microseconds to
     be non-negative (-3.5s is days=-1, seconds=86396, microseconds=500000), so splitting it
