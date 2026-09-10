@@ -586,6 +586,22 @@ def test_the_write_back_paths_use_the_standalone_bytes():
     pb = variant_to_protobuf(child)
     assert to_json_string(Variant(pb.value, pb.metadata)) == "1"
 
+    # The CEL protobuf result writer is a third write-back site, and was missed when the first
+    # two were fixed.
+    from confluent_kafka.schema_registry.confluent.type import variant_pb2
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_message
+
+    class _Fd:
+        def __init__(self, name):
+            class _M:
+                pass
+            self.message_type = _M()
+            self.message_type.full_name = name
+
+    target = variant_pb2.Variant()
+    _set_message(target, _Fd("confluent.type.Variant"), child)
+    assert to_json_string(Variant(target.value, target.metadata)) == "1"
+
     # And a whole document still writes as itself.
     root = _variant_to_avro(doc, None)
     assert to_json_string(Variant(root["value"], root["metadata"])) == \

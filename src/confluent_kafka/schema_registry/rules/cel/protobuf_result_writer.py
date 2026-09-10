@@ -236,7 +236,10 @@ def _set_message(target: message.Message, fd: descriptor.FieldDescriptor, value:
         return
     if full_name == _VARIANT_TYPE_NAME and isinstance(value, Variant):
         target.metadata = bytes(value.metadata)
-        target.value = bytes(value.value)
+        # standalone_value_bytes, not .value: a navigated sub-variant's own value starts at its
+        # position, and .value is the whole shared buffer - writing it back reconstructs the
+        # parent document instead of the selected value.
+        target.value = bytes(value.standalone_value_bytes())
         return
 
     # A wrapper, or a Duration. The CEL binding unwraps these on the way in - a StringValue
