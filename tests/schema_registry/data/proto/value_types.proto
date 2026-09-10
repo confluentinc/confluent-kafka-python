@@ -3,8 +3,8 @@ syntax = "proto3";
 package tests;
 
 import "confluent/meta.proto";
-import "confluent/types/decimal.proto";
-import "confluent/types/variant.proto";
+import "confluent/type/decimal.proto";
+import "confluent/type/variant.proto";
 import "google/protobuf/timestamp.proto";
 
 // The three value types protobuf carries as messages, alongside a plain scalar and an

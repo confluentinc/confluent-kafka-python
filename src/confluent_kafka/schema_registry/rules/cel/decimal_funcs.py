@@ -34,8 +34,8 @@ from celpy import celtypes
 from confluent_kafka.schema_registry.rules.cel.timestamp_funcs import format_timestamp
 
 try:
-    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
-    from confluent_kafka.schema_registry.confluent.types.decimal_utils import from_proto_decimal as _from_proto_decimal
+    from confluent_kafka.schema_registry.confluent.type import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.type.decimal_utils import from_proto_decimal as _from_proto_decimal
 
     _PROTO_DECIMAL_CLS: typing.Any = decimal_pb2.Decimal
 except ImportError:

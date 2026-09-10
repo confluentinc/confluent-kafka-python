@@ -43,8 +43,8 @@ from google.type import (
 
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
     FieldType,
@@ -57,7 +57,7 @@ from confluent_kafka.schema_registry.serde import (
     evaluate_validation_rule,
 )
 from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
     unscaled_to_bytes,
 )
 
@@ -284,6 +284,17 @@ def is_cel_leaf_message(desc: Optional[Descriptor]) -> bool:
     return desc is not None and desc.full_name in (DECIMAL_TYPE_NAME, TIMESTAMP_TYPE_NAME)
 
 
+# The widest coefficient this client can *encode*, as opposed to compute with. The wire form is
+# the unscaled integer in base 256, and decimal <-> binary radix conversion is quadratic; 4300 is
+# CPython's own ``int_max_str_digits``, the cap it puts on str <-> int for exactly that reason, and
+# the number every client in the family adopts so they agree on which decimals can be written.
+#
+# Defined here, in the lower layer, and imported by the CEL writer - there were two constants
+# named ``_MAX_COEFFICIENT_DIGITS`` in this client with different values, which is a trap for the
+# next reader. The other one is now ``_MAX_BIGINTEGER_DIGITS``, which is what it always meant.
+MAX_ENCODABLE_COEFFICIENT_DIGITS = 4300
+
+
 def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
     """Writes a Python Decimal into a confluent.type.Decimal message.
 
@@ -294,6 +305,15 @@ def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
     sign, digits, exponent = value.as_tuple()
     if not isinstance(exponent, int):
         raise ValueError("cannot write a non-finite decimal to " + DECIMAL_TYPE_NAME)
+    # Checked here rather than left to CPython: the ``int(...)`` below is a str -> int
+    # conversion, which raises "Exceeds the limit (4300 digits) for integer string conversion"
+    # naming neither the decimal nor the field. This is the *field-level* write-back, the twin
+    # of the message-level ``_set_decimal``, and it had the unhelpful version.
+    if len(digits) > MAX_ENCODABLE_COEFFICIENT_DIGITS:
+        raise ValueError(
+            f"decimal coefficient has {len(digits)} digits, past the "
+            f"{MAX_ENCODABLE_COEFFICIENT_DIGITS} this client can encode into "
+            + DECIMAL_TYPE_NAME)
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
@@ -838,7 +858,7 @@ _EXACT_CONTEXT = Context(prec=MAX_PREC, rounding=ROUND_HALF_UP, Emax=MAX_EMAX, E
 # `rules/cel/decimal_funcs._quantize` bounds its own rescale by the same JDK limit for the same
 # reason. The two cannot share one constant: this module needs the protobuf runtime, which is
 # an optional extra, and that one has to import without it.
-_MAX_COEFFICIENT_DIGITS = 646456993
+_MAX_BIGINTEGER_DIGITS = 646456993
 
 
 def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # type: ignore[name-defined]
@@ -867,7 +887,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
         # by both (1.4s there, 5s and a 4 MB field here), setScale(1, 1e9) throws
         # "BigInteger would overflow supported range" there while here it ran past a 240s
         # timeout still working towards a several-hundred-megabyte value.
-        if delta + len(digits) > _MAX_COEFFICIENT_DIGITS:
+        if delta + len(digits) > _MAX_BIGINTEGER_DIGITS:
             raise ValueError("Scale provided is too wide for the decimal")
         unscaled_datum = 10**delta * unscaled_datum
     else:

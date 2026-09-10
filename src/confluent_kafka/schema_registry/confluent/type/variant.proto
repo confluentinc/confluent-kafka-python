@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package confluent.type;
 
-option go_package="../types";
-
 message Variant {
 
   // A dictionary of field names used by all objects in the variant value.

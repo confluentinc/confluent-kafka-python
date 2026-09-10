@@ -31,7 +31,7 @@ from confluent_kafka.schema_registry.protobuf import (
 )
 from confluent_kafka.schema_registry.serde import SchemaId
 from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2
 from tests.integration.schema_registry.data.proto import DependencyTestProto_pb2, metadata_proto_pb2
 
 
@@ -302,7 +302,7 @@ def test_protobuf_to_decimal_ignores_precision(unscaled, scale, precision, expec
 # serde must give the same value. It did not - this path applied precision and that one never
 # has - so unscaled 125 at precision 2 was 1.3E+2 here and 125 there.
 def test_both_read_paths_agree_on_precision():
-    from confluent_kafka.schema_registry.confluent.types.decimal_utils import from_proto_decimal
+    from confluent_kafka.schema_registry.confluent.type.decimal_utils import from_proto_decimal
 
     msg = decimal_pb2.Decimal(
         value=(125).to_bytes(2, byteorder="big", signed=True), scale=0, precision=2)

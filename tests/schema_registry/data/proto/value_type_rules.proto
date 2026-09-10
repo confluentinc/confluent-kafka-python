@@ -3,7 +3,7 @@ syntax = "proto3";
 package tests;
 
 import "confluent/meta.proto";
-import "confluent/types/decimal.proto";
+import "confluent/type/decimal.proto";
 import "google/protobuf/timestamp.proto";
 
 // Inline rules on the two value types, at message and field level, so both can be exercised

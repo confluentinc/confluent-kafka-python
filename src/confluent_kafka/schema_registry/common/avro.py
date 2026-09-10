@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union, cast
 from fastavro import repository, validate
 from fastavro.schema import load_schema
 
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     VALIDATION_RULES_PROP,
     FieldTransform,

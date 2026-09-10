@@ -349,6 +349,25 @@ class Variant:
         if (self.metadata[0] & VERSION_MASK) != VERSION:
             raise VariantError("unsupported variant metadata version: %d" % (self.metadata[0] & VERSION_MASK))
 
+    # -- equality -----------------------------------------------------------
+
+    def __eq__(self, other: object) -> bool:
+        """Equality is over the encoding: the metadata bytes and the value bytes from ``pos``.
+
+        The same comparison a ``confluent.type.Variant`` protobuf message already gets, so a
+        variant read from a field and one built by ``variants.parseJson`` answer the same way.
+        Slicing from ``pos`` is what a navigated variant needs - its position is the start of
+        the value, not of the parent's header.
+        """
+        if self is other:
+            return True
+        if not isinstance(other, Variant):
+            return NotImplemented
+        return self.value[self.pos:] == other.value[other.pos:] and self.metadata == other.metadata
+
+    def __hash__(self) -> int:
+        return hash((self.value[self.pos:], self.metadata))
+
     # -- type ---------------------------------------------------------------
 
     def get_type(self) -> VariantType:
