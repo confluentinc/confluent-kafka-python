@@ -371,6 +371,12 @@ def rebuild_value_type(ctx, fd: FieldDescriptor, value: Any) -> Message:
     if isinstance(value, Message) and value.DESCRIPTOR.full_name == desc.full_name:
         # Already the right message, which is what an identity rule produces.
         return value
+    # A timestamp is bound as a datetime, which cannot hold the nanos it was read with, so an
+    # echoed one is copied from its source message instead of re-encoded. Same mechanism as the
+    # branch above; the difference is only that this binding converts rather than wrapping.
+    source = getattr(value, "msg", None)
+    if isinstance(source, Message) and source.DESCRIPTOR.full_name == desc.full_name:
+        return source
     out = _message_factory(desc)
     if desc.full_name == DECIMAL_TYPE_NAME:
         if not isinstance(value, decimal.Decimal):
