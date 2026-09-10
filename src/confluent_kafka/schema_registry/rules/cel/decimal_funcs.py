@@ -74,7 +74,14 @@ def _require_int_scale(scale: typing.Any, fn: str) -> int:
     A *negative* scale is legitimate - ``BigDecimal.setScale(-2)`` rounds to hundreds - so
     only the type and the width are constrained here.
     """
-    if isinstance(scale, (bool, celtypes.BoolType)) or not isinstance(scale, (int, celtypes.IntType)):
+    # UintType alongside the bools because it subclasses ``int`` too, so the ``int`` arm would
+    # accept it. ``uint`` is a distinct CEL type and no declared overload takes one - the scale
+    # is ``SimpleType.INT`` in the reference - so ``decimals.round(decimal("1"), 1u)`` has to
+    # fail. cel-java, cel-go and cel-es all report "no matching overload" at compile time;
+    # celpy is untyped, so the nearest equivalent is refusing here, as the Rust client does.
+    if isinstance(scale, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(
+        scale, (int, celtypes.IntType)
+    ):
         raise celpy.CELEvalError(f"{fn}: scale must be int, got {type(scale).__name__}")
     s = int(scale)
     if s < _INT32_MIN or s > _INT32_MAX:
