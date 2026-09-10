@@ -38,7 +38,7 @@ CEL string.
 from functools import lru_cache
 from typing import List, Optional, Tuple
 
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant, VariantType
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant, VariantType
 
 # A parsed path is a list of segments. Each segment is a ("field", key) or ("index", idx) pair.
 Segment = Tuple[str, object]

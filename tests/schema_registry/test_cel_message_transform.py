@@ -33,7 +33,7 @@ from decimal import Decimal
 
 import pytest
 
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant, parse_json
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant, parse_json
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.schema_registry_client import Rule, RuleKind, RuleMode, Schema
 from confluent_kafka.schema_registry.serde import RuleContext
@@ -42,8 +42,8 @@ from .data.proto import value_types_pb2
 
 _SCHEMA = """syntax = "proto3";
 package tests;
-import "confluent/types/decimal.proto";
-import "confluent/types/variant.proto";
+import "confluent/type/decimal.proto";
+import "confluent/type/variant.proto";
 import "google/protobuf/timestamp.proto";
 message ValueTypes {
   .confluent.type.Decimal amount = 1;
@@ -343,8 +343,8 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
     writer never rescales, so len(digits) is the digit count of the unscaled value written.
     """
     from confluent_kafka.schema_registry.common.protobuf import set_decimal_message
-    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
-    from confluent_kafka.schema_registry.confluent.types.decimal_utils import to_proto_decimal
+    from confluent_kafka.schema_registry.confluent.type import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.type.decimal_utils import to_proto_decimal
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
 
     # (value, java BigDecimal.precision(), java scale())
@@ -371,7 +371,7 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
 # Assigning that raises a bare `ValueError: Value out of range` from the protobuf runtime;
 # the writer names the value and the field instead.
 def test_a_scale_that_does_not_fit_int32_is_refused_at_the_wire():
-    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.type import decimal_pb2
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
 
     for text in ["1e4294967294", "1e-4294967294"]:
@@ -395,7 +395,7 @@ def test_a_scale_that_does_not_fit_int32_is_refused_at_the_wire():
 # CPython's "Exceeds the limit (4300 digits) for integer string conversion", naming neither
 # the decimal nor the field. It now names both.
 def test_a_coefficient_past_what_can_be_encoded_is_refused():
-    from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+    from confluent_kafka.schema_registry.confluent.type import decimal_pb2
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
 
     for digits in [4301, 5000, 100000]:
@@ -407,6 +407,31 @@ def test_a_coefficient_past_what_can_be_encoded_is_refused():
         target = decimal_pb2.Decimal()
         _set_decimal(target, Decimal("9" * digits))
         assert target.precision == digits
+
+
+# The field-level twin of the above. `set_decimal_message` is the write-back for a
+# confluent.type.Decimal *field*, and it had the unhelpful version of the same failure: the
+# `int(...)` inside it is a str -> int conversion, so CPython raised "Exceeds the limit (4300
+# digits) for integer string conversion" naming neither the decimal nor the field. Both paths
+# now report it the same way, from one shared constant - there were two constants called
+# `_MAX_COEFFICIENT_DIGITS` in this client with different values.
+def test_the_field_level_writer_reports_a_wide_coefficient_too():
+    from confluent_kafka.schema_registry.common.protobuf import set_decimal_message
+    from confluent_kafka.schema_registry.confluent.type import decimal_pb2
+
+    for digits in [4301, 5000, 100000]:
+        with pytest.raises(ValueError, match="past the 4300 this client can encode"):
+            set_decimal_message(decimal_pb2.Decimal(), Decimal("9" * digits))
+
+    # And the two writers agree exactly, boundary included, so which path produced a decimal
+    # cannot change whether it is accepted.
+    from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
+    for digits in [1, 38, 4300]:
+        field_level = decimal_pb2.Decimal()
+        set_decimal_message(field_level, Decimal("9" * digits))
+        message_level = decimal_pb2.Decimal()
+        _set_decimal(message_level, Decimal("9" * digits))
+        assert field_level.SerializeToString() == message_level.SerializeToString()
 
 
 def _scalar_descriptor():

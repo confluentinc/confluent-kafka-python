@@ -24,8 +24,8 @@ import uuid as uuid_mod
 
 import pytest
 
-from confluent_kafka.schema_registry.confluent.types import variant_utils as vu
-from confluent_kafka.schema_registry.confluent.types.variant_utils import (
+from confluent_kafka.schema_registry.confluent.type import variant_utils as vu
+from confluent_kafka.schema_registry.confluent.type.variant_utils import (
     Variant,
     VariantError,
     VariantType,

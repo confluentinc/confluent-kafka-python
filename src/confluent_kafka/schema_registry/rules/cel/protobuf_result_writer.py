@@ -48,10 +48,13 @@ from typing import Any, Mapping, Optional
 import celpy.celtypes as celtypes
 from google.protobuf import descriptor, message
 
-from confluent_kafka.schema_registry.common.protobuf import _is_repeated
+from confluent_kafka.schema_registry.common.protobuf import (
+    MAX_ENCODABLE_COEFFICIENT_DIGITS,
+    _is_repeated,
+)
 from confluent_kafka.schema_registry.rules.cel.constraints import _WRAPPER_TYPES
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant
-from confluent_kafka.schema_registry.confluent.types.decimal_utils import (
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
     unscaled_to_bytes,
 )
 
@@ -494,10 +497,10 @@ _INT_RANGES = {
 # are ever built.
 _MAX_INT_DIGITS = 20
 
-# CPython's own int_max_str_digits, the cap it puts on str <-> int conversion because decimal
-# to binary radix conversion is quadratic. It is what actually bounds the coefficient this
-# client can write, and it matches the bound the C++ client had to adopt for its own codec.
-_MAX_COEFFICIENT_DIGITS = 4300
+# The encodable-coefficient ceiling, imported rather than redefined: it used to be a second
+# constant named _MAX_COEFFICIENT_DIGITS, colliding with the BigInteger-capacity one in
+# common/protobuf.py that carries a different value.
+_MAX_COEFFICIENT_DIGITS = MAX_ENCODABLE_COEFFICIENT_DIGITS
 
 
 def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:

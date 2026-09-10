@@ -29,8 +29,8 @@ from google.protobuf.descriptor_pool import DescriptorPool
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from confluent_kafka.schema_registry.common.protobuf import validate_message as validate_protobuf
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2, variant_pb2
-from confluent_kafka.schema_registry.confluent.types import variant_utils as vu
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.type import variant_utils as vu
 from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_validator import CelValidator
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule
@@ -401,6 +401,42 @@ _VARIANT_JSON = '{"name":"alice","age":30,"scores":[10,20,30],"nested":{"x":1},"
 )
 def test_variant_functions_over_parsed_json(validator, expr):
     assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
+# Variant `==` is equality of the encoding. Before Variant grew __eq__ this was object identity,
+# while a confluent.type.Variant protobuf field has always compared bytes. Sound but incomplete:
+# equal bytes mean equal values, but one value has many encodings.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('variants.parseJson("1") == variants.parseJson("1")', True),
+        ('variants.parseJson("1") != variants.parseJson("1")', False),
+        ('variants.parseJson("{}") == variants.parseJson("{}")', True),
+        ("variants.parseJson('{\"a\":1}') == variants.parseJson('{\"a\":1}')", True),
+        ('variants.parseJson("1") == variants.parseJson("2")', False),
+        # Incomplete, as documented: an int and a double are two encodings.
+        ('variants.parseJson("1") == variants.parseJson("1.0")', False),
+        # Containers recurse with the same equality.
+        ('[variants.parseJson("1")] == [variants.parseJson("1")]', True),
+        ('[variants.parseJson("1")] == [variants.parseJson("2")]', False),
+        # Navigation: the same position in an identical parent.
+        (
+            "variants.field(variants.parseJson('{\"a\":1}'), 'a') == "
+            "variants.field(variants.parseJson('{\"a\":1}'), 'a')",
+            True,
+        ),
+        # A field holding 1 is not the standalone variant 1: it carries its parent's metadata
+        # dictionary, which is part of the comparison.
+        (
+            "variants.field(variants.parseJson('{\"a\":1}'), 'a') == variants.parseJson(\"1\")",
+            False,
+        ),
+        # And the whole document, reached two ways, is the same variant.
+        ("variants.parseJson(this) == variants.parseJson(this)", True),
+    ],
+)
+def test_variant_equality_is_over_the_encoding(validator, expr, expected):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is expected
 
 
 # An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
@@ -1270,6 +1306,30 @@ def test_variant_path_accepts_a_string_path():
 def test_alignment_width_is_refused(validator, expr):
     with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
         validator.execute(rule(expr), None, 1)
+
+
+# `decimals.mod` must be exact at any width. The Rust client computed it as
+# `trunc(a/b) * b` through a division capped at its library's default 100-digit precision, and so
+# returned a silently wrong residual past 100 digits (1e101 mod 3 came back as 10). libmpdec's
+# remainder is exact, so this client was never affected - pinned so it stays that way, and
+# because the previous coverage stopped at 1E40 (41 digits) and would not have caught it.
+#
+# Measured on the JDK: 10^k mod 3 is 1 for every k, and 10^200 mod 7 is 2 (10^6 = 1 mod 7,
+# 200 mod 6 = 2).
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'string(decimals.mod(decimal("1e99"), decimal("3"))) == "1"',
+        'string(decimals.mod(decimal("1e100"), decimal("3"))) == "1"',
+        'string(decimals.mod(decimal("1e101"), decimal("3"))) == "1"',
+        'string(decimals.mod(decimal("1e200"), decimal("3"))) == "1"',
+        'string(decimals.mod(decimal("1e10000"), decimal("3"))) == "1"',
+        'string(decimals.mod(decimal("1e200"), decimal("7"))) == "2"',
+        'string(decimals.mod(decimal("-1e101"), decimal("3"))) == "-1"',
+    ],
+)
+def test_mod_is_exact_past_a_hundred_digits(validator, expr):
+    assert validator.execute(rule(expr), None, 1) is True
 
 
 # Expanding a *zero* is free, so the aligned frame is set by the operands that actually have

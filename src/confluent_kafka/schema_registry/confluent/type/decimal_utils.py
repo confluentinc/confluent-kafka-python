@@ -20,7 +20,7 @@ serde uses these for ``confluent.type.Decimal`` fields, and the CEL layer reuses
 
 from decimal import Context, Decimal, MAX_EMAX, MAX_PREC, MIN_EMIN
 
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2
 
 
 # Java builds `new BigDecimal(unscaledValue, scale)`, which is exact. `scaleb` otherwise uses

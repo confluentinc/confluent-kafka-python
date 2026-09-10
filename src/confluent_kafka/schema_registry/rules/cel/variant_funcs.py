@@ -36,12 +36,12 @@ from datetime import datetime, timedelta, timezone
 import celpy
 from celpy import celtypes
 
-from confluent_kafka.schema_registry.confluent.types import variant_utils as vu
-from confluent_kafka.schema_registry.confluent.types.variant_utils import Variant, VariantType
+from confluent_kafka.schema_registry.confluent.type import variant_utils as vu
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant, VariantType
 from confluent_kafka.schema_registry.rules.cel import variant_path
 
 try:
-    from confluent_kafka.schema_registry.confluent.types import variant_pb2
+    from confluent_kafka.schema_registry.confluent.type import variant_pb2
 
     _PROTO_VARIANT_CLS: typing.Any = variant_pb2.Variant
 except ImportError:
