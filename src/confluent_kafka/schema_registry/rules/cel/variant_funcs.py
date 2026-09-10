@@ -280,7 +280,11 @@ def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
     # depend on it, and `variants.index(anObject, 1.5)` answered CEL null instead of
     # reporting the wrong type. int() would then have quietly floored 1.9 to element 1 and
     # read true as element 1.
-    if isinstance(idx, (bool, celtypes.BoolType)) or not isinstance(idx, (int, celtypes.IntType)):
+    # UintType alongside the bools because it subclasses ``int`` too; the reference declares
+    # variants.index as (DYN, INT), so `variants.index(v, 1u)` has no matching overload.
+    if isinstance(idx, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(
+        idx, (int, celtypes.IntType)
+    ):
         raise celpy.CELEvalError(
             f"variants.index: expected an int index, got {type(idx).__name__}")
     v = _require_variant_or_null(o, "variants.index")

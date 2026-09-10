@@ -143,6 +143,11 @@ def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:
     # generated bindings.
     if hasattr(v, "DESCRIPTOR") and getattr(v.DESCRIPTOR, "full_name", "") == "google.protobuf.Timestamp":
         return _from_proto_timestamp(v)
+    if isinstance(v, celtypes.UintType):
+        # Refused rather than let through: UintType subclasses ``int``, so the arm below would
+        # take it as epoch seconds, and ``uint`` is a distinct CEL type that no declared
+        # overload accepts. The typed runtimes report "no matching overload" before evaluating.
+        raise celpy.CELEvalError("timestamp: expected an int epoch, got uint")
     if isinstance(v, (int, celtypes.IntType)):
         # A bare int is epoch seconds, matching cel-java's int64_to_timestamp
         # and Go/C++/C#. Any other unit needs the two-arg precision form.
@@ -164,10 +169,15 @@ def _timestamp(*args: typing.Any) -> celtypes.TimestampType:
     """
     if len(args) == 2:
         value, precision = args
-        # Bools before ints: BoolType subclasses int (see _timestamp_one).
-        if isinstance(value, (bool, celtypes.BoolType)) or not isinstance(value, (int, celtypes.IntType)):
+        # Bools and uints before ints: both subclass int (see _timestamp_one). The reference
+        # declares this overload (INT, INT), so a uint on either argument has no overload.
+        if isinstance(value, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(
+            value, (int, celtypes.IntType)
+        ):
             raise celpy.CELEvalError(f"timestamp: epoch value must be int, got {type(value).__name__}")
-        if isinstance(precision, (bool, celtypes.BoolType)) or not isinstance(precision, (int, celtypes.IntType)):
+        if isinstance(precision, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(
+            precision, (int, celtypes.IntType)
+        ):
             raise celpy.CELEvalError(f"timestamp: precision must be int, got {type(precision).__name__}")
         try:
             return _from_epoch(int(value), int(precision))

@@ -439,6 +439,39 @@ def test_variant_equality_is_over_the_encoding(validator, expr, expected):
     assert validator.execute(rule(expr), None, _VARIANT_JSON) is expected
 
 
+# A CEL `uint` is a distinct type, and every declared overload here takes an `int`
+# (`SimpleType.INT` in the reference), so a uint argument has no matching overload. The typed
+# runtimes say so before evaluating - cel-java, cel-go and cel-es all report "found no matching
+# overload" at compile time, measured - and the Rust client refuses at runtime. celpy is untyped
+# and `celtypes.UintType` subclasses `int`, so every `isinstance(x, int)` guard accepted a uint
+# until each one excluded it explicitly.
+@pytest.mark.parametrize("expr", [
+    'decimals.round(decimal("1"), 1u) == decimal("1.0")',
+    'decimals.trunc(decimal("1.29"), 1u) == decimal("1.2")',
+    'decimals.round(decimal("1"), -1u) == decimal("0")',
+    'timestamp(0u) == timestamp("1970-01-01T00:00:00Z")',
+    # Both arguments of the precision form, the second of which is easy to miss.
+    'timestamp(0u, 0) == timestamp("1970-01-01T00:00:00Z")',
+    'timestamp(0, 0u) == timestamp("1970-01-01T00:00:00Z")',
+    "variants.index(variants.parseJson('[10,20,30]'), 1u) != null",
+])
+def test_a_uint_has_no_overload_where_an_int_is_declared(validator, expr):
+    with pytest.raises(Exception):
+        validator.execute(rule(expr), None, _VARIANT_JSON)
+
+
+# The int forms these mirror, so the guards cannot be satisfied by refusing everything.
+@pytest.mark.parametrize("expr", [
+    'decimals.round(decimal("1"), 1) == decimal("1.0")',
+    'decimals.trunc(decimal("1.29"), 1) == decimal("1.2")',
+    'timestamp(0) == timestamp("1970-01-01T00:00:00Z")',
+    'timestamp(0, 0) == timestamp("1970-01-01T00:00:00Z")',
+    "variants.index(variants.parseJson('[10,20,30]'), 1) != null",
+])
+def test_the_int_forms_still_answer(validator, expr):
+    assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
+
+
 # An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
 # in common/avro.py), which then flows into CEL through variant(this).
 def test_avro_variant_field_into_cel(validator):
