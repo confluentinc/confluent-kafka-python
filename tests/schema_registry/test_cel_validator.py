@@ -472,6 +472,45 @@ def test_the_int_forms_still_answer(validator, expr):
     assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
 
 
+_MAX_TS_MICROS = 253402300799 * 1_000_000 + 999_999
+_MIN_TS_MICROS = -62135596800 * 1_000_000
+
+
+def _timestamp_variant(micros):
+    from confluent_kafka.schema_registry.confluent.type.variant_utils import VariantBuilder
+
+    b = VariantBuilder()
+    b.append_timestamp_tz(micros)
+    return b.build()
+
+
+# A variant timestamp spans the whole int64 range while a CEL timestamp is 0001-9999, so an
+# out-of-range value is reachable from data. It used to be built anyway, leaving an instant that
+# could not be rendered but could still be compared - `< now` answered a confident false for a
+# value that is not a time. Refused now, and routed through the as/tryAs split so a rule can
+# guard, matching the reference's variantGetTimestamp.
+@pytest.mark.parametrize("micros", [0, _MAX_TS_MICROS, _MIN_TS_MICROS])
+def test_variant_as_timestamp_accepts_the_range(validator, micros):
+    v = _timestamp_variant(micros)
+    assert validator.execute(
+        rule('variants.as(this, "timestamp") == variants.as(this, "timestamp")'), None, v) is True
+    # tryAs answers a timestamp, not null - otherwise the guard test below proves nothing.
+    assert validator.execute(
+        rule('variants.tryAs(this, "timestamp") == null'), None, v) is False
+
+
+@pytest.mark.parametrize("micros", [
+    9223372036854775807, -9223372036854775807, _MAX_TS_MICROS + 1_000_000,
+])
+def test_variant_as_timestamp_refuses_out_of_range(validator, micros):
+    v = _timestamp_variant(micros)
+    with pytest.raises(Exception):
+        validator.execute(rule('variants.as(this, "timestamp") != null'), None, v)
+    # tryAs answers CEL null instead, so a rule can guard on it.
+    assert validator.execute(
+        rule('variants.tryAs(this, "timestamp") == null'), None, v) is True
+
+
 # An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
 # in common/avro.py), which then flows into CEL through variant(this).
 def test_avro_variant_field_into_cel(validator):
