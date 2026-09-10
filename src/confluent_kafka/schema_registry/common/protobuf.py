@@ -67,6 +67,7 @@ __all__ = [
     '_schema_to_str',
     '_proto_to_str',
     '_str_to_proto',
+    '_LEGACY_BUILTIN_DEPS',
     '_init_pool',
     'transform',
     '_transform_field',
@@ -210,6 +211,21 @@ def _proto_to_str(file_descriptor_proto: descriptor_pb2.FileDescriptorProto) -> 
     return base64.standard_b64encode(file_descriptor_proto.SerializeToString()).decode('ascii')
 
 
+# The confluent value types moved to their canonical paths - confluent/type/{decimal,variant}
+# .proto, what the Java client registers and what ProtobufSchema declares. The generated
+# descriptors here were named confluent/types/... after the directory the Go client needs
+# (`type` is a keyword there), which this client copied, so schemas registered before the move
+# import the plural name. A pool holds one file per symbol, so the plural name cannot be
+# registered alongside the canonical one - it raises "duplicate symbol
+# 'confluent.type.Decimal'" - and the import is rewritten instead. Both files declare
+# `package confluent.type`, so either resolves to the same message. Read-only: this client now
+# emits the canonical path.
+_LEGACY_BUILTIN_DEPS = {
+    "confluent/types/decimal.proto": "confluent/type/decimal.proto",
+    "confluent/types/variant.proto": "confluent/type/variant.proto",
+}
+
+
 def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorProto:
     """
     Base64 decode a FileDescriptor
@@ -228,6 +244,10 @@ def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorPr
         file_descriptor_proto.name = name
     except DecodeError as e:
         raise SerializationError(str(e))
+    for i, dep in enumerate(file_descriptor_proto.dependency):
+        canonical = _LEGACY_BUILTIN_DEPS.get(dep)
+        if canonical is not None:
+            file_descriptor_proto.dependency[i] = canonical
     return file_descriptor_proto
 
 

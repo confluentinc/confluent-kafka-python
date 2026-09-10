@@ -15,16 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+
 import pytest
 from google.protobuf import descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
 
-from confluent_kafka.schema_registry.common.protobuf import _init_pool
+from confluent_kafka.schema_registry.common.protobuf import _init_pool, _str_to_proto
 
 
-def _schema_importing(dep: str, message: str, name: str) -> descriptor_pb2.FileDescriptorProto:
-    """A one-field schema importing ``dep``, the shape the registry returns for a Protobuf
-    schema whose only reference is a built-in."""
+def _schema_str(dep: str, message: str, name: str) -> str:
+    """A one-field schema importing ``dep``, base64-encoded the way the registry stores it."""
     fdp = descriptor_pb2.FileDescriptorProto()
     fdp.name = name
     fdp.package = "test"
@@ -35,35 +36,41 @@ def _schema_importing(dep: str, message: str, name: str) -> descriptor_pb2.FileD
     field = msg.field.add()
     field.name, field.number, field.type, field.label = "f", 1, 11, 1
     field.type_name = ".confluent.type." + message
-    return fdp
+    return base64.standard_b64encode(fdp.SerializeToString()).decode("ascii")
 
 
-# The canonical import path is confluent/type/... - what the Java client registers and what
-# ProtobufSchema declares. The generated descriptors here were named confluent/types/... after
-# the directory the Go client needs (`type` is a keyword there), which Python copied, so a
-# Java-registered schema failed with "Depends on file 'confluent/type/decimal.proto', but it
-# has not been loaded".
+def _load(dep: str, message: str, name: str):
+    """The production path: registry text -> _str_to_proto -> pool.Add."""
+    pool = DescriptorPool()
+    _init_pool(pool)
+    return pool.Add(_str_to_proto(name, _schema_str(dep, message, name)))
+
+
+# Both spellings have to load. The canonical import path is confluent/type/... - what the Java
+# client registers and what ProtobufSchema declares - while the generated descriptors here were
+# named confluent/types/... after the directory the Go client needs (`type` is a keyword there),
+# which this client copied. A Java-registered schema used to fail with "Depends on file
+# 'confluent/type/decimal.proto', but it has not been loaded". The descriptors are canonical now
+# and the plural spelling is rewritten on the way in, because a pool holds one file per symbol
+# and registering both raises "duplicate symbol 'confluent.type.Decimal'".
 @pytest.mark.parametrize("dep, message", [
     ("confluent/type/decimal.proto", "Decimal"),
     ("confluent/type/variant.proto", "Variant"),
+    ("confluent/types/decimal.proto", "Decimal"),
+    ("confluent/types/variant.proto", "Variant"),
 ])
 def test_builtin_confluent_type_imports_resolve(dep, message):
-    pool = DescriptorPool()
-    _init_pool(pool)
-    fd = pool.Add(_schema_importing(dep, message, "test_ok_%s.proto" % message.lower()))
+    fd = _load(dep, message, "test_%s.proto" % dep.replace("/", "_"))
     assert fd.message_types_by_name["M"].fields[0].message_type.full_name \
         == "confluent.type." + message
 
 
-# A pool holds one file per symbol, so the plural spelling cannot be aliased alongside the
-# canonical one - registering both raises "duplicate symbol 'confluent.type.Decimal'". It has
-# to fail, and name the import it could not find.
-@pytest.mark.parametrize("dep, message", [
-    ("confluent/types/decimal.proto", "Decimal"),
-    ("confluent/types/variant.proto", "Variant"),
+# Only the two known legacy names are rewritten; anything else still has to fail, naming the
+# import it could not find.
+@pytest.mark.parametrize("dep", [
+    "confluent/type/nope.proto",
+    "confluent/types/nope.proto",
 ])
-def test_the_plural_spelling_is_not_registered(dep, message):
-    pool = DescriptorPool()
-    _init_pool(pool)
+def test_an_unknown_builtin_still_fails(dep):
     with pytest.raises(Exception, match=dep):
-        pool.Add(_schema_importing(dep, message, "test_no_%s.proto" % message.lower()))
+        _load(dep, "Decimal", "test_%s.proto" % dep.replace("/", "_"))
