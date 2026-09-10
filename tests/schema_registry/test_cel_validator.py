@@ -273,6 +273,74 @@ def test_decimal_ops_match_java_bigdecimal_exact_semantics(validator, expr, expe
     assert validator.execute(rule(expr), None, 1) == expected
 
 
+# An exact div/sqrt result carries the reference's *preferred* scale, not the quotient's own
+# natural scale: `dividend.scale - divisor.scale` for divide, `scale / 2` truncated toward
+# zero for square root. Trailing zeros are kept down to it and padded up to it, never
+# stripped below.
+#
+# Division needs no code of ours: the decimal arithmetic spec's ideal exponent for divide is
+# `exponent(dividend) - exponent(divisor)`, which is the same quantity. Square root is where
+# libmpdec and the reference part company - the spec floors `exponent / 2` where BigDecimal
+# truncates `scale / 2` - so they agree on an even scale and differ by one on an odd one.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        # divide: already native, pinned so a future context change cannot drift it.
+        ('string(decimals.div(decimal("10.0"), decimal("2.0")))', "5"),
+        ('string(decimals.div(decimal("10.0"), decimal("2")))', "5.0"),
+        ('string(decimals.div(decimal("6.0"), decimal("3")))', "2.0"),
+        ('string(decimals.div(decimal("10.00"), decimal("2")))', "5.00"),
+        ('string(decimals.div(decimal("1.000"), decimal("0.1")))', "10.00"),
+        ('string(decimals.div(decimal("-6.0"), decimal("3")))', "-2.0"),
+        # ...but never below the exact quotient's own scale: 10/4 is 2.5 at a preferred 0.
+        ('string(decimals.div(decimal("10"), decimal("4")))', "2.5"),
+        ('string(decimals.div(decimal("1.0"), decimal("8")))', "0.125"),
+        # An inexact quotient keeps all 38 digits; padding it would claim digits it lacks.
+        ('string(decimals.div(decimal("1.00000"), decimal("3")))', "0." + "3" * 38),
+        # sqrt, even scale: libmpdec and the reference already agree.
+        ('string(decimals.sqrt(decimal("4.00")))', "2.0"),
+        ('string(decimals.sqrt(decimal("0.0001")))', "0.01"),
+        ('string(decimals.sqrt(decimal("100.0000")))', "10.00"),
+        # sqrt, odd scale: this is the divergence. Native libmpdec answers "3.0" and "4.00".
+        ('string(decimals.sqrt(decimal("9.0")))', "3"),
+        ('string(decimals.sqrt(decimal("400.0")))', "20"),
+        ('string(decimals.sqrt(decimal("16.000")))', "4.0"),
+        # An inexact root is left at full precision.
+        ('string(decimals.sqrt(decimal("2")))', "1.4142135623730950488016887242096980786"),
+    ],
+)
+def test_exact_div_and_sqrt_carry_the_preferred_scale(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+# The scale itself, not its rendering. `toPlainString` hides the difference for a zero and
+# for a negative scale - "0", "0" and "500" read the same at several scales - but the scale
+# is a field of the `confluent.type.Decimal` encoding, so it has to be asserted directly.
+# A zero is the case a strip loop cannot handle: it takes the preferred scale outright, in
+# both directions, because the reference returns `zeroValueOf(preferredScale)`.
+@pytest.mark.parametrize(
+    "literal, expected_scale",
+    [
+        ("0", 0),
+        ("0.0", 0),      # preferred 0; libmpdec's floor would say 1
+        ("0.00", 1),
+        ("0.000", 1),    # preferred 1; libmpdec's floor would say 2
+        ("9.0", 0),
+        ("16.000", 1),
+        ("4E+2", -1),
+        ("1E+4", -2),
+        ("250E+3", -1),  # scale -3, and -3/2 truncates toward zero to -1, not down to -2
+    ],
+)
+def test_sqrt_preferred_scale_is_the_scale_not_the_rendering(literal, expected_scale):
+    from decimal import Decimal
+
+    from confluent_kafka.schema_registry.rules.cel import decimal_funcs
+
+    root = decimal_funcs._decimals_sqrt(Decimal(literal))
+    assert -root.as_tuple().exponent == expected_scale
+
+
 # #34 decimal(bytes, scale): a 38-digit unscaled value at scale 5 must round-trip
 # exactly through _from_bytes_scale (no rounding to the 28-digit default context).
 def test_decimal_from_bytes_scale_is_exact(validator):
