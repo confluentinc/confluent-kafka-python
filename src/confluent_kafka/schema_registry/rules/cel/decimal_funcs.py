@@ -485,16 +485,51 @@ def _decimals_least(a: typing.Any, b: typing.Any) -> Decimal:
 # ---- square root ----
 
 
+def _apply_preferred_scale(value: Decimal, preferred_scale: int, fn: str) -> Decimal:
+    """``value`` rewritten to the reference's preferred scale.
+
+    Strip trailing zeros down to - never below - ``preferred_scale``, then pad back up to it
+    when the natural scale is smaller. Only ever called on an exact result: padding an
+    inexact one would claim digits it does not have.
+
+    A zero takes the preferred scale outright, in both directions, because ``BigDecimal``
+    returns ``zeroValueOf(preferredScale)`` for it - a strip loop guarded on a non-zero
+    coefficient cannot lower a zero's scale, so the zero case has to be separate. Measured:
+    ``sqrt(0.000)`` is scale 1 in the reference, and ``0 / 3.00`` is scale -2.
+    """
+    if not value:
+        return _quantize(value, preferred_scale, decimal.ROUND_HALF_UP, fn)
+    minimal = value.normalize(context=_EXACT_CONTEXT)
+    target = max(preferred_scale, -_exponent_of(minimal))
+    return _quantize(minimal, target, decimal.ROUND_HALF_UP, fn)
+
+
 def _decimals_sqrt(a: typing.Any) -> Decimal:
     """Square root with 38-digit HALF_UP precision (same context as div).
 
     A negative input raises the canonical ``decimals.sqrt: square root of
     negative number`` message (no complex result); zero passes through to 0.
+
+    An exact root is then rewritten to the reference's preferred scale. libmpdec and
+    ``BigDecimal`` disagree here, and only here: the decimal arithmetic spec's ideal
+    exponent for square root is ``floor(exponent / 2)``, while ``BigDecimal.sqrt`` uses
+    ``scale / 2`` truncated toward zero. Those are the same for an even scale and one apart
+    for an odd one, so ``sqrt(9.0)`` is ``3.0`` on libmpdec and ``3`` on the reference. Note
+    that division needs no such step: the spec's ideal exponent for divide is
+    ``exponent(dividend) - exponent(divisor)``, which *is* the reference's preferred scale.
     """
     d = _d(a)
     if d < 0:
         raise celpy.CELEvalError("decimals.sqrt: square root of negative number")
-    return _DIV_CONTEXT.sqrt(d)
+    root = _DIV_CONTEXT.sqrt(d)
+    # Inexact roots keep all 38 digits: a trailing zero there is significant.
+    if _EXACT_CONTEXT.multiply(root, root) != d:
+        return root
+    scale = -_exponent_of(d)
+    # `scale / 2` in Java truncates toward zero, so a negative scale halves toward zero too;
+    # Python's `//` floors, which would answer -2 where the reference answers -1.
+    preferred = scale // 2 if scale >= 0 else -(-scale // 2)
+    return _apply_preferred_scale(root, preferred, "decimals.sqrt")
 
 
 # ---- unary ----
