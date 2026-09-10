@@ -500,7 +500,15 @@ def _apply_preferred_scale(value: Decimal, preferred_scale: int, fn: str) -> Dec
     if not value:
         return _quantize(value, preferred_scale, decimal.ROUND_HALF_UP, fn)
     minimal = value.normalize(context=_EXACT_CONTEXT)
-    target = max(preferred_scale, -_exponent_of(minimal))
+    minimal_scale = -_exponent_of(minimal)
+    # The preferred scale does not override the context precision. The reference pads toward
+    # it only while the result still fits in ``mc.precision`` significant digits, and stops
+    # short otherwise: ``1.<40 zeros> / 1`` is scale 37 there and not the preferred 40, and
+    # ``1.<100 zeros> / 8`` is scale 38 because 0.125 already spends 3 of the 38 on digits
+    # that are not padding. ``_quantize`` runs in ``_EXACT_CONTEXT``, so nothing else caps it -
+    # the raw preferred scale would have padded ``sqrt(1.<100 zeros>)`` to 51 digits.
+    headroom = _DIV_CONTEXT.prec - len(minimal.as_tuple().digits)
+    target = max(minimal_scale, min(preferred_scale, minimal_scale + headroom))
     return _quantize(minimal, target, decimal.ROUND_HALF_UP, fn)
 
 
