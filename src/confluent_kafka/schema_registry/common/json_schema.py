@@ -10,7 +10,18 @@ from referencing import Registry, Resource
 from referencing._core import Resolver
 
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
+from confluent_kafka.schema_registry.serde import (
+    VALIDATION_RULES_PROP,
+    FieldTransform,
+    FieldType,
+    RuleConditionError,
+    RuleContext,
+    ValidationRule,
+    ValidationRuleError,
+    ValidationRuleExecutor,
+    evaluate_validation_rule,
+    parse_validation_rules,
+)
 
 __all__ = [
     'JsonMessage',
@@ -19,6 +30,7 @@ __all__ = [
     '_retrieve_via_httpx',
     'transform',
     '_transform_field',
+    'validate_message',
     '_validate_subschemas',
     'get_type',
     '_disjoint',
@@ -128,14 +140,10 @@ def transform(
     field_ctx = ctx.current_field()
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
-    original_type = schema.get("type")
-    if isinstance(original_type, list) and len(original_type) > 0:
+    if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
         subschema = _validate_subtypes(schema, message, ref_registry)
-        try:
-            if subschema is not None:
-                return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
-        finally:
-            schema["type"] = original_type  # restore original type
+        if subschema is not None:
+            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     all_of = schema.get("allOf")
     any_of = schema.get("anyOf")
     one_of = schema.get("oneOf")
@@ -176,7 +184,8 @@ def transform(
     ref = schema.get("$ref")
     if ref is not None:
         ref_schema = ref_resolver.lookup(ref)
-        return transform(ctx, ref_schema.contents, ref_registry, ref_resolver, path, message, field_transform)
+        # As above: the resolver from the lookup carries the referenced resource's base URI.
+        return transform(ctx, ref_schema.contents, ref_registry, ref_schema.resolver, path, message, field_transform)
 
     schema_type = get_type(schema)
     if schema_type == FieldType.RECORD:
@@ -224,24 +233,194 @@ def _transform_field(
         ctx.exit_field()
 
 
+def validate_message(
+    executor: Optional[ValidationRuleExecutor],
+    schema: Optional[JsonSchema],
+    ref_registry: Registry,
+    ref_resolver: Resolver,
+    message: JsonMessage,
+    fail_fast: bool = False,
+) -> List[ValidationRuleError]:
+    """
+    Walk ``message`` against ``schema``, evaluating every inline ``confluent:rules``
+    CHECK constraint encountered and collecting all failures. Read-only — the message
+    is not modified.
+
+    Two kinds of rules are evaluated:
+
+    - Object-level (``confluent:rules`` on an object schema) — ``this`` is the object.
+    - Property-level (``confluent:rules`` on a property schema) — ``this`` is the
+      property value. Honors the skip-on-null contract: a property that is absent or
+      null does not have its rules invoked.
+
+    Failures are appended with their location, rooted at ``$`` to match the JVM client
+    (e.g. ``$.addr.zip``, ``$.tags[3]``). The walk continues after each failure unless
+    ``fail_fast`` is set.
+    """
+    violations: List[ValidationRuleError] = []
+    if executor is None or schema is None or message is None:
+        return violations
+    _validate_message(executor, schema, ref_registry, ref_resolver, "$", message, fail_fast, violations)
+    return violations
+
+
+def _validate_message(
+    executor: ValidationRuleExecutor,
+    schema: JsonSchema,
+    ref_registry: Registry,
+    ref_resolver: Resolver,
+    path: str,
+    message: JsonMessage,
+    fail_fast: bool,
+    out: List[ValidationRuleError],
+):
+    """
+    Mirrors :func:`transform`'s dispatch shape: type arrays, then the combined
+    keywords (allOf/anyOf/oneOf) with their sibling properties/items, then items,
+    then ``$ref``, then object properties.
+    """
+    if message is None or schema is None or isinstance(schema, bool):
+        return
+
+    if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
+        subschema = _validate_subtypes(schema, message, ref_registry)
+        if subschema is not None:
+            _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
+        return
+
+    all_of = schema.get("allOf")
+    any_of = schema.get("anyOf")
+    one_of = schema.get("oneOf")
+    if all_of is not None or any_of is not None or one_of is not None:
+        if all_of is not None:
+            for subschema in all_of:
+                _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
+                if fail_fast and out:
+                    return
+        elif one_of is not None:
+            for subschema in one_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    _validate_message(executor, resolved, ref_registry, ref_resolver, path, message, fail_fast, out)
+                    break
+        elif any_of is not None:
+            for subschema in any_of:
+                resolved = _validate_subschema(subschema, message, ref_registry, ref_resolver)
+                if resolved is not None:
+                    _validate_message(executor, resolved, ref_registry, ref_resolver, path, message, fail_fast, out)
+                    if fail_fast and out:
+                        return
+        if fail_fast and out:
+            return
+        # Also visit sibling properties/items at this level
+        # (siblings to allOf/anyOf/oneOf).
+        _validate_object(executor, schema, ref_registry, ref_resolver, path, message, fail_fast, out)
+        if fail_fast and out:
+            return
+        items = schema.get("items")
+        if items is not None and isinstance(message, list):
+            for i, item in enumerate(message):
+                _validate_message(executor, items, ref_registry, ref_resolver, f"{path}[{i}]", item, fail_fast, out)
+                if fail_fast and out:
+                    return
+        return
+
+    items = schema.get("items")
+    if items is not None and isinstance(message, list):
+        for i, item in enumerate(message):
+            _validate_message(executor, items, ref_registry, ref_resolver, f"{path}[{i}]", item, fail_fast, out)
+            if fail_fast and out:
+                return
+        return
+
+    ref = schema.get("$ref")
+    if ref is not None:
+        ref_schema = ref_resolver.lookup(ref)
+        # Recurse with the resolver the lookup returned, not the original one: it is scoped
+        # to the referenced resource, so a relative $ref inside it resolves against the
+        # right base URI.
+        _validate_message(
+            executor, ref_schema.contents, ref_registry, ref_schema.resolver, path, message, fail_fast, out
+        )
+        return
+
+    _validate_object(executor, schema, ref_registry, ref_resolver, path, message, fail_fast, out)
+
+
+def _validate_object(
+    executor: ValidationRuleExecutor,
+    schema: JsonSchema,
+    ref_registry: Registry,
+    ref_resolver: Resolver,
+    path: str,
+    message: JsonMessage,
+    fail_fast: bool,
+    out: List[ValidationRuleError],
+):
+    """
+    Evaluate object-level rules, then each declared property's rules, then recurse
+    into the property values. Undeclared properties (``additionalProperties`` /
+    ``patternProperties``) are not walked, matching the JVM client.
+    """
+    if isinstance(schema, bool) or not isinstance(message, dict):
+        return
+    # Object-level rules: this = the object value.
+    for rule in _read_validation_rules(schema):
+        evaluate_validation_rule(executor, rule, schema, message, path, out)
+        if fail_fast and out:
+            return
+    props = schema.get("properties")
+    if props is None:
+        return
+    for prop_name, prop_schema in props.items():
+        if not isinstance(prop_schema, dict):
+            continue
+        full_name = f"{path}.{prop_name}"
+        value = message.get(prop_name)
+        # Skip-on-null: an absent or null property does not invoke the executor.
+        if value is not None:
+            for rule in _read_validation_rules(prop_schema):
+                evaluate_validation_rule(executor, rule, prop_schema, value, full_name, out)
+                if fail_fast and out:
+                    return
+        _validate_message(executor, prop_schema, ref_registry, ref_resolver, full_name, value, fail_fast, out)
+        if fail_fast and out:
+            return
+
+
+def _read_validation_rules(schema: JsonSchema) -> List[ValidationRule]:
+    """
+    Read the ``confluent:rules`` keyword off a schema. Unknown keywords are preserved
+    verbatim in the parsed schema dict, so this is a plain lookup.
+    """
+    if not isinstance(schema, dict):
+        return []
+    return parse_validation_rules(schema.get(VALIDATION_RULES_PROP))
+
+
 def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -> Optional[JsonSchema]:
     """
     Validate the message against the subtypes.
+
+    Each candidate type is tried on a shallow copy of the schema, so the parsed
+    schema - which is cached and shared across concurrent serializations - is never
+    mutated, not even temporarily.
+
     Args:
         schema: The schema to validate the message against.
         message: The message to validate.
         registry: The registry to use for the validation.
     Returns:
-        The validated schema if the message is valid against the subtypes, otherwise None.
+        A copy of the schema narrowed to the matching type, otherwise None.
     """
     schema_type = schema.get("type")
     if not isinstance(schema_type, list) or len(schema_type) == 0:
         return None
     for typ in schema_type:
-        schema["type"] = typ
+        subschema = {**schema, "type": typ}
         try:
-            validate(instance=message, schema=schema, registry=registry)
-            return schema
+            validate(instance=message, schema=subschema, registry=registry)
+            return subschema
         except ValidationError:
             pass
     return None

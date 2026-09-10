@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package test;
+option go_package="../test";
+
+// Deliberately contains no message-typed fields, so a field-level domain rule can
+// exercise the map and repeated paths in isolation.
+message MapWidget {
+  string name = 1;
+  map<string, string> labels = 2;
+  repeated string tags = 3;
+}

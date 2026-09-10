@@ -1,5 +1,20 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.16.0 (unreleased)
+
+### Enhancements
+
+- Add support for saving Azure key version with DEK (#2306)
+- Pass context when clients make KEK calls to DEK Registry (#2308)
+- Schema Registry: add support for the DLQ (dead-letter-queue) rule action
+  (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
+  topic and the original serialize/deserialize call still raises. With the
+  default (global) `RuleRegistry` the DLQ is best-effort; set
+  `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
+  shutdown) for durability.
+- Add support for inline validation rules (#2326)
+
+
 ## v2.15.1
 
 ### Fixes

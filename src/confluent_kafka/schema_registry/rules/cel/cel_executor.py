@@ -121,13 +121,14 @@ def msg_to_cel(msg: Any) -> Any:
 
 
 def field_value_to_cel(field_ctx: FieldContext, field_value: Any) -> Any:
-    msg = field_ctx.containing_message
-    if isinstance(msg, message.Message):
-        desc = msg.DESCRIPTOR
-        field_desc = desc.fields_by_name[field_ctx.name]
+    # Protobuf values are converted through the field's own descriptor, which the walk carries
+    # on the context. Resolving it by name off the containing message instead would raise for
+    # a compatibly renamed field: field_ctx.name is the registered schema's name for it, and
+    # the producer's message knows the field under its own.
+    field_desc = field_ctx.field_descriptor
+    if field_desc is not None:
         return _scalar_field_value_to_cel(field_value, field_desc)
-    else:
-        return _value_to_cel(field_value)
+    return _value_to_cel(field_value)
 
 
 def _value_to_cel(msg: Any) -> Any:
@@ -139,12 +140,15 @@ def _value_to_cel(msg: Any) -> Any:
         return celtypes.StringType(msg)
     elif isinstance(msg, bytes):
         return celtypes.BytesType(msg)
+    # bool before int: bool is a subclass of int, so testing int first would bind every
+    # boolean as a CEL int and leave this branch unreachable - `this`, `!this` and
+    # `this == true` all fail against an int.
+    elif isinstance(msg, bool):
+        return celtypes.BoolType(msg)
     elif isinstance(msg, int):
         return celtypes.IntType(msg)
     elif isinstance(msg, float):
         return celtypes.DoubleType(msg)
-    elif isinstance(msg, bool):
-        return celtypes.BoolType(msg)
     elif isinstance(msg, datetime.datetime):
         # this impl differs from the other clients
         return celtypes.TimestampType(msg)
