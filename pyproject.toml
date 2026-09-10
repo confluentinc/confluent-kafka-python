@@ -26,6 +26,11 @@ Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 
 [tool.mypy]
 ignore_missing_imports = true
+# The generated protobuf modules are not statically analysable: _builder injects the message
+# classes into globals() at import time. Excluding them keeps them out of the build set, which
+# is what lets follow_imports = "skip" below apply - it is ignored for files mypy was asked to
+# check directly.
+exclude = '_pb2\.py$'
 
 [[tool.mypy.overrides]]
 module = [
@@ -35,12 +40,17 @@ module = [
 ]
 disable_error_code = ["assignment", "no-redef"]
 
+# Generated protobuf modules build their message classes at import time, so the classes are
+# not statically visible - neither in the generated file itself nor to anything annotating
+# against them. follow_imports = "skip" makes the module Any, which covers both.
 [[tool.mypy.overrides]]
 module = [
     "confluent_kafka.schema_registry.confluent.meta_pb2",
-    "confluent_kafka.schema_registry.confluent.types.decimal_pb2",
+    "confluent_kafka.schema_registry.confluent.type.decimal_pb2",
+    "confluent_kafka.schema_registry.confluent.type.variant_pb2",
 ]
 ignore_errors = true
+follow_imports = "skip"
 
 [tool.black]
 line-length = 120
