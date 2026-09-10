@@ -318,18 +318,70 @@ def test_exact_div_and_sqrt_carry_the_preferred_scale(validator, expr, expected)
 # is a field of the `confluent.type.Decimal` encoding, so it has to be asserted directly.
 # A zero is the case a strip loop cannot handle: it takes the preferred scale outright, in
 # both directions, because the reference returns `zeroValueOf(preferredScale)`.
+# The preferred scale does not override the 38-digit context precision. The reference pads
+# toward the preferred scale only while the result still fits in ``mc.precision`` significant
+# digits, and stops short otherwise, so the target is
+# ``min(preferred, minimal_scale + (38 - minimal_precision))`` floored at the minimal scale.
+#
+# Division needs no code of ours - libmpdec caps its own ideal exponent, as the decimal
+# arithmetic spec requires - but it is pinned here anyway. Square root goes through
+# ``_apply_preferred_scale``, which quantizes in ``_EXACT_CONTEXT`` and so had nothing capping
+# it: ``sqrt(1.<100 zeros>)`` padded to 51 significant digits against the reference's 38.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        # 37 zeros is exactly 38 significant digits: the last reachable preferred scale.
+        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
+        # 40 and 100 would need 41 and 101 digits; both stop at 37.
+        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
+        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
+        # The cap is on *precision*, not on scale, so a value that spends digits before the
+        # padding starts reaches a higher scale: 0.5 gets to 38 where 1 gets only to 37...
+        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("2")))', "0.5" + "0" * 37),
+        # ...and 0.125 also gets to 38, from a minimal scale of 3 rather than 1.
+        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("8")))', "0.125" + "0" * 35),
+        # sqrt: preferred 20 fits, 37 is exactly the ceiling, 50 does not fit.
+        ('string(decimals.sqrt(decimal("1.0000000000000000000000000000000000000000")))', "1." + "0" * 20),
+        ('string(decimals.sqrt(decimal("1.00000000000000000000000000000000000000000000000000000000000000000000000000")))', "1." + "0" * 37),
+        ('string(decimals.sqrt(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))', "1." + "0" * 37),
+    ],
+)
+def test_the_preferred_scale_cannot_exceed_the_context_precision(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+# A zero is exempt from that cap: it is one digit at any scale, so it keeps the full preferred
+# scale. Measured on the reference: ``0.<100 zeros> / 1`` is scale 100 at precision 1.
+@pytest.mark.parametrize(
+    "expr, expected_scale",
+    [
+        ('decimals.div(decimal("0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("1"))', 100),
+        ('decimals.div(decimal("0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("3.0"))', 99),
+    ],
+)
+def test_a_zero_is_exempt_from_the_precision_cap(expr, expected_scale):
+    from decimal import Decimal
+
+    from confluent_kafka.schema_registry.rules.cel import decimal_funcs
+
+    a = Decimal("0." + "0" * 100)
+    b = Decimal("1") if expected_scale == 100 else Decimal("3.0")
+    q = decimal_funcs._decimals_div(a, b)
+    assert -q.as_tuple().exponent == expected_scale
+
+
 @pytest.mark.parametrize(
     "literal, expected_scale",
     [
         ("0", 0),
-        ("0.0", 0),      # preferred 0; libmpdec's floor would say 1
+        ("0.0", 0),
         ("0.00", 1),
-        ("0.000", 1),    # preferred 1; libmpdec's floor would say 2
+        ("0.000", 1),
         ("9.0", 0),
         ("16.000", 1),
         ("4E+2", -1),
         ("1E+4", -2),
-        ("250E+3", -1),  # scale -3, and -3/2 truncates toward zero to -1, not down to -2
+        ("250E+3", -1),
     ],
 )
 def test_sqrt_preferred_scale_is_the_scale_not_the_rendering(literal, expected_scale):
