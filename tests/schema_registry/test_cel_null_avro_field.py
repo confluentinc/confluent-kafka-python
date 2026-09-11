@@ -49,6 +49,7 @@ _SCHEMA = {
             "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 8, "scale": 2}],
             "confluent:tags": ["AMOUNT"],
         },
+        {"name": "note", "type": ["null", "string"], "confluent:tags": ["NOTE"]},
         {"name": "plain", "type": "string"},
     ],
 }
@@ -56,7 +57,7 @@ _SCHEMA = {
 
 # The tag map the walk would otherwise read off the parsed schema. Without it the rule matches
 # no field and the walk returns the record untouched - which looks exactly like a pass.
-_INLINE_TAGS = {"Nullable.amount": {"AMOUNT"}}
+_INLINE_TAGS = {"Nullable.amount": {"AMOUNT"}, "Nullable.note": {"NOTE"}}
 
 
 def _run(expr, amount):
@@ -109,3 +110,60 @@ def test_a_present_value_still_evaluates_normally():
     assert _run('decimals.gt(decimal(value), decimal("10.00"))', Decimal("12.34")) is not None
     with pytest.raises((RuleConditionError, RuleError)):
         _run('decimals.gt(decimal(value), decimal("100.00"))', Decimal("12.34"))
+
+
+def _run_transform(expr, tag, record):
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", [tag], None, expr, None, None, False)
+    ctx = RuleContext(
+        None,
+        None,
+        None,
+        Schema(json.dumps(_SCHEMA), "AVRO"),
+        "t-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        _INLINE_TAGS,
+        None,
+    )
+    ft = CelFieldExecutor().new_transform(ctx)
+    return transform(ctx, _SCHEMA, record, ft)
+
+
+def test_value_written_to_a_null_branch_leaves_the_null_notation():
+    """A rule that fills a null branch must land on the value branch.
+
+    Re-emitting ``("null", x)`` is silent data loss - fastavro encodes it as null and drops x.
+    The reference resolves the branch from the datum, so the notation has to go.
+    """
+    out = _run_transform('"recovered"', "NOTE", {"note": ("null", None), "plain": "hi"})
+    assert out["note"] == "recovered"
+
+
+def test_a_present_branch_keeps_its_notation():
+    """The must-pass twin: tuple notation still selects the branch it names."""
+    out = _run_transform('value + "!"', "NOTE", {"note": ("string", "a"), "plain": "hi"})
+    assert out["note"] == ("string", "a!")
+
+
+def test_a_branch_that_no_longer_fits_is_re_resolved():
+    """A rule that changes the value's type moves it off a branch that cannot hold it.
+
+    The reference keeps no branch at all, so a string turned into an int lands on the int
+    branch; re-emitting ("string", 3) makes fastavro refuse the record instead.
+    """
+    schema = {
+        "type": "record",
+        "name": "Nullable",
+        "fields": [{"name": "note", "type": ["string", "int"], "confluent:tags": ["NOTE"]}],
+    }
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", ["NOTE"],
+                None, "3", None, None, False)
+    ctx = RuleContext(
+        None, None, None, Schema(json.dumps(schema), "AVRO"), "t-value", RuleMode.WRITE,
+        rule, 0, [rule], {"Nullable.note": {"NOTE"}}, None,
+    )
+    ft = CelFieldExecutor().new_transform(ctx)
+    out = transform(ctx, schema, {"note": ("string", "a")}, ft)
+    assert out["note"] == 3
