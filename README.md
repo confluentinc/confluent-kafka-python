@@ -97,8 +97,31 @@ The AsyncIO producer and consumer integrate seamlessly with async Schema Registr
 
 ### Basic Producer example
 
+Production applications should serialize with Schema Registry. Producing raw bytes
+leads to data-quality issues, broken consumers, and ungovernable data.
+
 ```python
 from confluent_kafka import Producer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+
+schema_str = """
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "User",
+  "type": "object",
+  "properties": {
+    "name": {"type": "string"},
+    "favorite_number": {"type": "integer"}
+  }
+}
+"""
+
+# The schema is registered and validated automatically on produce.
+schema_registry_client = SchemaRegistryClient({'url': 'http://localhost:8081'})
+json_serializer = JSONSerializer(schema_str, schema_registry_client)
+string_serializer = StringSerializer('utf_8')
 
 p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
@@ -110,19 +133,30 @@ def delivery_report(err, msg):
     else:
         print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
-for data in some_data_source:
+# Each `user` is a dict, for example {"name": "...", "favorite_number": 42}
+for user in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
     p.poll(0)
 
     # Asynchronously produce a message. The delivery report callback will
     # be triggered from the call to poll() above, or flush() below, when the
     # message has been successfully delivered or failed permanently.
-    p.produce('mytopic', data.encode('utf-8'), callback=delivery_report)
+    p.produce(
+        topic='mytopic',
+        key=string_serializer(user['name']),
+        value=json_serializer(user, SerializationContext('mytopic', MessageField.VALUE)),
+        callback=delivery_report,
+    )
 
 # Wait for any outstanding messages to be delivered and delivery report
 # callbacks to be triggered.
 p.flush()
 ```
+
+This example requires the JSON Schema extra: `pip install "confluent-kafka[json,schemaregistry]"`.
+See [Schema Registry Integration](#schema-registry-integration) for Avro and Protobuf,
+Confluent Cloud configuration, and the asynchronous serializers, and
+[`examples/json_producer.py`](examples/json_producer.py) for a fuller runnable version.
 
 For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
