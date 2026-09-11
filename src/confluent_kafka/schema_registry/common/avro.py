@@ -158,7 +158,13 @@ def transform(
         if subschema is None:
             return message
         submessage = transform(ctx, subschema, submessage, field_transform)
-        if isinstance(message, tuple) and len(message) == 2:
+        # The branch a transformed value belongs to follows from the value, not from the branch
+        # it arrived on - the reference keeps no branch at all and resolves it from the datum.
+        # Keep the notation while its branch still accepts the result, so two same-shaped
+        # records are never swapped; drop it otherwise and let fastavro resolve, since
+        # ("null", x) would be written as null with x silently dropped.
+        if (isinstance(message, tuple) and len(message) == 2
+                and _branch_accepts(subschema, submessage)):
             return (message[0], submessage)
         return submessage
     elif isinstance(schema, dict):
@@ -399,6 +405,15 @@ def _union_branch_matches(subschema: AvroSchema, branch_name: str, exact: bool) 
         fullname = f"{namespace}.{name}" if namespace else name
         return branch_name == fullname
     return '.' not in name and not subschema.get("namespace") and branch_name.rsplit('.', 1)[-1] == name
+
+
+def _branch_accepts(subschema: AvroSchema, message: AvroMessage) -> bool:
+    """Whether ``subschema`` can hold ``message``, by the same test ``_resolve_union`` uses."""
+    try:
+        validate(message, _collapse_schema(deepcopy(subschema)))
+        return True
+    except:  # noqa: E722
+        return False
 
 
 def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Tuple[Optional[AvroSchema], AvroMessage]:
