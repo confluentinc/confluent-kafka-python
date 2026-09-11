@@ -1,0 +1,8 @@
+# Free-threaded (no-GIL) variant of requirements-avro.txt.
+# Excludes fastavro: it ships a free-threaded wheel but has not declared
+# itself GIL-safe (see https://github.com/fastavro/fastavro/issues/873), so
+# merely importing it silently re-enables the GIL for the rest of the
+# process.
+# Keep in sync with requirements-avro.txt when adding new includes.
+requests
+avro>=1.11.1,<2
