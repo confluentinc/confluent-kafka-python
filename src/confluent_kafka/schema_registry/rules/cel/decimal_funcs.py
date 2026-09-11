@@ -739,11 +739,11 @@ def _string(v: typing.Any) -> celtypes.StringType:
         return celtypes.StringType("true" if v else "false")
     if isinstance(v, (bytes, bytearray, celtypes.BytesType)):
         return celtypes.StringType(bytes(v).decode("utf-8"))
+    if isinstance(v, (str, celtypes.StringType)):
+        return _STDLIB_STRING(v)
     if isinstance(
         v,
         (
-            str,
-            celtypes.StringType,
             int,
             celtypes.IntType,
             celtypes.UintType,
@@ -752,7 +752,9 @@ def _string(v: typing.Any) -> celtypes.StringType:
             celtypes.DurationType,
         ),
     ):
-        return _STDLIB_STRING(v)
+        # StringType's own fallback for a non-string source is `str(source)`, but its signature
+        # only admits string and bytes forms; go through str() so the call type-checks.
+        return _STDLIB_STRING(str(v))
     raise celpy.CELEvalError(f"found no matching overload for 'string' applied to ({_cel_type_name(v)})")
 
 
