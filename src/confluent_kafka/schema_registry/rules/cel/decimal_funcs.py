@@ -683,6 +683,30 @@ def _d(v: typing.Any) -> Decimal:
 _STDLIB_STRING = celtypes.StringType
 
 
+def _cel_type_name(v: typing.Any) -> str:
+    """A CEL type name, for the "no matching overload" messages below."""
+    if v is None:
+        return "null"
+    # BoolType subclasses int and UintType is distinct from int, so both come before the int arm.
+    if isinstance(v, (bool, celtypes.BoolType)):
+        return "bool"
+    if isinstance(v, celtypes.UintType):
+        return "uint"
+    if isinstance(v, (bytes, bytearray, celtypes.BytesType)):
+        return "bytes"
+    if isinstance(v, (str, celtypes.StringType)):
+        return "string"
+    if isinstance(v, (int, celtypes.IntType)):
+        return "int"
+    if isinstance(v, (float, celtypes.DoubleType)):
+        return "double"
+    if isinstance(v, (list, tuple, celtypes.ListType)):
+        return "list"
+    if isinstance(v, (dict, celtypes.MapType)):
+        return "map"
+    return type(v).__name__
+
+
 def _string(v: typing.Any) -> celtypes.StringType:
     """Extension of CEL stdlib {@code string(...)} with Decimal and Timestamp arms.
 
@@ -690,8 +714,14 @@ def _string(v: typing.Any) -> celtypes.StringType:
     ``format(d, 'f')``) for Decimal inputs; renders a Timestamp through
     :func:`~confluent_kafka.schema_registry.rules.cel.timestamp_funcs.format_timestamp`,
     because celpy's own ``TimestampType.__str__`` silently drops the
-    sub-second component; delegates to celpy's stdlib string coercion for
-    everything else.
+    sub-second component.
+
+    Registering a ``string`` entry *replaces* celpy's, rather than extending it the way the
+    typed runtimes do, so every remaining type is this function's responsibility - and
+    ``StringType`` is just ``str``, which renders them as Python rather than as CEL. Measured:
+    a bool came back ``"True"`` where the reference gives ``"true"``, and null, a list and a
+    map - none of which CEL declares a ``string`` overload for - came back as ``"None"`` and
+    Python container reprs instead of the reference's "found no matching overload".
     """
     if isinstance(v, celtypes.TimestampType):
         return celtypes.StringType(format_timestamp(v))
@@ -709,7 +739,18 @@ def _string(v: typing.Any) -> celtypes.StringType:
         # scale renders as that many zeros.
         _require_sane_width(_plain_form_length(d), "string", "the plain form")
         return celtypes.StringType(format(_drop_negative_zero(d), "f"))
-    return _STDLIB_STRING(v)
+    if isinstance(v, (bool, celtypes.BoolType)):
+        return celtypes.StringType("true" if v else "false")
+    if isinstance(v, (bytes, bytearray, celtypes.BytesType)):
+        return celtypes.StringType(bytes(v).decode("utf-8"))
+    if isinstance(
+        v,
+        (str, celtypes.StringType, int, celtypes.IntType, celtypes.UintType,
+         float, celtypes.DoubleType, celtypes.DurationType),
+    ):
+        return _STDLIB_STRING(v)
+    raise celpy.CELEvalError(
+        f"found no matching overload for 'string' applied to ({_cel_type_name(v)})")
 
 
 # ---- double(Decimal) — extend celpy stdlib's double(...) ----
@@ -724,10 +765,18 @@ def _double(v: typing.Any) -> celtypes.DoubleType:
     Narrowing conversion (``float(Decimal)``) for Decimal inputs — may lose
     precision, and out-of-range magnitudes become ``inf``; delegates to celpy's
     stdlib double coercion for everything else.
+
+    Bool and bytes are refused first: ``DoubleType`` is ``float``, and Python's ``float``
+    accepts both (``float(True)`` is 1.0, ``float(b"12")`` is 12.0) where CEL declares no such
+    overload and the reference reports one. Everything else celpy already rejects - a list, a
+    map and an unparseable string all raise out of ``float``.
     """
     d = decimal_boundary_value(v)
     if d is not None:
         return celtypes.DoubleType(float(d))
+    if isinstance(v, (bool, celtypes.BoolType, bytes, bytearray, celtypes.BytesType)):
+        raise celpy.CELEvalError(
+            f"found no matching overload for 'double' applied to ({_cel_type_name(v)})")
     return _STDLIB_DOUBLE(v)
 
 
