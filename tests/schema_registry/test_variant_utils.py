@@ -553,7 +553,7 @@ def test_variant_as_timestamp_micros_types_are_used_as_is():
 # two agree; and a nanos variant cannot reach the boundary at all, since an int64 count of
 # nanoseconds spans only 1677..2262. Only the micros types can fall out of range.
 def test_variant_as_timestamp_range_is_the_reference_boundary():
-    for ns in (-(2 ** 63), 2 ** 63 - 1):
+    for ns in (-(2**63), 2**63 - 1):
         assert _variant_get_timestamp(_nanos_variant(ns)) is not None
     max_micros = 253402300799_999_999
     min_micros = -62135596800_000_000
@@ -570,15 +570,17 @@ def test_variant_as_timestamp_range_is_the_reference_boundary():
 # variant to a safe subtree wrote the original instead.
 def test_standalone_value_bytes_start_at_the_position():
     from confluent_kafka.schema_registry.confluent.type.variant_utils import (
-        Variant, parse_json, to_json_string,
+        Variant,
+        parse_json,
+        to_json_string,
     )
 
     doc = parse_json('{"a":1,"secret":"TOPSECRET"}')
     child = doc.get_field_by_key("a")
 
     assert child.pos > 0
-    assert child.value == doc.value          # the whole buffer is shared
-    assert to_json_string(child) == "1"      # the accessors honour pos
+    assert child.value == doc.value  # the whole buffer is shared
+    assert to_json_string(child) == "1"  # the accessors honour pos
     assert to_json_string(Variant(child.standalone_value_bytes(), child.metadata)) == "1"
 
     # A root variant is unaffected: its position is already zero.
@@ -589,7 +591,9 @@ def test_the_write_back_paths_use_the_standalone_bytes():
     from confluent_kafka.schema_registry.common.avro import _variant_to_avro
     from confluent_kafka.schema_registry.common.protobuf import variant_to_protobuf
     from confluent_kafka.schema_registry.confluent.type.variant_utils import (
-        Variant, parse_json, to_json_string,
+        Variant,
+        parse_json,
+        to_json_string,
     )
 
     doc = parse_json('{"a":1,"secret":"TOPSECRET"}')
@@ -610,6 +614,7 @@ def test_the_write_back_paths_use_the_standalone_bytes():
         def __init__(self, name):
             class _M:
                 pass
+
             self.message_type = _M()
             self.message_type.full_name = name
 
@@ -619,8 +624,7 @@ def test_the_write_back_paths_use_the_standalone_bytes():
 
     # And a whole document still writes as itself.
     root = _variant_to_avro(doc, None)
-    assert to_json_string(Variant(root["value"], root["metadata"])) == \
-        '{"a":1,"secret":"TOPSECRET"}'
+    assert to_json_string(Variant(root["value"], root["metadata"])) == '{"a":1,"secret":"TOPSECRET"}'
 
 
 def test_integer_size_ladder_reaches_four_bytes():

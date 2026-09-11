@@ -245,8 +245,7 @@ def _path(o: typing.Any, path: typing.Any) -> typing.Optional[Variant]:
     # null receiver must not turn a mistyped call into CEL null. Same contract as
     # variants.field, variants.index, variants.as and variants.tryAs.
     if not isinstance(path, (str, celtypes.StringType)):
-        raise celpy.CELEvalError(
-            f"variants.path: expected a string path, got {type(path).__name__}")
+        raise celpy.CELEvalError(f"variants.path: expected a string path, got {type(path).__name__}")
     v = _require_variant_or_null(o, "variants.path")
     if v is None:
         return None
@@ -263,8 +262,7 @@ def _field(o: typing.Any, key: typing.Any) -> typing.Optional[Variant]:
     # str(key) would have looked up "1" for variants.field(v, 1). Same contract as
     # variants.index and variants.parseJson.
     if not isinstance(key, (str, celtypes.StringType)):
-        raise celpy.CELEvalError(
-            f"variants.field: expected a string key, got {type(key).__name__}")
+        raise celpy.CELEvalError(f"variants.field: expected a string key, got {type(key).__name__}")
     v = _require_variant_or_null(o, "variants.field")
     if v is None or v.get_type() != VariantType.OBJECT:
         return None
@@ -282,11 +280,8 @@ def _index(o: typing.Any, idx: typing.Any) -> typing.Optional[Variant]:
     # read true as element 1.
     # UintType alongside the bools because it subclasses ``int`` too; the reference declares
     # variants.index as (DYN, INT), so `variants.index(v, 1u)` has no matching overload.
-    if isinstance(idx, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(
-        idx, (int, celtypes.IntType)
-    ):
-        raise celpy.CELEvalError(
-            f"variants.index: expected an int index, got {type(idx).__name__}")
+    if isinstance(idx, (bool, celtypes.BoolType, celtypes.UintType)) or not isinstance(idx, (int, celtypes.IntType)):
+        raise celpy.CELEvalError(f"variants.index: expected an int index, got {type(idx).__name__}")
     v = _require_variant_or_null(o, "variants.index")
     if v is None or v.get_type() != VariantType.ARRAY:
         return None
@@ -401,8 +396,7 @@ def _require_type_name(type_str: typing.Any, fn: str) -> str:
     wrong-typed argument was indistinguishable from a variant of the wrong shape.
     """
     if not isinstance(type_str, (str, celtypes.StringType)):
-        raise celpy.CELEvalError(
-            f"{fn}: expected a string type name, got {type(type_str).__name__}")
+        raise celpy.CELEvalError(f"{fn}: expected a string type name, got {type(type_str).__name__}")
     return str(type_str)
 
 

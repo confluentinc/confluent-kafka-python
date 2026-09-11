@@ -334,16 +334,31 @@ def test_exact_div_and_sqrt_carry_the_preferred_scale(validator, expr, expected)
         ('string(decimals.div(decimal("1.0000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
         # 40 and 100 would need 41 and 101 digits; both stop at 37.
         ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
-        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("1")))', "1." + "0" * 37),
+        (
+            'string(decimals.div(decimal("1.' + "0" * 100 + '"), decimal("1")))',
+            "1." + "0" * 37,
+        ),
         # The cap is on *precision*, not on scale, so a value that spends digits before the
         # padding starts reaches a higher scale: 0.5 gets to 38 where 1 gets only to 37...
-        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("2")))', "0.5" + "0" * 37),
+        (
+            'string(decimals.div(decimal("1.' + "0" * 100 + '"), decimal("2")))',
+            "0.5" + "0" * 37,
+        ),
         # ...and 0.125 also gets to 38, from a minimal scale of 3 rather than 1.
-        ('string(decimals.div(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("8")))', "0.125" + "0" * 35),
+        (
+            'string(decimals.div(decimal("1.' + "0" * 100 + '"), decimal("8")))',
+            "0.125" + "0" * 35,
+        ),
         # sqrt: preferred 20 fits, 37 is exactly the ceiling, 50 does not fit.
         ('string(decimals.sqrt(decimal("1.0000000000000000000000000000000000000000")))', "1." + "0" * 20),
-        ('string(decimals.sqrt(decimal("1.00000000000000000000000000000000000000000000000000000000000000000000000000")))', "1." + "0" * 37),
-        ('string(decimals.sqrt(decimal("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")))', "1." + "0" * 37),
+        (
+            'string(decimals.sqrt(decimal("1.' + "0" * 74 + '")))',
+            "1." + "0" * 37,
+        ),
+        (
+            'string(decimals.sqrt(decimal("1.' + "0" * 100 + '")))',
+            "1." + "0" * 37,
+        ),
     ],
 )
 def test_the_preferred_scale_cannot_exceed_the_context_precision(validator, expr, expected):
@@ -355,8 +370,14 @@ def test_the_preferred_scale_cannot_exceed_the_context_precision(validator, expr
 @pytest.mark.parametrize(
     "expr, expected_scale",
     [
-        ('decimals.div(decimal("0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("1"))', 100),
-        ('decimals.div(decimal("0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimal("3.0"))', 99),
+        (
+            'decimals.div(decimal("0.' + "0" * 100 + '"), decimal("1"))',
+            100,
+        ),
+        (
+            'decimals.div(decimal("0.' + "0" * 100 + '"), decimal("3.0"))',
+            99,
+        ),
     ],
 )
 def test_a_zero_is_exempt_from_the_precision_cap(expr, expected_scale):
@@ -565,29 +586,35 @@ def test_variant_equality_is_over_the_encoding(validator, expr, expected):
 # overload" at compile time, measured - and the Rust client refuses at runtime. celpy is untyped
 # and `celtypes.UintType` subclasses `int`, so every `isinstance(x, int)` guard accepted a uint
 # until each one excluded it explicitly.
-@pytest.mark.parametrize("expr", [
-    'decimals.round(decimal("1"), 1u) == decimal("1.0")',
-    'decimals.trunc(decimal("1.29"), 1u) == decimal("1.2")',
-    'decimals.round(decimal("1"), -1u) == decimal("0")',
-    'timestamp(0u) == timestamp("1970-01-01T00:00:00Z")',
-    # Both arguments of the precision form, the second of which is easy to miss.
-    'timestamp(0u, 0) == timestamp("1970-01-01T00:00:00Z")',
-    'timestamp(0, 0u) == timestamp("1970-01-01T00:00:00Z")',
-    "variants.index(variants.parseJson('[10,20,30]'), 1u) != null",
-])
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimals.round(decimal("1"), 1u) == decimal("1.0")',
+        'decimals.trunc(decimal("1.29"), 1u) == decimal("1.2")',
+        'decimals.round(decimal("1"), -1u) == decimal("0")',
+        'timestamp(0u) == timestamp("1970-01-01T00:00:00Z")',
+        # Both arguments of the precision form, the second of which is easy to miss.
+        'timestamp(0u, 0) == timestamp("1970-01-01T00:00:00Z")',
+        'timestamp(0, 0u) == timestamp("1970-01-01T00:00:00Z")',
+        "variants.index(variants.parseJson('[10,20,30]'), 1u) != null",
+    ],
+)
 def test_a_uint_has_no_overload_where_an_int_is_declared(validator, expr):
     with pytest.raises(Exception):
         validator.execute(rule(expr), None, _VARIANT_JSON)
 
 
 # The int forms these mirror, so the guards cannot be satisfied by refusing everything.
-@pytest.mark.parametrize("expr", [
-    'decimals.round(decimal("1"), 1) == decimal("1.0")',
-    'decimals.trunc(decimal("1.29"), 1) == decimal("1.2")',
-    'timestamp(0) == timestamp("1970-01-01T00:00:00Z")',
-    'timestamp(0, 0) == timestamp("1970-01-01T00:00:00Z")',
-    "variants.index(variants.parseJson('[10,20,30]'), 1) != null",
-])
+@pytest.mark.parametrize(
+    "expr",
+    [
+        'decimals.round(decimal("1"), 1) == decimal("1.0")',
+        'decimals.trunc(decimal("1.29"), 1) == decimal("1.2")',
+        'timestamp(0) == timestamp("1970-01-01T00:00:00Z")',
+        'timestamp(0, 0) == timestamp("1970-01-01T00:00:00Z")',
+        "variants.index(variants.parseJson('[10,20,30]'), 1) != null",
+    ],
+)
 def test_the_int_forms_still_answer(validator, expr):
     assert validator.execute(rule(expr), None, _VARIANT_JSON) is True
 
@@ -612,23 +639,25 @@ def _timestamp_variant(micros):
 @pytest.mark.parametrize("micros", [0, _MAX_TS_MICROS, _MIN_TS_MICROS])
 def test_variant_as_timestamp_accepts_the_range(validator, micros):
     v = _timestamp_variant(micros)
-    assert validator.execute(
-        rule('variants.as(this, "timestamp") == variants.as(this, "timestamp")'), None, v) is True
+    assert validator.execute(rule('variants.as(this, "timestamp") == variants.as(this, "timestamp")'), None, v) is True
     # tryAs answers a timestamp, not null - otherwise the guard test below proves nothing.
-    assert validator.execute(
-        rule('variants.tryAs(this, "timestamp") == null'), None, v) is False
+    assert validator.execute(rule('variants.tryAs(this, "timestamp") == null'), None, v) is False
 
 
-@pytest.mark.parametrize("micros", [
-    9223372036854775807, -9223372036854775807, _MAX_TS_MICROS + 1_000_000,
-])
+@pytest.mark.parametrize(
+    "micros",
+    [
+        9223372036854775807,
+        -9223372036854775807,
+        _MAX_TS_MICROS + 1_000_000,
+    ],
+)
 def test_variant_as_timestamp_refuses_out_of_range(validator, micros):
     v = _timestamp_variant(micros)
     with pytest.raises(Exception):
         validator.execute(rule('variants.as(this, "timestamp") != null'), None, v)
     # tryAs answers CEL null instead, so a rule can guard on it.
-    assert validator.execute(
-        rule('variants.tryAs(this, "timestamp") == null'), None, v) is True
+    assert validator.execute(rule('variants.tryAs(this, "timestamp") == null'), None, v) is True
 
 
 # An Avro `variant` logical-type field decodes to a Variant (via the logical type registered
@@ -1473,14 +1502,13 @@ def test_variant_well_typed_arguments_still_work(validator, expr):
 @pytest.mark.parametrize(
     "receiver",
     [
-        None,                                   # a null receiver
-        celtypes.IntType(1),                    # not a variant at all
-        vu.parse_json('{"a":1}'),               # a perfectly good object
+        None,  # a null receiver
+        celtypes.IntType(1),  # not a variant at all
+        vu.parse_json('{"a":1}'),  # a perfectly good object
         vu.parse_json('[1,2]'),
     ],
 )
-@pytest.mark.parametrize("path", [celtypes.IntType(1), celtypes.DoubleType(1.5),
-                                  celtypes.BoolType(True), None])
+@pytest.mark.parametrize("path", [celtypes.IntType(1), celtypes.DoubleType(1.5), celtypes.BoolType(True), None])
 def test_variant_path_rejects_a_non_string_path(receiver, path):
     from confluent_kafka.schema_registry.rules.cel import variant_funcs
 
@@ -1598,8 +1626,7 @@ def test_expanding_a_zero_operand_is_free(validator, expr):
 # scale. A blanket zero exemption would have let this through.
 def test_a_nonzero_operand_expanding_into_a_zeros_scale_is_refused(validator):
     with pytest.raises(RuleError, match="Could not execute validation rule 'r'"):
-        validator.execute(
-            rule('decimals.add(decimal("1"), decimal("0E-2000000000")) != decimal("0")'), None, 1)
+        validator.execute(rule('decimals.add(decimal("1"), decimal("0E-2000000000")) != decimal("0")'), None, 1)
 
 
 @pytest.mark.parametrize(
@@ -1661,7 +1688,7 @@ def test_an_ordinary_coefficient_from_bytes_still_works(validator):
 @pytest.mark.parametrize(
     "expr, expected",
     [
-        ('string(true)', 'true'),          # was Python's "True"
+        ('string(true)', 'true'),  # was Python's "True"
         ('string(false)', 'false'),
         ('string(1)', '1'),
         ('string(uint(3))', '3'),

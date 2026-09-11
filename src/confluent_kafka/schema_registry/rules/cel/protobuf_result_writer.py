@@ -52,11 +52,11 @@ from confluent_kafka.schema_registry.common.protobuf import (
     MAX_ENCODABLE_COEFFICIENT_DIGITS,
     _is_repeated,
 )
-from confluent_kafka.schema_registry.rules.cel.constraints import _WRAPPER_TYPES
-from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
 from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
     unscaled_to_bytes,
 )
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
+from confluent_kafka.schema_registry.rules.cel.constraints import _WRAPPER_TYPES
 
 __all__ = ["convert"]
 
@@ -117,8 +117,7 @@ def _fill(out: message.Message, values: Mapping) -> None:
         first = set_by.get(fd.number)
         if first is not None:
             a, b = sorted((first, name))
-            raise ValueError(
-                f"result names field '{fd.full_name}' twice, as '{a}' and '{b}'")
+            raise ValueError(f"result names field '{fd.full_name}' twice, as '{a}' and '{b}'")
         if _is_null(value):
             # An explicit null clears the field, which is how a rule preserves an absent
             # value across a transform that echoes it.
@@ -130,9 +129,7 @@ def _fill(out: message.Message, values: Mapping) -> None:
             sibling = oneof_by.get(oneof.full_name)
             if sibling is not None and sibling != fd.name:
                 a, b = sorted((sibling, fd.name))
-                raise ValueError(
-                    f"result sets more than one member of oneof '{oneof.full_name}': "
-                    f"'{a}' and '{b}'")
+                raise ValueError(f"result sets more than one member of oneof '{oneof.full_name}': " f"'{a}' and '{b}'")
             oneof_by[oneof.full_name] = fd.name
         _set_field(out, fd, value)
 
@@ -173,8 +170,7 @@ def _set_map(out: message.Message, fd: descriptor.FieldDescriptor, value: Any) -
         # Silence here dropped the field from the rebuilt message, turning a rule-authoring
         # type error into lost data. The JVM's message-level path rejects the same mismatch,
         # because it writes through a protobuf JSON parse.
-        raise ValueError(
-            f"cannot write {type(value).__name__} to map field '{fd.name}'")
+        raise ValueError(f"cannot write {type(value).__name__} to map field '{fd.name}'")
     target = getattr(out, fd.name)
     value_fd = fd.message_type.fields_by_name["value"]
     for k, v in value.items():
@@ -194,8 +190,7 @@ def _set_repeated(out: message.Message, fd: descriptor.FieldDescriptor, value: A
     # *keys* as the list - corruption rather than loss. A scalar or a string wrote an empty
     # list. Both are rule-authoring type errors that the JVM's protobuf JSON parse rejects.
     if isinstance(value, (str, bytes, Mapping)) or not hasattr(value, "__iter__"):
-        raise ValueError(
-            f"cannot write {type(value).__name__} to repeated field '{fd.name}'")
+        raise ValueError(f"cannot write {type(value).__name__} to repeated field '{fd.name}'")
     target = getattr(out, fd.name)
     del target[:]
     for item in value:
@@ -265,8 +260,7 @@ def _set_message(target: message.Message, fd: descriptor.FieldDescriptor, value:
         target.CopyFrom(value)
         return
 
-    raise ValueError(
-        f"cannot write {type(value).__name__} to {full_name} (field '{fd.name}')")
+    raise ValueError(f"cannot write {type(value).__name__} to {full_name} (field '{fd.name}')")
 
 
 def _set_duration(target: message.Message, value: datetime.timedelta) -> None:
@@ -314,7 +308,8 @@ def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     if not (-(2**31) <= -exponent <= 2**31 - 1):
         raise ValueError(
             f"decimal needs a scale of {-exponent}, which does not fit the int32 scale field "
-            f"of {_DECIMAL_TYPE_NAME}")
+            f"of {_DECIMAL_TYPE_NAME}"
+        )
     # The coefficient goes out in base 256, and str <-> int radix conversion is quadratic, so
     # CPython caps it: `int("9" * 5000)` raises ValueError "Exceeds the limit (4300 digits) for
     # integer string conversion". That cap is the real ceiling on what this client can encode -
@@ -323,7 +318,8 @@ def _set_decimal(target: message.Message, value: decimal.Decimal) -> None:
     if len(digits) > _MAX_COEFFICIENT_DIGITS:
         raise ValueError(
             f"decimal coefficient has {len(digits)} digits, past the "
-            f"{_MAX_COEFFICIENT_DIGITS} this client can encode into {_DECIMAL_TYPE_NAME}")
+            f"{_MAX_COEFFICIENT_DIGITS} this client can encode into {_DECIMAL_TYPE_NAME}"
+        )
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
@@ -348,8 +344,7 @@ def _set_timestamp(target: message.Message, value: datetime.datetime) -> None:
 def _text(fd: descriptor.FieldDescriptor, value: Any) -> str:
     """``value`` as a string field's value, or a rule error."""
     if not isinstance(value, str):
-        raise ValueError(
-            f"cannot write {type(value).__name__} to string field '{fd.name}'")
+        raise ValueError(f"cannot write {type(value).__name__} to string field '{fd.name}'")
     return str(value)
 
 
@@ -360,8 +355,7 @@ def _boolean(fd: descriptor.FieldDescriptor, value: Any) -> bool:
     numbers protobuf JSON refuses.
     """
     if not isinstance(value, (bool, celtypes.BoolType)):
-        raise ValueError(
-            f"cannot write {type(value).__name__} to bool field '{fd.name}'")
+        raise ValueError(f"cannot write {type(value).__name__} to bool field '{fd.name}'")
     return bool(value)
 
 
@@ -407,22 +401,18 @@ def _floating(fd: descriptor.FieldDescriptor, value: Any) -> float:
     if isinstance(value, (bool, celtypes.BoolType)):
         raise ValueError(f"cannot write bool to float field '{fd.name}'")
     if not isinstance(value, (int, float, decimal.Decimal)):
-        raise ValueError(
-            f"cannot write {type(value).__name__} to float field '{fd.name}'")
+        raise ValueError(f"cannot write {type(value).__name__} to float field '{fd.name}'")
     source_is_finite = _is_finite(value)
     try:
         as_float = float(value)
     except OverflowError as e:
-        raise ValueError(
-            f"out of range value for float field '{fd.name}': {value}") from e
+        raise ValueError(f"out of range value for float field '{fd.name}': {value}") from e
     if not source_is_finite:
         return as_float
     if not math.isfinite(as_float):
-        raise ValueError(
-            f"out of range value for float field '{fd.name}': {value}")
+        raise ValueError(f"out of range value for float field '{fd.name}': {value}")
     if fd.type == descriptor.FieldDescriptor.TYPE_FLOAT and abs(as_float) > _FLOAT32_LIMIT:
-        raise ValueError(
-            f"out of range float value for field '{fd.name}': {as_float}")
+        raise ValueError(f"out of range float value for field '{fd.name}': {as_float}")
     return as_float
 
 
@@ -459,8 +449,7 @@ def _scalar(fd: descriptor.FieldDescriptor, value: Any) -> Any:
     """
     if fd.type == descriptor.FieldDescriptor.TYPE_BYTES:
         if not isinstance(value, (bytes, bytearray, memoryview)):
-            raise ValueError(
-                f"cannot write {type(value).__name__} to bytes field '{fd.name}'")
+            raise ValueError(f"cannot write {type(value).__name__} to bytes field '{fd.name}'")
         return bytes(value)
     if fd.type == descriptor.FieldDescriptor.TYPE_STRING:
         return _text(fd, value)
@@ -520,24 +509,20 @@ def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
         raise ValueError(f"cannot write bool to integer field '{fd.name}'")
     if isinstance(value, decimal.Decimal):
         if not value.is_finite():
-            raise ValueError(
-                f"cannot write non-finite {value} to integer field '{fd.name}'")
+            raise ValueError(f"cannot write non-finite {value} to integer field '{fd.name}'")
         # Magnitude first, before int() materialises the digits. The widest protobuf integer
         # is 2**64-1, twenty digits, so anything with a larger adjusted exponent is out of
         # range for every one of them - and int(Decimal("1e100000000")) would spend minutes
         # building a hundred million digits just to reach that same rejection, which the JVM
         # reports off the token without building the number.
         if value.adjusted() > _MAX_INT_DIGITS - 1:
-            raise ValueError(
-                f"value {value} is out of range for field '{fd.name}'")
+            raise ValueError(f"value {value} is out of range for field '{fd.name}'")
         if value != value.to_integral_value():
-            raise ValueError(
-                f"cannot write non-integral {value} to integer field '{fd.name}'")
+            raise ValueError(f"cannot write non-integral {value} to integer field '{fd.name}'")
         as_int = int(value)
     elif isinstance(value, float):
         if not value.is_integer():
-            raise ValueError(
-                f"cannot write non-integral {value!r} to integer field '{fd.name}'")
+            raise ValueError(f"cannot write non-integral {value!r} to integer field '{fd.name}'")
         as_int = int(value)
     elif isinstance(value, int):
         as_int = int(value)
@@ -548,6 +533,5 @@ def _integral(fd: descriptor.FieldDescriptor, value: Any) -> Any:
 
     bounds = _INT_RANGES.get(fd.type)
     if bounds is not None and not (bounds[0] <= as_int <= bounds[1]):
-        raise ValueError(
-            f"value {as_int} is out of range for field '{fd.name}'")
+        raise ValueError(f"value {as_int} is out of range for field '{fd.name}'")
     return as_int

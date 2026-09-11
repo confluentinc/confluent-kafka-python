@@ -18,10 +18,9 @@ message - the Python counterpart of Java's ``io.confluent.protobuf.type.utils.De
 serde uses these for ``confluent.type.Decimal`` fields, and the CEL layer reuses them.
 """
 
-from decimal import Context, Decimal, MAX_EMAX, MAX_PREC, MIN_EMIN
+from decimal import MAX_EMAX, MAX_PREC, MIN_EMIN, Context, Decimal
 
 from confluent_kafka.schema_registry.confluent.type import decimal_pb2
-
 
 # Java builds `new BigDecimal(unscaledValue, scale)`, which is exact. `scaleb` otherwise uses
 # the ambient thread-local context (28 significant digits by default) and would silently round
