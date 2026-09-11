@@ -110,10 +110,19 @@ def _from_proto_timestamp(t: typing.Any) -> celtypes.TimestampType:
     Uses exact integer arithmetic: whole seconds plus the nanos field floored
     to microseconds (``nanos // 1000``), mirroring the Java reference rather
     than the float ``seconds + nanos / 1e9`` that lost precision.
+
+    A nanos field outside the proto contract's ``[0, 999999999]`` normalizes into
+    the neighbouring instant rather than being rejected, as cel-java does with the
+    same message; validating it would refuse values the reference accepts.
     """
     seconds = int(t.seconds)
     nanos = int(t.nanos)
-    return celtypes.TimestampType(_EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
+    try:
+        return celtypes.TimestampType(_EPOCH_UTC + timedelta(seconds=seconds, microseconds=nanos // 1_000))
+    except (OverflowError, ValueError) as e:
+        # Normalized like the epoch overloads: an instant ``datetime`` cannot hold is a
+        # rule error, not a raw Python exception escaping the evaluation.
+        raise celpy.CELEvalError(f"timestamp: proto Timestamp out of range: {seconds}s {nanos}ns") from e
 
 
 def _timestamp_one(v: typing.Any) -> celtypes.TimestampType:

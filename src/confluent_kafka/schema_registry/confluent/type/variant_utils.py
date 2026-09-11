@@ -1188,4 +1188,6 @@ def _integer_size(value: int) -> int:
         return 1
     if value <= U16_MAX:
         return 2
-    return U24_SIZE
+    if value <= U24_MAX:
+        return U24_SIZE
+    return U32_SIZE
