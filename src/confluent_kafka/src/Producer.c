@@ -1034,7 +1034,12 @@ static void *Producer_purge(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_resp_err_t err;
         static char *kws[] = {"in_queue", "in_flight", "blocking", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws, &in_queue,
+        /* Use "p" (bool predicate -> int), not "b" (one byte): the targets are
+         * 4-byte ints, so "b" stores a single byte, which lands on the low byte
+         * on little-endian but the high byte on big-endian. There the flags,
+         * pre-initialised to 1, could never be cleared, so e.g. in_queue=False
+         * was ignored and the queue was purged anyway. */
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ppp", kws, &in_queue,
                                          &in_flight, &blocking))
                 return NULL;
 
