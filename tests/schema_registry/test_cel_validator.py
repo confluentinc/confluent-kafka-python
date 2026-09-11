@@ -1653,3 +1653,49 @@ def test_an_ordinary_coefficient_from_bytes_still_works(validator):
     assert validator.execute(rule('decimal(b"\\x04\\xd2", 2) == decimal("12.34")'), None, 1) is True
     # An extreme scale on a small coefficient is fine: it only sets the exponent.
     assert validator.execute(rule('decimal(b"\\x01", 2147483647) != decimal("0")'), None, 1) is True
+
+
+# Registering a `string` / `double` entry *replaces* celpy's rather than extending it, so every
+# type is the client's responsibility - and celpy's are `str` and `float`, which render or accept
+# things CEL does not. Each row measured against cel-java 0.13.1.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ('string(true)', 'true'),          # was Python's "True"
+        ('string(false)', 'false'),
+        ('string(1)', '1'),
+        ('string(uint(3))', '3'),
+        ('string(1.5)', '1.5'),
+        ('string(b"ab")', 'ab'),
+        ('string("x")', 'x'),
+        ('string(duration("1s"))', '1s'),
+        ('string(timestamp(1))', '1970-01-01T00:00:01Z'),
+        ('string(decimal("12.30"))', '12.30'),
+        ('string(double("1.5"))', '1.5'),
+        ('string(double(decimal("100.50")))', '100.5'),
+    ],
+)
+def test_string_renders_the_declared_overloads_as_cel_does(validator, expr, expected):
+    assert validator.execute(rule(expr), None, 1) == expected
+
+
+# The types CEL declares no overload for. Previously `string(null)` was "None", a list and a map
+# were Python container reprs, and `double` took a bool as 0/1 and bytes as a number.
+@pytest.mark.parametrize(
+    "expr, type_name",
+    [
+        ('string(null)', 'null'),
+        ('string([1, 2])', 'list'),
+        ('string({"a": 1})', 'map'),
+        ('double(true)', 'bool'),
+        ('double(b"12")', 'bytes'),
+    ],
+)
+def test_string_and_double_refuse_an_undeclared_overload(validator, expr, type_name):
+    # A `double(...)` result is not a bool or a string, so it is wrapped to reach the validator.
+    wrapped = f"string({expr})" if expr.startswith("double") else expr
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule(wrapped), None, 1)
+    cause = str(excinfo.value.__cause__)
+    assert "found no matching overload" in cause
+    assert f"({type_name})" in cause
