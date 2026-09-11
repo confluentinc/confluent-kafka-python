@@ -111,8 +111,7 @@ def _from_bytes_scale(value: typing.Any, scale: typing.Any) -> Decimal:
     s = _require_int_scale(scale, "decimal(bytes, scale)")
     if len(raw) == 0:
         return Decimal(0).scaleb(-s, context=_EXACT_CONTEXT)
-    _require_sane_width(int(len(raw) * 2.408) + 1, "decimal(bytes, scale)", "the coefficient",
-                        _SANE_COEFFICIENT)
+    _require_sane_width(int(len(raw) * 2.408) + 1, "decimal(bytes, scale)", "the coefficient", _SANE_COEFFICIENT)
     return Decimal(int.from_bytes(raw, "big", signed=True)).scaleb(-s, context=_EXACT_CONTEXT)
 
 
@@ -367,8 +366,7 @@ def _require_sane_width(needed: int, fn: str, what: str, limit: int = _SANE_WIDT
     arithmetic - a single expression over two cheaply constructed operands is enough.
     """
     if needed > limit:
-        raise celpy.CELEvalError(
-            f"{fn}: {what} needs {needed} digits, past this client's {limit}-digit limit")
+        raise celpy.CELEvalError(f"{fn}: {what} needs {needed} digits, past this client's {limit}-digit limit")
 
 
 def _operand_width(target_scale: int, d: Decimal) -> int:
@@ -464,9 +462,7 @@ def _decimals_mod(a: typing.Any, b: typing.Any) -> Decimal:
     # says nothing useful about it - a zero keeps whatever scale it was built with, so
     # `0E+2e9 mod 1E-2e9` estimated 4e9 digits for a result that is just zero. Measured free on
     # libmpdec, and the JDK returns 0 at precision 1.
-    quotient_digits = (
-        1 if not da else max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
-    )
+    quotient_digits = 1 if not da else max(0, _adjusted_of(da) - _adjusted_of(db)) + 1
     _require_sane_width(quotient_digits, "decimals.mod", "the integral quotient")
     return _EXACT_CONTEXT.remainder(da, db)
 
@@ -745,12 +741,19 @@ def _string(v: typing.Any) -> celtypes.StringType:
         return celtypes.StringType(bytes(v).decode("utf-8"))
     if isinstance(
         v,
-        (str, celtypes.StringType, int, celtypes.IntType, celtypes.UintType,
-         float, celtypes.DoubleType, celtypes.DurationType),
+        (
+            str,
+            celtypes.StringType,
+            int,
+            celtypes.IntType,
+            celtypes.UintType,
+            float,
+            celtypes.DoubleType,
+            celtypes.DurationType,
+        ),
     ):
         return _STDLIB_STRING(v)
-    raise celpy.CELEvalError(
-        f"found no matching overload for 'string' applied to ({_cel_type_name(v)})")
+    raise celpy.CELEvalError(f"found no matching overload for 'string' applied to ({_cel_type_name(v)})")
 
 
 # ---- double(Decimal) — extend celpy stdlib's double(...) ----
@@ -775,8 +778,7 @@ def _double(v: typing.Any) -> celtypes.DoubleType:
     if d is not None:
         return celtypes.DoubleType(float(d))
     if isinstance(v, (bool, celtypes.BoolType, bytes, bytearray, celtypes.BytesType)):
-        raise celpy.CELEvalError(
-            f"found no matching overload for 'double' applied to ({_cel_type_name(v)})")
+        raise celpy.CELEvalError(f"found no matching overload for 'double' applied to ({_cel_type_name(v)})")
     return _STDLIB_DOUBLE(v)
 
 

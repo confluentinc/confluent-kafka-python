@@ -44,8 +44,11 @@ from google.type import (
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.confluent.type import decimal_pb2, variant_pb2
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy_decimal_pb2
+from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
+    unscaled_to_bytes,
+)
 from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy_decimal_pb2
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
     FieldType,
@@ -58,9 +61,6 @@ from confluent_kafka.schema_registry.serde import (
     evaluate_validation_rule,
 )
 from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
-    unscaled_to_bytes,
-)
 
 __all__ = [
     '_bytes',
@@ -320,8 +320,8 @@ def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
     if len(digits) > MAX_ENCODABLE_COEFFICIENT_DIGITS:
         raise ValueError(
             f"decimal coefficient has {len(digits)} digits, past the "
-            f"{MAX_ENCODABLE_COEFFICIENT_DIGITS} this client can encode into "
-            + DECIMAL_TYPE_NAME)
+            f"{MAX_ENCODABLE_COEFFICIENT_DIGITS} this client can encode into " + DECIMAL_TYPE_NAME
+        )
     unscaled = int("".join(str(d) for d in digits) or "0")
     if sign:
         unscaled = -unscaled
@@ -994,8 +994,7 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     #
     # Emax/Emin are widened because the default +/-999999 is narrower than the int32 scale this
     # message's field permits.
-    return _EXACT_CONTEXT.create_decimal(unscaled_datum).scaleb(
-        -value.scale, _EXACT_CONTEXT)
+    return _EXACT_CONTEXT.create_decimal(unscaled_datum).scaleb(-value.scale, _EXACT_CONTEXT)
 
 
 def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[name-defined]

@@ -22,6 +22,7 @@ from io import BytesIO
 import pytest
 from google.protobuf import descriptor_pb2
 
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2
 from confluent_kafka.schema_registry.protobuf import (
     AsyncProtobufDeserializer,
     AsyncProtobufSerializer,
@@ -31,7 +32,6 @@ from confluent_kafka.schema_registry.protobuf import (
 )
 from confluent_kafka.schema_registry.serde import SchemaId
 from confluent_kafka.serialization import SerializationError
-from confluent_kafka.schema_registry.confluent.type import decimal_pb2
 from tests.integration.schema_registry.data.proto import DependencyTestProto_pb2, metadata_proto_pb2
 
 
@@ -160,6 +160,7 @@ def test_proto_decimal(decimal, scale):
     result = protobuf_to_decimal(converted)
     assert result == input
 
+
 # BigDecimal.setScale(scale) narrows a scale whenever no rounding is needed -- only the digits
 # being dropped must be zeros. decimal_to_protobuf used to refuse every reduction (`delta < 0`),
 # which rejected exact conversions: Decimal("1.50") at scale 1, and the negative scale that
@@ -168,14 +169,14 @@ def test_proto_decimal(decimal, scale):
 @pytest.mark.parametrize(
     "decimal, scale, unscaled, out_scale",
     [
-        ("12.3400", 2, 1234, 2),      # trailing zeros dropped, exact
+        ("12.3400", 2, 1234, 2),  # trailing zeros dropped, exact
         ("1.50", 1, 15, 1),
         ("-1.50", 1, -15, 1),
-        ("1000", -3, 1, -3),          # negative scale, exact
+        ("1000", -3, 1, -3),  # negative scale, exact
         ("-1000", -3, -1, -3),
         ("0.00", 0, 0, 0),
-        ("12.34", 4, 123400, 4),      # widening still works
-        ("12.34", 2, 1234, 2),        # exact match still works
+        ("12.34", 4, 123400, 4),  # widening still works
+        ("12.34", 2, 1234, 2),  # exact match still works
     ],
 )
 def test_proto_decimal_narrows_scale_losslessly(decimal, scale, unscaled, out_scale):
@@ -257,6 +258,7 @@ def test_proto_decimal_rejects_a_wide_scale_without_the_arithmetic():
         decimal_to_protobuf(Decimal("1"), 10000000000)
     assert time.monotonic() - start < 1.0
 
+
 # `protobuf_to_decimal` deliberately does **not** apply the message's precision, and these are
 # the cases that tell the two policies apart.
 #
@@ -273,17 +275,17 @@ def test_proto_decimal_rejects_a_wide_scale_without_the_arithmetic():
 @pytest.mark.parametrize(
     "unscaled, scale, precision, expected",
     [
-        ("12325", 0, 4, "12325"),      # JVM, rounding to 4 digits: 1.233E+4
-        ("125", 0, 2, "125"),          # JVM: 1.3E+2
-        ("-125", 0, 2, "-125"),        # JVM: -1.3E+2
-        ("12315", 0, 4, "12315"),      # JVM: 1.232E+4
-        ("135", 0, 2, "135"),          # JVM: 1.4E+2
-        ("12345", 2, 3, "123.45"),     # JVM: 123
+        ("12325", 0, 4, "12325"),  # JVM, rounding to 4 digits: 1.233E+4
+        ("125", 0, 2, "125"),  # JVM: 1.3E+2
+        ("-125", 0, 2, "-125"),  # JVM: -1.3E+2
+        ("12315", 0, 4, "12315"),  # JVM: 1.232E+4
+        ("135", 0, 2, "135"),  # JVM: 1.4E+2
+        ("12345", 2, 3, "123.45"),  # JVM: 123
         # Where precision is at least the digit count - i.e. everything this client family
         # writes - the two policies agree, and always did.
         ("1234", 2, 4, "12.34"),
         ("0", 2, 1, "0.00"),
-        ("1", -3, 1, "1E+3"),          # negative scale survives
+        ("1", -3, 1, "1E+3"),  # negative scale survives
         # And precision 0, which the reference cannot produce but three of our write paths did
         # until now: MathContext(0) is UNLIMITED, so this agreed too.
         ("12345", 2, 0, "123.45"),
@@ -304,8 +306,7 @@ def test_protobuf_to_decimal_ignores_precision(unscaled, scale, precision, expec
 def test_both_read_paths_agree_on_precision():
     from confluent_kafka.schema_registry.confluent.type.decimal_utils import from_proto_decimal
 
-    msg = decimal_pb2.Decimal(
-        value=(125).to_bytes(2, byteorder="big", signed=True), scale=0, precision=2)
+    msg = decimal_pb2.Decimal(value=(125).to_bytes(2, byteorder="big", signed=True), scale=0, precision=2)
     assert protobuf_to_decimal(msg) == from_proto_decimal(msg)
 
 
@@ -317,11 +318,11 @@ def test_both_read_paths_agree_on_precision():
     "decimal, scale, precision",
     [
         ("12.34", 2, 4),
-        ("1000", -3, 1),      # unscaled 1
-        ("0", 0, 1),          # BigDecimal.ZERO.precision() == 1
+        ("1000", -3, 1),  # unscaled 1
+        ("0", 0, 1),  # BigDecimal.ZERO.precision() == 1
         ("0.00", 2, 1),
-        ("-1.50", 1, 2),      # the sign is not a digit
-        ("12.3400", 2, 4),    # after the exact narrowing, not before
+        ("-1.50", 1, 2),  # the sign is not a digit
+        ("12.3400", 2, 4),  # after the exact narrowing, not before
     ],
 )
 def test_decimal_to_protobuf_writes_the_digit_count(decimal, scale, precision):
@@ -342,8 +343,8 @@ def test_decimal_to_protobuf_writes_the_digit_count(decimal, scale, precision):
 @pytest.mark.parametrize(
     "decimal, scale, precision",
     [
-        ("1", 4299, 4300),      # the widest the string form managed
-        ("1", 4300, 4301),      # the first it refused
+        ("1", 4299, 4300),  # the widest the string form managed
+        ("1", 4300, 4301),  # the first it refused
         ("1", 5000, 5001),
         ("1", 100000, 100001),
         ("12.34", 5000, 5002),  # digits and delta both contribute
@@ -369,9 +370,28 @@ def test_decimal_to_protobuf_counts_wide_precision_without_str(decimal, scale, p
 # the count taken after the fact.
 def test_precision_count_matches_the_string_form():
     checked = 0
-    for text in ["0", "0.00", "-0.00", "1", "12.34", "1.50", "1000", "0.001", "-999.5",
-                 "9.9", "99.99", "1E+3", "1E-3", "100", "123456789012345678901234567890",
-                 "0.0000000001", "-1.50", "1.000000", "9" * 100, "1" + "0" * 200]:
+    for text in [
+        "0",
+        "0.00",
+        "-0.00",
+        "1",
+        "12.34",
+        "1.50",
+        "1000",
+        "0.001",
+        "-999.5",
+        "9.9",
+        "99.99",
+        "1E+3",
+        "1E-3",
+        "100",
+        "123456789012345678901234567890",
+        "0.0000000001",
+        "-1.50",
+        "1.000000",
+        "9" * 100,
+        "1" + "0" * 200,
+    ]:
         for scale in range(-8, 12):
             try:
                 msg = decimal_to_protobuf(Decimal(text), scale)
@@ -381,5 +401,3 @@ def test_precision_count_matches_the_string_form():
             assert msg.precision == len(str(abs(unscaled))), (text, scale)
             checked += 1
     assert checked > 200
-
-

@@ -159,8 +159,9 @@ async def test_a_union_branch_selected_by_tuple_survives_the_transform():
 async def test_the_tuple_contents_are_still_normalised():
     """Preserving the tuple must not stop the recursion: the value inside it is a dict that
     still has to reach fastavro as a plain one, which is what the whole function is for."""
-    from confluent_kafka.schema_registry.rules.cel.cel_executor import _to_plain_containers
     from celpy import celtypes
+
+    from confluent_kafka.schema_registry.rules.cel.cel_executor import _to_plain_containers
 
     inner = celtypes.MapType()
     inner[celtypes.StringType("x")] = celtypes.IntType(5)

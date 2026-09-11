@@ -227,8 +227,16 @@ def _wrapper_descriptor():
     msg = fdp.message_type.add()
     msg.name = "Wrapped"
     types = [
-        "StringValue", "BytesValue", "Int32Value", "Int64Value", "UInt32Value",
-        "UInt64Value", "FloatValue", "DoubleValue", "BoolValue", "Duration",
+        "StringValue",
+        "BytesValue",
+        "Int32Value",
+        "Int64Value",
+        "UInt32Value",
+        "UInt64Value",
+        "FloatValue",
+        "DoubleValue",
+        "BoolValue",
+        "Duration",
     ]
     for number, type_name in enumerate(types, start=1):
         field = msg.field.add()
@@ -293,9 +301,7 @@ def test_an_echoed_timestamp_keeps_its_nanos(nanos):
 
     # Identity, and a rule that rewrites a sibling field and merely passes ts along.
     identity = _transform("{" + _ALL + "}", msg)
-    sibling = _transform(
-        "{" + _ALL.replace('"label": message.label', '"label": message.label + "!"') + "}", msg
-    )
+    sibling = _transform("{" + _ALL.replace('"label": message.label', '"label": message.label + "!"') + "}", msg)
 
     assert identity.ts.nanos == nanos
     assert sibling.ts.nanos == nanos
@@ -320,9 +326,7 @@ def test_a_computed_timestamp_keeps_the_microsecond_ceiling():
     msg = _message()
     msg.ts.nanos = 123456789
 
-    result = _transform(
-        "{" + _ALL.replace('"ts": message.ts', '"ts": message.ts + duration("0s")') + "}", msg
-    )
+    result = _transform("{" + _ALL.replace('"ts": message.ts', '"ts": message.ts + duration("0s")') + "}", msg)
 
     assert result.ts.nanos == 123456000
 
@@ -396,7 +400,11 @@ def test_message_level_decimal_sets_precision_like_the_field_level_writer():
 
     # (value, java BigDecimal.precision(), java scale())
     for text, precision, scale in [
-        ("12.34", 4, 2), ("12.3400", 6, 4), ("1E+3", 1, -3), ("0.00", 1, 2), ("100", 3, 0),
+        ("12.34", 4, 2),
+        ("12.3400", 6, 4),
+        ("1E+3", 1, -3),
+        ("0.00", 1, 2),
+        ("100", 3, 0),
     ]:
         message_level = decimal_pb2.Decimal()
         _set_decimal(message_level, Decimal(text))
@@ -473,6 +481,7 @@ def test_the_field_level_writer_reports_a_wide_coefficient_too():
     # And the two writers agree exactly, boundary included, so which path produced a decimal
     # cannot change whether it is accepted.
     from confluent_kafka.schema_registry.rules.cel.protobuf_result_writer import _set_decimal
+
     for digits in [1, 38, 4300]:
         field_level = decimal_pb2.Decimal()
         set_decimal_message(field_level, Decimal("9" * digits))
@@ -584,8 +593,13 @@ def test_string_fields_take_only_a_string():
     assert convert({"text": celtypes.StringType("ok")}, original).text == "ok"
 
     # The JVM would stringify each of these (1 -> "1", true -> "true"). Deliberately not.
-    for value in (celtypes.IntType(1), celtypes.DoubleType(1.5), celtypes.BoolType(True),
-                  celtypes.BytesType(b"ab"), celtypes.ListType([celtypes.IntType(1)])):
+    for value in (
+        celtypes.IntType(1),
+        celtypes.DoubleType(1.5),
+        celtypes.BoolType(True),
+        celtypes.BytesType(b"ab"),
+        celtypes.ListType([celtypes.IntType(1)]),
+    ):
         with pytest.raises(ValueError, match="to string field 'text'"):
             convert({"text": value}, original)
 
@@ -607,9 +621,13 @@ def test_bool_fields_do_not_use_python_truthiness():
             convert({"flag": value}, original)
     # "true"/"false" are the JVM's own lenient spellings, not followed here; the rest it
     # rejects outright.
-    for value in (celtypes.StringType("true"), celtypes.StringType("false"),
-                  celtypes.StringType("TRUE"), celtypes.StringType("yes"),
-                  celtypes.StringType("")):
+    for value in (
+        celtypes.StringType("true"),
+        celtypes.StringType("false"),
+        celtypes.StringType("TRUE"),
+        celtypes.StringType("yes"),
+        celtypes.StringType(""),
+    ):
         with pytest.raises(ValueError, match="to bool field 'flag'"):
             convert({"flag": value}, original)
 
@@ -626,8 +644,7 @@ def test_bytes_fields_take_only_a_byte_string():
 
     with pytest.raises(ValueError, match="to bytes field 'blob'"):
         convert({"blob": celtypes.IntType(5)}, original)
-    for value in (celtypes.BoolType(True),
-                  celtypes.ListType([celtypes.IntType(97), celtypes.IntType(98)])):
+    for value in (celtypes.BoolType(True), celtypes.ListType([celtypes.IntType(97), celtypes.IntType(98)])):
         with pytest.raises(ValueError, match="to bytes field 'blob'"):
             convert({"blob": value}, original)
     # The JVM base64-decodes a string here, because base64 is how bytes cross its JSON
@@ -655,8 +672,7 @@ def test_float_fields_take_only_a_number():
         with pytest.raises(ValueError, match="bool"):
             convert({"dbl": value}, original)
     # "1.5" and "NaN" are the JVM's lenient numeric strings, not followed here.
-    for value in (celtypes.StringType("1.5"), celtypes.StringType("NaN"),
-                  celtypes.StringType("abc")):
+    for value in (celtypes.StringType("1.5"), celtypes.StringType("NaN"), celtypes.StringType("abc")):
         with pytest.raises(ValueError, match="to float field 'dbl'"):
             convert({"dbl": value}, original)
 
@@ -672,8 +688,7 @@ def test_a_float_field_range_checks_the_narrowing():
     _, cls = _scalar_descriptor()
     original = cls()
     # approx because the value comes back as its float32 self, not the double that went in.
-    assert convert({"flt": celtypes.DoubleType(3.4028235e38)}, original).flt == pytest.approx(
-        3.4028235e38)
+    assert convert({"flt": celtypes.DoubleType(3.4028235e38)}, original).flt == pytest.approx(3.4028235e38)
     assert convert({"flt": celtypes.DoubleType(1.5)}, original).flt == 1.5
     assert math.isnan(convert({"flt": celtypes.DoubleType(float("nan"))}, original).flt)
     assert math.isinf(convert({"flt": celtypes.DoubleType(float("inf"))}, original).flt)
@@ -796,12 +811,19 @@ def _oneof_descriptor():
     msg.name = "Choice"
     msg.oneof_decl.add(name="choice")
     field_type = descriptor_pb2.FieldDescriptorProto
-    msg.field.add(name="a", number=1, type=field_type.TYPE_INT32,
-                  label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="a")
-    msg.field.add(name="b", number=2, type=field_type.TYPE_INT32,
-                  label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="b")
-    msg.field.add(name="total_amount", number=3, type=field_type.TYPE_INT32,
-                  label=field_type.LABEL_OPTIONAL, json_name="totalAmount")
+    msg.field.add(
+        name="a", number=1, type=field_type.TYPE_INT32, label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="a"
+    )
+    msg.field.add(
+        name="b", number=2, type=field_type.TYPE_INT32, label=field_type.LABEL_OPTIONAL, oneof_index=0, json_name="b"
+    )
+    msg.field.add(
+        name="total_amount",
+        number=3,
+        type=field_type.TYPE_INT32,
+        label=field_type.LABEL_OPTIONAL,
+        json_name="totalAmount",
+    )
 
     pool = descriptor_pool.DescriptorPool()
     pool.Add(fdp)
@@ -872,8 +894,7 @@ def test_a_null_does_not_collide_with_its_oneof_sibling():
     # Two nulls for one field set nothing, so neither is a duplicate.
     assert convert({"total_amount": None, "totalAmount": None}, cls()).total_amount == 0
     # A null first, then a value, is the same: the null set nothing to collide with.
-    assert convert({"total_amount": None, "totalAmount": celtypes.IntType(1)},
-                   cls()).total_amount == 1
+    assert convert({"total_amount": None, "totalAmount": celtypes.IntType(1)}, cls()).total_amount == 1
     # And one member of the oneof plus an unrelated field is fine.
     out = convert({"a": celtypes.IntType(1), "total_amount": celtypes.IntType(3)}, cls())
     assert (out.a, out.total_amount) == (1, 3)
@@ -906,13 +927,18 @@ def _map_descriptor():
     entry.name = "CountsEntry"
     entry.options.map_entry = True
     field_type = descriptor_pb2.FieldDescriptorProto
-    entry.field.add(name="key", number=1, type=field_type.TYPE_STRING,
-                    label=field_type.LABEL_OPTIONAL, json_name="key")
-    entry.field.add(name="value", number=2, type=field_type.TYPE_INT32,
-                    label=field_type.LABEL_OPTIONAL, json_name="value")
-    msg.field.add(name="counts", number=1, type=field_type.TYPE_MESSAGE,
-                  type_name=".tests.mp.Counts.CountsEntry",
-                  label=field_type.LABEL_REPEATED, json_name="counts")
+    entry.field.add(name="key", number=1, type=field_type.TYPE_STRING, label=field_type.LABEL_OPTIONAL, json_name="key")
+    entry.field.add(
+        name="value", number=2, type=field_type.TYPE_INT32, label=field_type.LABEL_OPTIONAL, json_name="value"
+    )
+    msg.field.add(
+        name="counts",
+        number=1,
+        type=field_type.TYPE_MESSAGE,
+        type_name=".tests.mp.Counts.CountsEntry",
+        label=field_type.LABEL_REPEATED,
+        json_name="counts",
+    )
 
     pool = descriptor_pool.DescriptorPool()
     pool.Add(fdp)

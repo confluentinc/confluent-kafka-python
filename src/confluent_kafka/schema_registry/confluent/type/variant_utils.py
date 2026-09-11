@@ -366,7 +366,7 @@ class Variant:
         extent, so a navigated value still carries its later siblings' bytes. Decoding ignores
         them - the encoding is self-delimiting.
         """
-        return self.value[self.pos:] if self.pos else self.value
+        return self.value[self.pos :] if self.pos else self.value
 
     # -- equality -----------------------------------------------------------
 
@@ -382,8 +382,7 @@ class Variant:
             return True
         if not isinstance(other, Variant):
             return NotImplemented
-        return (self.standalone_value_bytes() == other.standalone_value_bytes()
-                and self.metadata == other.metadata)
+        return self.standalone_value_bytes() == other.standalone_value_bytes() and self.metadata == other.metadata
 
     def __hash__(self) -> int:
         return hash((self.standalone_value_bytes(), self.metadata))

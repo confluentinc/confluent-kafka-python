@@ -53,25 +53,30 @@ def _load(dep: str, message: str, name: str):
 # but it has not been loaded". The descriptors are canonical now, and decimal's old path is a
 # public-import stub registered alongside them: it declares nothing, so it re-exports
 # confluent.type.Decimal without the second declaration a pool refuses ("duplicate symbol").
-@pytest.mark.parametrize("dep, message", [
-    ("confluent/type/decimal.proto", "Decimal"),
-    ("confluent/type/variant.proto", "Variant"),
-    ("confluent/types/decimal.proto", "Decimal"),
-])
+@pytest.mark.parametrize(
+    "dep, message",
+    [
+        ("confluent/type/decimal.proto", "Decimal"),
+        ("confluent/type/variant.proto", "Variant"),
+        ("confluent/types/decimal.proto", "Decimal"),
+    ],
+)
 def test_builtin_confluent_type_imports_resolve(dep, message):
     fd = _load(dep, message, "test_%s.proto" % dep.replace("/", "_"))
-    assert fd.message_types_by_name["M"].fields[0].message_type.full_name \
-        == "confluent.type." + message
+    assert fd.message_types_by_name["M"].fields[0].message_type.full_name == "confluent.type." + message
 
 
 # Only decimal's old path is stubbed; anything else still has to fail, naming the import it
 # could not find. Variant is in this list on purpose: it had not shipped under the old path, so
 # nothing can be importing it, and pinning that makes adding a stub a deliberate act.
-@pytest.mark.parametrize("dep", [
-    "confluent/type/nope.proto",
-    "confluent/types/nope.proto",
-    "confluent/types/variant.proto",
-])
+@pytest.mark.parametrize(
+    "dep",
+    [
+        "confluent/type/nope.proto",
+        "confluent/types/nope.proto",
+        "confluent/types/variant.proto",
+    ],
+)
 def test_an_unknown_builtin_still_fails(dep):
     with pytest.raises(Exception, match=dep):
         _load(dep, "Decimal", "test_%s.proto" % dep.replace("/", "_"))
@@ -87,8 +92,7 @@ def test_the_legacy_stub_declares_nothing_and_reexports():
     stub = pool.FindFileByName("confluent/types/decimal.proto")
     assert stub.message_types_by_name == {}
     assert [d.name for d in stub.public_dependencies] == ["confluent/type/decimal.proto"]
-    assert pool.FindMessageTypeByName("confluent.type.Decimal").file.name \
-        == "confluent/type/decimal.proto"
+    assert pool.FindMessageTypeByName("confluent.type.Decimal").file.name == "confluent/type/decimal.proto"
 
 
 # The module path that shipped before the move. v2.15.0rc2's confluent/types/decimal_pb2.py had
@@ -96,10 +100,11 @@ def test_the_legacy_stub_declares_nothing_and_reexports():
 def test_the_old_module_path_still_exports_everything_it_shipped():
     from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy
 
-    assert sorted(n for n in vars(legacy) if not n.startswith("_")
-                  and not n.startswith("confluent_dot")) == ["DESCRIPTOR", "Decimal"]
-    assert legacy.Decimal(value=b"\x04\xd2", scale=2).DESCRIPTOR.full_name \
-        == "confluent.type.Decimal"
+    assert sorted(n for n in vars(legacy) if not n.startswith("_") and not n.startswith("confluent_dot")) == [
+        "DESCRIPTOR",
+        "Decimal",
+    ]
+    assert legacy.Decimal(value=b"\x04\xd2", scale=2).DESCRIPTOR.full_name == "confluent.type.Decimal"
 
 
 # What DESCRIPTOR describes did change, unavoidably: it is the stub's own file now, so it
@@ -112,5 +117,4 @@ def test_the_old_descriptor_describes_the_stub_not_the_message():
 
     assert legacy.DESCRIPTOR.name == "confluent/types/decimal.proto"
     assert dict(legacy.DESCRIPTOR.message_types_by_name) == {}
-    assert [d.name for d in legacy.DESCRIPTOR.public_dependencies] \
-        == ["confluent/type/decimal.proto"]
+    assert [d.name for d in legacy.DESCRIPTOR.public_dependencies] == ["confluent/type/decimal.proto"]
