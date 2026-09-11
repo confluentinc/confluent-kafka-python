@@ -91,9 +91,26 @@ def test_the_legacy_stub_declares_nothing_and_reexports():
         == "confluent/type/decimal.proto"
 
 
-# The module path that shipped before the move. The generated stub re-exports Decimal, so code
-# importing it by the old name keeps working.
-def test_decimal_is_importable_from_the_old_module_path():
-    from confluent_kafka.schema_registry.confluent.types.decimal_pb2 import Decimal
+# The module path that shipped before the move. v2.15.0rc2's confluent/types/decimal_pb2.py had
+# exactly two public names - DESCRIPTOR and Decimal - and both have to keep resolving there.
+def test_the_old_module_path_still_exports_everything_it_shipped():
+    from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy
 
-    assert Decimal(value=b"\x04\xd2", scale=2).DESCRIPTOR.full_name == "confluent.type.Decimal"
+    assert sorted(n for n in vars(legacy) if not n.startswith("_")
+                  and not n.startswith("confluent_dot")) == ["DESCRIPTOR", "Decimal"]
+    assert legacy.Decimal(value=b"\x04\xd2", scale=2).DESCRIPTOR.full_name \
+        == "confluent.type.Decimal"
+
+
+# What DESCRIPTOR describes did change, unavoidably: it is the stub's own file now, so it
+# declares no message where the shipped one declared Decimal. Declaring it in both places is
+# exactly what a pool refuses ("duplicate symbol 'confluent.type.Decimal'"), so this is the
+# price of keeping the old path resolvable at all - pinned here as intended, not as drift.
+# `Decimal.DESCRIPTOR` and the canonical file are where the message is found.
+def test_the_old_descriptor_describes_the_stub_not_the_message():
+    from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy
+
+    assert legacy.DESCRIPTOR.name == "confluent/types/decimal.proto"
+    assert dict(legacy.DESCRIPTOR.message_types_by_name) == {}
+    assert [d.name for d in legacy.DESCRIPTOR.public_dependencies] \
+        == ["confluent/type/decimal.proto"]
