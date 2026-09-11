@@ -2936,6 +2936,102 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
 }
 
 
+/**
+ * @brief Names of configuration properties that hold non-string internal
+ *        values (callback pointers, opaque, ...) in librdkafka's config
+ *        dump. They are implementation details of the bindings and are
+ *        not meaningful to Python applications, so they are left out of
+ *        the dict returned by handle_config_dict().
+ */
+static const char *handle_config_dict_excluded[] = {
+    "dr_msg_cb",
+    "error_cb",
+    "log_cb",
+    "oauthbearer_token_refresh_cb",
+    "offset_commit_cb",
+    "opaque",
+    "open_cb",
+    "rebalance_cb",
+    "socket_cb",
+    "stats_cb",
+    "throttle_cb",
+    NULL};
+
+/**
+ * @brief Build a Python dict of the effective configuration properties
+ *        of a client Handle, using the client instance's configuration
+ *        object returned by rd_kafka_conf().
+ *
+ *        Properties reported by librdkafka that carry internal
+ *        non-string values (callback pointers, opaque, ...) are
+ *        excluded, see handle_config_dict_excluded.
+ */
+PyObject *handle_config_dict(Handle *h) {
+        const rd_kafka_conf_t *conf;
+        const char **dump;
+        size_t cnt = 0, i;
+        PyObject *dict;
+
+        if (!h->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "client instance not initialized");
+                return NULL;
+        }
+
+        if (!(conf = rd_kafka_conf(h->rk))) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "unable to acquire configuration object");
+                return NULL;
+        }
+
+        /* Cast away const: rd_kafka_conf_dump() takes a non-const pointer
+         * but does not modify the configuration. */
+        dump = rd_kafka_conf_dump((rd_kafka_conf_t *)conf, &cnt);
+        if (!dump) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "unable to dump configuration");
+                return NULL;
+        }
+
+        dict = PyDict_New();
+        if (!dict) {
+                rd_kafka_conf_dump_free(dump, cnt);
+                return NULL;
+        }
+
+        for (i = 0; i < cnt; i += 2) {
+                int skip = 0, j;
+                PyObject *k, *v;
+
+                for (j = 0; handle_config_dict_excluded[j]; j++) {
+                        if (!strcmp(dump[i],
+                                    handle_config_dict_excluded[j])) {
+                                skip = 1;
+                                break;
+                        }
+                }
+                if (skip)
+                        continue;
+
+                k = cfl_PyUnistr(_FromString(dump[i]));
+                v = cfl_PyUnistr(_FromString(dump[i + 1]));
+                if (!k || !v || PyDict_SetItem(dict, k, v) == -1) {
+                        Py_XDECREF(k);
+                        Py_XDECREF(v);
+                        Py_DECREF(dict);
+                        rd_kafka_conf_dump_free(dump, cnt);
+                        if (!PyErr_Occurred())
+                                PyErr_NoMemory();
+                        return NULL;
+                }
+                Py_DECREF(k);
+                Py_DECREF(v);
+        }
+
+        rd_kafka_conf_dump_free(dump, cnt);
+        return dict;
+}
+
 rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                    Handle *h,
                                    PyObject *args,
