@@ -16,7 +16,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import descriptor_pb2 as google_dot_protobuf_dot_descriptor__pb2
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\x14\x63onfluent/meta.proto\x12\tconfluent\x1a google/protobuf/descriptor.proto\"}\n\x04Meta\x12\x0b\n\x03\x64oc\x18\x01 \x01(\t\x12+\n\x06params\x18\x02 \x03(\x0b\x32\x1b.confluent.Meta.ParamsEntry\x12\x0c\n\x04tags\x18\x03 \x03(\t\x1a-\n\x0bParamsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01:A\n\tfile_meta\x12\x1c.google.protobuf.FileOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:G\n\x0cmessage_meta\x12\x1f.google.protobuf.MessageOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:C\n\nfield_meta\x12\x1d.google.protobuf.FieldOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:A\n\tenum_meta\x12\x1c.google.protobuf.EnumOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:L\n\x0f\x65num_value_meta\x12!.google.protobuf.EnumValueOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.MetaB\x0eZ\x0c../confluentb\x06proto3'
+    b'\n\x14\x63onfluent/meta.proto\x12\tconfluent\x1a google/protobuf/descriptor.proto\"\x9d\x01\n\x04Meta\x12\x0b\n\x03\x64oc\x18\x01 \x01(\t\x12+\n\x06params\x18\x02 \x03(\x0b\x32\x1b.confluent.Meta.ParamsEntry\x12\x0c\n\x04tags\x18\x03 \x03(\t\x12\x1e\n\x05rules\x18\x04 \x03(\x0b\x32\x0f.confluent.Rule\x1a-\n\x0bParamsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"<\n\x04Rule\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0b\n\x03\x64oc\x18\x02 \x01(\t\x12\x0c\n\x04\x65xpr\x18\x03 \x01(\t\x12\x0b\n\x03sql\x18\x04 \x01(\t:A\n\tfile_meta\x12\x1c.google.protobuf.FileOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:G\n\x0cmessage_meta\x12\x1f.google.protobuf.MessageOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:C\n\nfield_meta\x12\x1d.google.protobuf.FieldOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:A\n\tenum_meta\x12\x1c.google.protobuf.EnumOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.Meta:L\n\x0f\x65num_value_meta\x12!.google.protobuf.EnumValueOptions\x18\xc0\x08 \x01(\x0b\x32\x0f.confluent.MetaB\x0eZ\x0c../confluentb\x06proto3'
 )
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
@@ -32,8 +32,10 @@ if _descriptor._USE_C_DESCRIPTORS == False:
     DESCRIPTOR._serialized_options = b'Z\014../confluent'
     _META_PARAMSENTRY._options = None
     _META_PARAMSENTRY._serialized_options = b'8\001'
-    _META._serialized_start = 69
-    _META._serialized_end = 194
-    _META_PARAMSENTRY._serialized_start = 149
-    _META_PARAMSENTRY._serialized_end = 194
+    _META._serialized_start = 70
+    _META._serialized_end = 227
+    _META_PARAMSENTRY._serialized_start = 182
+    _META_PARAMSENTRY._serialized_end = 227
+    _RULE._serialized_start = 229
+    _RULE._serialized_end = 289
 # @@protoc_insertion_point(module_scope)
