@@ -462,7 +462,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
-            - pytest tests/test_error.py
+            - pytest tests/ --ignore=tests/integration
   - name: "Wheel Verification: OSX arm64"
     run:
       when: "tag =~ '.*'"
@@ -494,7 +494,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
-            - pytest tests/test_error.py
+            - pytest tests/ --ignore=tests/integration
   - name: "Wheel Verification: Windows"
     run:
       when: "tag =~ '.*'"
@@ -526,7 +526,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''lz4''}); print(''OK: lz4'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
-            - pytest tests\test_error.py
+            - pytest tests --ignore=tests\integration
   - name: "Pre-release Validation"
     run:
       when: "tag =~ '.*'"
