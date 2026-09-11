@@ -94,6 +94,14 @@ def test_kafkaError_custom_msg():
     assert not err.txn_requires_abort()
 
 
+def test_kafkaError_init_keyword_matches_runtime_signature():
+    err = KafkaError(error=KafkaError._ALL_BROKERS_DOWN)
+    assert err == KafkaError._ALL_BROKERS_DOWN
+
+    with pytest.raises(TypeError):
+        KafkaError(code=KafkaError._ALL_BROKERS_DOWN)
+
+
 def test_kafkaError_unknown_error():
     with pytest.raises(KafkaException, match="Err-12345?") as e:
         raise KafkaError(12345)
