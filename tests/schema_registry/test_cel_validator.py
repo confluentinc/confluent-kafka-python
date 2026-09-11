@@ -948,6 +948,49 @@ def test_timestamp_out_of_range_int_is_a_cel_error(validator):
     assert "out of range" in str(cause)
 
 
+# The (value, precision) overload floors the epoch to whole microseconds before the range
+# check, where the reference checks Math.floorDiv(value, unitsPerSecond). Nested floor
+# division by positive divisors composes, so the accept/reject boundary is the same one -
+# verified here at both ends. The finer precisions cannot reach it at all: an int64 count of
+# nanoseconds spans only 1677..2262.
+@pytest.mark.parametrize(
+    "expr, expected",
+    [
+        ("timestamp(253402300799, 0)", "9999-12-31T23:59:59Z"),
+        ("timestamp(-62135596800, 0)", "0001-01-01T00:00:00Z"),
+        ("timestamp(253402300799999, 3)", "9999-12-31T23:59:59.999Z"),
+        ("timestamp(9223372036854775807, 9)", "2262-04-11T23:47:16.854775Z"),
+        ("timestamp(-9223372036854775808, 9)", "1677-09-21T00:12:43.145224Z"),
+    ],
+)
+def test_timestamp_precision_range_boundary(validator, expr, expected):
+    assert validator.execute(rule(f"string({expr})"), None, 1) == expected
+
+
+@pytest.mark.parametrize("expr", ["timestamp(253402300800, 0)", "timestamp(-62135596801, 0)"])
+def test_timestamp_precision_past_the_boundary_is_refused(validator, expr):
+    with pytest.raises(RuleError) as excinfo:
+        validator.execute(rule(f"string({expr})"), None, 1)
+    assert "out of range" in str(excinfo.value.__cause__)
+
+
+# A protobuf Timestamp whose nanos fall outside the contract's [0, 999999999] is normalized
+# into the neighbouring instant rather than refused, which is what cel-java does with the same
+# message (measured: nanos=-1 gives the preceding nanosecond, nanos=1000000000 the next
+# second). Validating the contract here would refuse values the reference accepts.
+@pytest.mark.parametrize(
+    "nanos, expected",
+    [
+        (-1, "1969-12-31T23:59:59.999999Z"),
+        (1_000_000_000, "1970-01-01T00:00:01Z"),
+        (1_500_000_000, "1970-01-01T00:00:01.500Z"),
+    ],
+)
+def test_proto_timestamp_nanos_outside_the_contract_is_normalized(validator, nanos, expected):
+    ts = Timestamp(seconds=0, nanos=nanos)
+    assert validator.execute(rule("string(timestamp(this))"), None, ts) == expected
+
+
 # --------------------------------------------------------------------------------------
 # `now` end to end through the protobuf walker, mirroring the JVM client's test
 # --------------------------------------------------------------------------------------

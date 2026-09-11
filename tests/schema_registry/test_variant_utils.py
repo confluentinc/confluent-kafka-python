@@ -548,6 +548,21 @@ def test_variant_as_timestamp_micros_types_are_used_as_is():
     )
 
 
+# The range check runs on the micros value, where the reference (fromEpochNanosOrNull) runs
+# it on Math.floorDiv(ns, 1e9). Nested floor division by positive divisors composes, so the
+# two agree; and a nanos variant cannot reach the boundary at all, since an int64 count of
+# nanoseconds spans only 1677..2262. Only the micros types can fall out of range.
+def test_variant_as_timestamp_range_is_the_reference_boundary():
+    for ns in (-(2 ** 63), 2 ** 63 - 1):
+        assert _variant_get_timestamp(_nanos_variant(ns)) is not None
+    max_micros = 253402300799_999_999
+    min_micros = -62135596800_000_000
+    for micros in (max_micros, min_micros):
+        assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", micros))) is not None
+    for micros in (max_micros + 1, min_micros - 1):
+        assert _variant_get_timestamp(prim(vu.TIMESTAMP, struct.pack("<q", micros))) is None
+
+
 # A navigated sub-variant's own value starts at its position, so a write-back has to use
 # standalone_value_bytes(). ``.value`` is the whole shared buffer, and handing that to an
 # encoder reconstructed the *parent root*: measured, the "a" field of
@@ -606,3 +621,31 @@ def test_the_write_back_paths_use_the_standalone_bytes():
     root = _variant_to_avro(doc, None)
     assert to_json_string(Variant(root["value"], root["metadata"])) == \
         '{"a":1,"secret":"TOPSECRET"}'
+
+
+def test_integer_size_ladder_reaches_four_bytes():
+    # The format's offset_size is 1-4 bytes and the reference (VariantBuilder
+    # .getMinIntegerSize) has all four tiers; this helper stopped at three, so
+    # anything above 0xFFFFFF selected a 3-byte offset and then raised
+    # OverflowError from to_bytes(3) instead of encoding.
+    assert vu._integer_size(vu.U8_MAX) == 1
+    assert vu._integer_size(vu.U8_MAX + 1) == 2
+    assert vu._integer_size(vu.U16_MAX) == 2
+    assert vu._integer_size(vu.U16_MAX + 1) == vu.U24_SIZE
+    assert vu._integer_size(vu.U24_MAX) == vu.U24_SIZE
+    assert vu._integer_size(vu.U24_MAX + 1) == vu.U32_SIZE
+    assert vu._integer_size(0xFFFFFFFF) == vu.U32_SIZE
+
+
+def test_builder_container_past_u24_uses_four_byte_offsets():
+    # A container whose data region exceeds 0xFFFFFF bytes. Reachable at the default
+    # 16 MiB size limit (which is 0xFFFFFF + 1) and plainly so above it.
+    big = "x" * (vu.U24_MAX + 1)
+    b = vu.VariantBuilder(size_limit=64 * 1024 * 1024)
+    b.start_array()
+    b.append_string(big)
+    b.append_long(7)
+    b.end_array()
+    v = b.build()
+    assert len(v.get_element_at_index(0).get_string()) == len(big)
+    assert v.get_element_at_index(1).get_long() == 7
