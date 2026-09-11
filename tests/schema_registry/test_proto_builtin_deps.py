@@ -46,18 +46,17 @@ def _load(dep: str, message: str, name: str):
     return pool.Add(_str_to_proto(name, _schema_str(dep, message, name)))
 
 
-# Both spellings have to load. The canonical import path is confluent/type/... - what the Java
-# client registers and what ProtobufSchema declares - while the generated descriptors here were
-# named confluent/types/... after the directory the Go client needs (`type` is a keyword there),
-# which this client copied. A Java-registered schema used to fail with "Depends on file
-# 'confluent/type/decimal.proto', but it has not been loaded". The descriptors are canonical now
-# and the plural spelling is rewritten on the way in, because a pool holds one file per symbol
-# and registering both raises "duplicate symbol 'confluent.type.Decimal'".
+# The canonical import path is confluent/type/... - what the Java client registers and what
+# ProtobufSchema declares - while the generated descriptors here were named confluent/types/...
+# after the directory the Go client needs (`type` is a keyword there), which this client copied.
+# A Java-registered schema used to fail with "Depends on file 'confluent/type/decimal.proto',
+# but it has not been loaded". The descriptors are canonical now, and decimal's old path is a
+# public-import stub registered alongside them: it declares nothing, so it re-exports
+# confluent.type.Decimal without the second declaration a pool refuses ("duplicate symbol").
 @pytest.mark.parametrize("dep, message", [
     ("confluent/type/decimal.proto", "Decimal"),
     ("confluent/type/variant.proto", "Variant"),
     ("confluent/types/decimal.proto", "Decimal"),
-    ("confluent/types/variant.proto", "Variant"),
 ])
 def test_builtin_confluent_type_imports_resolve(dep, message):
     fd = _load(dep, message, "test_%s.proto" % dep.replace("/", "_"))
@@ -65,12 +64,36 @@ def test_builtin_confluent_type_imports_resolve(dep, message):
         == "confluent.type." + message
 
 
-# Only the two known legacy names are rewritten; anything else still has to fail, naming the
-# import it could not find.
+# Only decimal's old path is stubbed; anything else still has to fail, naming the import it
+# could not find. Variant is in this list on purpose: it had not shipped under the old path, so
+# nothing can be importing it, and pinning that makes adding a stub a deliberate act.
 @pytest.mark.parametrize("dep", [
     "confluent/type/nope.proto",
     "confluent/types/nope.proto",
+    "confluent/types/variant.proto",
 ])
 def test_an_unknown_builtin_still_fails(dep):
     with pytest.raises(Exception, match=dep):
         _load(dep, "Decimal", "test_%s.proto" % dep.replace("/", "_"))
+
+
+# The stub itself: registered under the old name, declaring nothing, and re-exporting the symbol
+# through a public import. Each of the three is what keeps it from conflicting with the canonical
+# file while still resolving - a declaration here would raise "duplicate symbol".
+def test_the_legacy_stub_declares_nothing_and_reexports():
+    pool = DescriptorPool()
+    _init_pool(pool)
+
+    stub = pool.FindFileByName("confluent/types/decimal.proto")
+    assert stub.message_types_by_name == {}
+    assert [d.name for d in stub.public_dependencies] == ["confluent/type/decimal.proto"]
+    assert pool.FindMessageTypeByName("confluent.type.Decimal").file.name \
+        == "confluent/type/decimal.proto"
+
+
+# The module path that shipped before the move. The generated stub re-exports Decimal, so code
+# importing it by the old name keeps working.
+def test_decimal_is_importable_from_the_old_module_path():
+    from confluent_kafka.schema_registry.confluent.types.decimal_pb2 import Decimal
+
+    assert Decimal(value=b"\x04\xd2", scale=2).DESCRIPTOR.full_name == "confluent.type.Decimal"

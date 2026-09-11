@@ -44,6 +44,7 @@ from google.type import (
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.confluent.type import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy_decimal_pb2
 from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
@@ -67,7 +68,6 @@ __all__ = [
     '_schema_to_str',
     '_proto_to_str',
     '_str_to_proto',
-    '_LEGACY_BUILTIN_DEPS',
     '_init_pool',
     'transform',
     '_transform_field',
@@ -211,21 +211,6 @@ def _proto_to_str(file_descriptor_proto: descriptor_pb2.FileDescriptorProto) -> 
     return base64.standard_b64encode(file_descriptor_proto.SerializeToString()).decode('ascii')
 
 
-# The confluent value types moved to their canonical paths - confluent/type/{decimal,variant}
-# .proto, what the Java client registers and what ProtobufSchema declares. The generated
-# descriptors here were named confluent/types/... after the directory the Go client needs
-# (`type` is a keyword there), which this client copied, so schemas registered before the move
-# import the plural name. A pool holds one file per symbol, so the plural name cannot be
-# registered alongside the canonical one - it raises "duplicate symbol
-# 'confluent.type.Decimal'" - and the import is rewritten instead. Both files declare
-# `package confluent.type`, so either resolves to the same message. Read-only: this client now
-# emits the canonical path.
-_LEGACY_BUILTIN_DEPS = {
-    "confluent/types/decimal.proto": "confluent/type/decimal.proto",
-    "confluent/types/variant.proto": "confluent/type/variant.proto",
-}
-
-
 def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorProto:
     """
     Base64 decode a FileDescriptor
@@ -244,10 +229,6 @@ def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorPr
         file_descriptor_proto.name = name
     except DecodeError as e:
         raise SerializationError(str(e))
-    for i, dep in enumerate(file_descriptor_proto.dependency):
-        canonical = _LEGACY_BUILTIN_DEPS.get(dep)
-        if canonical is not None:
-            file_descriptor_proto.dependency[i] = canonical
     return file_descriptor_proto
 
 
@@ -283,6 +264,13 @@ def _init_pool(pool: DescriptorPool):
     pool.AddSerializedFile(meta_pb2.DESCRIPTOR.serialized_pb)
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
     pool.AddSerializedFile(variant_pb2.DESCRIPTOR.serialized_pb)
+    # The path confluent.type.Decimal used to occupy. A schema importing it is never sent with a
+    # reference - _is_builtin matches the whole confluent/ prefix - so the pool is the only place
+    # a reader can resolve it from. The stub declares nothing and publicly imports the canonical
+    # file, so it re-exports confluent.type.Decimal without a second declaration of the symbol,
+    # which a pool refuses. Added after the canonical file, which it depends on. Variant needs no
+    # such stub: it had not shipped under the old path.
+    pool.AddSerializedFile(legacy_decimal_pb2.DESCRIPTOR.serialized_pb)
 
 
 # Message types a CEL rule works with as a single value rather than as a record.
