@@ -1107,6 +1107,11 @@ class VariantBuilder:
         smallest of DECIMAL4/8/16 that fits."""
         if scale < 0:
             raise VariantError("cannot encode decimal with negative scale")
+        # A 38-digit coefficient needs at most 127 bits, so anything wider is out of range
+        # without rendering it. str() on a wider one raises CPython's own 4300-digit
+        # ValueError, which names an interpreter limit rather than this API's contract.
+        if unscaled.bit_length() > 128:
+            raise VariantError("decimal exceeds maximum precision (38)")
         precision = len(str(abs(unscaled)))
         if scale <= MAX_DECIMAL4_PRECISION and precision <= MAX_DECIMAL4_PRECISION:
             code, width = DECIMAL4, 4
