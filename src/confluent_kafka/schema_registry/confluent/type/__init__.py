@@ -11,11 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Deprecated: import from confluent_kafka.schema_registry.confluent.type instead.
-#
-# This package held the generated confluent.type.Decimal bindings until they moved to the
-# canonical confluent/type path - the one the Java client registers and ProtobufSchema declares.
-# What remains is generated from confluent/types/decimal.proto, a stub that declares nothing and
-# publicly imports the canonical file, so Decimal stays importable under its old name and a
-# descriptor built against the old import path still resolves.
