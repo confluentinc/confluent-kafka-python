@@ -158,11 +158,19 @@ def test_a_branch_that_no_longer_fits_is_re_resolved():
         "name": "Nullable",
         "fields": [{"name": "note", "type": ["string", "int"], "confluent:tags": ["NOTE"]}],
     }
-    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", ["NOTE"],
-                None, "3", None, None, False)
+    rule = Rule("r", None, RuleKind.TRANSFORM, RuleMode.WRITE, "CEL_FIELD", ["NOTE"], None, "3", None, None, False)
     ctx = RuleContext(
-        None, None, None, Schema(json.dumps(schema), "AVRO"), "t-value", RuleMode.WRITE,
-        rule, 0, [rule], {"Nullable.note": {"NOTE"}}, None,
+        None,
+        None,
+        None,
+        Schema(json.dumps(schema), "AVRO"),
+        "t-value",
+        RuleMode.WRITE,
+        rule,
+        0,
+        [rule],
+        {"Nullable.note": {"NOTE"}},
+        None,
     )
     ft = CelFieldExecutor().new_transform(ctx)
     out = transform(ctx, schema, {"note": ("string", "a")}, ft)

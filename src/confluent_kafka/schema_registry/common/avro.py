@@ -163,8 +163,7 @@ def transform(
         # Keep the notation while its branch still accepts the result, so two same-shaped
         # records are never swapped; drop it otherwise and let fastavro resolve, since
         # ("null", x) would be written as null with x silently dropped.
-        if (isinstance(message, tuple) and len(message) == 2
-                and _branch_accepts(subschema, submessage)):
+        if isinstance(message, tuple) and len(message) == 2 and _branch_accepts(subschema, submessage):
             return (message[0], submessage)
         return submessage
     elif isinstance(schema, dict):
