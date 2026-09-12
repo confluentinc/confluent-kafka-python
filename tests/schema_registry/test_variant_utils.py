@@ -653,3 +653,20 @@ def test_builder_container_past_u24_uses_four_byte_offsets():
     v = b.build()
     assert len(v.get_element_at_index(0).get_string()) == len(big)
     assert v.get_element_at_index(1).get_long() == 7
+
+
+def test_builder_refuses_an_oversized_coefficient_as_a_variant_error():
+    # str() past 4300 digits raises CPython's own ValueError naming an interpreter limit,
+    # so a caller catching VariantError saw an unrelated exception escape.
+    b = vu.VariantBuilder()
+    with pytest.raises(vu.VariantError, match="maximum precision"):
+        b.append_decimal(10 ** 200000, 0)
+
+    # The boundary: a 38-digit coefficient still encodes, a 39-digit one does not.
+    ok = vu.VariantBuilder()
+    ok.start_array()
+    ok.append_decimal(10 ** 38 - 1, 0)
+    ok.end_array()
+    assert ok.build().get_element_at_index(0).get_decimal() == decimal.Decimal(10 ** 38 - 1)
+    with pytest.raises(vu.VariantError, match="maximum precision"):
+        vu.VariantBuilder().append_decimal(10 ** 39, 0)
