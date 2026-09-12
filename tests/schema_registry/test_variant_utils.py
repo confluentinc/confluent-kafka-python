@@ -662,6 +662,12 @@ def test_builder_refuses_an_oversized_coefficient_as_a_variant_error():
     with pytest.raises(vu.VariantError, match="maximum precision"):
         b.append_decimal(10 ** 200000, 0)
 
+    # The Decimal overload converts the coefficient to int on its way in, which raises the
+    # same interpreter ValueError one call earlier.
+    d = vu.VariantBuilder()
+    with pytest.raises(vu.VariantError, match="maximum precision"):
+        d.append_decimal(decimal.Decimal("9" * 5000))
+
     # The boundary: a 38-digit coefficient still encodes, a 39-digit one does not.
     ok = vu.VariantBuilder()
     ok.start_array()

@@ -1131,6 +1131,11 @@ class VariantBuilder:
         sign, digits, exponent = d.as_tuple()
         if not isinstance(exponent, int):
             raise VariantError("cannot encode non-finite decimal")
+        # Before int(), not after: the digit string for a coefficient past CPython's 4300-digit
+        # limit raises its ValueError, which is not the error this API documents. The digit
+        # count is already in hand, so the encoding's own limit is the cheaper check.
+        if len(digits) > MAX_DECIMAL16_PRECISION:
+            raise VariantError("decimal exceeds maximum precision (38)")
         unscaled = int("".join(map(str, digits)) or "0")
         if sign:
             unscaled = -unscaled
