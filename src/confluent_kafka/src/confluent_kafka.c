@@ -929,6 +929,44 @@ static int Message_traverse(Message *self, visitproc visit, void *arg) {
         return 0;
 }
 
+/**
+ * @brief Take a new reference to each of the five mutable PyObject fields,
+ *        each under its own lock, into out[0..4] (topic, value, key, headers,
+ *        error). A field that is unset is captured as NULL.
+ */
+static void Message_snapshot_fields(Message *self, PyObject *out[5]) {
+        cfl_lock(&self->topic_lock);
+        out[0] = self->topic;
+        Py_XINCREF(out[0]);
+        cfl_unlock(&self->topic_lock);
+
+        cfl_lock(&self->value_lock);
+        out[1] = self->value;
+        Py_XINCREF(out[1]);
+        cfl_unlock(&self->value_lock);
+
+        cfl_lock(&self->key_lock);
+        out[2] = self->key;
+        Py_XINCREF(out[2]);
+        cfl_unlock(&self->key_lock);
+
+        cfl_lock(&self->headers_lock);
+        out[3] = self->headers;
+        Py_XINCREF(out[3]);
+        cfl_unlock(&self->headers_lock);
+
+        cfl_lock(&self->error_lock);
+        out[4] = self->error;
+        Py_XINCREF(out[4]);
+        cfl_unlock(&self->error_lock);
+}
+
+static void Message_release_fields(PyObject *fields[5]) {
+        int i;
+        for (i = 0; i < 5; i++)
+                Py_XDECREF(fields[i]);
+}
+
 static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         if (op != Py_EQ && op != Py_NE) {
                 Py_INCREF(Py_NotImplemented);
@@ -952,26 +990,30 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         Message *msg_self  = (Message *)self;
         Message *msg_other = (Message *)other;
 
-        int result;
+        /* Comparison logic for mutable fields:
+         * Take a reference to each field of both Messages under its lock before
+         * comparing, so a concurrent set_*() cannot free a field
+         * while it is being compared. Each lock is held only for its own
+         * read. */
+        PyObject *fields_self[5], *fields_other[5];
+        int result = 1, i;
 
-#define _LOCAL_COMPARE(left, right)                                            \
-        do {                                                                   \
-                result = PyObject_RichCompareBool(left, right, Py_EQ);         \
-                if (result < 0)                                                \
-                        return NULL;                                           \
-                if (result == 0) {                                             \
-                        if (op == Py_EQ)                                       \
-                                Py_RETURN_FALSE;                               \
-                        else                                                   \
-                                Py_RETURN_TRUE;                                \
-                }                                                              \
-        } while (0)
-        _LOCAL_COMPARE(msg_self->topic, msg_other->topic);
-        _LOCAL_COMPARE(msg_self->value, msg_other->value);
-        _LOCAL_COMPARE(msg_self->key, msg_other->key);
-        _LOCAL_COMPARE(msg_self->headers, msg_other->headers);
-        _LOCAL_COMPARE(msg_self->error, msg_other->error);
-#undef _LOCAL_COMPARE
+        Message_snapshot_fields(msg_self, fields_self);
+        Message_snapshot_fields(msg_other, fields_other);
+        for (i = 0; i < 5 && result == 1; i++)
+                result = PyObject_RichCompareBool(fields_self[i],
+                                                  fields_other[i], Py_EQ);
+        Message_release_fields(fields_self);
+        Message_release_fields(fields_other);
+
+        if (result < 0)
+                return NULL;
+        if (result == 0) {
+                if (op == Py_EQ)
+                        Py_RETURN_FALSE;
+                else
+                        Py_RETURN_TRUE;
+        }
 
 #define _LOCAL_COMPARE(left, right)                                            \
         do {                                                                   \
@@ -993,9 +1035,20 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
 }
 
 static Py_ssize_t Message__len__(Message *self) {
-        return self->value && self->value != Py_None
-                   ? PyObject_Length(self->value)
-                   : 0;
+        PyObject *value;
+        Py_ssize_t len = 0;
+
+        /* a concurrent set_value() must not be able to free it
+         * under PyObject_Length(). */
+        cfl_lock(&self->value_lock);
+        value = self->value;
+        Py_XINCREF(value);
+        cfl_unlock(&self->value_lock);
+
+        if (value && value != Py_None)
+                len = PyObject_Length(value);
+        Py_XDECREF(value);
+        return len;
 }
 
 static PySequenceMethods Message_seq_methods = {

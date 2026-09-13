@@ -18,10 +18,13 @@
 Concurrency tests for a single confluent_kafka.Message shared across threads.
 """
 
+import gc
 import itertools
 import pickle
+import sys
 import threading
 import time
+import weakref
 
 from confluent_kafka import Consumer, KafkaError, Message, Producer
 from tests.concurrency._subprocess_isolation import subprocess_isolated
@@ -164,12 +167,27 @@ def _getter(msg, field, valid):
     return work
 
 
-@subprocess_isolated
-def test_concurrent_get_and_set_same_field():
-    """For every mutable field, setters and getters hammering one shared
-    Message must never crash and getters must only ever see values that were
-    actually set."""
-    msg = Message(
+def _len_reader(msg):
+    # __len__ reads the value field; every value set here is b'v-<n>'.
+    def work():
+        n = len(msg)
+        assert n >= 3, f"len(msg) returned {n}"
+
+    return work
+
+
+def _comparer(msg, other):
+    # __eq__/__ne__ read every mutable field of both Messages.
+    def work():
+        eq = msg == other
+        ne = msg != other
+        assert isinstance(eq, bool) and isinstance(ne, bool), (eq, ne)
+
+    return work
+
+
+def _new_message():
+    return Message(
         topic='t-0',
         partition=0,
         offset=0,
@@ -179,13 +197,37 @@ def test_concurrent_get_and_set_same_field():
         error=KafkaError(KafkaError._PARTITION_EOF, 'e-0'),
     )
 
+
+@subprocess_isolated
+def test_concurrent_get_and_set_same_field():
+    """For every mutable field, setters and getters hammering one shared
+    Message must never crash and getters must only ever see values that were
+    actually set. len(msg) reads the value field the same way."""
+    msg = _new_message()
+
     workers = []
     for field, make, valid in _FIELDS:
         workers += [_setter(msg, field, make) for _ in range(_THREADS_PER_ROLE)]
         workers += [_getter(msg, field, valid) for _ in range(_THREADS_PER_ROLE)]
+    workers += [_len_reader(msg) for _ in range(_THREADS_PER_ROLE)]
 
     errors = _run_for(workers, _RACE_DURATION_S)
     assert not errors, f"worker threads raised: {errors}"
+
+
+@subprocess_isolated
+def test_concurrent_compare_and_set_same_field():
+    """msg == other compares the mutable fields in order and stops at the
+    first mismatch, so race the setters one field at a time against a
+    comparison that is equal up to that field: the field being replaced must
+    never be freed while the comparison is reading it."""
+    for field, make, _valid in _FIELDS:
+        msg, other = _new_message(), _new_message()
+        workers = [_setter(msg, field, make) for _ in range(_THREADS_PER_ROLE)]
+        workers += [_comparer(msg, other) for _ in range(_THREADS_PER_ROLE)]
+
+        errors = _run_for(workers, _RACE_DURATION_S / len(_FIELDS))
+        assert not errors, f"{field}: worker threads raised: {errors}"
 
 
 ###############################################################################
@@ -213,3 +255,69 @@ def test_concurrent_pickle_of_consumed_message():
     for msg in _consume_messages_with_headers(_NUM_MESSAGES):
         results = _race_readers(msg, pickle_roundtrip_headers, _NUM_READERS)
         assert results == [_HEADERS] * _NUM_READERS, results
+
+
+###############################################################################
+# Reference counting
+###############################################################################
+
+
+class _Tracked:
+    pass
+
+
+def test_getter_returns_new_reference():
+    """value() must hand back a new, owned reference, not a borrowed one."""
+    obj = _Tracked()
+    msg = Message(value=obj)
+
+    base = sys.getrefcount(obj)
+    got = msg.value()
+    assert got is obj
+    assert sys.getrefcount(obj) == base + 1, "value() did not return a new reference"
+
+    del got
+    assert sys.getrefcount(obj) == base, "value() result leaked a reference"
+
+
+def test_repeated_getter_calls_do_not_leak():
+    """Calling value() many times must not leak a reference per call."""
+    obj = _Tracked()
+    msg = Message(value=obj)
+
+    base = sys.getrefcount(obj)
+    for _ in range(1000):
+        msg.value()
+    assert sys.getrefcount(obj) == base, "value() leaks a reference per call"
+
+
+def test_setter_releases_old_value_exactly_once():
+    """set_value() must drop exactly one reference to the previous value, so
+    once nothing else holds it the old value becomes collectable."""
+    msg = Message(value=b'init')
+
+    old = _Tracked()
+    msg.set_value(old)
+    wr = weakref.ref(old)
+    del old
+    gc.collect()
+    assert wr() is not None, "the Message should still hold the value"
+
+    msg.set_value(b'new')
+    gc.collect()
+    assert wr() is None, "set_value() did not release the previous value"
+
+
+def test_setter_does_not_leak_new_value():
+    """After set_value(), the Message holds exactly one reference to the new
+    value, released when the Message goes away."""
+    obj = _Tracked()
+    base = sys.getrefcount(obj)
+
+    msg = Message()
+    msg.set_value(obj)
+    assert sys.getrefcount(obj) == base + 1, "set_value() should hold one reference"
+
+    del msg
+    gc.collect()
+    assert sys.getrefcount(obj) == base, "set_value() leaked a reference to the new value"
