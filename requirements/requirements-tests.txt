@@ -10,7 +10,7 @@ pytest-timeout
 requests-mock
 respx
 pytest_cov
-pluggy<1.6.0
+pluggy<1.6.1
 pytest-asyncio
 async-timeout
 
