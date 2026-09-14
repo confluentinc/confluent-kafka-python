@@ -18,12 +18,64 @@
 import json
 import os
 import re
+import sysconfig
+import warnings
 from base64 import b64decode
 from collections import defaultdict
 
 import pytest
 import respx
 from httpx import Response
+
+# The modules below import optional dependencies at the top of the file:
+# tink/celpy (rules extra) and orjson (json-fast) ship no free-threaded
+# wheels at all, so they are not installed on free-threaded builds (see
+# requirements-tests-install-nogil.txt) and importing these modules would
+# fail at collection; exclude them there. fastavro (avro extra) does ship a
+# free-threaded wheel, but has not declared itself GIL-safe (see
+# https://github.com/fastavro/fastavro/issues/873), so it is excluded from
+# the free-threaded install too. On regular builds the deps are expected to be
+# installed, so a missing dep stays a loud collection error instead of a
+# silent skip.
+FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+collect_ignore = []
+if FREE_THREADED_BUILD:
+    collect_ignore = [
+        "test_azure_aead.py",
+        "test_azure_client.py",
+        "test_azure_driver.py",
+        "test_cel_validator.py",
+        "test_dlq_action.py",
+        "test_encrypt_executor.py",
+        "test_hcvault_driver.py",
+        "test_inline_tags.py",
+        "test_proto_transform.py",
+        "test_validate_message.py",
+        "_async/test_avro.py",
+        "_async/test_avro_serdes.py",
+        "_async/test_avro_serdes_rules.py",
+        "_async/test_config_rules.py",
+        "_async/test_dlq_serdes.py",
+        "_async/test_json_serdes_rules.py",
+        "_async/test_proto_serdes_rules.py",
+        "_async/test_validation_serdes.py",
+        "_sync/test_avro.py",
+        "_sync/test_avro_serdes.py",
+        "_sync/test_avro_serdes_rules.py",
+        "_sync/test_config_rules.py",
+        "_sync/test_dlq_serdes.py",
+        "_sync/test_json_serdes_rules.py",
+        "_sync/test_proto_serdes_rules.py",
+        "_sync/test_validation_serdes.py",
+    ]
+    warnings.warn(
+        "free-threaded build: skipping collection of {} schema_registry "
+        "test modules requiring optional deps (tink/celpy/orjson/fastavro) "
+        "that ship no free-threaded wheels, or have not "
+        "declared themselves GIL-safe".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
