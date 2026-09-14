@@ -23,8 +23,8 @@ This document provides information useful to developers working on confluent-kaf
 
 2. **Create Virtual Environment**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
 **Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB
@@ -54,7 +54,7 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 5. **Verify Setup**
 
    ```bash
-   python3 -c "import confluent_kafka; print('Setup successful!')"
+   python3 -c 'import confluent_kafka; print("Setup successful!")'
 
 #### Local Setup with UV
 
