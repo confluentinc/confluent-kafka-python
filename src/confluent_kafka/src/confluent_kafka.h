@@ -175,6 +175,20 @@ static __inline const char *cfl_PyUnistr_AsUTF8(PyObject *o, PyObject **uobjp) {
 #endif
 
 
+/**
+ * @returns a Unicode object from a NUL-terminated C string, decoding it as
+ *          UTF-8 with the "replace" error handler.
+ *
+ * Unlike PyUnicode_FromString(), which assumes strict UTF-8 and raises
+ * UnicodeDecodeError on invalid input, this never raises. Use it for strings
+ * that may come from librdkafka or the OS in the system locale encoding rather
+ * than UTF-8 (e.g. error strings on non-English Windows). See issue #448.
+ */
+static __inline PyObject *cfl_PyUnistr_FromStringSafe(const char *s) {
+        return PyUnicode_DecodeUTF8(s, (Py_ssize_t)strlen(s), "replace");
+}
+
+
 /****************************************************************************
  *
  *
