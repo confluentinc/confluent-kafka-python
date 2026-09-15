@@ -15,6 +15,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
   `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
   shutdown) for durability.
 - Add support for inline validation rules (#2326)
+- Add Variant, Decimal, and Timestamp CEL functions (#2332)
 
 ### Fixes
 
