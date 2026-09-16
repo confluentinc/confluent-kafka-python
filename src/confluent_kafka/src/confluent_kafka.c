@@ -538,7 +538,7 @@ static PyObject *Message_key(Message *self, PyObject *ignore) {
         return Message_get_field(&self->key, &self->key_lock);
 }
 
-static PyObject *Message_topic(Message *self, PyObject *ignore) {
+PyObject *Message_topic(Message *self, PyObject *ignore) {
         return Message_get_field(&self->topic, &self->topic_lock);
 }
 

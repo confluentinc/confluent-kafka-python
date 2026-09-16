@@ -569,10 +569,12 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                         return NULL;
                 }
 
+                PyObject *error;
+                PyObject *topic;
                 m = (Message *)msg;
-
-                if (m->error && m->error != Py_None) {
-                        PyObject *error = Message_error(m, NULL);
+                error = Message_error(m, NULL);
+                topic = Message_topic(m, NULL);
+                if (error != Py_None) {
                         PyObject *errstr =
                             PyObject_CallMethod(error, "str", NULL);
                         cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -587,13 +589,13 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-                    m->partition);
+                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
                 Py_XDECREF(uo8);
-
+                Py_DECREF(error);
+                Py_DECREF(topic);
         } else {
                 c_offsets = NULL;
         }
@@ -714,6 +716,8 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                 Message *m;
                 PyObject *uo8;
                 rd_kafka_topic_partition_t *rktpar;
+                PyObject *error;
+                PyObject *topic;
 
                 if (PyObject_Type((PyObject *)msg) !=
                     (PyObject *)&MessageType) {
@@ -723,9 +727,9 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                 }
 
                 m = (Message *)msg;
-
-                if (m->error && m->error != Py_None) {
-                        PyObject *error = Message_error(m, NULL);
+                error = Message_error(m, NULL);
+                topic = Message_topic(m, NULL);
+                if (error != Py_None) {
                         PyObject *errstr =
                             PyObject_CallMethod(error, "str", NULL);
                         cfl_PyErr_Format(
@@ -736,15 +740,15 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                         Py_DECREF(errstr);
                         goto done;
                 }
-
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-                    m->partition);
+                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
                 Py_XDECREF(uo8);
+                Py_DECREF(error);
+                Py_DECREF(topic);
         }
 
 
