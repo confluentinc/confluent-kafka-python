@@ -1077,9 +1077,16 @@ class SchemaRegistryClient(object):
 
         if permanent:
             versions = self._rest_client.delete('subjects/{}?permanent=true'.format(_urlencode(subject_name)))
-            self._cache.remove_by_subject(subject_name)
         else:
             versions = self._rest_client.delete('subjects/{}'.format(_urlencode(subject_name)))
+
+        # Soft-deleted subjects must also be looked up or registered again.
+        self._cache.remove_by_subject(subject_name)
+        with self._latest_lock:
+            self._latest_version_cache.pop(subject_name, None)
+            for cache_key in list(self._latest_with_metadata_cache):
+                if cache_key[0] == subject_name:
+                    del self._latest_with_metadata_cache[cache_key]
 
         return versions
 

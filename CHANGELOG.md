@@ -2,6 +2,12 @@
 
 ## v2.16.0 (unreleased)
 
+### Fixes
+
+- Invalidate subject-specific schema and latest-version caches after successful
+  soft or permanent subject deletion, allowing subsequent lookups and schema
+  re-registration to reach Schema Registry.
+
 ### Enhancements
 
 - Add support for saving Azure key version with DEK (#2306)

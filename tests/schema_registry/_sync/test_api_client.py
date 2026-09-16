@@ -284,6 +284,62 @@ def test_delete_subject_not_found(mock_schema_registry):
     assert e.value.error_code == 40401
 
 
+@pytest.mark.parametrize('permanent', [False, True])
+@pytest.mark.parametrize('cache_ttl', [None, 60])
+@pytest.mark.parametrize(
+    'method, args, verb, suffix',
+    [
+        ('get_version', (1,), 'GET', '/versions/1'),
+        ('lookup_schema', (Schema('"string"', 'AVRO'),), 'POST', ''),
+        ('get_latest_version', (), 'GET', '/versions/latest'),
+        ('get_latest_with_metadata', ({'application': 'test'},), 'GET', '/metadata'),
+    ],
+)
+def test_delete_subject_invalidates_cached_reads(respx_mock, permanent, cache_ttl, method, args, verb, suffix):
+    sr = SchemaRegistryClient({'url': TEST_URL, 'cache.latest.ttl.sec': cache_ttl})
+    read = getattr(sr, method)
+    routes = {}
+    for subject in ('deleted-subject', 'other-subject'):
+        routes[subject] = respx_mock.route(method=verb, path='/subjects/' + subject + suffix).respond(
+            200, json={'subject': subject, 'id': 47, 'version': 1, 'schema': '"string"'}
+        )
+        assert (read(subject, *args)).schema_id == 47
+
+    respx_mock.delete(path='/subjects/deleted-subject').respond(200, json=[1])
+    routes['deleted-subject'].respond(404, json={'error_code': 40401, 'message': 'Subject not found'})
+
+    assert sr.delete_subject('deleted-subject', permanent=permanent) == [1]
+
+    with pytest.raises(SchemaRegistryError, match='Subject not found'):
+        read('deleted-subject', *args)
+    assert routes['deleted-subject'].call_count == 2
+    assert (read('other-subject', *args)).schema_id == 47
+    assert routes['other-subject'].call_count == 1
+
+
+@pytest.mark.parametrize('permanent', [False, True])
+@pytest.mark.parametrize('delete_succeeds', [False, True])
+def test_register_schema_after_subject_deletion(respx_mock, permanent, delete_succeeds):
+    sr = SchemaRegistryClient({'url': TEST_URL})
+    schema = Schema('"string"', 'AVRO')
+    registration = respx_mock.post(path='/subjects/test-delete/versions').respond(200, json={'id': 47})
+    assert sr.register_schema('test-delete', schema) == 47
+    assert sr.register_schema('test-delete', schema) == 47
+    assert registration.call_count == 1
+
+    deletion = respx_mock.delete(path='/subjects/test-delete')
+    if delete_succeeds:
+        deletion.respond(200, json=[1])
+        assert sr.delete_subject('test-delete', permanent=permanent) == [1]
+    else:
+        deletion.respond(403, json={'error_code': 40301, 'message': 'Forbidden'})
+        with pytest.raises(SchemaRegistryError, match='Forbidden'):
+            sr.delete_subject('test-delete', permanent=permanent)
+
+    assert sr.register_schema('test-delete', schema) == 47
+    assert registration.call_count == (2 if delete_succeeds else 1)
+
+
 def test_get_version(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
