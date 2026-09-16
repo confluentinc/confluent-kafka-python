@@ -375,6 +375,46 @@ def test_latest_read_during_invalidation_is_not_cached(monkeypatch, method, args
     assert calls == 2
 
 
+@pytest.mark.parametrize(
+    'method, args',
+    [
+        ('get_version', ('test-delete', 1)),
+        ('get_schema', (47, 'test-delete')),
+    ],
+)
+@pytest.mark.parametrize(
+    'invalidate, invalidate_args',
+    [
+        ('delete_subject', ('test-delete',)),
+        ('delete_version', ('test-delete', 1)),
+        ('clear_caches', ()),
+    ],
+)
+def test_subject_read_during_invalidation_is_not_cached(monkeypatch, method, args, invalidate, invalidate_args):
+    sr = SchemaRegistryClient({'url': TEST_URL})
+    calls = 0
+
+    def delete(*args, **kwargs):
+        return [1] if invalidate == 'delete_subject' else 1
+
+    def get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise SchemaRegistryError(404, 40401, 'Subject not found')
+        # Finish invalidation after the cache miss, before the old response arrives.
+        getattr(sr, invalidate)(*invalidate_args)
+        return {'subject': 'test-delete', 'id': 47, 'version': 1, 'schema': '"string"'}
+
+    monkeypatch.setattr(sr._rest_client, 'get', get)
+    monkeypatch.setattr(sr._rest_client, 'delete', delete)
+    read = getattr(sr, method)
+    read(*args)
+    with pytest.raises(SchemaRegistryError, match='Subject not found'):
+        read(*args)
+    assert calls == 2
+
+
 def test_delete_subject_when_metadata_expires_during_invalidation(respx_mock):
     clock = [0]
 

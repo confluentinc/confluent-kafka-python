@@ -775,6 +775,7 @@ class SchemaRegistryClient(object):
                     schema_id=schema_id, guid=result[0], subject=subject_name, version=None, schema=result[1]
                 )
 
+        generation = self._cache.generation
         request = schema.to_dict()
 
         response = self._rest_client.post(
@@ -793,7 +794,7 @@ class SchemaRegistryClient(object):
 
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
-        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.guid, s)
+        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.guid, s, generation)
 
         return registered_schema
 
@@ -829,6 +830,7 @@ class SchemaRegistryClient(object):
         if result is not None:
             return result[1]
 
+        generation = self._cache.generation
         query = {}
         if subject_name is not None:
             query['subject'] = subject_name
@@ -840,9 +842,9 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema, generation)
         if subject_name is not None:
-            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema, generation)
 
         return registered_schema.schema
 
@@ -998,6 +1000,7 @@ class SchemaRegistryClient(object):
         if registered_schema is not None:
             return registered_schema
 
+        generation = self._cache.generation
         request = schema.to_dict()
 
         query_params: dict[str, Any] = {'normalize': normalize_schemas, 'deleted': deleted}
@@ -1019,7 +1022,7 @@ class SchemaRegistryClient(object):
             schema=schema,
         )
 
-        self._cache.set_registered_schema(schema, registered_schema)
+        self._cache.set_registered_schema(schema, registered_schema, generation)
 
         return registered_schema
 
@@ -1203,12 +1206,13 @@ class SchemaRegistryClient(object):
             if registered_schema is not None:
                 return registered_schema
 
+        generation = self._cache.generation
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
         response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+        self._cache.set_registered_schema(registered_schema.schema, registered_schema, generation)
 
         return registered_schema
 
