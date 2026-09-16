@@ -701,6 +701,7 @@ class AsyncSchemaRegistryClient(object):
         self._rest_client = _AsyncRestClient(conf)
         self._cache = _SchemaCache()
         self._latest_lock = _locks.Lock()
+        self._latest_cache_generation = 0
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         self._latest_version_cache: Cache[Any, Any]
@@ -1088,10 +1089,11 @@ class AsyncSchemaRegistryClient(object):
         # Soft-deleted subjects must also be looked up or registered again.
         self._cache.remove_by_subject(subject_name)
         async with self._latest_lock:
+            self._latest_cache_generation += 1
             self._latest_version_cache.pop(subject_name, None)
             for cache_key in list(self._latest_with_metadata_cache):
                 if cache_key[0] == subject_name:
-                    del self._latest_with_metadata_cache[cache_key]
+                    self._latest_with_metadata_cache.pop(cache_key, None)
 
         return versions
 
@@ -1114,6 +1116,7 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
 
         async with self._latest_lock:
+            generation = self._latest_cache_generation
             registered_schema = self._latest_version_cache.get(subject_name, None)
         if registered_schema is not None:
             return registered_schema
@@ -1126,7 +1129,9 @@ class AsyncSchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         async with self._latest_lock:
-            self._latest_version_cache[subject_name] = registered_schema
+            # Do not repopulate a cache invalidated while this request was in flight.
+            if generation == self._latest_cache_generation:
+                self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1151,6 +1156,7 @@ class AsyncSchemaRegistryClient(object):
 
         cache_key = (subject_name, frozenset(metadata.items()), deleted)
         async with self._latest_lock:
+            generation = self._latest_cache_generation
             registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
@@ -1168,7 +1174,8 @@ class AsyncSchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         async with self._latest_lock:
-            self._latest_with_metadata_cache[cache_key] = registered_schema
+            if generation == self._latest_cache_generation:
+                self._latest_with_metadata_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1622,11 +1629,13 @@ class AsyncSchemaRegistryClient(object):
 
     async def clear_latest_caches(self):
         async with self._latest_lock:
+            self._latest_cache_generation += 1
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
 
     async def clear_caches(self):
         async with self._latest_lock:
+            self._latest_cache_generation += 1
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
