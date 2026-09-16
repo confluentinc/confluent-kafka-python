@@ -573,7 +573,6 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyObject *topic;
                 m = (Message *)msg;
                 error = Message_error(m, NULL);
-                topic = Message_topic(m, NULL);
                 if (error != Py_None) {
                         PyObject *errstr =
                             PyObject_CallMethod(error, "str", NULL);
@@ -586,7 +585,9 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                         Handle_serialize_exit(self);
                         return NULL;
                 }
+                Py_DECREF(error);
 
+                topic = Message_topic(m, NULL);
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
                     c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
@@ -594,7 +595,6 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
                 Py_XDECREF(uo8);
-                Py_DECREF(error);
                 Py_DECREF(topic);
         } else {
                 c_offsets = NULL;
@@ -728,7 +728,6 @@ Consumer_store_offsets(Handle *self, PyObject *args,
 
                 m = (Message *)msg;
                 error = Message_error(m, NULL);
-                topic = Message_topic(m, NULL);
                 if (error != Py_None) {
                         PyObject *errstr =
                             PyObject_CallMethod(error, "str", NULL);
@@ -740,6 +739,9 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                         Py_DECREF(errstr);
                         goto done;
                 }
+                Py_DECREF(error);
+
+                topic = Message_topic(m, NULL);
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
                     c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
@@ -747,7 +749,6 @@ Consumer_store_offsets(Handle *self, PyObject *args,
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
                 Py_XDECREF(uo8);
-                Py_DECREF(error);
                 Py_DECREF(topic);
         }
 
