@@ -477,40 +477,69 @@ static void cfl_PyErr_Fatal(rd_kafka_resp_err_t err, const char *reason) {
 
 
 /**
+ * @brief Return a new reference to one of the Message's PyObject fields,
+ *        or None if it is unset.
+ *
+ *        The pointer is read and INCREF'd under that field's own lock so
+ *        that a concurrent set_*() of the same field on another thread
+ *        (free-threaded builds) cannot drop the last reference between our
+ *        read and our INCREF. No-op on GIL builds.
+ */
+static PyObject *
+Message_get_field(PyObject **field, cfl_lock_t *lock) {
+        PyObject *obj;
+
+        cfl_lock(lock);
+        obj = *field;
+        Py_XINCREF(obj);
+        cfl_unlock(lock);
+
+        if (!obj)
+                Py_RETURN_NONE;
+        return obj;
+}
+
+/**
+ * @brief Replace one of the Message's PyObject fields with @p new_obj.
+ *
+ *        The swap happens under that field's own lock so it is atomic with
+ *        respect to Message_get_field() and other setters of the same
+ *        field; the old value is released only after unlocking, since a
+ *        DECREF can run arbitrary Python code (__del__).
+ */
+static PyObject *
+Message_set_field(PyObject **field, cfl_lock_t *lock, PyObject *new_obj) {
+        PyObject *old;
+
+        Py_INCREF(new_obj);
+        cfl_lock(lock);
+        old    = *field;
+        *field = new_obj;
+        cfl_unlock(lock);
+        Py_XDECREF(old);
+
+        Py_RETURN_NONE;
+}
+
+/**
  * @returns a Message's error object, if any, else None.
  * @remark The error object refcount is increased by this function.
  */
 PyObject *Message_error(Message *self, PyObject *ignore) {
-        if (self->error) {
-                Py_INCREF(self->error);
-                return self->error;
-        } else
-                Py_RETURN_NONE;
+        return Message_get_field(&self->error, &self->error_lock);
 }
 
 static PyObject *Message_value(Message *self, PyObject *ignore) {
-        if (self->value) {
-                Py_INCREF(self->value);
-                return self->value;
-        } else
-                Py_RETURN_NONE;
+        return Message_get_field(&self->value, &self->value_lock);
 }
 
 
 static PyObject *Message_key(Message *self, PyObject *ignore) {
-        if (self->key) {
-                Py_INCREF(self->key);
-                return self->key;
-        } else
-                Py_RETURN_NONE;
+        return Message_get_field(&self->key, &self->key_lock);
 }
 
-static PyObject *Message_topic(Message *self, PyObject *ignore) {
-        if (self->topic) {
-                Py_INCREF(self->topic);
-                return self->topic;
-        } else
-                Py_RETURN_NONE;
+PyObject *Message_topic(Message *self, PyObject *ignore) {
+        return Message_get_field(&self->topic, &self->topic_lock);
 }
 
 static PyObject *Message_partition(Message *self, PyObject *ignore) {
@@ -554,80 +583,55 @@ static PyObject *Message_delivery_count(Message *self, PyObject *ignore) {
 
 static PyObject *Message_headers(Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
-        if (self->headers) {
-                Py_INCREF(self->headers);
-                return self->headers;
-        } else if (self->c_headers) {
+        PyObject *headers;
+
+        cfl_lock(&self->headers_lock);
+        if (!self->headers && self->c_headers) {
                 self->headers = c_headers_to_py(self->c_headers);
-                rd_kafka_headers_destroy(self->c_headers);
-                self->c_headers = NULL;
-                Py_INCREF(self->headers);
-                return self->headers;
-        } else {
+                if (self->headers) {
+                        rd_kafka_headers_destroy(self->c_headers);
+                        self->c_headers = NULL;
+                }
+        }
+        headers = self->headers;
+        Py_XINCREF(headers);
+        cfl_unlock(&self->headers_lock);
+
+        if (!headers) {
+                if (PyErr_Occurred())
+                        return NULL;
                 Py_RETURN_NONE;
         }
+        return headers;
 #else
         Py_RETURN_NONE;
 #endif
 }
 
 static PyObject *Message_set_headers(Message *self, PyObject *new_headers) {
-        if (self->headers)
-                Py_DECREF(self->headers);
-        self->headers = new_headers;
-        Py_INCREF(self->headers);
-
-        Py_RETURN_NONE;
+        return Message_set_field(&self->headers, &self->headers_lock,
+                                 new_headers);
 }
 
 static PyObject *Message_set_value(Message *self, PyObject *new_val) {
-        if (self->value)
-                Py_DECREF(self->value);
-        self->value = new_val;
-        Py_INCREF(self->value);
-
-        Py_RETURN_NONE;
+        return Message_set_field(&self->value, &self->value_lock, new_val);
 }
 
 static PyObject *Message_set_key(Message *self, PyObject *new_key) {
-        if (self->key)
-                Py_DECREF(self->key);
-        self->key = new_key;
-        Py_INCREF(self->key);
-
-        Py_RETURN_NONE;
+        return Message_set_field(&self->key, &self->key_lock, new_key);
 }
 
 static PyObject *Message_set_topic(Message *self, PyObject *new_topic) {
-        if (self->topic)
-                Py_DECREF(self->topic);
-        self->topic = new_topic;
-        Py_INCREF(self->topic);
-
-        Py_RETURN_NONE;
+        return Message_set_field(&self->topic, &self->topic_lock, new_topic);
 }
 
 static PyObject *Message_set_error(Message *self, PyObject *new_error) {
-        if (self->error)
-                Py_DECREF(self->error);
-        self->error = new_error;
-        Py_INCREF(self->error);
-
-        Py_RETURN_NONE;
+        return Message_set_field(&self->error, &self->error_lock, new_error);
 }
 
 static PyObject *Message_reduce(Message *self, PyObject *Py_UNUSED(ignored)) {
         PyObject *Message_type = NULL;
         PyObject *result       = NULL;
-
-#ifdef RD_KAFKA_V_HEADERS
-        if (!self->headers && self->c_headers) {
-                self->headers = c_headers_to_py(self->c_headers);
-                rd_kafka_headers_destroy(self->c_headers);
-                self->c_headers = NULL;
-        }
-#endif
-
 
         Message_type = cfl_PyObject_lookup("confluent_kafka.cimpl", "Message");
 
@@ -925,6 +929,44 @@ static int Message_traverse(Message *self, visitproc visit, void *arg) {
         return 0;
 }
 
+/**
+ * @brief Take a new reference to each of the five mutable PyObject fields,
+ *        each under its own lock, into out[0..4] (topic, value, key, headers,
+ *        error). A field that is unset is captured as NULL.
+ */
+static void Message_snapshot_fields(Message *self, PyObject *out[5]) {
+        cfl_lock(&self->topic_lock);
+        out[0] = self->topic;
+        Py_XINCREF(out[0]);
+        cfl_unlock(&self->topic_lock);
+
+        cfl_lock(&self->value_lock);
+        out[1] = self->value;
+        Py_XINCREF(out[1]);
+        cfl_unlock(&self->value_lock);
+
+        cfl_lock(&self->key_lock);
+        out[2] = self->key;
+        Py_XINCREF(out[2]);
+        cfl_unlock(&self->key_lock);
+
+        cfl_lock(&self->headers_lock);
+        out[3] = self->headers;
+        Py_XINCREF(out[3]);
+        cfl_unlock(&self->headers_lock);
+
+        cfl_lock(&self->error_lock);
+        out[4] = self->error;
+        Py_XINCREF(out[4]);
+        cfl_unlock(&self->error_lock);
+}
+
+static void Message_release_fields(PyObject *fields[5]) {
+        int i;
+        for (i = 0; i < 5; i++)
+                Py_XDECREF(fields[i]);
+}
+
 static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         if (op != Py_EQ && op != Py_NE) {
                 Py_INCREF(Py_NotImplemented);
@@ -948,26 +990,30 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
         Message *msg_self  = (Message *)self;
         Message *msg_other = (Message *)other;
 
-        int result;
+        /* Comparison logic for mutable fields:
+         * Take a reference to each field of both Messages under its lock before
+         * comparing, so a concurrent set_*() cannot free a field
+         * while it is being compared. Each lock is held only for its own
+         * read. */
+        PyObject *fields_self[5], *fields_other[5];
+        int result = 1, i;
 
-#define _LOCAL_COMPARE(left, right)                                            \
-        do {                                                                   \
-                result = PyObject_RichCompareBool(left, right, Py_EQ);         \
-                if (result < 0)                                                \
-                        return NULL;                                           \
-                if (result == 0) {                                             \
-                        if (op == Py_EQ)                                       \
-                                Py_RETURN_FALSE;                               \
-                        else                                                   \
-                                Py_RETURN_TRUE;                                \
-                }                                                              \
-        } while (0)
-        _LOCAL_COMPARE(msg_self->topic, msg_other->topic);
-        _LOCAL_COMPARE(msg_self->value, msg_other->value);
-        _LOCAL_COMPARE(msg_self->key, msg_other->key);
-        _LOCAL_COMPARE(msg_self->headers, msg_other->headers);
-        _LOCAL_COMPARE(msg_self->error, msg_other->error);
-#undef _LOCAL_COMPARE
+        Message_snapshot_fields(msg_self, fields_self);
+        Message_snapshot_fields(msg_other, fields_other);
+        for (i = 0; i < 5 && result == 1; i++)
+                result = PyObject_RichCompareBool(fields_self[i],
+                                                  fields_other[i], Py_EQ);
+        Message_release_fields(fields_self);
+        Message_release_fields(fields_other);
+
+        if (result < 0)
+                return NULL;
+        if (result == 0) {
+                if (op == Py_EQ)
+                        Py_RETURN_FALSE;
+                else
+                        Py_RETURN_TRUE;
+        }
 
 #define _LOCAL_COMPARE(left, right)                                            \
         do {                                                                   \
@@ -989,9 +1035,20 @@ static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
 }
 
 static Py_ssize_t Message__len__(Message *self) {
-        return self->value && self->value != Py_None
-                   ? PyObject_Length(self->value)
-                   : 0;
+        PyObject *value;
+        Py_ssize_t len = 0;
+
+        /* a concurrent set_value() must not be able to free it
+         * under PyObject_Length(). */
+        cfl_lock(&self->value_lock);
+        value = self->value;
+        Py_XINCREF(value);
+        cfl_unlock(&self->value_lock);
+
+        if (value && value != Py_None)
+                len = PyObject_Length(value);
+        Py_XDECREF(value);
+        return len;
 }
 
 static PySequenceMethods Message_seq_methods = {
