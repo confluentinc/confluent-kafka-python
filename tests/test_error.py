@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import pickle
+
 from confluent_kafka import KafkaError
 from confluent_kafka.error import ConsumeError, ProduceError
 
@@ -64,3 +66,36 @@ def test_new_produce_error_custom_message():
     assert pe.code == KafkaError._KEY_SERIALIZATION
     assert pe.name == u'_KEY_SERIALIZATION'
     assert pe.args[0].str() == "Unable to serialize key"
+
+
+def test_kafka_error_non_ascii_str():
+    # Covers the valid-UTF-8 non-ASCII path only: that the "replace" decode
+    # doesn't mangle legitimate non-English text. The public constructor can't
+    # inject invalid bytes, so the actual #448 invalid-byte case (reachable only
+    # from C or a genuinely non-UTF-8 locale) is not exercised here.
+    msg = u"Ошибка: недопустимое значение"
+    err = KafkaError(KafkaError._KEY_SERIALIZATION, msg)
+
+    assert err.str() == msg
+    assert msg in str(err)
+    assert repr(err)
+
+
+def test_kafka_error_pickle():
+    # KafkaError_reduce() is what backs pickle and copy.deepcopy, and it
+    # decodes the reason string the same way KafkaError_str() does. Guards
+    # against a regression reintroducing #448 on the __reduce__ path, e.g. a
+    # KafkaError crossing a multiprocessing process boundary.
+    msg = u"Ошибка: недопустимое значение"
+    err = KafkaError(
+        KafkaError._KEY_SERIALIZATION, msg,
+        fatal=True, retriable=True, txn_requires_abort=False)
+
+    restored = pickle.loads(pickle.dumps(err))
+
+    assert restored.code() == err.code()
+    assert restored.str() == err.str()
+    assert restored.name() == err.name()
+    assert restored.fatal() == err.fatal()
+    assert restored.retriable() == err.retriable()
+    assert restored.txn_requires_abort() == err.txn_requires_abort()
