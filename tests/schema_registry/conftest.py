@@ -28,13 +28,14 @@ from httpx import Response
 from confluent_kafka.schema_registry.common._httpx_compat import httpx as _active_httpx
 
 # respx mocks httpx by default; point it at httpx2 when that's the active
-# client. Responses are still built as httpx.Response (a respx requirement).
+# client. assert_all_called=False matches the global respx.mock singleton the
+# fixture used before (calling respx.mock(...) otherwise defaults it to True).
+# Responses are still built as httpx.Response (a respx requirement).
+_RESPX_KWARGS = {'assert_all_called': False}
 if _active_httpx.__name__ == 'httpx2':
     import pytest_httpx2  # noqa: F401  (import registers respx's "httpcore2" mocker)
 
-    _RESPX_KWARGS = {'using': 'httpcore2'}
-else:
-    _RESPX_KWARGS = {}
+    _RESPX_KWARGS['using'] = 'httpcore2'
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
