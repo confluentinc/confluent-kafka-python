@@ -24,7 +24,7 @@ deprecation warning and a redundant second dependency.
 try:
     import httpx2 as httpx
 except ImportError:
-    import httpx  # noqa: F401
+    import httpx  # type: ignore[no-redef]  # noqa: F401
 
 Response = httpx.Response
 BasicAuth = httpx.BasicAuth

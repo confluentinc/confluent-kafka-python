@@ -7,9 +7,11 @@ six
 attrs
 cachetools
 # Prefer httpx2 (Python >=3.10); older Pythons stay on httpx.
+# Authlib gained httpx2 support in 1.8.0, so require it where httpx is absent.
 httpx>=0.26; python_version < "3.10"
 httpx2>=2.0; python_version >= "3.10"
-authlib>=1.0.0
+authlib>=1.0.0; python_version < "3.10"
+authlib>=1.8.0; python_version >= "3.10"
 
 fastavro >= 1.5.4, < 1.8.0; python_version == "3.7"
 fastavro >= 1.5.4, < 2; python_version > "3.7"
