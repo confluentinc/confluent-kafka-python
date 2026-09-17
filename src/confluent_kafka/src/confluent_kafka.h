@@ -176,6 +176,13 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 #endif
 #endif
 
+/* Define no-op fallbacks on older Pythons (<3.13) so call sites need
+ * no version guards. */
+#ifndef Py_BEGIN_CRITICAL_SECTION
+#define Py_BEGIN_CRITICAL_SECTION(op) {
+#define Py_END_CRITICAL_SECTION() }
+#endif
+
 /**
  * Avoid unused function warnings
  */
@@ -706,6 +713,7 @@ extern PyTypeObject MessageType;
 
 PyObject *Message_new0(const Handle *handle, const rd_kafka_message_t *rkm);
 PyObject *Message_error(Message *self, PyObject *ignore);
+PyObject *Message_topic(Message *self, PyObject *ignore);
 
 
 /****************************************************************************
