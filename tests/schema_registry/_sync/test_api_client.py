@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 import pytest
 
-from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
+from confluent_kafka.schema_registry.common.schema_registry_client import RegisteredSchema, SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema, SchemaRegistryClient
 from tests.schema_registry.conftest import COUNTER, SCHEMA, SCHEMA_ID, SUBJECTS, USERINFO, VERSION, VERSIONS
@@ -92,6 +92,60 @@ def test_register_schema_full_response_recall(mock_schema_registry, load_avsc):
 
     result = sr.register_schema_full_response('test-key', schema)
     assert result.schema_id == SCHEMA_ID
+
+
+def test_register_schema_clears_latest_caches(mock_schema_registry, load_avsc):
+    sr = SchemaRegistryClient({'url': TEST_URL})
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    cached = RegisteredSchema('test-key', VERSION - 1, SCHEMA_ID, None, schema)
+    sr._latest_version_cache['test-key'] = cached
+    sr._latest_with_metadata_cache[('test-key', frozenset({('owner', 'team')}), False)] = cached
+    other_cache_key = ('other-key', frozenset({('owner', 'other-team')}), False)
+    sr._latest_with_metadata_cache[other_cache_key] = cached
+
+    sr.register_schema('test-key', schema)
+
+    assert 'test-key' not in sr._latest_version_cache
+    assert ('test-key', frozenset({('owner', 'team')}), False) not in sr._latest_with_metadata_cache
+    assert sr._latest_with_metadata_cache[other_cache_key] == cached
+
+
+def test_register_schema_cache_hit_keeps_latest_caches(mock_schema_registry, load_avsc):
+    sr = SchemaRegistryClient({'url': TEST_URL})
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    cached = RegisteredSchema('test-key', VERSION, SCHEMA_ID, None, schema)
+    cache_key = ('test-key', frozenset({('owner', 'team')}), False)
+
+    sr.register_schema('test-key', schema)
+    sr._latest_version_cache['test-key'] = cached
+    sr._latest_with_metadata_cache[cache_key] = cached
+
+    sr.register_schema('test-key', schema)
+
+    assert sr._latest_version_cache['test-key'] == cached
+    assert sr._latest_with_metadata_cache[cache_key] == cached
+
+
+def test_clear_latest_caches(mock_schema_registry, load_avsc):
+    sr = SchemaRegistryClient({'url': TEST_URL})
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    cached = RegisteredSchema('test-key', VERSION, SCHEMA_ID, None, schema)
+    sr._latest_version_cache['test-key'] = cached
+    sr._latest_version_cache['other-key'] = cached
+    sr._latest_with_metadata_cache[('test-key', frozenset(), False)] = cached
+    sr._latest_with_metadata_cache[('other-key', frozenset(), False)] = cached
+
+    sr.clear_latest_caches(subject='test-key')
+
+    assert 'test-key' not in sr._latest_version_cache
+    assert ('test-key', frozenset(), False) not in sr._latest_with_metadata_cache
+    assert sr._latest_version_cache['other-key'] == cached
+    assert sr._latest_with_metadata_cache[('other-key', frozenset(), False)] == cached
+
+    sr.clear_latest_caches()
+
+    assert not sr._latest_version_cache
+    assert not sr._latest_with_metadata_cache
 
 
 def test_register_schema_incompatible(mock_schema_registry, load_avsc):
