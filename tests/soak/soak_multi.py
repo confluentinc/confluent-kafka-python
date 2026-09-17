@@ -44,9 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', dest='testid', type=str, required=True, help='Test id (suffixed -0.. per replica)')
     parser.add_argument('-b', dest='brokers', type=str, default=None, help='Bootstrap servers')
     parser.add_argument('-t', dest='topic', type=str, required=True, help='Topic to use')
-    parser.add_argument(
-        '-r', dest='rate', type=float, default=10, help='Message produce rate per second, per replica'
-    )
+    parser.add_argument('-r', dest='rate', type=float, default=10, help='Message produce rate per second, per replica')
     parser.add_argument(
         '-f', dest='conffile', type=argparse.FileType('r'), help='Configuration file (configprop=value format)'
     )
