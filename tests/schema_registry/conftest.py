@@ -25,6 +25,17 @@ import pytest
 import respx
 from httpx import Response
 
+from confluent_kafka.schema_registry.common._httpx_compat import httpx as _active_httpx
+
+# respx mocks httpx by default; point it at httpx2 when that's the active
+# client. Responses are still built as httpx.Response (a respx requirement).
+if _active_httpx.__name__ == 'httpx2':
+    import pytest_httpx2  # noqa: F401  (import registers respx's "httpcore2" mocker)
+
+    _RESPX_KWARGS = {'using': 'httpcore2'}
+else:
+    _RESPX_KWARGS = {}
+
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -132,7 +143,7 @@ be used to verify the handling of in valid compatibility settings.
 
 @pytest.fixture()
 def mock_schema_registry():
-    with respx.mock as respx_mock:
+    with respx.mock(**_RESPX_KWARGS) as respx_mock:
         respx_mock.route().mock(side_effect=_auth_matcher)
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(

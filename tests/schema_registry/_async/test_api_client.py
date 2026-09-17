@@ -563,9 +563,10 @@ async def test_send_request_retries_on_network_error():
     mirroring the Java client's retry on IOException."""
     from unittest.mock import AsyncMock
 
-    import httpx
-
     from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncRestClient
+
+    # Match the client's active library so its except clause catches these errors.
+    from confluent_kafka.schema_registry.common._httpx_compat import httpx
 
     conf = {'url': TEST_URL, 'max.retries': 3, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
     rest_client = _AsyncRestClient(conf)
@@ -591,9 +592,8 @@ async def test_send_request_exhausts_retries_on_network_error():
     and then surface to the caller."""
     from unittest.mock import AsyncMock
 
-    import httpx
-
     from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncRestClient
+    from confluent_kafka.schema_registry.common._httpx_compat import httpx
 
     conf = {'url': TEST_URL, 'max.retries': 2, 'retries.wait.ms': 1, 'retries.max.wait.ms': 2}
     rest_client = _AsyncRestClient(conf)
