@@ -55,8 +55,8 @@ class _RecordingDeserializer:
     """Deserializer double; records ``(data, topic, field, headers)`` at call time.
 
     The field is captured eagerly because ``_deserialize`` reuses a single
-    :class:`SerializationContext` and flips ``.field`` from VALUE to KEY between
-    the value and key calls.
+    :class:`SerializationContext` and flips ``.field`` from KEY to VALUE between
+    the key and value calls.
     """
 
     def __init__(self, result):
@@ -272,8 +272,8 @@ def test_failure_preserves_coordinates(make_dsc, explicit):
 
 @pytest.mark.parametrize("explicit", [False, True])
 def test_key_failure_does_not_write_back_value(make_dsc, explicit):
-    # value decodes but key fails; both are written back only after both succeed,
-    # so value() must stay raw.
+    # the key fails before the value is deserialized; both are written back only
+    # after both succeed, so value() must stay raw.
     dsc = make_dsc(explicit=explicit, value_deserializer=StringDeserializer(), key_deserializer=_boom)
     msg = _make_message(value=b'hello', key=b'k')
     dsc._deserialize(msg)
@@ -283,14 +283,35 @@ def test_key_failure_does_not_write_back_value(make_dsc, explicit):
 
 
 @pytest.mark.parametrize("explicit", [False, True])
-def test_value_failure_short_circuits_key(make_dsc, explicit):
-    # a value failure should bail before touching the key deserializer.
-    kd = _RecordingDeserializer('K')
-    dsc = make_dsc(explicit=explicit, value_deserializer=_boom, key_deserializer=kd)
+def test_key_failure_short_circuits_value(make_dsc, explicit):
+    # the key is deserialized first, so a key failure should bail before
+    # touching the value deserializer.
+    vd = _RecordingDeserializer('V')
+    dsc = make_dsc(explicit=explicit, key_deserializer=_boom, value_deserializer=vd)
     msg = _make_message(value=b'v', key=b'k')
     dsc._deserialize(msg)
-    assert msg.error().code() == KafkaError._VALUE_DESERIALIZATION
-    assert kd.calls == []
+    assert msg.error().code() == KafkaError._KEY_DESERIALIZATION
+    assert vd.calls == []
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_deserialize_processes_key_before_value(make_dsc, explicit):
+    # the key must be deserialized before the value so a key deserializer can
+    # stash the original key for the value deserializer (e.g. the SR DLQ action).
+    order = []
+
+    def kd(_data, _ctx):
+        order.append('key')
+        return 'K'
+
+    def vd(_data, _ctx):
+        order.append('value')
+        return 'V'
+
+    dsc = make_dsc(explicit=explicit, key_deserializer=kd, value_deserializer=vd)
+    msg = _make_message(value=b'v', key=b'k')
+    dsc._deserialize(msg)
+    assert order == ['key', 'value']
 
 
 # --------------------------------------------------------------------------- #
