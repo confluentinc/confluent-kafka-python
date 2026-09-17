@@ -654,10 +654,10 @@ class SoakClient(object):
         self.last_rusage_time = None
         self.proc = psutil.Process(os.getpid())
 
-        self.logger = logging.getLogger('soakclient')
+        self.logger = logging.getLogger('soakclient.{}'.format(testid))
         self.logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter('%(asctime)-15s %(levelname)-8s %(message)s'))
+        handler.setFormatter(logging.Formatter('%(asctime)-15s %(levelname)-8s %(name)s %(message)s'))
         self.logger.addHandler(handler)
 
         # Construct a unique id to use for metrics hostname so that
@@ -787,7 +787,7 @@ class SoakClient(object):
 
     def terminate(self):
         """Terminate Producer and Consumer/Share Consumer"""
-        soak.logger.info("Terminating (ran for {}s)".format(time.time() - self.start_time))
+        self.logger.info("Terminating (ran for {}s)".format(time.time() - self.start_time))
         self.run = False
         # Wait for background threads to finish.
         self.producer_thread.join()
@@ -797,7 +797,7 @@ class SoakClient(object):
             self.consumer_thread.join()
 
         # Final resource usage
-        soak.get_rusage()
+        self.get_rusage()
 
     def incr_counter(self, metric_name, incrval, tags=None):
         """Increment metric counter by incrval"""
