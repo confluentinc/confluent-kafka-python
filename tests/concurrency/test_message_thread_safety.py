@@ -258,6 +258,37 @@ def test_concurrent_pickle_of_consumed_message():
 
 
 ###############################################################################
+# __eq__ via Message_copy
+#
+# richcompare snapshots both operands through Message_copy (which decodes
+# headers) and compares each field with Message_field_eq, which treats an
+# unset field (NULL) and one set to None as the same "unset" state.
+###############################################################################
+
+
+def test_eq_distinguishes_headers():
+    """Two messages that differ only in their headers must not be equal, and
+    two with identical headers must be equal (compared via Message_copy)."""
+
+    def msg(headers):
+        return Message(topic='t', partition=0, offset=1, key=b'k', value=b'v', headers=headers)
+
+    assert msg([('h', b'1')]) == msg([('h', b'1')])
+    assert msg([('h', b'1')]) != msg([('h', b'2')])
+
+
+def test_consumed_message_equals_its_pickle_roundtrip():
+    """A consumed message (headers undecoded, error stored as None) compares
+    equal to its pickle round-trip (headers decoded, error unset): Message_copy
+    decodes headers for both __reduce__ and __eq__, and Message_field_eq treats
+    None and unset alike."""
+    for msg in _consume_messages_with_headers(5):
+        clone = pickle.loads(pickle.dumps(msg))
+        assert msg == clone
+        assert not (msg != clone)
+
+
+###############################################################################
 # Reference counting
 ###############################################################################
 
@@ -321,3 +352,20 @@ def test_setter_does_not_leak_new_value():
     del msg
     gc.collect()
     assert sys.getrefcount(obj) == base, "set_value() leaked a reference to the new value"
+
+
+def test_compare_and_reduce_do_not_leak():
+    """__eq__ and __reduce__ copy the message via Message_copy, which INCREFs
+    each field into the copy and releases it. Repeated compares and reduces
+    must leave the operands' field refcounts unchanged."""
+    obj = _Tracked()
+    m1 = Message(topic='t', partition=0, offset=1, value=obj)
+    m2 = Message(topic='t', partition=0, offset=1, value=obj)
+
+    base = sys.getrefcount(obj)
+    for _ in range(1000):
+        m1 == m2
+        m1.__reduce__()
+        m2.__reduce__()
+    gc.collect()
+    assert sys.getrefcount(obj) == base, "compare/reduce leaked a reference to a field"
