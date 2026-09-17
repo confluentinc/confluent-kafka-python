@@ -210,3 +210,77 @@ def test_set_sasl_credentials_api():
 
         with pytest.raises(TypeError):
             c.set_sasl_credentials('username', None)
+
+
+def test_producer_config_property():
+    """Issue #465
+    The effective configuration of a Producer instance can be read back
+    through the read-only `config` attribute."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'client.id': 'test-client-id',
+    }
+
+    p = confluent_kafka.Producer(conf)
+
+    config = p.config
+    assert isinstance(config, dict)
+    assert config['client.id'] == 'test-client-id'
+    # Defaults are included in the dump.
+    assert config['api.version.request'] == 'true'
+    # Values are reported as strings by librdkafka's conf dump.
+    assert config['socket.timeout.ms'] == str(
+        confluent_kafka.Producer({'client.id': 'probe'}).config['socket.timeout.ms'])
+
+    # The returned dict is a copy: mutating it must not affect the client.
+    config['client.id'] = 'mutated'
+    assert p.config['client.id'] == 'test-client-id'
+
+    p.poll(timeout=0.1)
+
+
+def test_consumer_config_property():
+    """Issue #465
+    The effective configuration of a Consumer instance can be read back
+    through the read-only `config` attribute."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'group.id': 'test-group',
+        'client.id': 'test-consumer-id',
+        'session.timeout.ms': 1000,
+    }
+
+    kc = TestConsumer(conf)
+
+    config = kc.config
+    assert isinstance(config, dict)
+    assert config['group.id'] == 'test-group'
+    assert config['client.id'] == 'test-consumer-id'
+    assert config['session.timeout.ms'] == '1000'
+
+    kc.close()
+
+
+def test_config_property_is_read_only():
+    """The `config` attribute has no setter."""
+    p = confluent_kafka.Producer({'bootstrap.servers': 'localhost:65531'})
+    with pytest.raises(AttributeError):
+        p.config = {'client.id': 'nope'}
+    p.poll(timeout=0.1)
+
+
+def test_config_property_excludes_callbacks():
+    """Issue #465
+    Python callbacks passed in the config dict are not librdkafka
+    properties and must not appear in the config dump."""
+    def error_cb(error_msg):
+        pass
+
+    p = confluent_kafka.Producer({
+        'bootstrap.servers': 'localhost:65531',
+        'error_cb': error_cb,
+    })
+
+    config = p.config
+    assert 'error_cb' not in config
+    p.poll(timeout=0.1)

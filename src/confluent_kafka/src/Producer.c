@@ -1435,6 +1435,26 @@ static PyNumberMethods Producer_num_methods = {
 };
 
 
+
+static PyObject *Producer_config(PyObject *selfobj, void *closure) {
+        Handle *self = (Handle *)selfobj;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Producer instance not initialized");
+                return NULL;
+        }
+
+        return handle_config_dict(self);
+}
+
+static PyGetSetDef Producer_getsetters[] = {
+    {"config", (getter)Producer_config, NULL,
+     ":attribute config: Effective configuration properties of the "
+     "Producer instance (dict, read-only). Callbacks such as ``error_cb`` "
+     "passed in the configuration dict are not included.", NULL},
+    {NULL}};
+
 static int Producer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
         char errstr[256];
@@ -1544,7 +1564,7 @@ PyTypeObject ProducerType = {
     0,                               /* tp_iternext */
     Producer_methods,                /* tp_methods */
     0,                               /* tp_members */
-    0,                               /* tp_getset */
+    Producer_getsetters,             /* tp_getset */
     0,                               /* tp_base */
     0,                               /* tp_dict */
     0,                               /* tp_descr_get */
