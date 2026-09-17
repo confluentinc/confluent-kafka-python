@@ -11,6 +11,7 @@
 ### Fixes
 
 - Fix race conditions (#2315)
+- Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
 
 
 ## v2.15.0

@@ -19,9 +19,9 @@ import re
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import BasicAuth, Response
 
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry.common._httpx_compat import BasicAuth, Response
 from confluent_kafka.schema_registry.common.schema_registry_client import normalize_identity_pool
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
 from confluent_kafka.schema_registry.serde import RuleError

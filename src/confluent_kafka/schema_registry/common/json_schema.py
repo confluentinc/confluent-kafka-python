@@ -3,13 +3,13 @@ import logging
 from io import BytesIO
 from typing import Any, List, Optional, Set, Union
 
-import httpx
 import referencing
 from jsonschema import ValidationError, validate
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
 from confluent_kafka.schema_registry import RuleKind
+from confluent_kafka.schema_registry.common._httpx_compat import httpx
 from confluent_kafka.schema_registry.serde import FieldTransform, FieldType, RuleConditionError, RuleContext
 
 __all__ = [
