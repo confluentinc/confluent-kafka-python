@@ -2,6 +2,13 @@
 
 ## v2.16.0 (unreleased)
 
+### Fixes
+
+- Invalidate subject-specific schema and latest-version caches after successful
+  soft or permanent subject deletion, allowing subsequent lookups and schema
+  re-registration to reach Schema Registry. Responses to reads that were in
+  flight during an invalidation are no longer written back to the cache.
+
 ### Enhancements
 
 - Add support for saving Azure key version with DEK (#2306)
