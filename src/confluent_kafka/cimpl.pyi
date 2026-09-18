@@ -699,6 +699,14 @@ class _AdminClientImpl:
     def alter_user_scram_credentials(
         self, alterations: List[Any], future: Any, request_timeout: float = -1  # List[UserScramCredentialAlteration]
     ) -> None: ...
+    def describe_client_quotas(self, client_quota_filter: Any, future: Any, request_timeout: float = -1) -> None: ...
+    def alter_client_quotas(
+        self,
+        alterations: List[Any],
+        future: Any,
+        validate_only: bool = False,
+        request_timeout: float = -1,
+    ) -> None: ...
     def list_offsets(
         self,
         topic_partitions: List[TopicPartition],
