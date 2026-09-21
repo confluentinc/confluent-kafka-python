@@ -25,7 +25,7 @@ from confluent_kafka import (
     Producer,
     ShareConsumer,
 )
-from tests.common import unique_id
+from tests.common import call_until_callback_raises, unique_id
 
 
 def _librdkafka_has_openssl():
@@ -48,15 +48,6 @@ def _librdkafka_has_openssl():
 
 
 _OPENSSL_AVAILABLE = _librdkafka_has_openssl()
-
-
-def _until_callback_raises(call, timeout_s=5.0, step_s=0.3):
-    """Invoke call() repeatedly, under a bounded deadline, until a callback raises out of it."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        call()
-        time.sleep(step_s)
-    pytest.fail(f"no callback raised within {timeout_s}s")
 
 
 def test_error_cb():
@@ -114,7 +105,7 @@ def test_error_cb_exception_propagates():
     sc.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        _until_callback_raises(lambda: sc.poll(timeout=0.5), step_s=0)
+        call_until_callback_raises(lambda: sc.poll(timeout=0.5))
 
     assert "Test exception from error_cb" in str(exc_info.value)
     assert len(error_called) > 0
@@ -164,7 +155,7 @@ def test_error_cb_disarm_before_close():
     # this, the "disarm" step below would be a no-op and the test would
     # silently lose its point.
     with pytest.raises(RuntimeError, match="Intentional exception from error_cb"):
-        _until_callback_raises(lambda: sc.poll(timeout=0.5), step_s=0)
+        call_until_callback_raises(lambda: sc.poll(timeout=0.5))
 
     assert error_called, "error_cb should have fired before disarm"
     invocations_before_close = len(error_called)
@@ -646,7 +637,7 @@ def test_error_cb_raise_propagates_from_commit_sync():
 
     # Each attempt sleeps first so connection-refused errors pile up before the drain.
     with pytest.raises(RuntimeError, match="boom from error_cb in commit_sync"):
-        _until_callback_raises(lambda: sc.commit_sync(timeout=0.5))
+        call_until_callback_raises(lambda: sc.commit_sync(timeout=0.5), sleep_s=0.3)
 
     raising[0] = False  # stop raising so close() is clean
     sc.close()
@@ -676,7 +667,7 @@ def test_error_cb_raise_propagates_from_commit_async():
     sc.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError, match="boom from error_cb in commit_async"):
-        _until_callback_raises(sc.commit_async)
+        call_until_callback_raises(sc.commit_async, sleep_s=0.3)
 
     raising[0] = False
     sc.close()

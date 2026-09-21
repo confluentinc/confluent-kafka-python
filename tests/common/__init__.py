@@ -176,6 +176,28 @@ def unique_id(prefix):
     return f'{prefix}-{uuid.uuid4().hex[:10]}'
 
 
+def call_until_callback_raises(call, timeout_s=5.0, sleep_s=0.0, ignore=()):
+    """Invoke call() repeatedly, under a bounded deadline, until a callback raises out of it.
+
+    For tests that point a client at an unreachable broker and expect error_cb
+    (or another callback) to raise: the failure reaches the callback only once
+    the connect attempt fails, which takes ~1s on Windows versus milliseconds
+    elsewhere, so a single short poll() is not enough.
+
+    Exception types in `ignore` are swallowed so the loop continues until the
+    callback under test raises. Pass sleep_s when call() returns immediately
+    (e.g. commit_async) so errors have time to queue between attempts.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            call()
+        except ignore:
+            pass
+        time.sleep(sleep_s)
+    raise AssertionError(f"no callback raised within {timeout_s}s")
+
+
 def set_group_config(kafka_cluster, group_id, name, value):
     """Set one dynamic group config via incremental_alter_configs."""
     res = ConfigResource(
