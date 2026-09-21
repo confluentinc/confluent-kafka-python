@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
+import _thread
 import os
-import signal
 import time
 import uuid
 
@@ -33,16 +33,19 @@ DEFAULT_BOOTSTRAP_SERVERS = 'localhost:9092'
 class TestUtils:
     @staticmethod
     def send_sigint_after_delay(delay_seconds):
-        """Send SIGINT to current process after delay.
+        """Raise KeyboardInterrupt in the main thread after a delay, as Ctrl+C would.
 
         Utility function for testing interruptible poll/flush/consume operations.
-        Used to simulate Ctrl+C in automated tests.
+
+        Uses _thread.interrupt_main() instead of os.kill(os.getpid(), SIGINT)
+        as it works on every platform. On Windows os.kill() with SIGINT
+        kills the whole pytest run.
 
         Args:
-            delay_seconds: Delay in seconds before sending SIGINT
+            delay_seconds: Delay in seconds before interrupting
         """
         time.sleep(delay_seconds)
-        os.kill(os.getpid(), signal.SIGINT)
+        _thread.interrupt_main()
 
     # TODO KIP-932: broker_version() previously branched on
     # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
@@ -171,6 +174,28 @@ def unique_id(prefix):
     Avoids cross-test interference when running against a shared broker.
     """
     return f'{prefix}-{uuid.uuid4().hex[:10]}'
+
+
+def call_until_callback_raises(call, timeout_s=5.0, sleep_s=0.0, ignore=()):
+    """Invoke call() repeatedly, under a bounded deadline, until a callback raises out of it.
+
+    For tests that point a client at an unreachable broker and expect error_cb
+    (or another callback) to raise: the failure reaches the callback only once
+    the connect attempt fails, which takes ~1s on Windows versus milliseconds
+    elsewhere, so a single short poll() is not enough.
+
+    Exception types in `ignore` are swallowed so the loop continues until the
+    callback under test raises. Pass sleep_s when call() returns immediately
+    (e.g. commit_async) so errors have time to queue between attempts.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            call()
+        except ignore:
+            pass
+        time.sleep(sleep_s)
+    raise AssertionError(f"no callback raised within {timeout_s}s")
 
 
 def set_group_config(kafka_cluster, group_id, name, value):
