@@ -449,14 +449,7 @@ blocks:
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
             - sem-version python 3.9
             - pip install uv
-            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install -r requirements/requirements-tests-install-nogil.txt
-            - artifact pull workflow artifacts
-            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - ls artifacts/wheelhouse/*-cp314t-manylinux*x86_64.whl
-            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
-            - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -483,14 +476,7 @@ blocks:
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
             - sem-version python 3.9
             - pip install uv
-            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install -r requirements/requirements-tests-install-nogil.txt
-            - artifact pull workflow artifacts
-            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - ls artifacts/wheelhouse/*-cp314t-manylinux*aarch64.whl
-            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
-            - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: OSX x64"
     run:
       when: "tag =~ '.*'"
@@ -529,14 +515,7 @@ blocks:
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
             - sem-version python 3.11
             - pip install uv
-            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install -r requirements/requirements-tests-install-nogil.txt
-            - artifact pull workflow artifacts
-            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - ls artifacts/wheelhouse/*-cp314t-macosx*x86_64.whl
-            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
-            - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: OSX arm64"
     run:
       when: "tag =~ '.*'"
@@ -575,14 +554,7 @@ blocks:
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
             - sem-version python 3.11
             - pip install uv
-            - uv venv _venv314t --python 3.14t && source _venv314t/bin/activate
-            - uv pip install -r requirements/requirements-tests-install-nogil.txt
-            - artifact pull workflow artifacts
-            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
-            - ls artifacts/wheelhouse/*-cp314t-macosx*arm64.whl
-            - uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
-            - tools/verify-free-threaded-wheel.sh
-            - python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Windows"
     run:
       when: "tag =~ '.*'"
@@ -625,6 +597,7 @@ blocks:
             - python -m ensurepip
             - python -m pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
+            - python -c "import glob, sys; found = glob.glob('artifacts/*.tgz'); print(found); sys.exit(0 if found else 1)"
             - cd artifacts
             - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
             - cd ..
