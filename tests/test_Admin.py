@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import concurrent.futures
 import sys
+import time
 
 import pytest
 
@@ -1241,6 +1242,20 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, [correct_partitions]).result(timeout=1)
 
 
+def _poll_until_callback_raises(admin, timeout_s=5.0, step_s=0.2, ignore=()):
+    """poll() repeatedly, under a bounded deadline, until a callback raises.
+
+    Exception types in `ignore` are swallowed so polling continues until the callback under test raises.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            admin.poll(timeout=step_s)
+        except ignore:
+            pass
+    pytest.fail(f"no callback raised within {timeout_s}s")
+
+
 def test_admin_callback_exception_no_system_error():
     """Test AdminClient callbacks exception handling with different exception types"""
 
@@ -1260,7 +1275,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(KafkaException) as exc_info:
-        admin.poll(timeout=0.2)
+        _poll_until_callback_raises(admin)
     assert "KafkaException from error_cb" in str(exc_info.value)
 
     # Test error_cb with ValueError
@@ -1269,7 +1284,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(ValueError) as exc_info:
-        admin.poll(timeout=0.2)
+        _poll_until_callback_raises(admin)
     assert "ValueError from error_cb" in str(exc_info.value)
 
     # Test error_cb with RuntimeError
@@ -1278,7 +1293,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(RuntimeError) as exc_info:
-        admin.poll(timeout=0.2)
+        _poll_until_callback_raises(admin)
     assert "RuntimeError from error_cb" in str(exc_info.value)
 
 
@@ -1311,9 +1326,10 @@ def test_admin_multiple_callbacks_different_error_types():
         }
     )
 
-    # Test that error_cb callback raises an exception (it's triggered by connection failures)
+    # error_cb is triggered by the connection failure.
+    # stats_cb can raise its ValueError first, so skip past it.
     with pytest.raises(RuntimeError):
-        admin.poll(timeout=0.2)
+        _poll_until_callback_raises(admin, ignore=(ValueError,))
 
     # Verify that error_cb was called
     assert len(callbacks_called) > 0
