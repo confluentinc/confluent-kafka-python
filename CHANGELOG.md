@@ -1,9 +1,11 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.16.0 (unreleased)
+## v2.16.0rc1
+
+v2.16.0 is a feature release with the following features, fixes and enhancements:
 
 ### Enhancements
-
+- Add support for CPython free-threading (PEP 703) to enable true multi-core parallel execution in No-GIL environments (#2347)
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
@@ -17,6 +19,7 @@
 ### Fixes
 
 - Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
+- Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
 
 
 ## v2.15.1
