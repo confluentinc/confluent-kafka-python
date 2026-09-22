@@ -698,6 +698,35 @@ def test_produce_after_close_fails_before_serializing(cluster_id_calls):
     assert calls == []
 
 
+def test_delivery_callback_may_produce_again_during_close(cluster_id_calls):
+    # The flush inside Producer.close() dispatches delivery reports; a report
+    # producing again on the closing thread must not hit the closed check.
+    # No broker is reachable, so the reports carry a timeout error.
+    calls = []
+    producer = SerializingProducer(
+        _producer_conf(**{'message.timeout.ms': 100, 'value.serializer': _recording_serializer(calls)})
+    )
+    reports = []
+
+    def on_second_delivery(err, msg):
+        reports.append(('second', err is not None))
+
+    def on_first_delivery(err, msg):
+        reports.append(('first', err is not None))
+        producer.produce('t', value='again', on_delivery=on_second_delivery)
+
+    producer.produce('t', value='x', on_delivery=on_first_delivery)
+
+    assert producer.close() is True
+
+    # both messages were serialized and reported; only the late one is refused
+    assert calls == ['t', 't']
+    assert reports == [('first', True), ('second', True)]
+    with pytest.raises(RuntimeError, match='closed'):
+        producer.produce('t', value='late')
+    assert calls == ['t', 't']
+
+
 def test_produce_rejects_a_non_str_topic_before_serializing(cluster_id_calls):
     calls = []
     producer = SerializingProducer(_producer_conf(**{'value.serializer': _recording_serializer(calls)}))

@@ -156,10 +156,14 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
         Returns:
             bool: What :py:func:`Producer.close` returned.
         """
-        self._closed = True
         try:
             return super(SerializingProducer, self).close()
         finally:
+            # Only now: the flush inside Producer.close() dispatches delivery
+            # callbacks, which may legitimately produce() again on this same
+            # thread, and Producer itself already rejects any other caller
+            # while it is closing.
+            self._closed = True
             # released even when flushing/destroying the producer raised
             owned, self._owned_serdes = self._owned_serdes, []
             close_serdes(owned)
