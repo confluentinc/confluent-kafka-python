@@ -443,7 +443,7 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
-        - name: Verify (free-threaded)
+        - name: Verify free threaded
           commands:
             - export ARCH=x64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
@@ -470,7 +470,7 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
-        - name: Verify (free-threaded)
+        - name: Verify free threaded
           commands:
             - export ARCH=arm64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
@@ -509,7 +509,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
-        - name: Verify (free-threaded)
+        - name: Verify free threaded
           commands:
             - export ARCH=x64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
@@ -548,7 +548,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
-        - name: Verify (free-threaded)
+        - name: Verify free threaded
           commands:
             - export ARCH=arm64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
@@ -587,7 +587,7 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests\test_error.py
-        - name: Verify (free-threaded)
+        - name: Verify free threaded
           commands:
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
             - sem-version python 3.11

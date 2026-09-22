@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Body of the "Verify (free-threaded)" job in the Linux and macOS Wheel
+# Body of the "Verify free threaded" job in the Linux and macOS Wheel
 # Verification blocks of .semaphore/semaphore.yml: install the cp314t wheel,
 # run the free-threaded wheel checks (tools/verify-free-threaded-wheel.sh) and then the unit suite.
 #
