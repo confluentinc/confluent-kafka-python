@@ -146,8 +146,12 @@ class AsyncDeserializingConsumer(AIOConsumer, Generic[K, V]):
         ``key.deserializer.builder`` / ``value.deserializer.builder`` along with
         any Schema Registry client they own. Deserializers supplied ready-made
         are left untouched.
+
+        Safe to call more than once: later calls do nothing.
         """
-        result = await super().close(*args, **kwargs)
+        result = None
+        if not self._closed:
+            result = await super().close(*args, **kwargs)
 
         owned, self._owned_serdes = self._owned_serdes, []
         await async_close_serdes(owned)
