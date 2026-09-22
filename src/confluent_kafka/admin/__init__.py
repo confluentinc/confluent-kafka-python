@@ -661,6 +661,9 @@ class AdminClient(_AdminClientImpl):
     def list_groups(self, *args: Any, **kwargs: Any) -> List[GroupMetadata]:
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
+    def cluster_id(self, *args: Any, **kwargs: Any) -> str:
+        return super(AdminClient, self).cluster_id(*args, **kwargs)
+
     def create_partitions(  # type: ignore[override]
         self, new_partitions: List[NewPartitions], **kwargs: Any
     ) -> Dict[str, concurrent.futures.Future]:

@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-#
 # Copyright 2020 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-# Lives in confluent_kafka._util so that the asyncio clients can use it
-# without importing the Schema Registry package (an optional extra).
-from confluent_kafka._util.asyncinit import asyncinit  # noqa: F401
+
+def asyncinit(cls):
+    """
+    Decorator to make a class async-initializable.
+
+    The decorated class must define ``async def __init__``; instantiating it
+    then yields a coroutine, so instances are created with
+    ``obj = await Cls(...)``.
+    """
+    __new__ = cls.__new__
+
+    async def init(obj, *arg, **kwarg):
+        await obj.__init__(*arg, **kwarg)
+        return obj
+
+    def new(klass, *arg, **kwarg):
+        obj = __new__(klass)
+        coro = init(obj, *arg, **kwarg)
+        return coro
+
+    cls.__new__ = new
+    return cls
