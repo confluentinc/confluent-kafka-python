@@ -189,8 +189,21 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
 
             ValueSerializationError: If an error occurs during value serialization.
 
+            RuntimeError: If the producer has been closed. Checked before the
+                serializers run, so they never see a message that cannot be produced.
+
+            TypeError: If ``topic`` is not a str, likewise checked before the
+                serializers run.
+
             NotImplementedError: If headers are given, see :py:func:`AIOProducer.produce`.
         """
+        # Fail before the serializers run, as they may have side effects
+        # (schema registration) for a message that can no longer be produced.
+        if self._is_closed:
+            raise RuntimeError("Producer has been closed")
+        if not isinstance(topic, str):
+            raise TypeError("topic must be a str, not {}".format(type(topic).__name__))
+
         key_bytes: Any = key
         value_bytes: Any = value
 

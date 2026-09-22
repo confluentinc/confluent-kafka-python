@@ -648,3 +648,35 @@ def test_deserialized_accessors_preserve_none():
     msg = _make_message()
     assert msg.deserialized_value() is None
     assert msg.deserialized_key() is None
+
+
+# --- produce fails fast, before the serializers run ---------------------------
+
+
+def _recording_serializer(calls):
+    def serializer(obj, ctx):
+        calls.append(ctx.topic)
+        return obj.encode('utf_8')
+
+    return serializer
+
+
+def test_produce_after_close_fails_before_serializing(cluster_id_calls):
+    calls = []
+    producer = SerializingProducer(_producer_conf(**{'value.serializer': _recording_serializer(calls)}))
+    producer.close()
+
+    with pytest.raises(RuntimeError, match='closed'):
+        producer.produce('t', value='x')
+    assert calls == []
+
+
+def test_produce_rejects_a_non_str_topic_before_serializing(cluster_id_calls):
+    calls = []
+    producer = SerializingProducer(_producer_conf(**{'value.serializer': _recording_serializer(calls)}))
+    try:
+        with pytest.raises(TypeError, match='topic must be a str, not NoneType'):
+            producer.produce(None, value='x')
+        assert calls == []
+    finally:
+        producer.close()

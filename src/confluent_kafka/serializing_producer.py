@@ -128,6 +128,7 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
         specs, conf_copy = pop_serde_props(conf, 'key.serializer', 'value.serializer')
         serdes, self._owned_serdes, conf_copy = build_serdes(specs, conf_copy)
         self._key_serializer, self._value_serializer = serdes
+        self._closed = False
 
         try:
             super(SerializingProducer, self).__init__(conf_copy)
@@ -155,6 +156,7 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
         Returns:
             bool: What :py:func:`Producer.close` returned.
         """
+        self._closed = True
         result = super(SerializingProducer, self).close()
 
         owned, self._owned_serdes = self._owned_serdes, []
@@ -225,11 +227,24 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
 
             ValueSerializationError: If an error occurs during value serialization.
 
+            RuntimeError: If the producer has been closed. Checked before the
+                serializers run, so they never see a message that cannot be produced.
+
+            TypeError: If ``topic`` is not a str, likewise checked before the
+                serializers run.
+
             KafkaException: For all other errors
         """
 
         key_bytes: Any = key
         value_bytes: Any = value
+
+        # Fail before the serializers run, as they may have side effects
+        # (schema registration) for a message that can no longer be produced.
+        if self._closed:
+            raise RuntimeError("Producer has been closed")
+        if not isinstance(topic, str):
+            raise TypeError("topic must be a str, not {}".format(type(topic).__name__))
 
         ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:

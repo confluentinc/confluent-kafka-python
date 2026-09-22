@@ -222,21 +222,30 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
 
             ValueDeserializationError: If an error occurs during value deserialization.
         """
+        # Deserializers need the topic (subject names derive from it); a message
+        # without one is reported as a deserialization error, but only when a
+        # deserializer would actually run, so that it passes through otherwise.
         topic = msg.topic()
-        if topic is None:
-            raise TypeError("Message topic is None")
-        ctx = SerializationContext(topic, MessageField.KEY, msg.headers())
+        ctx = SerializationContext(topic, MessageField.KEY, msg.headers()) if topic else None
 
         key: Any = msg.key()
         if self._key_deserializer is not None:
+            if ctx is None:
+                raise KeyDeserializationError(
+                    exception=ValueError("Key deserialization needs a non-empty topic name"), kafka_message=msg
+                )
             try:
                 key = self._key_deserializer(key, ctx)
             except Exception as se:
                 raise KeyDeserializationError(exception=se, kafka_message=msg)
 
         value: Any = msg.value()
-        ctx.field = MessageField.VALUE
         if self._value_deserializer is not None:
+            if ctx is None:
+                raise ValueDeserializationError(
+                    exception=ValueError("Value deserialization needs a non-empty topic name"), kafka_message=msg
+                )
+            ctx.field = MessageField.VALUE
             try:
                 value = self._value_deserializer(value, ctx)
             except Exception as se:
