@@ -146,7 +146,7 @@ def main(args):
                     to_dict=user_to_dict,
                     serializer_config={'auto.register.schemas': False, 'use.latest.version': True},
                 ),
-            }
+            },
         )
         with SerializingProducer(producer_conf) as producer:
             for i in range(3):
@@ -166,7 +166,7 @@ def main(args):
                     schema_registry_config=schema_registry_conf,
                     from_dict=dict_to_user,
                 ),
-            }
+            },
         )
         with DeserializingConsumer(consumer_conf) as consumer:
             consumer.subscribe([topic])

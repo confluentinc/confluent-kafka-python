@@ -257,9 +257,7 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
         msg.set_value(value)
         return msg
 
-    def consume(  # type: ignore[override]
-        self, num_messages: int = 1, timeout: float = -1
-    ) -> List["Message[K, V]"]:
+    def consume(self, num_messages: int = 1, timeout: float = -1) -> List["Message[K, V]"]:  # type: ignore[override]
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead

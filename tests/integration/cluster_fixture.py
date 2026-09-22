@@ -22,7 +22,6 @@ from uuid import uuid1
 from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import DeserializingConsumer, Producer, SerializingProducer
-from confluent_kafka.aio import AsyncDeserializingConsumer, AsyncSerializingProducer
 from confluent_kafka.admin import (
     AdminClient,
     AlterConfigOpType,
@@ -31,6 +30,7 @@ from confluent_kafka.admin import (
     NewTopic,
     ResourceType,
 )
+from confluent_kafka.aio import AsyncDeserializingConsumer, AsyncSerializingProducer
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from tests.common import TestConsumer, TestDeserializingShareConsumer, TestShareConsumer

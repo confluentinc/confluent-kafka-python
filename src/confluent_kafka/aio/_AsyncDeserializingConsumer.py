@@ -27,7 +27,6 @@ else:
     K = TypeVar("K")
     V = TypeVar("V")
 
-from ..cimpl import Message
 from .._serde_builder import (
     CLUSTER_ID_TIMEOUT,
     async_build_serdes,
@@ -37,6 +36,7 @@ from .._serde_builder import (
     propagate_cluster_id_resolver,
 )
 from .._util.asyncinit import asyncinit
+from ..cimpl import Message
 from ..error import ConsumeError, KeyDeserializationError, ValueDeserializationError
 from ..serialization import MessageField, SerializationContext
 from ._AIOConsumer import AIOConsumer
