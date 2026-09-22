@@ -16,17 +16,22 @@
 # limitations under the License.
 
 
-# A simple example demonstrating use of JSONSerializer.
+# A simple example demonstrating use of JSONSerializerBuilder with a
+# SerializingProducer.
+#
+# The builder is handed to the producer through the 'value.serializer.builder'
+# configuration property; the producer then constructs the Schema Registry
+# client and the serializer, and passes them the Kafka cluster id if they need
+# it. produce() is called with the User object itself rather than with bytes.
 
 import argparse
 from uuid import uuid4
 
 from six.moves import input
 
-from confluent_kafka import Producer
-from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.json_schema import JSONSerializer
-from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
+from confluent_kafka import SerializingProducer
+from confluent_kafka.schema_registry.json_schema import JSONSerializerBuilder
+from confluent_kafka.serialization import StringSerializer
 
 
 class User(object):
@@ -119,12 +124,18 @@ def main(args):
     # If Confluent Cloud SR credentials are provided, add to config
     if args.sr_api_key and args.sr_api_secret:
         schema_registry_conf['basic.auth.user.info'] = f"{args.sr_api_key}:{args.sr_api_secret}"
-    schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    string_serializer = StringSerializer('utf_8')
-    json_serializer = JSONSerializer(schema_str, schema_registry_client, user_to_dict)
-
-    producer = Producer({'bootstrap.servers': args.bootstrap_servers})
+    producer = SerializingProducer(
+        {
+            'bootstrap.servers': args.bootstrap_servers,
+            'key.serializer': StringSerializer('utf_8'),
+            'value.serializer.builder': JSONSerializerBuilder(
+                schema_registry_config=schema_registry_conf,
+                schema=schema_str,
+                to_dict=user_to_dict,
+            ),
+        }
+    )
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -141,12 +152,7 @@ def main(args):
                 favorite_color=user_favorite_color,
                 favorite_number=user_favorite_number,
             )
-            producer.produce(
-                topic=topic,
-                key=string_serializer(str(uuid4())),
-                value=json_serializer(user, SerializationContext(topic, MessageField.VALUE)),
-                on_delivery=delivery_report,
-            )
+            producer.produce(topic=topic, key=str(uuid4()), value=user, on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
         except ValueError:
@@ -158,7 +164,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="JSONSerializer example")
+    parser = argparse.ArgumentParser(description="JSONSerializerBuilder example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
     parser.add_argument(
