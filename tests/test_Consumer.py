@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import time
-
 import pytest
 
 from confluent_kafka import (
@@ -12,7 +10,7 @@ from confluent_kafka import (
     Message,
     TopicPartition,
 )
-from tests.common import TestConsumer
+from tests.common import TestConsumer, call_until_callback_raises
 
 
 def test_basic_api():
@@ -479,14 +477,6 @@ def test_consumer_without_groupid():
     assert ex.match('group.id must be set')
 
 
-def _poll_until_callback_raises(consumer, timeout_s=5.0, step_s=0.2):
-    """poll() repeatedly, under a bounded deadline, until a callback raises."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        consumer.poll(timeout=step_s)
-    pytest.fail(f"no callback raised within {timeout_s}s")
-
-
 def test_callback_exception_no_system_error():
     """Test all consumer callbacks exception handling with separate assertions for each callback"""
 
@@ -513,7 +503,7 @@ def test_callback_exception_no_system_error():
 
     # Test error_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        _poll_until_callback_raises(consumer1)
+        call_until_callback_raises(lambda: consumer1.poll(timeout=0.2))
 
     # Verify error_cb was called and raised the expected exception
     assert "Test exception from error_cb" in str(exc_info.value)
@@ -547,7 +537,7 @@ def test_callback_exception_no_system_error():
 
     # Test stats_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        _poll_until_callback_raises(consumer2)
+        call_until_callback_raises(lambda: consumer2.poll(timeout=0.2))
 
     # Verify stats_cb was called and raised the expected exception
     assert "Test exception from stats_cb" in str(exc_info.value)
@@ -616,7 +606,7 @@ def test_error_callback_exception_different_error_types():
     consumer1.subscribe(['test-topic'])
 
     with pytest.raises(KafkaException):
-        consumer1.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer1.consume(timeout=0.2))
     consumer1.close()
 
     # Test with ValueError
@@ -632,7 +622,7 @@ def test_error_callback_exception_different_error_types():
     consumer2.subscribe(['test-topic'])
 
     with pytest.raises(ValueError) as exc_info:
-        consumer2.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer2.consume(timeout=0.2))
     assert "Custom error:" in str(exc_info.value)
     consumer2.close()
 
@@ -649,7 +639,7 @@ def test_error_callback_exception_different_error_types():
     consumer3.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        consumer3.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer3.consume(timeout=0.2))
     assert "Runtime error:" in str(exc_info.value)
     consumer3.close()
 
