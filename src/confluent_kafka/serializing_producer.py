@@ -157,12 +157,12 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
             bool: What :py:func:`Producer.close` returned.
         """
         self._closed = True
-        result = super(SerializingProducer, self).close()
-
-        owned, self._owned_serdes = self._owned_serdes, []
-        close_serdes(owned)
-
-        return result
+        try:
+            return super(SerializingProducer, self).close()
+        finally:
+            # released even when flushing/destroying the producer raised
+            owned, self._owned_serdes = self._owned_serdes, []
+            close_serdes(owned)
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]:
         # Producer.__exit__ is implemented in C and calls the C close directly,

@@ -143,12 +143,14 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
         ``value.serializer.builder`` along with any Schema Registry client they
         own. Serializers supplied ready-made are left untouched.
         """
-        # AIOProducer.close() shuts its executor down and cannot run twice
-        if not self._is_closed:
-            await super().close()
-
-        owned, self._owned_serdes = self._owned_serdes, []
-        await async_close_serdes(owned)
+        try:
+            # AIOProducer.close() shuts its executor down and cannot run twice
+            if not self._is_closed:
+                await super().close()
+        finally:
+            # released even when flushing raised
+            owned, self._owned_serdes = self._owned_serdes, []
+            await async_close_serdes(owned)
 
     async def produce(  # type: ignore[override]
         self,

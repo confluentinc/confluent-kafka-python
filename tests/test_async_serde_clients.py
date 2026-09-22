@@ -384,6 +384,38 @@ async def test_producer_closes_built_serdes_after_itself(cluster_id_calls, monke
     assert supplied.closed == 0
 
 
+async def test_producer_releases_built_serdes_when_its_own_close_fails(cluster_id_calls, monkeypatch):
+    async def _close(self):
+        self._is_closed = True
+        raise RuntimeError("flush broke")
+
+    monkeypatch.setattr(AIOProducer, 'close', _close)
+
+    built = _AsyncTrackingSerializer()
+    producer = await _producer(**{'value.serializer.builder': _AsyncBuilder(built)})
+
+    with pytest.raises(RuntimeError, match='flush broke'):
+        await producer.close()
+
+    assert built.closed == 1
+
+
+async def test_consumer_releases_built_serdes_when_its_own_close_fails(cluster_id_calls, monkeypatch):
+    async def _close(self, *args, **kwargs):
+        self._closed = True
+        raise RuntimeError("leave broke")
+
+    monkeypatch.setattr(AIOConsumer, 'close', _close)
+
+    built = _AsyncTrackingDeserializer()
+    consumer = await _consumer(**{'value.deserializer.builder': _AsyncDeserializerBuilder(built)})
+
+    with pytest.raises(RuntimeError, match='leave broke'):
+        await consumer.close()
+
+    assert built.closed == 1
+
+
 async def test_producer_context_manager_closes_built_serdes(cluster_id_calls):
     built = _AsyncTrackingSerializer()
     async with await _producer(**{'value.serializer.builder': _AsyncBuilder(built)}):

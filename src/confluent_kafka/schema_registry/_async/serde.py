@@ -303,6 +303,7 @@ async def async_build_serde(
     schema_registry_client: Optional[AsyncSchemaRegistryClient],
     schema_registry_conf: Optional[dict],
     construct: Callable[[Optional[AsyncSchemaRegistryClient]], Awaitable[_S]],
+    init: Optional[Callable[[_S], None]] = None,
 ) -> _S:
     """
     Construct a serde for a builder, creating the Schema Registry client from
@@ -311,7 +312,8 @@ async def async_build_serde(
     A client created here is owned by the serde, which closes it when it is
     closed itself; a supplied client stays the application's. If ``construct``
     raises, a client created here is closed before the error propagates, as
-    nothing else references it yet.
+    nothing else references it yet; if ``init`` raises, the serde built so far
+    is closed, releasing that client with it.
 
     Args:
         schema_registry_client: Client supplied by the application, or None.
@@ -320,6 +322,9 @@ async def async_build_serde(
             when none was supplied. Both None leaves the serde without a client.
 
         construct (callable): Called with the client and returning the serde.
+
+        init (callable): Optional callback invoked with the built serde, for
+            setup the builder's setters do not cover.
 
     Returns:
         The constructed serde.
@@ -339,6 +344,13 @@ async def async_build_serde(
 
     if owned:
         serde.own_schema_registry_client()
+
+    if init is not None:
+        try:
+            init(serde)
+        except BaseException:
+            await serde.aclose()
+            raise
 
     return serde
 
@@ -782,12 +794,15 @@ class AsyncBaseSerde(object):
 
     async def aclose(self):
         """
-        Release what this serde owns: the rule executors and actions of a
-        dedicated rule registry, and the Schema Registry client when it was
-        created by a serde builder (see :py:func:`own_schema_registry_client`).
+        Release what this serde owns: the executors and actions of a rule
+        registry set on it, and the Schema Registry client when it was created
+        by a serde builder (see :py:func:`own_schema_registry_client`).
 
-        A rule registry or Schema Registry client supplied by the application
-        is left untouched. Safe to call more than once.
+        A rule registry other than the global one is taken to be dedicated to
+        this serde, so its members are closed here; the global registry is
+        shared by every serde in the process and is left alone. A Schema
+        Registry client supplied by the application is never closed. Safe to
+        call more than once.
         """
         try:
             self._close_rule_registry()

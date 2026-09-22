@@ -479,7 +479,7 @@ const char cluster_id_doc[] = PyDoc_STR(
     "\n"
     " Request the cluster id from the cluster.\n"
     " The cluster id is retrieved from the broker metadata, which requires a "
-    "broker version >= 0.10.0.\n"
+    "broker version >= 0.10.1 (KIP-78).\n"
     "\n"
     " :param float timeout: The maximum response time before timing out, or -1 "
     "for infinite timeout.\n"

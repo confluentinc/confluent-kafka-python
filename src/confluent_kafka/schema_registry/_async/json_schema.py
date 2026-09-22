@@ -570,9 +570,9 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
     Schema Registry client and the serializer for you, and lets the producer
     supply the Kafka cluster id to the serializer::
 
-        producer = SerializingProducer({
+        producer = await AsyncSerializingProducer({
             'bootstrap.servers': brokers,
-            'value.serializer.builder': JSONSerializerBuilder(
+            'value.serializer.builder': AsyncJSONSerializerBuilder(
                 schema_registry_config={'url': schema_registry_url},
                 schema=schema_str,
             ),
@@ -580,7 +580,7 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
 
     Every value also has a setter, each returning the builder so they chain::
 
-        JSONSerializerBuilder().set_schema_registry_config(conf).set_schema(schema_str)
+        AsyncJSONSerializerBuilder().set_schema_registry_config(conf).set_schema(schema_str)
 
     All values are optional: the serde's own defaults apply to whatever is not
     set, though a Schema Registry client or its configuration is needed in
@@ -687,10 +687,8 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
                 self._rule_registry,
                 self._json_encode,
             ),
+            self._serializer_init,
         )
-
-        if self._serializer_init is not None:
-            self._serializer_init(serializer)
 
         return serializer, dict(conf)
 
@@ -1052,10 +1050,10 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
     Pass one to a consumer through the ``key.deserializer.builder`` or
     ``value.deserializer.builder`` configuration property::
 
-        consumer = DeserializingConsumer[str, User]({
+        consumer = await AsyncDeserializingConsumer[str, User]({
             'bootstrap.servers': brokers,
             'group.id': group,
-            'value.deserializer.builder': JSONDeserializerBuilder(
+            'value.deserializer.builder': AsyncJSONDeserializerBuilder(
                 schema_registry_config={'url': schema_registry_url},
                 from_dict=dict_to_user,
             ),
@@ -1063,7 +1061,7 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
 
     Every value also has a setter, each returning the builder so they chain::
 
-        JSONDeserializerBuilder().set_schema_registry_config(conf).set_from_dict(dict_to_user)
+        AsyncJSONDeserializerBuilder().set_schema_registry_config(conf).set_from_dict(dict_to_user)
 
     All values are optional: the serde's own defaults apply to whatever is not
     set, though a Schema Registry client or its configuration is needed in
@@ -1172,9 +1170,7 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
                 self._rule_registry,
                 self._json_decode,
             ),
+            self._deserializer_init,
         )
-
-        if self._deserializer_init is not None:
-            self._deserializer_init(deserializer)
 
         return deserializer, dict(conf)
