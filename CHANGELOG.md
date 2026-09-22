@@ -16,24 +16,24 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
   `value.deserializer.builder` configuration properties. Serdes built this way,
   and any Schema Registry client the builder created for them, are owned by the
   client and closed by its `close()`; ready-made serdes remain the
-  application's (#).
+  application's (#2364).
 - Serdes that resolve subjects through the Schema Registry *associated* subject
   name strategy are now given the Kafka cluster id automatically. The id is
   resolved lazily, on the first subject lookup, so creating a client never
   waits on a broker; until a broker has been reached the lookup raises a
   `SerializationError` naming `subject.name.strategy.kafka.cluster.id`, which
-  can be set to supply the id explicitly (#).
+  can be set to supply the id explicitly (#2364).
 - New `Producer.cluster_id()`, `Consumer.cluster_id()` and
   `AdminClient.cluster_id()` (also on `AIOProducer` and `AIOConsumer`),
-  returning the id of the cluster the client is connected to (#).
+  returning the id of the cluster the client is connected to (#2364).
 - New asyncio clients `AsyncSerializingProducer` and `AsyncDeserializingConsumer`
   in `confluent_kafka.aio`, the counterparts of `SerializingProducer` and
   `DeserializingConsumer` built on `AIOProducer` / `AIOConsumer`, accepting the
-  asyncio Schema Registry serdes and their builders (#).
+  asyncio Schema Registry serdes and their builders (#2364).
 - New `Message.deserialized_key()` and `Message.deserialized_value()`, which
   return the same objects as `key()` and `value()` but are typed with the
   deserialized types on a `DeserializingConsumer`. `SerializingProducer` and
-  `DeserializingConsumer` are now generic in their key and value types (#).
+  `DeserializingConsumer` are now generic in their key and value types (#2364).
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
