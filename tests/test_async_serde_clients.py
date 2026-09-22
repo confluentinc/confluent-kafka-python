@@ -29,7 +29,12 @@ import pytest
 from confluent_kafka import KafkaError
 from confluent_kafka.aio import AIOConsumer, AIOProducer, AsyncDeserializingConsumer, AsyncSerializingProducer
 from confluent_kafka.cimpl import Message
-from confluent_kafka.error import ConsumeError, KeySerializationError, ValueSerializationError
+from confluent_kafka.error import (
+    ConsumeError,
+    KeySerializationError,
+    ValueDeserializationError,
+    ValueSerializationError,
+)
 from confluent_kafka.serialization import (
     DeserializerBuilder,
     SerializerBuilder,
@@ -525,3 +530,61 @@ async def test_sr_serde_resolves_the_cluster_id_through_the_producer(cluster_id_
         assert await registry.get_latest_version(TOPIC + '-value') is not None
     finally:
         await producer.close()
+
+
+# --- produce fails fast, before the serializers run ---------------------------
+
+
+def _recording_serializer(calls):
+    def serializer(obj, ctx):
+        calls.append(ctx.topic)
+        return obj.encode('utf_8')
+
+    return serializer
+
+
+async def test_produce_after_close_fails_before_serializing(cluster_id_calls, produced):
+    calls = []
+    producer = await _producer(**{'value.serializer': _recording_serializer(calls)})
+    await producer.close()
+
+    with pytest.raises(RuntimeError, match='closed'):
+        await producer.produce('t', value='x')
+    assert calls == []
+    assert produced == []
+
+
+async def test_produce_rejects_a_non_str_topic_before_serializing(cluster_id_calls, produced):
+    calls = []
+    producer = await _producer(**{'value.serializer': _recording_serializer(calls)})
+    try:
+        with pytest.raises(TypeError, match='topic must be a str, not NoneType'):
+            await producer.produce(None, value='x')
+        assert calls == []
+        assert produced == []
+    finally:
+        await producer.close()
+
+
+# --- a message without a topic cannot be deserialized -------------------------
+
+
+async def test_missing_topic_is_a_deserialization_error(cluster_id_calls, polled):
+    consumer = await _consumer(**{'value.deserializer': StringDeserializer()})
+    try:
+        polled.append(_make_message(value=b'v', topic=None))
+        with pytest.raises(ValueDeserializationError, match='non-empty topic name') as exc_info:
+            await consumer.poll(0)
+        assert exc_info.value.kafka_message.value() == b'v'
+    finally:
+        await consumer.close()
+
+
+async def test_missing_topic_passes_through_without_deserializers(cluster_id_calls, polled):
+    consumer = await _consumer()
+    try:
+        polled.append(_make_message(value=b'v', key=b'k', topic=None))
+        msg = await consumer.poll(0)
+        assert (msg.key(), msg.value()) == (b'k', b'v')
+    finally:
+        await consumer.close()
