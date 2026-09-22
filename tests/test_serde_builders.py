@@ -581,6 +581,33 @@ def test_builder_closes_the_sr_client_it_created_when_the_serde_fails(sr_client_
     assert len(sr_client_closes) == 1
 
 
+def test_builder_closes_the_serde_it_built_when_the_init_callback_fails(sr_client_closes):
+    def broken_init(serializer):
+        raise RuntimeError("init broke")
+
+    builder = sr_avro.AvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_init=broken_init
+    )
+
+    with pytest.raises(RuntimeError, match='init broke'):
+        builder.build({}, False)
+
+    # the serializer already owned the client the builder created for it
+    assert len(sr_client_closes) == 1
+
+
+def test_deserializer_builder_closes_the_serde_it_built_when_the_init_callback_fails(sr_client_closes):
+    def broken_init(deserializer):
+        raise RuntimeError("init broke")
+
+    builder = sr_avro.AvroDeserializerBuilder(schema_registry_config=SR_CONF, deserializer_init=broken_init)
+
+    with pytest.raises(RuntimeError, match='init broke'):
+        builder.build({}, False)
+
+    assert len(sr_client_closes) == 1
+
+
 def test_builder_does_not_close_a_supplied_sr_client_when_the_serde_fails(sr_client_closes):
     client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
     builder = sr_avro.AvroSerializerBuilder(

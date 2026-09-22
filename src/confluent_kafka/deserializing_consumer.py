@@ -156,10 +156,12 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
 
         Safe to call more than once: later calls do nothing.
         """
-        super(DeserializingConsumer, self).close()
-
-        owned, self._owned_serdes = self._owned_serdes, []
-        close_serdes(owned)
+        try:
+            super(DeserializingConsumer, self).close()
+        finally:
+            # released even when leaving the group raised
+            owned, self._owned_serdes = self._owned_serdes, []
+            close_serdes(owned)
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]:
         # Consumer.__exit__ is implemented in C and calls the C close directly,

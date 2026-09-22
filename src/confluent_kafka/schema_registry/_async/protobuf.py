@@ -586,9 +586,9 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
     Schema Registry client and the serializer for you, and lets the producer
     supply the Kafka cluster id to the serializer::
 
-        producer = SerializingProducer({
+        producer = await AsyncSerializingProducer({
             'bootstrap.servers': brokers,
-            'value.serializer.builder': ProtobufSerializerBuilder(
+            'value.serializer.builder': AsyncProtobufSerializerBuilder(
                 schema_registry_config={'url': schema_registry_url},
                 message_type=User,
             ),
@@ -596,7 +596,7 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
 
     Every value also has a setter, each returning the builder so they chain::
 
-        ProtobufSerializerBuilder().set_schema_registry_config(conf).set_message_type(User)
+        AsyncProtobufSerializerBuilder().set_schema_registry_config(conf).set_message_type(User)
 
     The message type is required; the rest are optional.
 
@@ -691,10 +691,8 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
                 self._rule_conf,
                 self._rule_registry,
             ),
+            self._serializer_init,
         )
-
-        if self._serializer_init is not None:
-            self._serializer_init(serializer)
 
         return serializer, dict(conf)
 
@@ -1021,10 +1019,10 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
     Pass one to a consumer through the ``key.deserializer.builder`` or
     ``value.deserializer.builder`` configuration property::
 
-        consumer = DeserializingConsumer[None, User]({
+        consumer = await AsyncDeserializingConsumer[None, User]({
             'bootstrap.servers': brokers,
             'group.id': group,
-            'value.deserializer.builder': ProtobufDeserializerBuilder(
+            'value.deserializer.builder': AsyncProtobufDeserializerBuilder(
                 schema_registry_config={'url': schema_registry_url},
                 message_type=User,
             ),
@@ -1032,7 +1030,7 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
 
     Every value also has a setter, each returning the builder so they chain::
 
-        ProtobufDeserializerBuilder().set_schema_registry_config(conf).set_message_type(User)
+        AsyncProtobufDeserializerBuilder().set_schema_registry_config(conf).set_message_type(User)
 
     The message type is required; the rest are optional.
 
@@ -1127,9 +1125,7 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
                 self._rule_conf,
                 self._rule_registry,
             ),
+            self._deserializer_init,
         )
-
-        if self._deserializer_init is not None:
-            self._deserializer_init(deserializer)
 
         return deserializer, dict(conf)

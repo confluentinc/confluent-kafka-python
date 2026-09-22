@@ -24,8 +24,8 @@
 # client and the serializer, and passes them the Kafka cluster id if they need
 # it. produce() is called with the User object itself rather than with bytes.
 #
-# See asyncio_avro_producer.py for the alternative: constructing an
-# AvroSerializer yourself and calling it before produce().
+# See asyncio_avro_producer.py for the asyncio counterpart: an
+# AsyncSerializingProducer configured with an AsyncAvroSerializerBuilder.
 
 import argparse
 import os

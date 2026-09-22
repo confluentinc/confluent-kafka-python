@@ -149,14 +149,14 @@ class AsyncDeserializingConsumer(AIOConsumer, Generic[K, V]):
 
         Safe to call more than once: later calls do nothing.
         """
-        result = None
-        if not self._closed:
-            result = await super().close(*args, **kwargs)
-
-        owned, self._owned_serdes = self._owned_serdes, []
-        await async_close_serdes(owned)
-
-        return result
+        try:
+            if not self._closed:
+                return await super().close(*args, **kwargs)
+            return None
+        finally:
+            # released even when leaving the group raised
+            owned, self._owned_serdes = self._owned_serdes, []
+            await async_close_serdes(owned)
 
     async def poll(self, timeout: float = -1) -> Optional["Message[K, V]"]:  # type: ignore[override]
         """

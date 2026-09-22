@@ -670,10 +670,8 @@ class AvroSerializerBuilder(SerializerBuilder):
                 self._rule_conf,
                 self._rule_registry,
             ),
+            self._serializer_init,
         )
-
-        if self._serializer_init is not None:
-            self._serializer_init(serializer)
 
         return serializer, dict(conf)
 
@@ -1123,9 +1121,7 @@ class AvroDeserializerBuilder(DeserializerBuilder):
                 self._rule_conf,
                 self._rule_registry,
             ),
+            self._deserializer_init,
         )
-
-        if self._deserializer_init is not None:
-            self._deserializer_init(deserializer)
 
         return deserializer, dict(conf)
