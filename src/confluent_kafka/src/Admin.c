@@ -3966,6 +3966,9 @@ static PyMethodDef Admin_methods[] = {
     {"list_topics", (PyCFunction)list_topics, METH_VARARGS | METH_KEYWORDS,
      list_topics_doc},
 
+    {"cluster_id", (PyCFunction)cluster_id, METH_VARARGS | METH_KEYWORDS,
+     cluster_id_doc},
+
     {"list_groups", (PyCFunction)list_groups, METH_VARARGS | METH_KEYWORDS,
      list_groups_doc},
 

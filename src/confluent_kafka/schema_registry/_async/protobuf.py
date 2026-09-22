@@ -55,6 +55,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    async_build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -680,16 +681,16 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
         if self._msg_type is None:
             raise ValueError("Protobuf serializer requires a message type; call set_message_type()")
 
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = await AsyncProtobufSerializer(
-            self._msg_type,
-            client,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        serializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncProtobufSerializer(
+                self._msg_type,
+                client,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1116,16 +1117,16 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
         if self._msg_type is None:
             raise ValueError("Protobuf deserializer requires a message type; call set_message_type()")
 
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = await AsyncProtobufDeserializer(
-            self._msg_type,
-            self._deserializer_conf,
-            client,
-            self._rule_conf,
-            self._rule_registry,
+        deserializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncProtobufDeserializer(
+                self._msg_type,
+                self._deserializer_conf,
+                client,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._deserializer_init is not None:

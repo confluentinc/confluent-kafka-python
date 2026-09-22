@@ -712,6 +712,14 @@ class SchemaRegistryClient(object):
         return self
 
     def __exit__(self, *args):
+        self.close()
+
+    def close(self) -> None:
+        """
+        Close the underlying HTTP session.
+
+        The client is unusable afterwards. Safe to call more than once.
+        """
         if self._rest_client is not None:
             self._rest_client.session.close()
 

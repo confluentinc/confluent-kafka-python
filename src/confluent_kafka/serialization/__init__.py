@@ -17,7 +17,7 @@
 #
 import struct as _struct
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from confluent_kafka._types import HeadersType
 from confluent_kafka.error import KafkaException
@@ -140,33 +140,34 @@ class Serializer(object):
 
         raise NotImplementedError
 
-    def needs_cluster_id(self) -> bool:
+    def set_cluster_id_resolver(self, resolver: Callable[[], Any]) -> None:
         """
-        Whether this serializer needs the Kafka cluster id to be supplied
-        before it can serialize.
+        Supply a callable returning the id of the Kafka cluster the client is
+        connected to.
 
-        A serializer that resolves subjects through the Schema Registry
-        *associated* subject name strategy uses the cluster id as the resource
-        namespace. When it was not configured explicitly,
-        :py:class:`SerializingProducer` fetches it from the broker and hands it
-        over via :py:func:`set_cluster_id`.
-
-        Returns:
-            bool: False for serializers that do not need it, which is the
-            default and covers every serializer in this module.
-        """
-
-        return False
-
-    def set_cluster_id(self, cluster_id: str) -> None:
-        """
-        Supply the Kafka cluster id.
-
-        Only called when :py:func:`needs_cluster_id` returns True. The default
-        implementation does nothing.
+        :py:class:`SerializingProducer` calls this once, right after it has
+        created the underlying client. The resolver may block for as long as
+        the client waits for broker metadata, so a serializer must not invoke
+        it during this call, only later when it actually needs the id. A
+        serializer that resolves subjects through the Schema Registry
+        *associated* subject name strategy keeps it and invokes it on the
+        first subject lookup, unless the cluster id was configured explicitly.
+        The default implementation does nothing.
 
         Args:
-            cluster_id (str): Id of the cluster the client is connected to.
+            resolver (callable): Callable returning the cluster id.
+        """
+
+        pass
+
+    def close(self) -> None:
+        """
+        Release the resources this serializer created for itself.
+
+        Called by :py:class:`SerializingProducer` when it is closed, for the
+        serializers it built from a builder. Resources handed to the
+        serializer by the application are left alone. The default
+        implementation does nothing.
         """
 
         pass
@@ -228,30 +229,28 @@ class Deserializer(object):
 
         raise NotImplementedError
 
-    def needs_cluster_id(self) -> bool:
+    def set_cluster_id_resolver(self, resolver: Callable[[], Any]) -> None:
         """
-        Whether this deserializer needs the Kafka cluster id to be supplied
-        before it can deserialize.
+        Supply a callable returning the id of the Kafka cluster the client is
+        connected to.
 
-        See :py:func:`Serializer.needs_cluster_id`; the id is supplied by
-        :py:class:`DeserializingConsumer`.
-
-        Returns:
-            bool: False for deserializers that do not need it, which is the
-            default and covers every deserializer in this module.
-        """
-
-        return False
-
-    def set_cluster_id(self, cluster_id: str) -> None:
-        """
-        Supply the Kafka cluster id.
-
-        Only called when :py:func:`needs_cluster_id` returns True. The default
+        See :py:func:`Serializer.set_cluster_id_resolver`; the resolver is
+        supplied by :py:class:`DeserializingConsumer`. The default
         implementation does nothing.
 
         Args:
-            cluster_id (str): Id of the cluster the client is connected to.
+            resolver (callable): Callable returning the cluster id.
+        """
+
+        pass
+
+    def close(self) -> None:
+        """
+        Release the resources this deserializer created for itself.
+
+        See :py:func:`Serializer.close`; called by
+        :py:class:`DeserializingConsumer`. The default implementation does
+        nothing.
         """
 
         pass

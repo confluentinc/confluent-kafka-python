@@ -37,7 +37,13 @@ else:
 from confluent_kafka.cimpl import Consumer as _ConsumerImpl
 from confluent_kafka.cimpl import Message
 
-from ._serde_builder import pop_serdes, propagate_cluster_id
+from ._serde_builder import (
+    CLUSTER_ID_TIMEOUT,
+    build_serdes,
+    close_serdes,
+    pop_serde_props,
+    propagate_cluster_id_resolver,
+)
 from .error import ConsumeError, KeyDeserializationError, ValueDeserializationError
 from .serialization import MessageField, SerializationContext
 
@@ -92,10 +98,16 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
                 .set_from_dict(dict_to_user),
         })
 
-    A builder is also what allows a deserializer to be given the Kafka cluster id: deserializers that
-    need it (those resolving subjects through the Schema Registry associated subject name strategy
-    without an explicit ``subject.name.strategy.kafka.cluster.id``) have it fetched from the broker and
-    supplied during construction.
+    Deserializers are also handed a way to obtain the Kafka cluster id: those that need it
+    (deserializers resolving subjects through the Schema Registry associated subject name strategy
+    without an explicit ``subject.name.strategy.kafka.cluster.id``) fetch it from the broker on their
+    first lookup, so constructing the consumer never waits on a broker. Until a broker has been reached
+    that lookup raises a :py:class:`SerializationError` and is retried on the next message.
+
+    Deserializers built here from a ``.builder`` property are owned by the consumer and closed by
+    :py:func:`close`, together with any Schema Registry client the builder created for them. Ready-made
+    deserializers passed in ``key.deserializer`` / ``value.deserializer`` remain the application's to
+    close.
 
     The class is generic in the deserialized key and value types, which parameterize the messages it
     yields: on a ``DeserializingConsumer[str, User]``, :py:func:`Message.deserialized_value` is typed
@@ -116,13 +128,44 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
     """  # noqa: E501
 
     def __init__(self, conf: Dict[str, Any]) -> None:
-        self._key_deserializer, self._value_deserializer, conf_copy = pop_serdes(
-            conf, 'key.deserializer', 'value.deserializer'
-        )
+        specs, conf_copy = pop_serde_props(conf, 'key.deserializer', 'value.deserializer')
+        serdes, self._owned_serdes, conf_copy = build_serdes(specs, conf_copy)
+        self._key_deserializer, self._value_deserializer = serdes
 
-        super(DeserializingConsumer, self).__init__(conf_copy)
+        try:
+            super(DeserializingConsumer, self).__init__(conf_copy)
 
-        propagate_cluster_id(self, [self._key_deserializer, self._value_deserializer])
+            propagate_cluster_id_resolver(lambda: self.cluster_id(timeout=CLUSTER_ID_TIMEOUT), serdes)
+        except BaseException:
+            owned, self._owned_serdes = self._owned_serdes, []
+            try:
+                close_serdes(owned)
+            except Exception:
+                pass
+            raise
+
+    def close(self) -> None:
+        """
+        Close the consumer, then the deserializers it built.
+
+        Leaves the group and destroys the underlying :py:class:`Consumer`
+        first, then closes the deserializers built from
+        ``key.deserializer.builder`` / ``value.deserializer.builder`` along with
+        any Schema Registry client they own. Deserializers supplied ready-made
+        are left untouched.
+
+        Safe to call more than once: later calls do nothing.
+        """
+        super(DeserializingConsumer, self).close()
+
+        owned, self._owned_serdes = self._owned_serdes, []
+        close_serdes(owned)
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]:
+        # Consumer.__exit__ is implemented in C and calls the C close directly,
+        # which would skip the deserializer release above.
+        self.close()
+        return None
 
     # Narrows Consumer.poll()'s Message[bytes, bytes] to this consumer's
     # deserialized types, which is the whole point of the class.
