@@ -71,6 +71,10 @@ def _worker_produce(producer):
     while True:
         try:
             producer.produce('mytopic', value=b'x')
+        except BufferError:
+            # No broker, so the local queue can fill before close() lands. That is
+            # ordinary backpressure, not a close-race outcome: back off and retry.
+            time.sleep(0.001)
         except RuntimeError as e:
             assert 'closed' in str(e).lower(), f"unexpected RuntimeError: {e}"
             break
