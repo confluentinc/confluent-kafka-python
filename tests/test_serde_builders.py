@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Unit tests for serde builders and cluster id propagation.
+"""Unit tests for serde builders, cluster id resolution and serde ownership.
 
 Broker-free: the clients are constructed against an unreachable broker, which
 librdkafka accepts without connecting, and ``cluster_id`` is patched out so no
@@ -24,7 +24,7 @@ metadata request is ever issued.
 
 import pytest
 
-from confluent_kafka import DeserializingConsumer, SerializingProducer
+from confluent_kafka import DeserializingConsumer, KafkaException, SerializingProducer
 from confluent_kafka.cimpl import Message
 from confluent_kafka.serialization import (
     Deserializer,
@@ -50,36 +50,34 @@ def _consumer_conf(**extra):
     return conf
 
 
-class _ClusterIdSerializer(StringSerializer):
-    """Serializer that asks for the cluster id, like the SR serdes do."""
+class _TrackingSerializer(StringSerializer):
+    """Serializer recording the resolver it was handed and how often it was closed."""
 
-    def __init__(self, needs=True):
+    def __init__(self):
         super().__init__()
-        self._needs = needs
-        self.cluster_id = None
+        self.resolver = None
+        self.closed = 0
 
-    def needs_cluster_id(self):
-        return self._needs
+    def set_cluster_id_resolver(self, resolver):
+        self.resolver = resolver
 
-    def set_cluster_id(self, cluster_id):
-        self.cluster_id = cluster_id
-        self._needs = False
+    def close(self):
+        self.closed += 1
 
 
-class _ClusterIdDeserializer(StringDeserializer):
-    """Deserializing counterpart of :class:`_ClusterIdSerializer`."""
+class _TrackingDeserializer(StringDeserializer):
+    """Deserializing counterpart of :class:`_TrackingSerializer`."""
 
-    def __init__(self, needs=True):
+    def __init__(self):
         super().__init__()
-        self._needs = needs
-        self.cluster_id = None
+        self.resolver = None
+        self.closed = 0
 
-    def needs_cluster_id(self):
-        return self._needs
+    def set_cluster_id_resolver(self, resolver):
+        self.resolver = resolver
 
-    def set_cluster_id(self, cluster_id):
-        self.cluster_id = cluster_id
-        self._needs = False
+    def close(self):
+        self.closed += 1
 
 
 class _RecordingBuilder(SerializerBuilder):
@@ -108,9 +106,14 @@ class _RecordingDeserializerBuilder(DeserializerBuilder):
         return self._serde, remaining
 
 
+class _FailingBuilder(SerializerBuilder):
+    def build(self, conf, is_key):
+        raise RuntimeError("builder broke")
+
+
 @pytest.fixture
-def no_cluster_id(monkeypatch):
-    """Fail the test if the cluster id is fetched, and record it when it is expected."""
+def cluster_id_calls(monkeypatch):
+    """Patch out the metadata request behind ``cluster_id()`` and record its invocations."""
     calls = []
 
     def _cluster_id(self, timeout=-1):
@@ -125,7 +128,7 @@ def no_cluster_id(monkeypatch):
 # --- builder wiring ---------------------------------------------------------
 
 
-def test_producer_builds_value_serializer(no_cluster_id):
+def test_producer_builds_value_serializer(cluster_id_calls):
     builder = _RecordingBuilder()
     producer = SerializingProducer(_producer_conf(**{'value.serializer.builder': builder}))
 
@@ -134,7 +137,7 @@ def test_producer_builds_value_serializer(no_cluster_id):
     assert [is_key for _conf, is_key in builder.calls] == [False]
 
 
-def test_producer_builds_both_serializers(no_cluster_id):
+def test_producer_builds_both_serializers(cluster_id_calls):
     key_builder = _RecordingBuilder()
     value_builder = _RecordingBuilder()
     producer = SerializingProducer(
@@ -148,7 +151,7 @@ def test_producer_builds_both_serializers(no_cluster_id):
     assert [is_key for _conf, is_key in value_builder.calls] == [False]
 
 
-def test_builder_sees_client_conf_and_its_leftovers_reach_the_client(no_cluster_id):
+def test_builder_sees_client_conf_and_its_leftovers_reach_the_client(cluster_id_calls):
     # 'my.builder.prop' is not a librdkafka property, so the client would fail
     # to construct if the builder's leftover config were not the one used.
     builder = _RecordingBuilder()
@@ -159,7 +162,7 @@ def test_builder_sees_client_conf_and_its_leftovers_reach_the_client(no_cluster_
     assert seen_conf['bootstrap.servers'] == 'localhost:9092'
 
 
-def test_builders_are_chained_so_the_second_sees_the_first_leftovers(no_cluster_id):
+def test_builders_are_chained_so_the_second_sees_the_first_leftovers(cluster_id_calls):
     key_builder = _RecordingBuilder()
     value_builder = _RecordingBuilder()
     SerializingProducer(
@@ -177,7 +180,7 @@ def test_builders_are_chained_so_the_second_sees_the_first_leftovers(no_cluster_
     assert 'my.builder.prop' not in value_builder.calls[0][0]
 
 
-def test_consumer_builds_deserializers(no_cluster_id):
+def test_consumer_builds_deserializers(cluster_id_calls):
     key_builder = _RecordingDeserializerBuilder()
     value_builder = _RecordingDeserializerBuilder()
     consumer = DeserializingConsumer(
@@ -191,7 +194,7 @@ def test_consumer_builds_deserializers(no_cluster_id):
 
 
 @pytest.mark.parametrize('field', ['key', 'value'])
-def test_producer_rejects_serializer_and_builder_together(no_cluster_id, field):
+def test_producer_rejects_serializer_and_builder_together(cluster_id_calls, field):
     conf = _producer_conf(
         **{
             '{}.serializer'.format(field): StringSerializer(),
@@ -203,7 +206,7 @@ def test_producer_rejects_serializer_and_builder_together(no_cluster_id, field):
 
 
 @pytest.mark.parametrize('field', ['key', 'value'])
-def test_consumer_rejects_deserializer_and_builder_together(no_cluster_id, field):
+def test_consumer_rejects_deserializer_and_builder_together(cluster_id_calls, field):
     conf = _consumer_conf(
         **{
             '{}.deserializer'.format(field): StringDeserializer(),
@@ -214,7 +217,7 @@ def test_consumer_rejects_deserializer_and_builder_together(no_cluster_id, field
         DeserializingConsumer(conf)
 
 
-def test_builder_returning_a_non_dict_conf_is_reported(no_cluster_id):
+def test_builder_returning_a_non_dict_conf_is_reported(cluster_id_calls):
     class BadBuilder(SerializerBuilder):
         def build(self, conf, is_key):
             return StringSerializer(), None
@@ -223,7 +226,7 @@ def test_builder_returning_a_non_dict_conf_is_reported(no_cluster_id):
         SerializingProducer(_producer_conf(**{'value.serializer.builder': BadBuilder()}))
 
 
-def test_builder_returning_a_bare_serde_is_reported(no_cluster_id):
+def test_builder_returning_a_bare_serde_is_reported(cluster_id_calls):
     class BadBuilder(SerializerBuilder):
         def build(self, conf, is_key):
             return StringSerializer()
@@ -232,61 +235,190 @@ def test_builder_returning_a_bare_serde_is_reported(no_cluster_id):
         SerializingProducer(_producer_conf(**{'value.serializer.builder': BadBuilder()}))
 
 
-# --- cluster id propagation -------------------------------------------------
+# --- cluster id resolution --------------------------------------------------
+#
+# The client never asks the broker for the cluster id itself; it hands the
+# serdes a resolver which they invoke on their first subject lookup.
 
 
-def test_cluster_id_not_fetched_when_no_serde_needs_it(no_cluster_id):
-    SerializingProducer(_producer_conf(**{'value.serializer': StringSerializer()}))
-    assert no_cluster_id == []
+def test_cluster_id_never_fetched_during_construction(cluster_id_calls):
+    SerializingProducer(
+        _producer_conf(**{'key.serializer': _TrackingSerializer(), 'value.serializer': _TrackingSerializer()})
+    )
+    DeserializingConsumer(_consumer_conf(**{'value.deserializer': _TrackingDeserializer()}))
+
+    assert cluster_id_calls == []
 
 
-def test_cluster_id_not_fetched_for_plain_callables(no_cluster_id):
-    # a lambda has no needs_cluster_id() at all and must not trip the lookup
-    SerializingProducer(_producer_conf(**{'value.serializer': lambda obj, ctx: b''}))
-    assert no_cluster_id == []
-
-
-def test_cluster_id_propagated_to_serializer(no_cluster_id):
-    serializer = _ClusterIdSerializer()
-    producer = SerializingProducer(_producer_conf(**{'value.serializer': serializer}))
-
-    assert serializer.cluster_id == CLUSTER_ID
-    assert producer._value_serializer is serializer
-    assert no_cluster_id == [60.0]
-
-
-def test_cluster_id_fetched_once_for_both_serializers(no_cluster_id):
-    key_serializer = _ClusterIdSerializer()
-    value_serializer = _ClusterIdSerializer()
+def test_resolver_handed_to_every_serializer_that_takes_one(cluster_id_calls):
+    key_serializer = _TrackingSerializer()
+    value_serializer = _TrackingSerializer()
     SerializingProducer(_producer_conf(**{'key.serializer': key_serializer, 'value.serializer': value_serializer}))
 
-    assert key_serializer.cluster_id == CLUSTER_ID
-    assert value_serializer.cluster_id == CLUSTER_ID
-    assert len(no_cluster_id) == 1
+    assert key_serializer.resolver is not None
+    assert value_serializer.resolver is not None
+    # both resolve through the producer, waiting up to the metadata timeout
+    assert key_serializer.resolver() == CLUSTER_ID
+    assert value_serializer.resolver() == CLUSTER_ID
+    assert cluster_id_calls == [60.0, 60.0]
 
 
-def test_cluster_id_only_given_to_the_serde_that_asked(no_cluster_id):
-    needy = _ClusterIdSerializer()
-    content = _ClusterIdSerializer(needs=False)
-    SerializingProducer(_producer_conf(**{'key.serializer': content, 'value.serializer': needy}))
-
-    assert needy.cluster_id == CLUSTER_ID
-    assert content.cluster_id is None
-
-
-def test_cluster_id_propagated_to_deserializer(no_cluster_id):
-    deserializer = _ClusterIdDeserializer()
+def test_resolver_handed_to_deserializers(cluster_id_calls):
+    deserializer = _TrackingDeserializer()
     DeserializingConsumer(_consumer_conf(**{'value.deserializer': deserializer}))
 
-    assert deserializer.cluster_id == CLUSTER_ID
-    assert no_cluster_id == [60.0]
+    assert deserializer.resolver() == CLUSTER_ID
+    assert cluster_id_calls == [60.0]
 
 
-def test_cluster_id_propagated_to_built_serde(no_cluster_id):
-    serializer = _ClusterIdSerializer()
+def test_resolver_handed_to_built_serde(cluster_id_calls):
+    serializer = _TrackingSerializer()
     SerializingProducer(_producer_conf(**{'value.serializer.builder': _RecordingBuilder(serializer)}))
 
-    assert serializer.cluster_id == CLUSTER_ID
+    assert serializer.resolver() == CLUSTER_ID
+
+
+def test_plain_callables_and_base_serdes_are_left_alone(cluster_id_calls):
+    # a lambda has no set_cluster_id_resolver() at all and must not trip anything
+    SerializingProducer(
+        _producer_conf(**{'key.serializer': lambda obj, ctx: b'', 'value.serializer': StringSerializer()})
+    )
+    assert cluster_id_calls == []
+
+
+def test_base_serdes_accept_a_resolver_and_close_as_no_ops():
+    assert Serializer().set_cluster_id_resolver(lambda: CLUSTER_ID) is None
+    assert Deserializer().set_cluster_id_resolver(lambda: CLUSTER_ID) is None
+    assert Serializer().close() is None
+    assert Deserializer().close() is None
+
+
+# --- ownership --------------------------------------------------------------
+#
+# Serdes the client built are its own and closed with it; serdes handed in
+# ready-made stay the application's.
+
+
+def test_producer_closes_the_serdes_it_built(cluster_id_calls):
+    key_serializer = _TrackingSerializer()
+    value_serializer = _TrackingSerializer()
+    producer = SerializingProducer(
+        _producer_conf(
+            **{
+                'key.serializer.builder': _RecordingBuilder(key_serializer),
+                'value.serializer.builder': _RecordingBuilder(value_serializer),
+            }
+        )
+    )
+
+    producer.close()
+
+    assert key_serializer.closed == 1
+    assert value_serializer.closed == 1
+
+
+def test_producer_leaves_app_supplied_serdes_open(cluster_id_calls):
+    supplied = _TrackingSerializer()
+    built = _TrackingSerializer()
+    producer = SerializingProducer(
+        _producer_conf(**{'key.serializer': supplied, 'value.serializer.builder': _RecordingBuilder(built)})
+    )
+
+    producer.close()
+
+    assert supplied.closed == 0
+    assert built.closed == 1
+
+
+def test_producer_close_is_idempotent(cluster_id_calls):
+    serializer = _TrackingSerializer()
+    producer = SerializingProducer(_producer_conf(**{'value.serializer.builder': _RecordingBuilder(serializer)}))
+
+    producer.close()
+    producer.close()
+
+    assert serializer.closed == 1
+
+
+def test_producer_context_manager_closes_built_serdes(cluster_id_calls):
+    serializer = _TrackingSerializer()
+    with SerializingProducer(_producer_conf(**{'value.serializer.builder': _RecordingBuilder(serializer)})):
+        assert serializer.closed == 0
+
+    assert serializer.closed == 1
+
+
+def test_consumer_closes_the_serdes_it_built(cluster_id_calls):
+    supplied = _TrackingDeserializer()
+    built = _TrackingDeserializer()
+    consumer = DeserializingConsumer(
+        _consumer_conf(
+            **{'key.deserializer': supplied, 'value.deserializer.builder': _RecordingDeserializerBuilder(built)}
+        )
+    )
+
+    consumer.close()
+    consumer.close()
+
+    assert supplied.closed == 0
+    assert built.closed == 1
+
+
+def test_consumer_context_manager_closes_built_serdes(cluster_id_calls):
+    deserializer = _TrackingDeserializer()
+    with DeserializingConsumer(
+        _consumer_conf(**{'value.deserializer.builder': _RecordingDeserializerBuilder(deserializer)})
+    ):
+        assert deserializer.closed == 0
+
+    assert deserializer.closed == 1
+
+
+def test_built_serdes_are_closed_when_the_client_fails_to_construct(cluster_id_calls):
+    serializer = _TrackingSerializer()
+    # an unknown property makes the underlying Producer refuse the configuration
+    conf = _producer_conf(**{'not.a.property': 'x', 'value.serializer.builder': _RecordingBuilder(serializer)})
+
+    with pytest.raises(KafkaException):
+        SerializingProducer(conf)
+
+    assert serializer.closed == 1
+
+
+def test_built_serdes_are_closed_when_a_later_builder_fails(cluster_id_calls):
+    key_serializer = _TrackingSerializer()
+    conf = _producer_conf(
+        **{'key.serializer.builder': _RecordingBuilder(key_serializer), 'value.serializer.builder': _FailingBuilder()}
+    )
+
+    with pytest.raises(RuntimeError, match='builder broke'):
+        SerializingProducer(conf)
+
+    assert key_serializer.closed == 1
+
+
+def test_all_built_serdes_are_closed_even_if_one_fails_to(cluster_id_calls):
+    class _BrokenClose(_TrackingSerializer):
+        def close(self):
+            super().close()
+            raise RuntimeError("close broke")
+
+    first = _BrokenClose()
+    second = _TrackingSerializer()
+    producer = SerializingProducer(
+        _producer_conf(
+            **{
+                'key.serializer.builder': _RecordingBuilder(first),
+                'value.serializer.builder': _RecordingBuilder(second),
+            }
+        )
+    )
+
+    with pytest.raises(RuntimeError, match='close broke'):
+        producer.close()
+
+    assert first.closed == 1
+    assert second.closed == 1
 
 
 # --- Schema Registry builders -----------------------------------------------
@@ -295,8 +427,9 @@ def test_cluster_id_propagated_to_built_serde(no_cluster_id):
 # when they are not installed.
 sr_avro = pytest.importorskip('confluent_kafka.schema_registry.avro')
 sr_json = pytest.importorskip('confluent_kafka.schema_registry.json_schema')
+sr_client = pytest.importorskip('confluent_kafka.schema_registry.schema_registry_client')
 
-SR_CONF = {'url': 'http://localhost:8081'}
+SR_CONF = {'url': 'mock://'}
 AVRO_SCHEMA = (
     '{"type":"record","name":"User","fields":['
     '{"name":"name","type":"string"},{"name":"favorite_number","type":"long"}]}'
@@ -305,6 +438,18 @@ AVRO_SCHEMA = (
 
 def _identity(obj, ctx):
     return obj
+
+
+@pytest.fixture
+def sr_client_closes(monkeypatch):
+    """Record the Schema Registry clients that get closed."""
+    closed = []
+
+    def _close(self):
+        closed.append(self)
+
+    monkeypatch.setattr(sr_client.SchemaRegistryClient, 'close', _close)
+    return closed
 
 
 @pytest.mark.parametrize(
@@ -344,6 +489,8 @@ def test_builder_without_sr_config_passes_a_none_client():
     deserializer, _ = sr_json.JSONDeserializerBuilder(schema=AVRO_SCHEMA, from_dict=_identity).build({}, False)
 
     assert deserializer._registry is None
+    # nothing to own, nothing to close
+    deserializer.close()
 
 
 def test_builder_constructor_and_setters_agree():
@@ -366,33 +513,101 @@ def test_setters_override_constructor_arguments():
     assert serializer._auto_register is False
 
 
-def test_sr_serde_needs_cluster_id_until_it_is_configured():
+def test_sr_serde_forwards_the_resolver_to_the_associated_strategy():
     # the default subject name strategy is the associated one, which resolves
     # subjects against the cluster id
     serializer, _ = sr_avro.AvroSerializerBuilder(schema_registry_config=SR_CONF, schema=AVRO_SCHEMA).build({}, False)
-    assert serializer.needs_cluster_id() is True
 
-    serializer.set_cluster_id(CLUSTER_ID)
-    assert serializer.needs_cluster_id() is False
+    def resolver():
+        return CLUSTER_ID
 
-    # an explicitly configured cluster id means no lookup is needed at all
-    configured, _ = sr_avro.AvroSerializerBuilder(
+    serializer.set_cluster_id_resolver(resolver)
+    assert serializer._subject_name_func._cluster_id_resolver is resolver
+
+
+def test_sr_serde_ignores_the_resolver_with_other_strategies():
+    serializer, _ = sr_avro.AvroSerializerBuilder(
         schema_registry_config=SR_CONF,
         schema=AVRO_SCHEMA,
-        serializer_config={'subject.name.strategy.conf': {'subject.name.strategy.kafka.cluster.id': 'lkc-configured'}},
+        serializer_config={'subject.name.strategy.type': 'TOPIC'},
     ).build({}, False)
-    assert configured.needs_cluster_id() is False
+
+    # nothing to hand it to; must not raise
+    serializer.set_cluster_id_resolver(lambda: CLUSTER_ID)
 
 
-# --- default serde hooks ----------------------------------------------------
+def test_config_built_sr_client_is_owned_and_closed_with_the_serde(sr_client_closes):
+    serializer, _ = sr_avro.AvroSerializerBuilder(schema_registry_config=SR_CONF, schema=AVRO_SCHEMA).build({}, False)
+    registry = serializer._registry
+    assert registry is not None
+
+    serializer.close()
+    serializer.close()
+
+    assert sr_client_closes == [registry]
 
 
-def test_base_serdes_do_not_need_the_cluster_id():
-    assert Serializer().needs_cluster_id() is False
-    assert Deserializer().needs_cluster_id() is False
-    # setting it anyway is a no-op rather than an error
-    assert Serializer().set_cluster_id(CLUSTER_ID) is None
-    assert Deserializer().set_cluster_id(CLUSTER_ID) is None
+def test_app_supplied_sr_client_is_not_closed_with_the_serde(sr_client_closes):
+    client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
+    serializer, _ = sr_avro.AvroSerializerBuilder(schema_registry_client=client, schema=AVRO_SCHEMA).build({}, False)
+    assert serializer._registry is client
+
+    serializer.close()
+
+    assert sr_client_closes == []
+
+
+def test_sr_client_config_is_ignored_when_a_client_is_supplied(sr_client_closes):
+    client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
+    serializer, _ = sr_avro.AvroSerializerBuilder(
+        schema_registry_client=client, schema_registry_config={'url': 'http://unused:8081'}, schema=AVRO_SCHEMA
+    ).build({}, False)
+
+    assert serializer._registry is client
+    serializer.close()
+    assert sr_client_closes == []
+
+
+def test_builder_closes_the_sr_client_it_created_when_the_serde_fails(sr_client_closes):
+    # an unknown serializer property is rejected by the serializer constructor,
+    # after the builder has already created the client
+    builder = sr_avro.AvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_config={'not.a.property': True}
+    )
+
+    with pytest.raises(ValueError):
+        builder.build({}, False)
+
+    assert len(sr_client_closes) == 1
+
+
+def test_builder_does_not_close_a_supplied_sr_client_when_the_serde_fails(sr_client_closes):
+    client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
+    builder = sr_avro.AvroSerializerBuilder(
+        schema_registry_client=client, schema=AVRO_SCHEMA, serializer_config={'not.a.property': True}
+    )
+
+    with pytest.raises(ValueError):
+        builder.build({}, False)
+
+    assert sr_client_closes == []
+
+
+def test_producer_closes_the_sr_client_of_the_serde_it_built(cluster_id_calls, sr_client_closes):
+    producer = SerializingProducer(
+        _producer_conf(
+            **{
+                'value.serializer.builder': sr_avro.AvroSerializerBuilder(
+                    schema_registry_config=SR_CONF, schema=AVRO_SCHEMA
+                )
+            }
+        )
+    )
+    registry = producer._value_serializer._registry
+
+    producer.close()
+
+    assert sr_client_closes == [registry]
 
 
 # --- deserialized accessors -------------------------------------------------
@@ -402,7 +617,7 @@ def _make_message(value=None, key=None, topic='t'):
     return Message(topic, 0, 0, key, value, None, None, (0, 0), -1.0, -1)
 
 
-def test_deserialized_accessors_return_the_deserialized_objects(no_cluster_id):
+def test_deserialized_accessors_return_the_deserialized_objects(cluster_id_calls):
     consumer = DeserializingConsumer(
         _consumer_conf(**{'key.deserializer': StringDeserializer(), 'value.deserializer': StringDeserializer()})
     )
@@ -412,7 +627,7 @@ def test_deserialized_accessors_return_the_deserialized_objects(no_cluster_id):
     assert msg.deserialized_value() == 'v'
 
 
-def test_deserialized_accessors_alias_key_and_value(no_cluster_id):
+def test_deserialized_accessors_alias_key_and_value(cluster_id_calls):
     # they are two views of one slot; nothing about key()/value() changed
     consumer = DeserializingConsumer(_consumer_conf(**{'value.deserializer': lambda data, ctx: {'payload': data}}))
     msg = consumer._deserialize(_make_message(value=b'v', key=b'k'))

@@ -48,6 +48,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    async_build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -666,17 +667,17 @@ class AsyncAvroSerializerBuilder(SerializerBuilder):
         return self.__build(conf, is_key)
 
     async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncAvroSerializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = await AsyncAvroSerializer(
-            client,
-            self._schema_str,
-            self._to_dict,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        serializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncAvroSerializer(
+                client,
+                self._schema_str,
+                self._to_dict,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1127,18 +1128,18 @@ class AsyncAvroDeserializerBuilder(DeserializerBuilder):
         return self.__build(conf, is_key)
 
     async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncAvroDeserializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = await AsyncAvroDeserializer(
-            client,
-            self._schema_str,
-            self._from_dict,
-            self._return_record_name,
-            self._deserializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        deserializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncAvroDeserializer(
+                client,
+                self._schema_str,
+                self._from_dict,
+                self._return_record_name,
+                self._deserializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._deserializer_init is not None:

@@ -19,27 +19,36 @@
 """
 Shared plumbing for the serde-building clients.
 
-:py:class:`SerializingProducer` and :py:class:`DeserializingConsumer` both
-accept either a ready-made serde or a builder that produces one, and both have
-to hand the Kafka cluster id to the serdes that ask for it. That handling lives
-here so the two clients stay in step.
+:py:class:`SerializingProducer`, :py:class:`DeserializingConsumer` and their
+asyncio counterparts all accept either a ready-made serde or a builder that
+produces one, own the serdes they built, and hand the serdes a resolver for
+the Kafka cluster id. That handling lives here so the clients stay in step.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+import inspect
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 #: Time to wait for the cluster id, in seconds. Matches the default
 #: ``max.block.ms`` the Java client allows for metadata retrieval.
 CLUSTER_ID_TIMEOUT = 60.0
 
 
-def pop_serdes(conf: Dict[str, Any], key_prop: str, value_prop: str) -> Tuple[Any, Any, Dict[str, Any]]:
-    """
-    Resolve the key and value serdes from a client configuration.
+class SerdeSpec(NamedTuple):
+    """What a client configuration says about one of its serdes."""
 
-    Pops ``<key_prop>`` / ``<value_prop>`` and their ``.builder`` counterparts,
-    then runs any builder found. The remaining configuration is threaded through
-    the builders in turn, so a builder can consume properties of its own before
-    the client sees them.
+    prop: str
+    serde: Any
+    builder: Any
+    is_key: bool
+
+
+def pop_serde_props(conf: Dict[str, Any], key_prop: str, value_prop: str) -> Tuple[List[SerdeSpec], Dict[str, Any]]:
+    """
+    Pop the key and value serde properties from a client configuration.
+
+    Pops ``<key_prop>`` / ``<value_prop>`` and their ``.builder`` counterparts
+    without running the builders, so that the same configuration handling
+    serves both the blocking and the asyncio clients.
 
     Args:
         conf (dict): Client configuration. Not modified; a copy is returned.
@@ -49,50 +58,51 @@ def pop_serdes(conf: Dict[str, Any], key_prop: str, value_prop: str) -> Tuple[An
         value_prop (str): Property holding the value serde.
 
     Returns:
-        tuple: ``(key_serde, value_serde, remaining_conf)``. Either serde is
-        None when neither the property nor its builder was configured.
+        tuple: The key and value :py:class:`SerdeSpec`, in that order, and the
+        remaining configuration.
 
     Raises:
         ValueError: If a property and its ``.builder`` counterpart are both
-            configured, or if a builder does not return the leftover
-            configuration.
+            configured.
     """
 
     conf_copy = conf.copy()
-    serdes = []
+    specs = []
 
     for prop, is_key in ((key_prop, True), (value_prop, False)):
         builder_prop = prop + '.builder'
         serde = conf_copy.pop(prop, None)
         builder = conf_copy.pop(builder_prop, None)
 
-        if builder is None:
-            serdes.append(serde)
-            continue
-
-        if serde is not None:
+        if serde is not None and builder is not None:
             raise ValueError("Cannot configure both {} and {}; use one or the other".format(prop, builder_prop))
 
-        serde, conf_copy = _build(builder, builder_prop, conf_copy, is_key)
-        serdes.append(serde)
+        specs.append(SerdeSpec(prop, serde, builder, is_key))
 
-    return serdes[0], serdes[1], conf_copy
+    return specs, conf_copy
 
 
-def _build(builder: Any, builder_prop: str, conf: Dict[str, Any], is_key: bool) -> Tuple[Any, Dict[str, Any]]:
-    """Run a single builder and validate what it hands back."""
+def validate_build_result(builder_prop: str, result: Any) -> Tuple[Any, Dict[str, Any]]:
+    """
+    Check what a builder handed back and split it into serde and configuration.
+
+    Raises:
+        ValueError: If the result is not a ``(serde, dict)`` pair, naming the
+            property whose builder is at fault.
+    """
 
     try:
-        serde, remaining_conf = builder.build(conf, is_key)
-    except (TypeError, ValueError) as e:
-        # A builder returning something other than a (serde, conf) pair fails
-        # here with a message that does not mention the caller, so say which
-        # property is at fault.
-        raise ValueError("{} must return a (serde, configuration) tuple from build(): {}".format(builder_prop, e))
+        serde, remaining_conf = result
+    except (TypeError, ValueError):
+        raise ValueError(
+            "{}.builder must return a (serde, configuration) tuple from build(), got {}".format(
+                builder_prop, type(result).__name__
+            )
+        )
 
     if not isinstance(remaining_conf, dict):
         raise ValueError(
-            "{} returned {} as the leftover configuration from build(), expected a dict".format(
+            "{}.builder returned {} as the leftover configuration from build(), expected a dict".format(
                 builder_prop, type(remaining_conf).__name__
             )
         )
@@ -100,45 +110,156 @@ def _build(builder: Any, builder_prop: str, conf: Dict[str, Any], is_key: bool) 
     return serde, remaining_conf
 
 
-def propagate_cluster_id(client: Any, serdes: List[Any], timeout: float = CLUSTER_ID_TIMEOUT) -> Optional[str]:
+def build_serdes(specs: List[SerdeSpec], conf: Dict[str, Any]) -> Tuple[List[Any], List[Any], Dict[str, Any]]:
     """
-    Hand the Kafka cluster id to every serde that asks for it.
+    Run the builders of a client configuration.
 
-    The id is fetched from the broker at most once, and only when at least one
-    serde needs it, so clients configured with serdes that do not care pay
-    nothing.
+    The configuration is threaded through the builders in turn, so a builder
+    can consume properties of its own before the client sees them. If a
+    builder fails, the serdes built before it are closed.
 
     Args:
-        client: The client to fetch the cluster id from.
+        specs (list): The serde specs from :py:func:`pop_serde_props`.
 
-        serdes (list): Serdes to offer the cluster id to. None entries and
-            serdes that are plain callables are skipped.
-
-        timeout (float): Maximum time to wait for the cluster id, in seconds.
+        conf (dict): The remaining client configuration.
 
     Returns:
-        str: The cluster id, or None if no serde needed it.
+        tuple: The serdes in spec order (None where none was configured), the
+        subset of them that was built here and is therefore owned by the
+        client, and the configuration left over for the client.
     """
 
-    needy = [serde for serde in serdes if _needs_cluster_id(serde)]
-    if not needy:
-        return None
+    serdes = []
+    owned: List[Any] = []
 
-    cluster_id = client.cluster_id(timeout=timeout)
-    for serde in needy:
-        serde.set_cluster_id(cluster_id)
+    try:
+        for spec in specs:
+            if spec.builder is None:
+                serdes.append(spec.serde)
+                continue
 
-    return cluster_id
+            serde, conf = validate_build_result(spec.prop, spec.builder.build(conf, spec.is_key))
+            serdes.append(serde)
+            owned.append(serde)
+    except BaseException:
+        close_serdes(owned)
+        raise
+
+    return serdes, owned, conf
 
 
-def _needs_cluster_id(serde: Any) -> bool:
+async def maybe_await(result: Any) -> Any:
+    """Await ``result`` if it is awaitable, else hand it back as is.
+
+    Lets the asyncio clients accept both the asyncio serdes, whose calls
+    return coroutines, and the blocking ones (plain callables included).
     """
-    Whether a serde wants the cluster id.
 
-    Serdes may be plain callables rather than
-    :py:class:`~confluent_kafka.serialization.Serializer` instances, so the
-    method is looked up rather than assumed.
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def async_build_serdes(
+    specs: List[SerdeSpec], conf: Dict[str, Any]
+) -> Tuple[List[Any], List[Any], Dict[str, Any]]:
+    """
+    Asyncio counterpart of :py:func:`build_serdes`.
+
+    A builder's ``build()`` may return either a ``(serde, conf)`` pair or a
+    coroutine yielding one, as the asyncio Schema Registry builders do.
     """
 
-    needs = getattr(serde, 'needs_cluster_id', None)
-    return callable(needs) and bool(needs())
+    serdes = []
+    owned: List[Any] = []
+
+    try:
+        for spec in specs:
+            if spec.builder is None:
+                serdes.append(spec.serde)
+                continue
+
+            result = await maybe_await(spec.builder.build(conf, spec.is_key))
+            serde, conf = validate_build_result(spec.prop, result)
+            serdes.append(serde)
+            owned.append(serde)
+    except BaseException:
+        await async_close_serdes(owned)
+        raise
+
+    return serdes, owned, conf
+
+
+def propagate_cluster_id_resolver(resolver: Callable[[], Any], serdes: List[Any]) -> None:
+    """
+    Hand a Kafka cluster id resolver to every serde that can take one.
+
+    Nothing is resolved here: the serdes that need the id (those resolving
+    subjects through the Schema Registry associated subject name strategy
+    without an explicit ``subject.name.strategy.kafka.cluster.id``) invoke the
+    resolver on their first lookup, so creating a client never waits on a
+    broker.
+
+    Args:
+        resolver (callable): Callable returning the cluster id; a coroutine
+            function for the asyncio clients.
+
+        serdes (list): Serdes to offer the resolver to. None entries and
+            serdes without a ``set_cluster_id_resolver`` method, such as plain
+            callables, are skipped.
+    """
+
+    for serde in serdes:
+        set_resolver = getattr(serde, 'set_cluster_id_resolver', None)
+        if callable(set_resolver):
+            set_resolver(resolver)
+
+
+def close_serdes(serdes: List[Any]) -> None:
+    """
+    Close every serde, attempting all of them before re-raising the first error.
+
+    Serdes without a ``close`` method are skipped.
+    """
+
+    first_error: Optional[BaseException] = None
+
+    for serde in serdes:
+        close = getattr(serde, 'close', None)
+        if not callable(close):
+            continue
+        try:
+            close()
+        except BaseException as e:
+            if first_error is None:
+                first_error = e
+
+    if first_error is not None:
+        raise first_error
+
+
+async def async_close_serdes(serdes: List[Any]) -> None:
+    """
+    Asyncio counterpart of :py:func:`close_serdes`.
+
+    An asyncio serde is closed through its ``aclose()`` coroutine; a serde
+    without one through ``close()``, which may itself be a coroutine function
+    or a plain method.
+    """
+
+    first_error: Optional[BaseException] = None
+
+    for serde in serdes:
+        close = getattr(serde, 'aclose', None)
+        if not callable(close):
+            close = getattr(serde, 'close', None)
+        if not callable(close):
+            continue
+        try:
+            await maybe_await(close())
+        except BaseException as e:
+            if first_error is None:
+                first_error = e
+
+    if first_error is not None:
+        raise first_error

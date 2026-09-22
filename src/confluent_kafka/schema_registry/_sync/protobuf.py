@@ -54,6 +54,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -672,16 +673,16 @@ class ProtobufSerializerBuilder(SerializerBuilder):
         if self._msg_type is None:
             raise ValueError("Protobuf serializer requires a message type; call set_message_type()")
 
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = ProtobufSerializer(
-            self._msg_type,
-            client,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        serializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: ProtobufSerializer(
+                self._msg_type,
+                client,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1099,16 +1100,16 @@ class ProtobufDeserializerBuilder(DeserializerBuilder):
         if self._msg_type is None:
             raise ValueError("Protobuf deserializer requires a message type; call set_message_type()")
 
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = ProtobufDeserializer(
-            self._msg_type,
-            self._deserializer_conf,
-            client,
-            self._rule_conf,
-            self._rule_registry,
+        deserializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: ProtobufDeserializer(
+                self._msg_type,
+                self._deserializer_conf,
+                client,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._deserializer_init is not None:

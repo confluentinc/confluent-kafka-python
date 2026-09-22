@@ -18,7 +18,7 @@
 
 import asyncio as _locks
 import logging
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple, TypeVar, Union, cast
 
 from cachetools import LRUCache
 
@@ -62,6 +62,7 @@ __all__ = [
     'AsyncBaseSerde',
     'AsyncBaseSerializer',
     'AsyncBaseDeserializer',
+    'async_build_serde',
     'KAFKA_CLUSTER_ID',
     'FALLBACK_TYPE',
 ]
@@ -89,10 +90,60 @@ class AsyncAssociatedNameStrategy:
     def __init__(self, cache_capacity: int = DEFAULT_CACHE_CAPACITY):
         self._cache: LRUCache = LRUCache(maxsize=cache_capacity)
         self._lock: _locks.Lock = _locks.Lock()
+        self._cluster_id_resolver: Optional[Callable[[], Awaitable[str]]] = None
 
     def _get_cache_key(self, topic: str, is_key: bool, record_name: Optional[str]) -> Tuple[str, bool, Optional[str]]:
         """Create a cache key from topic, is_key, and record_name."""
         return (topic, is_key, record_name)
+
+    def set_cluster_id_resolver(self, resolver: Callable[[], Awaitable[str]]) -> None:
+        """
+        Supply a callable resolving the id of the Kafka cluster the client is
+        connected to, used as the resource namespace of association lookups
+        when KAFKA_CLUSTER_ID is not configured.
+
+        The resolver is not invoked here, only on a cache miss of a subject
+        lookup, so that creating a client never waits on a broker. The most
+        recently set resolver wins.
+
+        Args:
+            resolver (callable): Callable returning the cluster id.
+        """
+        self._cluster_id_resolver = resolver
+
+    async def _resolve_cluster_id(self, conf: Optional[dict]) -> str:
+        """
+        The resource namespace to look associations up under: the configured
+        cluster id, else the one the resolver returns, else the wildcard.
+
+        The resolved id is deliberately not cached here: the subject cache
+        already absorbs repeated lookups, and the Kafka client caches the id
+        itself, so a failure is simply retried on the next lookup.
+        """
+        kafka_cluster_id = (conf or {}).get(KAFKA_CLUSTER_ID)
+        if kafka_cluster_id:
+            return kafka_cluster_id
+
+        resolver = self._cluster_id_resolver
+        if resolver is None:
+            return NAMESPACE_WILDCARD
+
+        try:
+            kafka_cluster_id = await resolver()
+        except Exception as e:
+            raise SerializationError(
+                "associated name strategy: could not resolve the Kafka cluster id, "
+                "which typically means the client has not reached a broker yet; "
+                f"set {KAFKA_CLUSTER_ID} to supply it explicitly: {e}"
+            ) from e
+
+        if not kafka_cluster_id:
+            raise SerializationError(
+                "associated name strategy: the Kafka cluster id resolved to an empty "
+                f"string; set {KAFKA_CLUSTER_ID} to supply it explicitly"
+            )
+
+        return kafka_cluster_id
 
     async def _load_subject_name(
         self,
@@ -104,8 +155,6 @@ class AsyncAssociatedNameStrategy:
         conf: Optional[dict],
     ) -> Optional[str]:
         """Load the subject name from schema registry (not cached)."""
-        # Determine resource namespace from config
-        kafka_cluster_id = None
         fallback_strategy = SubjectNameStrategyType.TOPIC  # default fallback
 
         # If no client is available, skip association lookup and use fallback directly
@@ -113,7 +162,6 @@ class AsyncAssociatedNameStrategy:
             return topic_subject_name_strategy(ctx, record_name)
 
         if conf is not None:
-            kafka_cluster_id = conf.get(KAFKA_CLUSTER_ID)
             fallback_config = conf.get(FALLBACK_TYPE)
             if fallback_config is not None:
                 if isinstance(fallback_config, SubjectNameStrategyType):
@@ -130,7 +178,7 @@ class AsyncAssociatedNameStrategy:
                             f"Valid values are: {', '.join(valid_fallbacks)}"
                         )
 
-        resource_namespace = kafka_cluster_id if kafka_cluster_id is not None else NAMESPACE_WILDCARD
+        resource_namespace = await self._resolve_cluster_id(conf)
 
         # Determine association type based on whether this is key or value
         association_type = "key" if is_key else "value"
@@ -248,12 +296,60 @@ class AsyncAssociatedNameStrategy:
             self._cache.clear()
 
 
+_S = TypeVar('_S', bound='AsyncBaseSerde')
+
+
+async def async_build_serde(
+    schema_registry_client: Optional[AsyncSchemaRegistryClient],
+    schema_registry_conf: Optional[dict],
+    construct: Callable[[Optional[AsyncSchemaRegistryClient]], Awaitable[_S]],
+) -> _S:
+    """
+    Construct a serde for a builder, creating the Schema Registry client from
+    ``schema_registry_conf`` when no client was supplied.
+
+    A client created here is owned by the serde, which closes it when it is
+    closed itself; a supplied client stays the application's. If ``construct``
+    raises, a client created here is closed before the error propagates, as
+    nothing else references it yet.
+
+    Args:
+        schema_registry_client: Client supplied by the application, or None.
+
+        schema_registry_conf (dict): Configuration to create a client from
+            when none was supplied. Both None leaves the serde without a client.
+
+        construct (callable): Called with the client and returning the serde.
+
+    Returns:
+        The constructed serde.
+    """
+    client = schema_registry_client
+    owned = False
+    if client is None and schema_registry_conf is not None:
+        client = AsyncSchemaRegistryClient.new_client(schema_registry_conf)
+        owned = True
+
+    try:
+        serde = await construct(client)
+    except BaseException:
+        if owned and client is not None:
+            await client.aclose()
+        raise
+
+    if owned:
+        serde.own_schema_registry_client()
+
+    return serde
+
+
 class AsyncBaseSerde(object):
     __slots__ = [
         '_use_schema_id',
         '_use_latest_version',
         '_use_latest_with_metadata',
         '_registry',
+        '_owns_registry',
         '_rule_registry',
         '_strategy_accepts_client',
         '_subject_name_conf',
@@ -268,6 +364,7 @@ class AsyncBaseSerde(object):
     _use_latest_version: bool
     _use_latest_with_metadata: Optional[Dict[str, str]]
     _registry: Any  # AsyncSchemaRegistryClient
+    _owns_registry: bool
     _rule_registry: Any  # RuleRegistry
     _strategy_accepts_client: bool
     _subject_name_conf: Optional[dict]
@@ -403,40 +500,31 @@ class AsyncBaseSerde(object):
         self._subject_name_func = AsyncAssociatedNameStrategy()
         self._strategy_accepts_client = True
 
-    def needs_cluster_id(self) -> bool:
+    def set_cluster_id_resolver(self, resolver: Callable[[], Any]) -> None:
         """
-        Whether this serde needs to be told the Kafka cluster id.
+        Supply a callable resolving the id of the Kafka cluster the client is
+        connected to.
 
         Only the associated subject name strategy uses the cluster id, as the
-        resource namespace of its association lookups, and only when it was not
-        configured explicitly through KAFKA_CLUSTER_ID. Since that strategy is
-        the default, most serdes constructed by a builder will answer True.
-
-        Returns:
-            bool: True when the cluster id is needed and has not been configured.
-        """
-        if not isinstance(self._subject_name_func, AsyncAssociatedNameStrategy):
-            return False
-
-        return not (self._subject_name_conf or {}).get(KAFKA_CLUSTER_ID)
-
-    def set_cluster_id(self, cluster_id: str) -> None:
-        """
-        Supply the Kafka cluster id the client is connected to.
-
-        Called by the client during construction, before any record is
-        serialized, so no lookup can have been cached under the wildcard
-        namespace yet. An explicitly configured cluster id always wins.
+        resource namespace of its association lookups, so the resolver is
+        handed to that strategy and dropped otherwise. The strategy invokes it
+        lazily, on the first subject lookup, and not at all when
+        KAFKA_CLUSTER_ID was configured explicitly.
 
         Args:
-            cluster_id (str): Id of the cluster the client is connected to.
+            resolver (callable): Callable returning the cluster id.
         """
-        if not self.needs_cluster_id():
-            return
+        if isinstance(self._subject_name_func, AsyncAssociatedNameStrategy):
+            self._subject_name_func.set_cluster_id_resolver(resolver)
 
-        conf = dict(self._subject_name_conf or {})
-        conf[KAFKA_CLUSTER_ID] = cluster_id
-        self._subject_name_conf = conf
+    def own_schema_registry_client(self) -> None:
+        """
+        Make this serde responsible for closing its Schema Registry client.
+
+        Called by the serde builders for the client they created; a client
+        supplied by the application is never closed by the serde.
+        """
+        self._owns_registry = True
 
     async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
@@ -693,6 +781,20 @@ class AsyncBaseSerde(object):
         return self._rule_registry.get_action(action_name)
 
     async def aclose(self):
+        """
+        Release what this serde owns: the rule executors and actions of a
+        dedicated rule registry, and the Schema Registry client when it was
+        created by a serde builder (see :py:func:`own_schema_registry_client`).
+
+        A rule registry or Schema Registry client supplied by the application
+        is left untouched. Safe to call more than once.
+        """
+        try:
+            self._close_rule_registry()
+        finally:
+            await self._close_owned_registry()
+
+    def _close_rule_registry(self) -> None:
         # Close only the executors/actions this serde owns via a dedicated
         # registry. Members of the shared global registry are process-lifetime and
         # used by other serdes, so closing them here would tear down live resources.
@@ -712,6 +814,16 @@ class AsyncBaseSerde(object):
                 executor.close()
             except Exception as e:
                 log.warning("Error closing rule executor %s: %s", type(executor).__name__, e)
+
+    async def _close_owned_registry(self) -> None:
+        # Only the first call releases the client; a client the application
+        # supplied is never closed here.
+        if not getattr(self, '_owns_registry', False):
+            return
+
+        self._owns_registry = False
+        if self._registry is not None:
+            await self._registry.aclose()
 
 
 class AsyncBaseSerializer(AsyncBaseSerde, Serializer):

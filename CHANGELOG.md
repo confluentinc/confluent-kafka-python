@@ -13,11 +13,23 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - `SerializingProducer` and `DeserializingConsumer` accept a *serde builder*
   when not passing a ready-made serde, through the new `key.serializer.builder` /
   `value.serializer.builder` and `key.deserializer.builder` /
-  `value.deserializer.builder` configuration properties (#).
+  `value.deserializer.builder` configuration properties. Serdes built this way,
+  and any Schema Registry client the builder created for them, are owned by the
+  client and closed by its `close()`; ready-made serdes remain the
+  application's (#).
 - Serdes that resolve subjects through the Schema Registry *associated* subject
-  name strategy are now given the Kafka cluster id automatically (#).
-- New `Producer.cluster_id()` and `Consumer.cluster_id()`, returning the id of
-  the cluster the client is connected to (#).
+  name strategy are now given the Kafka cluster id automatically. The id is
+  resolved lazily, on the first subject lookup, so creating a client never
+  waits on a broker; until a broker has been reached the lookup raises a
+  `SerializationError` naming `subject.name.strategy.kafka.cluster.id`, which
+  can be set to supply the id explicitly (#).
+- New `Producer.cluster_id()`, `Consumer.cluster_id()` and
+  `AdminClient.cluster_id()` (also on `AIOProducer` and `AIOConsumer`),
+  returning the id of the cluster the client is connected to (#).
+- New asyncio clients `AsyncSerializingProducer` and `AsyncDeserializingConsumer`
+  in `confluent_kafka.aio`, the counterparts of `SerializingProducer` and
+  `DeserializingConsumer` built on `AIOProducer` / `AIOConsumer`, accepting the
+  asyncio Schema Registry serdes and their builders (#).
 - New `Message.deserialized_key()` and `Message.deserialized_value()`, which
   return the same objects as `key()` and `value()` but are typed with the
   deserialized types on a `DeserializingConsumer`. `SerializingProducer` and

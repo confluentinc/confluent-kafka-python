@@ -47,6 +47,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -658,17 +659,17 @@ class AvroSerializerBuilder(SerializerBuilder):
         return self.__build(conf, is_key)
 
     def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AvroSerializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = AvroSerializer(
-            client,
-            self._schema_str,
-            self._to_dict,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        serializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AvroSerializer(
+                client,
+                self._schema_str,
+                self._to_dict,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1110,18 +1111,18 @@ class AvroDeserializerBuilder(DeserializerBuilder):
         return self.__build(conf, is_key)
 
     def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AvroDeserializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = AvroDeserializer(
-            client,
-            self._schema_str,
-            self._from_dict,
-            self._return_record_name,
-            self._deserializer_conf,
-            self._rule_conf,
-            self._rule_registry,
+        deserializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AvroDeserializer(
+                client,
+                self._schema_str,
+                self._from_dict,
+                self._return_record_name,
+                self._deserializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+            ),
         )
 
         if self._deserializer_init is not None:

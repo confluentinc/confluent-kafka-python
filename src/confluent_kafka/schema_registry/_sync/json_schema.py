@@ -52,6 +52,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -668,18 +669,18 @@ class JSONSerializerBuilder(SerializerBuilder):
         return self.__build(conf, is_key)
 
     def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['JSONSerializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = JSONSerializer(
-            self._schema_str,
-            client,
-            self._to_dict,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
-            self._json_encode,
+        serializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: JSONSerializer(
+                self._schema_str,
+                client,
+                self._to_dict,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+                self._json_encode,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1142,18 +1143,18 @@ class JSONDeserializerBuilder(DeserializerBuilder):
         return self.__build(conf, is_key)
 
     def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['JSONDeserializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = SchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = JSONDeserializer(
-            self._schema_str,
-            self._from_dict,
-            client,
-            self._deserializer_conf,
-            self._rule_conf,
-            self._rule_registry,
-            self._json_decode,
+        deserializer = build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: JSONDeserializer(
+                self._schema_str,
+                self._from_dict,
+                client,
+                self._deserializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+                self._json_decode,
+            ),
         )
 
         if self._deserializer_init is not None:

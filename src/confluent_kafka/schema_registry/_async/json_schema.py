@@ -53,6 +53,7 @@ from confluent_kafka.schema_registry.serde import (
     ParsedSchemaCache,
     SchemaId,
     ValidationRulesExecution,
+    async_build_serde,
     clear_original_key,
     set_original_key,
 )
@@ -674,18 +675,18 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
         return self.__build(conf, is_key)
 
     async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncJSONSerializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        serializer = await AsyncJSONSerializer(
-            self._schema_str,
-            client,
-            self._to_dict,
-            self._serializer_conf,
-            self._rule_conf,
-            self._rule_registry,
-            self._json_encode,
+        serializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncJSONSerializer(
+                self._schema_str,
+                client,
+                self._to_dict,
+                self._serializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+                self._json_encode,
+            ),
         )
 
         if self._serializer_init is not None:
@@ -1159,18 +1160,18 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
         return self.__build(conf, is_key)
 
     async def __build(self, conf: Dict[str, Any], is_key: bool) -> Tuple['AsyncJSONDeserializer', Dict[str, Any]]:
-        client = self._schema_registry_client
-        if client is None and self._schema_registry_conf is not None:
-            client = AsyncSchemaRegistryClient(self._schema_registry_conf)
-
-        deserializer = await AsyncJSONDeserializer(
-            self._schema_str,
-            self._from_dict,
-            client,
-            self._deserializer_conf,
-            self._rule_conf,
-            self._rule_registry,
-            self._json_decode,
+        deserializer = await async_build_serde(
+            self._schema_registry_client,
+            self._schema_registry_conf,
+            lambda client: AsyncJSONDeserializer(
+                self._schema_str,
+                self._from_dict,
+                client,
+                self._deserializer_conf,
+                self._rule_conf,
+                self._rule_registry,
+                self._json_decode,
+            ),
         )
 
         if self._deserializer_init is not None:
