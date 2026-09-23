@@ -9,6 +9,7 @@ Guides
    - :ref:`KIP-848 Migration Guide <pythonclient_migration_kip848>`
    - :ref:`KIP-932 Share Consumer (Queues for Kafka) <pythonclient_kip932_share_consumer>`
    - :ref:`AWS IAM OAUTHBEARER <pythonclient_oauthbearer_aws>`
+   - :ref:`Multithreading Guide <pythonclient_multithreading>`
 
 Client API
    - :ref:`Producer <pythonclient_producer>`
@@ -1180,3 +1181,11 @@ AWS IAM OAUTHBEARER Authentication
 ==================================
 
 .. include:: oauthbearer-aws.rst
+
+
+.. _pythonclient_multithreading:
+
+Multithreading Guide
+=====================
+
+.. include:: multithreading-guide.rst

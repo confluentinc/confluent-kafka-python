@@ -300,9 +300,10 @@ for topic, f in fs.items():
 ```
 ## Thread safety
 
-The `Producer`, `Consumer`, and `AdminClient` are all thread safe. The
-`ShareConsumer` (Preview) is **not** thread safe — a single instance must not
-be used concurrently from multiple threads (see the
+The `Producer` and `AdminClient` are thread safe. `Consumer` and
+`ShareConsumer` (Preview) are **not** designed for concurrent use (a single
+instance must not be shared across threads). For `Consumer`, concurrent calls to the same instance are now serialized 
+rather than corrupting state. `ShareConsumer` instead raises `ConcurrentModificationException` (see the
 [Share Consumer guide](docs/kip-932-share-consumer.md)).
 ## Install
 

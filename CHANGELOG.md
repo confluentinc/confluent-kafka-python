@@ -1,11 +1,14 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.16.0rc1
+## v2.16.0rc2 (Unreleased)
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
 
 ### Enhancements
-- Add support for CPython free-threading (PEP 703) to enable true multi-core parallel execution in No-GIL environments (#2347)
+- `confluent_kafka` now declares itself GIL-safe, enabling real multi-core parallelism on free-threaded CPython builds (#2347)
+- Add Python 3.14t wheels (#2352)
+- Producer `close()` now aborts any open transaction (#2347)
+- Async IO Consumer's default worker pool size has been increased from 2 to 100 (#2347)
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
@@ -18,6 +21,10 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
+- Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
+  `Message` classes (#2347)
+- Serialize concurrent access to a shared `Consumer` instance across threads
+  instead of leaving it as undefined behavior (#2347)
 - Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
 - Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
 
