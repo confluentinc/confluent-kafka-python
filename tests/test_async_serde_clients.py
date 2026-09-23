@@ -485,6 +485,19 @@ def sr_client_closes(monkeypatch):
     return closed
 
 
+async def test_async_builder_rejects_a_client_and_a_config_together(cluster_id_calls, sr_client_closes):
+    registry = sr_client.AsyncSchemaRegistryClient.new_client(SR_CONF)
+    builder = sr_avro.AsyncAvroSerializerBuilder(
+        schema_registry_client=registry, schema_registry_config=SR_CONF, schema=AVRO_SCHEMA
+    )
+
+    # the producer surfaces the builder's error and creates nothing
+    with pytest.raises(ValueError, match='use one or the other'):
+        await _producer(**{'value.serializer.builder': builder})
+
+    assert sr_client_closes == []
+
+
 async def test_sr_builders_round_trip_through_the_async_clients(cluster_id_calls, produced, polled, sr_client_closes):
     # one mock registry shared by both sides, as a real one would be
     registry = sr_client.AsyncSchemaRegistryClient.new_client(SR_CONF)

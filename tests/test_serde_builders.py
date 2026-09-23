@@ -557,14 +557,27 @@ def test_app_supplied_sr_client_is_not_closed_with_the_serde(sr_client_closes):
     assert sr_client_closes == []
 
 
-def test_sr_client_config_is_ignored_when_a_client_is_supplied(sr_client_closes):
+def test_builder_rejects_a_client_and_a_config_together(sr_client_closes):
+    # no precedence between the two: the ambiguity is an error, as in .NET
     client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
-    serializer, _ = sr_avro.AvroSerializerBuilder(
+    builder = sr_avro.AvroSerializerBuilder(
         schema_registry_client=client, schema_registry_config={'url': 'http://unused:8081'}, schema=AVRO_SCHEMA
-    ).build({}, False)
+    )
 
-    assert serializer._registry is client
-    serializer.close()
+    with pytest.raises(ValueError, match='both a Schema Registry client and a configuration'):
+        builder.build({}, False)
+
+    # nothing was created, and the supplied client is untouched
+    assert sr_client_closes == []
+
+
+def test_deserializer_builder_rejects_a_client_and_a_config_together(sr_client_closes):
+    client = sr_client.SchemaRegistryClient.new_client(SR_CONF)
+    builder = sr_avro.AvroDeserializerBuilder().set_schema_registry_client(client).set_schema_registry_config(SR_CONF)
+
+    with pytest.raises(ValueError, match='use one or the other'):
+        builder.build({}, False)
+
     assert sr_client_closes == []
 
 
