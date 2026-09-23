@@ -18,12 +18,76 @@
 import json
 import os
 import re
+import sysconfig
+import warnings
 from base64 import b64decode
 from collections import defaultdict
 
 import pytest
 import respx
 from httpx import Response
+
+from confluent_kafka.schema_registry.common._httpx_compat import httpx as _active_httpx
+
+# respx mocks httpx by default; point it at httpx2 when that's the active
+# client. assert_all_called=False matches the global respx.mock singleton the
+# fixture used before (calling respx.mock(...) otherwise defaults it to True).
+# Responses are still built as httpx.Response (a respx requirement).
+_RESPX_KWARGS = {'assert_all_called': False}
+if _active_httpx.__name__ == 'httpx2':
+    import pytest_httpx2  # noqa: F401  (import registers respx's "httpcore2" mocker)
+
+    _RESPX_KWARGS['using'] = 'httpcore2'
+
+# The modules below import optional dependencies at the top of the file:
+# tink/celpy (rules extra) and orjson (json-fast) ship no free-threaded
+# wheels at all, so they are not installed on free-threaded builds (see
+# requirements-tests-install-nogil.txt) and importing these modules would
+# fail at collection; exclude them there. fastavro (avro extra) does ship a
+# free-threaded wheel, but has not declared itself GIL-safe (see
+# https://github.com/fastavro/fastavro/issues/873), so it is excluded from
+# the free-threaded install too. On regular builds the deps are expected to be
+# installed, so a missing dep stays a loud collection error instead of a
+# silent skip.
+FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+collect_ignore = []
+if FREE_THREADED_BUILD:
+    collect_ignore = [
+        "test_azure_aead.py",
+        "test_azure_client.py",
+        "test_azure_driver.py",
+        "test_cel_validator.py",
+        "test_dlq_action.py",
+        "test_encrypt_executor.py",
+        "test_hcvault_driver.py",
+        "test_inline_tags.py",
+        "test_proto_transform.py",
+        "test_validate_message.py",
+        "_async/test_avro.py",
+        "_async/test_avro_serdes.py",
+        "_async/test_avro_serdes_rules.py",
+        "_async/test_config_rules.py",
+        "_async/test_dlq_serdes.py",
+        "_async/test_json_serdes_rules.py",
+        "_async/test_proto_serdes_rules.py",
+        "_async/test_validation_serdes.py",
+        "_sync/test_avro.py",
+        "_sync/test_avro_serdes.py",
+        "_sync/test_avro_serdes_rules.py",
+        "_sync/test_config_rules.py",
+        "_sync/test_dlq_serdes.py",
+        "_sync/test_json_serdes_rules.py",
+        "_sync/test_proto_serdes_rules.py",
+        "_sync/test_validation_serdes.py",
+    ]
+    warnings.warn(
+        "free-threaded build: skipping collection of {} schema_registry "
+        "test modules requiring optional deps (tink/celpy/orjson/fastavro) "
+        "that ship no free-threaded wheels, or have not "
+        "declared themselves GIL-safe".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -132,7 +196,7 @@ be used to verify the handling of in valid compatibility settings.
 
 @pytest.fixture()
 def mock_schema_registry():
-    with respx.mock as respx_mock:
+    with respx.mock(**_RESPX_KWARGS) as respx_mock:
         respx_mock.route().mock(side_effect=_auth_matcher)
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(

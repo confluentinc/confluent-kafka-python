@@ -25,7 +25,7 @@ from confluent_kafka import (
     Producer,
     ShareConsumer,
 )
-from tests.common import unique_id
+from tests.common import call_until_callback_raises, unique_id
 
 
 def _librdkafka_has_openssl():
@@ -67,7 +67,9 @@ def test_error_cb():
     )
 
     sc.subscribe(['test-topic'])
-    sc.poll(timeout=0.5)
+    deadline = time.monotonic() + 3.0
+    while not error_called and time.monotonic() < deadline:
+        sc.poll(timeout=0.5)
 
     assert len(error_called) > 0, "error_cb should have been called"
     assert isinstance(error_called[0], KafkaError)
@@ -103,7 +105,7 @@ def test_error_cb_exception_propagates():
     sc.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        sc.poll(timeout=0.5)
+        call_until_callback_raises(lambda: sc.poll(timeout=0.5))
 
     assert "Test exception from error_cb" in str(exc_info.value)
     assert len(error_called) > 0
@@ -153,7 +155,7 @@ def test_error_cb_disarm_before_close():
     # this, the "disarm" step below would be a no-op and the test would
     # silently lose its point.
     with pytest.raises(RuntimeError, match="Intentional exception from error_cb"):
-        sc.poll(timeout=0.5)
+        call_until_callback_raises(lambda: sc.poll(timeout=0.5))
 
     assert error_called, "error_cb should have fired before disarm"
     invocations_before_close = len(error_called)
@@ -506,10 +508,13 @@ def test_error_cb_dispatches_during_commit_sync():
     sc.subscribe(['test-topic'])
 
     # Let broker-connection-refused OP_ERR ops accumulate without polling
-    # them, so commit_sync's entry drain has something to dispatch.
-    time.sleep(0.3)
-
-    result = sc.commit_sync(timeout=0.5)
+    # them, so commit_sync's entry drain has something to dispatch. The
+    # failure takes ~1s to surface on Windows, so retry under a deadline:
+    # every call drains on entry, and one of them finds the pending error.
+    deadline = time.monotonic() + 3.0
+    while not error_called and time.monotonic() < deadline:
+        time.sleep(0.3)
+        result = sc.commit_sync(timeout=0.5)
 
     assert result == {}, "no pending acks expected"
     assert error_called, "error_cb should have fired from commit_sync's drain"
@@ -538,9 +543,10 @@ def test_error_cb_dispatches_during_commit_async():
     )
     sc.subscribe(['test-topic'])
 
-    time.sleep(0.3)
-
-    sc.commit_async()  # returns immediately; no exception expected
+    deadline = time.monotonic() + 3.0
+    while not error_called and time.monotonic() < deadline:
+        time.sleep(0.3)
+        sc.commit_async()  # returns immediately; no exception expected
 
     assert error_called, "error_cb should have fired from commit_async's drain"
     sc.close()
@@ -628,10 +634,10 @@ def test_error_cb_raise_propagates_from_commit_sync():
         }
     )
     sc.subscribe(['test-topic'])
-    time.sleep(0.3)  # let some connection-refused errors pile up first
 
+    # Each attempt sleeps first so connection-refused errors pile up before the drain.
     with pytest.raises(RuntimeError, match="boom from error_cb in commit_sync"):
-        sc.commit_sync(timeout=0.5)
+        call_until_callback_raises(lambda: sc.commit_sync(timeout=0.5), sleep_s=0.3)
 
     raising[0] = False  # stop raising so close() is clean
     sc.close()
@@ -659,10 +665,9 @@ def test_error_cb_raise_propagates_from_commit_async():
         }
     )
     sc.subscribe(['test-topic'])
-    time.sleep(0.3)
 
     with pytest.raises(RuntimeError, match="boom from error_cb in commit_async"):
-        sc.commit_async()
+        call_until_callback_raises(sc.commit_async, sleep_s=0.3)
 
     raising[0] = False
     sc.close()
@@ -689,7 +694,9 @@ def test_error_cb_fires_during_close_without_polling():
         }
     )
     sc.subscribe(['test-topic'])
-    time.sleep(0.4)  # let errors queue up without draining them
+    # Let errors queue up without draining them. Nothing may poll here, so this
+    # has to outlast the connect failure, which takes ~1s on Windows.
+    time.sleep(2.0)
 
     assert not calls, "without poll(), no error_cb should fire before close()"
     sc.close()

@@ -34,6 +34,7 @@ from confluent_kafka.admin import (
     UserScramCredentialUpsertion,
 )
 from confluent_kafka.admin import _ElectionType as ElectionType
+from tests.common import call_until_callback_raises
 
 
 def test_types():
@@ -1260,7 +1261,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(KafkaException) as exc_info:
-        admin.poll(timeout=0.2)
+        call_until_callback_raises(lambda: admin.poll(timeout=0.2))
     assert "KafkaException from error_cb" in str(exc_info.value)
 
     # Test error_cb with ValueError
@@ -1269,7 +1270,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(ValueError) as exc_info:
-        admin.poll(timeout=0.2)
+        call_until_callback_raises(lambda: admin.poll(timeout=0.2))
     assert "ValueError from error_cb" in str(exc_info.value)
 
     # Test error_cb with RuntimeError
@@ -1278,7 +1279,7 @@ def test_admin_callback_exception_no_system_error():
     )
 
     with pytest.raises(RuntimeError) as exc_info:
-        admin.poll(timeout=0.2)
+        call_until_callback_raises(lambda: admin.poll(timeout=0.2))
     assert "RuntimeError from error_cb" in str(exc_info.value)
 
 
@@ -1311,9 +1312,10 @@ def test_admin_multiple_callbacks_different_error_types():
         }
     )
 
-    # Test that error_cb callback raises an exception (it's triggered by connection failures)
+    # error_cb is triggered by the connection failure.
+    # stats_cb can raise its ValueError first, so skip past it.
     with pytest.raises(RuntimeError):
-        admin.poll(timeout=0.2)
+        call_until_callback_raises(lambda: admin.poll(timeout=0.2), ignore=(ValueError,))
 
     # Verify that error_cb was called
     assert len(callbacks_called) > 0
