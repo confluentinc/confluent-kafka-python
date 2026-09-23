@@ -110,13 +110,31 @@ def validate_build_result(builder_prop: str, result: Any) -> Tuple[Any, Dict[str
     return serde, remaining_conf
 
 
+def intersect_leftovers(conf: Dict[str, Any], leftovers: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Combine what the builders handed back into the client configuration.
+
+    A property is kept only if every builder left it in place, so a property
+    consumed by any of them never reaches the Kafka client. With no builder
+    the configuration is returned as is.
+    """
+
+    if not leftovers:
+        return conf
+
+    last = leftovers[-1]
+    return {k: v for k, v in last.items() if all(k in leftover for leftover in leftovers[:-1])}
+
+
 def build_serdes(specs: List[SerdeSpec], conf: Dict[str, Any]) -> Tuple[List[Any], List[Any], Dict[str, Any]]:
     """
     Run the builders of a client configuration.
 
-    The configuration is threaded through the builders in turn, so a builder
-    can consume properties of its own before the client sees them. If a
-    builder fails, the serdes built before it are closed.
+    Every builder is handed the full client configuration, so a property two
+    serdes share is seen by both. What the client receives is the intersection
+    of what the builders handed back: a property any builder consumed is
+    filtered out, and what remains holds Kafka properties only. If a builder
+    fails, the serdes built before it are closed.
 
     Args:
         specs (list): The serde specs from :py:func:`pop_serde_props`.
@@ -131,6 +149,7 @@ def build_serdes(specs: List[SerdeSpec], conf: Dict[str, Any]) -> Tuple[List[Any
 
     serdes = []
     owned: List[Any] = []
+    leftovers: List[Dict[str, Any]] = []
 
     try:
         for spec in specs:
@@ -138,14 +157,15 @@ def build_serdes(specs: List[SerdeSpec], conf: Dict[str, Any]) -> Tuple[List[Any
                 serdes.append(spec.serde)
                 continue
 
-            serde, conf = validate_build_result(spec.prop, spec.builder.build(conf, spec.is_key))
+            serde, leftover = validate_build_result(spec.prop, spec.builder.build(dict(conf), spec.is_key))
             serdes.append(serde)
             owned.append(serde)
+            leftovers.append(leftover)
     except BaseException:
         close_serdes(owned)
         raise
 
-    return serdes, owned, conf
+    return serdes, owned, intersect_leftovers(conf, leftovers)
 
 
 async def maybe_await(result: Any) -> Any:
@@ -172,6 +192,7 @@ async def async_build_serdes(
 
     serdes = []
     owned: List[Any] = []
+    leftovers: List[Dict[str, Any]] = []
 
     try:
         for spec in specs:
@@ -179,15 +200,16 @@ async def async_build_serdes(
                 serdes.append(spec.serde)
                 continue
 
-            result = await maybe_await(spec.builder.build(conf, spec.is_key))
-            serde, conf = validate_build_result(spec.prop, result)
+            result = await maybe_await(spec.builder.build(dict(conf), spec.is_key))
+            serde, leftover = validate_build_result(spec.prop, result)
             serdes.append(serde)
             owned.append(serde)
+            leftovers.append(leftover)
     except BaseException:
         await async_close_serdes(owned)
         raise
 
-    return serdes, owned, conf
+    return serdes, owned, intersect_leftovers(conf, leftovers)
 
 
 def propagate_cluster_id_resolver(resolver: Callable[[], Any], serdes: List[Any]) -> None:
