@@ -486,7 +486,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
-        int chunk_count = 0;
+        int chunk_count  = 0;
         PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
@@ -539,7 +539,8 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                         /* Always check for signals between chunks (critical for
                          * interruptibility) */
                         if (check_signals_between_chunks(self, &cs)) {
-                                goto exit; /* Signal detected, result stays NULL */
+                                goto exit; /* Signal detected, result stays NULL
+                                            */
                         }
 
                         /* If timeout error, continue to next chunk */
@@ -587,7 +588,8 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
          * flushing and destroying it.
          */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
-                while (atomic_ptr_get(&self->rk) && atomic_int_get(&self->closing)) {
+                while (atomic_ptr_get(&self->rk) &&
+                       atomic_int_get(&self->closing)) {
                         if (!Handle_sleep(self, 100))
                                 return NULL;
                 }
@@ -609,7 +611,8 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         /* Signal in-flight calls to stop, and wait for them to finish
          * using self->rk before destroying it -- see Handle_rk_use_begin().
-         * New calls will see `closing` and fail with ERR_MSG_PRODUCER_CLOSED. */
+         * New calls will see `closing` and fail with ERR_MSG_PRODUCER_CLOSED.
+         */
         /* TODO NOGIL: replace this poll loop with a mutex/condvar wait so
          * close() unblocks immediately instead of up to 100ms late. */
         while (atomic_int_get(&self->active_calls) > 0) {
@@ -654,7 +657,8 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
         if (txn_errstr[0]) {
                 PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
                                  "Producer abort_transaction failed during "
-                                 "close: %s", txn_errstr);
+                                 "close: %s",
+                                 txn_errstr);
         }
 
         /* If flush failed, warn but don't suppress original exception */
@@ -987,8 +991,8 @@ cleanup:
 static PyObject *Producer_init_transactions(Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
-        double tmout      = -1.0;
-        PyObject *result  = NULL; /* NULL means an exception is already set */
+        double tmout     = -1.0;
+        PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
@@ -1045,7 +1049,7 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         PyObject *metadata = NULL, *offsets = NULL;
         rd_kafka_topic_partition_list_t *c_offsets = NULL;
         rd_kafka_consumer_group_metadata_t *cgmd   = NULL;
-        double tmout     = -1.0;
+        double tmout                               = -1.0;
         PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTuple(args, "OO|d", &offsets, &metadata, &tmout))
@@ -1092,8 +1096,8 @@ exit:
 static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
-        double tmout      = -1.0;
-        PyObject *result  = NULL; /* NULL means an exception is already set */
+        double tmout     = -1.0;
+        PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
@@ -1128,8 +1132,8 @@ exit:
 static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
-        double tmout      = -1.0;
-        PyObject *result  = NULL; /* NULL means an exception is already set */
+        double tmout     = -1.0;
+        PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
