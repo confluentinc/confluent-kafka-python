@@ -616,7 +616,7 @@ class ProtobufSerializerBuilder(SerializerBuilder):
         self._serializer_init = serializer_init
 
     def set_schema_registry_config(self, schema_registry_conf: dict) -> 'ProtobufSerializerBuilder':
-        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        """Configuration for the Schema Registry client to build. Cannot be combined with a client."""
         self._schema_registry_conf = schema_registry_conf
         return self
 
@@ -1041,7 +1041,7 @@ class ProtobufDeserializerBuilder(DeserializerBuilder):
         self._deserializer_init = deserializer_init
 
     def set_schema_registry_config(self, schema_registry_conf: dict) -> 'ProtobufDeserializerBuilder':
-        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        """Configuration for the Schema Registry client to build. Cannot be combined with a client."""
         self._schema_registry_conf = schema_registry_conf
         return self
 

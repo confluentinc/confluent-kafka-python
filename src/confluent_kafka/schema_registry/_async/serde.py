@@ -319,7 +319,7 @@ async def async_build_serde(
         schema_registry_client: Client supplied by the application, or None.
 
         schema_registry_conf (dict): Configuration to create a client from
-            when none was supplied. Both None leaves the serde without a client.
+            instead. Both None leaves the serde without a client.
 
         construct (callable): Called with the client and returning the serde.
 
@@ -328,7 +328,15 @@ async def async_build_serde(
 
     Returns:
         The constructed serde.
+
+    Raises:
+        ValueError: If both a client and a configuration were supplied; there
+            is no sensible precedence between them, so the ambiguity is
+            rejected rather than one of the two silently ignored.
     """
+    if schema_registry_client is not None and schema_registry_conf is not None:
+        raise ValueError("Cannot specify both a Schema Registry client and a configuration; use one or the other")
+
     client = schema_registry_client
     owned = False
     if client is None and schema_registry_conf is not None:

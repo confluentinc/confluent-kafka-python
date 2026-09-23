@@ -605,7 +605,7 @@ class AvroSerializerBuilder(SerializerBuilder):
         self._serializer_init = serializer_init
 
     def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AvroSerializerBuilder':
-        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        """Configuration for the Schema Registry client to build. Cannot be combined with a client."""
         self._schema_registry_conf = schema_registry_conf
         return self
 
@@ -1048,7 +1048,7 @@ class AvroDeserializerBuilder(DeserializerBuilder):
         self._deserializer_init = deserializer_init
 
     def set_schema_registry_config(self, schema_registry_conf: dict) -> 'AvroDeserializerBuilder':
-        """Configuration for the Schema Registry client to build. Ignored when a client is set."""
+        """Configuration for the Schema Registry client to build. Cannot be combined with a client."""
         self._schema_registry_conf = schema_registry_conf
         return self
 
