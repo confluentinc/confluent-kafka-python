@@ -131,6 +131,27 @@ blocks:
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: Linux s390x"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Pre-release Validation"
+    task:
+      agent:
+        machine:
+          type: s1-ubuntu-24-s390x-4
+      env_vars:
+        - name: OS_NAME
+          value: linux
+      jobs:
+        - name: Build
+          commands:
+            - export ARCH=s390x
+            - sem-version python 3.13
+            - pip install uv
+            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
     run:
       when: "tag =~ '.*'"
@@ -477,6 +498,33 @@ blocks:
             - sem-version python 3.9
             - pip install uv
             - tools/verify-free-threaded-job.sh
+  - name: "Wheel Verification: Linux s390x"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Wheels: Linux s390x"
+    task:
+      agent:
+        machine:
+          type: s1-ubuntu-24-s390x-4
+      env_vars:
+        - name: OS_NAME
+          value: linux
+      jobs:
+        - name: Verify
+          commands:
+            - export ARCH=s390x
+            - sem-version python 3.9
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify free threaded
+          commands:
+            - export ARCH=s390x
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
+            - sem-version python 3.9
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: OSX x64"
     run:
       when: "tag =~ '.*'"
@@ -625,6 +673,7 @@ blocks:
     dependencies:
       - "Wheel Verification: Linux x64"
       - "Wheel Verification: Linux arm64"
+      - "Wheel Verification: Linux s390x"
       - "Wheel Verification: OSX x64"
       - "Wheel Verification: OSX arm64"
       - "Wheel Verification: Windows"
