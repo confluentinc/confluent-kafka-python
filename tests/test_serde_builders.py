@@ -25,6 +25,7 @@ metadata request is ever issued.
 import pytest
 
 from confluent_kafka import DeserializingConsumer, KafkaException, SerializingProducer
+from confluent_kafka._serde_builder import build_serdes, pop_serde_props
 from confluent_kafka.cimpl import Message
 from confluent_kafka.serialization import (
     Deserializer,
@@ -162,22 +163,73 @@ def test_builder_sees_client_conf_and_its_leftovers_reach_the_client(cluster_id_
     assert seen_conf['bootstrap.servers'] == 'localhost:9092'
 
 
-def test_builders_are_chained_so_the_second_sees_the_first_leftovers(cluster_id_calls):
-    key_builder = _RecordingBuilder()
-    value_builder = _RecordingBuilder()
+class _ConsumingBuilder(SerializerBuilder):
+    """Builder consuming the given properties and recording the configuration it saw."""
+
+    def __init__(self, *props):
+        self._props = props
+        self.seen = None
+
+    def build(self, conf, is_key):
+        self.seen = dict(conf)
+        remaining = {k: v for k, v in conf.items() if k not in self._props}
+        return StringSerializer(), remaining
+
+
+def test_every_builder_sees_the_full_conf_and_only_what_all_left_reaches_the_client(cluster_id_calls):
+    # As in Go: a property both serdes need must reach both builders, and a
+    # property consumed by either must not reach librdkafka. None of the three
+    # is a librdkafka property, so the producer only constructs if all were
+    # filtered out.
+    key_builder = _ConsumingBuilder('shared.prop', 'key.only.prop')
+    value_builder = _ConsumingBuilder('shared.prop', 'value.only.prop')
     SerializingProducer(
         _producer_conf(
             **{
-                'my.builder.prop': 'consumed',
+                'shared.prop': 'both',
+                'key.only.prop': 'k',
+                'value.only.prop': 'v',
                 'key.serializer.builder': key_builder,
                 'value.serializer.builder': value_builder,
             }
         )
     )
 
-    assert 'my.builder.prop' in key_builder.calls[0][0]
-    # the key builder popped it, so the value builder never sees it
-    assert 'my.builder.prop' not in value_builder.calls[0][0]
+    assert key_builder.seen['shared.prop'] == 'both' and key_builder.seen['value.only.prop'] == 'v'
+    assert value_builder.seen['shared.prop'] == 'both' and value_builder.seen['key.only.prop'] == 'k'
+
+
+def test_the_client_conf_is_the_intersection_of_the_builders_leftovers():
+    specs, conf = pop_serde_props(
+        {
+            'bootstrap.servers': 'b',
+            'shared.prop': 'both',
+            'key.only.prop': 'k',
+            'value.only.prop': 'v',
+            'key.serializer.builder': _ConsumingBuilder('shared.prop', 'key.only.prop'),
+            'value.serializer.builder': _ConsumingBuilder('shared.prop', 'value.only.prop'),
+        },
+        'key.serializer',
+        'value.serializer',
+    )
+
+    _serdes, _owned, client_conf = build_serdes(specs, conf)
+
+    assert client_conf == {'bootstrap.servers': 'b'}
+
+
+def test_a_builder_cannot_leak_a_property_back_into_the_conf(cluster_id_calls):
+    class _MutatingBuilder(SerializerBuilder):
+        def build(self, conf, is_key):
+            conf['not.a.kafka.prop'] = True  # mutates its own copy only
+            return StringSerializer(), {k: v for k, v in conf.items() if k != 'not.a.kafka.prop'}
+
+    # would fail to construct if the mutation reached the shared configuration
+    SerializingProducer(
+        _producer_conf(
+            **{'key.serializer.builder': _MutatingBuilder(), 'value.serializer.builder': _RecordingBuilder()}
+        )
+    )
 
 
 def test_consumer_builds_deserializers(cluster_id_calls):

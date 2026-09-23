@@ -216,6 +216,35 @@ async def test_builder_leftovers_reach_the_client(cluster_id_calls):
     await producer.close()
 
 
+async def test_every_builder_sees_the_full_conf_and_only_what_all_left_reaches_the_client(cluster_id_calls):
+    # As in Go and the blocking clients: a property both serdes need reaches
+    # both builders, and one consumed by either never reaches librdkafka.
+    seen = {}
+
+    class _ConsumingBuilder(SerializerBuilder):
+        def __init__(self, *props):
+            self._props = props
+
+        async def build(self, conf, is_key):
+            seen[is_key] = dict(conf)
+            return StringSerializer(), {k: v for k, v in conf.items() if k not in self._props}
+
+    producer = await _producer(
+        **{
+            'shared.prop': 'both',
+            'key.only.prop': 'k',
+            'value.only.prop': 'v',
+            'key.serializer.builder': _ConsumingBuilder('shared.prop', 'key.only.prop'),
+            'value.serializer.builder': _ConsumingBuilder('shared.prop', 'value.only.prop'),
+        }
+    )
+    await producer.close()
+
+    # the producer only constructed because none of the three reached librdkafka
+    assert seen[True]['shared.prop'] == 'both' and seen[True]['value.only.prop'] == 'v'
+    assert seen[False]['shared.prop'] == 'both' and seen[False]['key.only.prop'] == 'k'
+
+
 async def test_producer_rejects_serializer_and_builder_together(cluster_id_calls):
     with pytest.raises(ValueError, match='Cannot configure both'):
         await _producer(
