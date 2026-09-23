@@ -61,10 +61,12 @@ for py in 3.9 ; do
 
         uv pip install pkginfo
         # On s390x, use the reduced test-install set: cryptography, google-re2 and
-        # tink (pulled by the schemaregistry/rules extras) have no s390x wheels and
-        # would fall back to slow/failing source builds. The smoke test only
-        # exercises core + [avro]/[protobuf]/[json] and the top-level unit tests,
-        # none of which need those deps.
+        # tink (pulled by the schemaregistry/rules requirements) have no s390x
+        # wheels and would fall back to slow/failing source builds. The top-level
+        # unit tests don't need them. The [avro]/[protobuf]/[json] extras
+        # installed below do pull the schema-registry deps, so on s390x
+        # cryptography is built from source there (needs a C compiler and
+        # OpenSSL >= 3.0 headers).
         tests_install_reqs="requirements/requirements-tests-install.txt"
         if [[ "$(uname -m)" == "s390x" ]]; then
             tests_install_reqs="requirements/requirements-tests-install-s390x.txt"

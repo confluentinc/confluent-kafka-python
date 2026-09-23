@@ -5,12 +5,12 @@
 # tink) publish no s390x wheels and would fall back to slow/failing source builds
 # on the s390x agent (e.g. google-re2 needs the abseil C++ headers).
 #
-# This is only the smoke-test dependency set: tools/smoketest.sh installs and
-# exercises the core client plus the [avro], [protobuf] and [json] extras (all of
-# which have s390x wheels or build with gcc) and runs the top-level unit tests,
-# which do not import the rules/schema-registry crypto stack. Drop this file and
-# use requirements-tests-install.txt once cryptography/google-re2/tink ship s390x
-# wheels.
+# This is only the smoke-test dependency set: tools/smoketest.sh runs the
+# top-level unit tests, which do not import the rules/schema-registry crypto
+# stack. (It then also installs the [avro], [protobuf] and [json] extras, which
+# pull the schema-registry deps, so cryptography is still built from source
+# there.) Drop this file and use requirements-tests-install.txt once
+# cryptography/google-re2/tink ship s390x wheels.
 #
 # trivup is also omitted: it is only used by tests/integration (not exercised by
 # the smoke test) and it pulls jwcrypto -> cryptography, reintroducing the same
