@@ -61,6 +61,9 @@ rst2md:
 	$(PANDOC) --wrap=none --from=rst --to=gfm --output=oauthbearer-aws.md oauthbearer-aws.rst
 	@echo
 	@echo "AWS IAM OAUTHBEARER guide Markdown file generated: oauthbearer-aws.md"
+	$(PANDOC) --wrap=none --from=rst --to=gfm --output=multithreading-guide.md multithreading-guide.rst
+	@echo
+	@echo "Multithreading Guide Markdown file generated: multithreading-guide.md"
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
