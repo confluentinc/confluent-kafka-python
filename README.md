@@ -302,8 +302,7 @@ for topic, f in fs.items():
 
 The `Producer` and `AdminClient` are thread safe. `Consumer` and
 `ShareConsumer` (Preview) are **not** designed for concurrent use (a single
-instance must not be shared across threads). For `Consumer`, concurrent calls to the same instance are now serialized 
-rather than corrupting state. `ShareConsumer` instead raises `ConcurrentModificationException` (see the
+instance must not be shared across threads). For `Consumer`, concurrent calls to the same instance are serialized, `ShareConsumer` instead raises `ConcurrentModificationException` (see the
 [Share Consumer guide](docs/kip-932-share-consumer.md)).
 
 See the [Multithreading Guide](docs/multithreading-guide.md) for more detail, including free-threaded (No-GIL) Python specifics and recommended usage patterns.
