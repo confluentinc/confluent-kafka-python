@@ -17,10 +17,11 @@
 #
 import os
 import sys
+import time
 
 import pytest
 
-from confluent_kafka.schema_registry import Schema, header_schema_id_serializer
+from confluent_kafka.schema_registry import Metadata, MetadataProperties, Schema, header_schema_id_serializer
 from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufDeserializer, AsyncProtobufSerializer
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.serde import (
@@ -34,6 +35,20 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
 )
 from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.protobuf import _schema_to_str
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
+    Clock,
+    EncryptionExecutor,
+    FieldEncryptionExecutor,
+)
+from confluent_kafka.schema_registry.schema_registry_client import (
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    ServerConfig,
+)
+from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
 
 # Add proto directory to sys.path to resolve protobuf import dependencies
@@ -47,8 +62,21 @@ from tests.schema_registry.data.proto import (  # noqa: E402
     example_pb2,
     map_widget_pb2,
     nested_pb2,
+    newerwidget_pb2,
+    newwidget_pb2,
     test_pb2,
+    widget_pb2,
 )
+
+
+class FakeClock(Clock):
+
+    def __init__(self):
+        self.fixed_now = int(round(time.time() * 1000))
+
+    def now(self) -> int:
+        return self.fixed_now
+
 
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"

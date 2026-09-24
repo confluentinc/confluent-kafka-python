@@ -372,10 +372,10 @@ PyObject *list_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         if (topic != NULL) {
                 if (!(only_rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
                         PyErr_Format(PyExc_RuntimeError,
-                                     "Unable to create topic object "
-                                     "for \"%s\": %s",
-                                     topic,
-                                     rd_kafka_err2str(rd_kafka_last_error()));
+                                    "Unable to create topic object "
+                                    "for \"%s\": %s",
+                                    topic,
+                                    rd_kafka_err2str(rd_kafka_last_error()));
                         goto end; /* result and only_rkt are NULL */
                 }
         }
@@ -609,7 +609,8 @@ PyObject *list_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         const struct rd_kafka_group_list *group_list = NULL;
         const char *group                            = NULL;
         double tmout                                 = -1.0f;
-        static char *kws[] = {"group", "timeout", NULL};
+        static char *kws[]                           = {"group", "timeout",
+                                                        NULL};
 
         PyErr_WarnEx(PyExc_DeprecationWarning,
                      "list_groups() is deprecated, use list_consumer_groups() "

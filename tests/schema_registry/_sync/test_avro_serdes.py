@@ -21,8 +21,11 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
+from fastavro._logical_readers import UUID
 
 from confluent_kafka.schema_registry import (
+    Metadata,
+    MetadataProperties,
     Schema,
     SchemaRegistryClient,
     header_schema_id_serializer,
@@ -37,8 +40,38 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     AssociationCreateOrUpdateRequest,
 )
 from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
-from confluent_kafka.schema_registry.schema_registry_client import SchemaReference
+from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
+from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
+from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
+    DekAlgorithm,
+    DekRegistryClient,
+)
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
+    Clock,
+    EncryptionExecutor,
+    FieldEncryptionExecutor,
+)
+from confluent_kafka.schema_registry.schema_registry_client import (
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    SchemaReference,
+    ServerConfig,
+)
+from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import MessageField, SerializationContext, SerializationError
+
+
+class FakeClock(Clock):
+
+    def __init__(self):
+        self.fixed_now = int(round(time.time() * 1000))
+
+    def now(self) -> int:
+        return self.fixed_now
+
 
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"

@@ -112,14 +112,15 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                               NULL};
         PyObject *tlist, *on_assign = NULL, *on_revoke = NULL, *on_lost = NULL;
         PyObject *result = NULL;
-        Py_ssize_t pos   = 0;
+        Py_ssize_t pos = 0;
         rd_kafka_resp_err_t err;
 #ifdef Py_GIL_DISABLED
         PyObject *owned_tlist = NULL;
 #endif
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws, &tlist,
-                                         &on_assign, &on_revoke, &on_lost))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
+                                         &tlist, &on_assign,
+                                         &on_revoke, &on_lost))
                 return NULL;
 
         if (!Handle_serialize_enter(self))
@@ -254,7 +255,8 @@ done:
 }
 
 
-static PyObject *Consumer_incremental_assign(Handle *self, PyObject *tlist) {
+static PyObject *
+Consumer_incremental_assign(Handle *self, PyObject *tlist) {
         PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
@@ -354,7 +356,8 @@ done:
         return result;
 }
 
-static PyObject *Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
+static PyObject *
+Consumer_incremental_unassign(Handle *self, PyObject *tlist) {
         PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
@@ -390,7 +393,8 @@ done:
 }
 
 static PyObject *
-Consumer_assignment(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer_assignment(Handle *self, PyObject *args,
+                              PyObject *kwargs) {
 
         PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *c_parts;
@@ -525,8 +529,9 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws, &msg,
-                                         &offsets, &async_o, &async_o)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
+                                         &msg, &offsets, &async_o,
+                                         &async_o)) {
                 Handle_serialize_exit(self);
                 return NULL;
         }
@@ -566,7 +571,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 PyObject *error;
                 PyObject *topic;
-                m     = (Message *)msg;
+                m = (Message *)msg;
                 error = Message_error(m, NULL);
                 if (error != Py_None) {
                         PyObject *errstr =
@@ -582,7 +587,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic = Message_topic(m, NULL);
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
                     c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
@@ -658,7 +663,8 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
 }
 
 static PyObject *
-Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer_store_offsets(Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
         PyErr_Format(PyExc_NotImplementedError,
                      "Consumer store_offsets require "
@@ -674,8 +680,8 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_topic_partition_list_t *c_offsets;
         static char *kws[] = {"message", "offsets", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws, &msg,
-                                         &offsets)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
+                                         &msg, &offsets)) {
                 return NULL;
         }
 
@@ -720,7 +726,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto done;
                 }
 
-                m     = (Message *)msg;
+                m = (Message *)msg;
                 error = Message_error(m, NULL);
                 if (error != Py_None) {
                         PyObject *errstr =
@@ -735,7 +741,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic = Message_topic(m, NULL);
                 c_offsets = rd_kafka_topic_partition_list_new(1);
                 rktpar    = rd_kafka_topic_partition_list_add(
                     c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
@@ -769,7 +775,8 @@ done:
 
 
 static PyObject *
-Consumer_committed(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer_committed(Handle *self, PyObject *args,
+                             PyObject *kwargs) {
 
         PyObject *plist;
         PyObject *result = NULL;
@@ -778,8 +785,8 @@ Consumer_committed(Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout       = -1.0f;
         static char *kws[] = {"partitions", "timeout", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws, &plist,
-                                         &tmout)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+                                         &plist, &tmout)) {
                 return NULL;
         }
 
@@ -816,7 +823,8 @@ done:
 }
 
 static PyObject *
-Consumer_position(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer_position(Handle *self, PyObject *args,
+                            PyObject *kwargs) {
 
         PyObject *plist;
         PyObject *result = NULL;
@@ -824,7 +832,8 @@ Consumer_position(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_resp_err_t err;
         static char *kws[] = {"partitions", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
+                                         &plist)) {
                 return NULL;
         }
 
@@ -867,7 +876,8 @@ Consumer_pause(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_resp_err_t err;
         static char *kws[] = {"partitions", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
+                                         &plist)) {
                 return NULL;
         }
 
@@ -907,7 +917,8 @@ Consumer_resume(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_resp_err_t err;
         static char *kws[] = {"partitions", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
+                                         &plist)) {
                 return NULL;
         }
 
@@ -1014,7 +1025,8 @@ Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout = -1.0f;
         int cached   = 0;
         int64_t low = RD_KAFKA_OFFSET_INVALID, high = RD_KAFKA_OFFSET_INVALID;
-        static char *kws[] = {"partition", "timeout", "cached", NULL};
+        static char *kws[] = {"partition", "timeout", "cached",
+                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|db", kws,
                                          (PyObject **)&tp, &tmout, &cached)) {
@@ -1063,7 +1075,8 @@ done:
 }
 
 static PyObject *
-Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
+Consumer_offsets_for_times(Handle *self, PyObject *args,
+                                     PyObject *kwargs) {
 #if RD_KAFKA_VERSION < 0x000b0000
         PyErr_Format(PyExc_NotImplementedError,
                      "Consumer offsets_for_times require "
@@ -1076,13 +1089,13 @@ Consumer_offsets_for_times(Handle *self, PyObject *args, PyObject *kwargs) {
 
         PyObject *plist;
         PyObject *result = NULL;
-        double tmout     = -1.0f;
+        double tmout = -1.0f;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
         static char *kws[] = {"partitions", "timeout", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws, &plist,
-                                         &tmout)) {
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+                                         &plist, &tmout)) {
                 return NULL;
         }
 
@@ -1138,11 +1151,12 @@ done:
  * @return PyObject* Message object, None if timeout, or NULL on error
  *         (raises KeyboardInterrupt if signal detected)
  */
-static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
+static PyObject *
+Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout            = -1.0f;
         static char *kws[]      = {"timeout", NULL};
         rd_kafka_message_t *rkm = NULL;
-        PyObject *result        = NULL;
+        PyObject *result = NULL;
         CallState cs;
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
@@ -1226,7 +1240,8 @@ done:
         return result;
 }
 
-static PyObject *Consumer_memberid(Handle *self, PyObject *ignore) {
+static PyObject *
+Consumer_memberid(Handle *self, PyObject *ignore) {
         char *memberid;
         PyObject *result = NULL;
 
@@ -1286,7 +1301,8 @@ static PyObject *
 Consumer_consume(Handle *self, PyObject *args, PyObject *kwargs) {
         unsigned int num_messages = 1;
         double tmout              = -1.0f;
-        static char *kws[]        = {"num_messages", "timeout", NULL};
+        static char *kws[]        = {"num_messages", "timeout",
+                              NULL};
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
         rd_kafka_queue_t *rkqu;
@@ -1439,8 +1455,8 @@ done:
         return result;
 }
 
-static PyObject *Consumer_consumer_group_metadata(Handle *self,
-                                                  PyObject *ignore) {
+static PyObject *
+Consumer_consumer_group_metadata(Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
         PyObject *result = NULL;
 

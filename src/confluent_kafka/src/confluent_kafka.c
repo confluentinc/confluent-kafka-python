@@ -101,8 +101,7 @@ static PyObject *KafkaError_str(KafkaError *self, PyObject *ignore) {
         if (self->str)
                 return cfl_PyUnistr_FromStringSafe(self->str);
         else
-                return cfl_PyUnistr_FromStringSafe(
-                    rd_kafka_err2str(self->code));
+                return cfl_PyUnistr_FromStringSafe(rd_kafka_err2str(self->code));
 }
 
 static PyObject *KafkaError_name(KafkaError *self, PyObject *ignore) {
@@ -486,7 +485,8 @@ static void cfl_PyErr_Fatal(rd_kafka_resp_err_t err, const char *reason) {
  *        (free-threaded builds) cannot drop the last reference between our
  *        read and our INCREF. No-op on GIL builds.
  */
-static PyObject *Message_get_field(Message *self, PyObject **field) {
+static PyObject *
+Message_get_field(Message *self, PyObject **field) {
         PyObject *obj;
 
         Py_BEGIN_CRITICAL_SECTION(self);
@@ -2992,12 +2992,12 @@ static void common_conf_set_software(rd_kafka_conf_t *conf) {
 static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         static const char MARKER_KEY[] =
             "sasl.oauthbearer.metadata.authentication.type";
-        static const char MARKER_VALUE[]      = "aws_iam";
-        static const char METHOD_KEY[]        = "sasl.oauthbearer.method";
+        static const char MARKER_VALUE[] = "aws_iam";
+        static const char METHOD_KEY[] = "sasl.oauthbearer.method";
         static const char METHOD_OIDC_VALUE[] = "oidc";
-        static const char CONFIG_KEY[]        = "sasl.oauthbearer.config";
-        static const char EXTENSIONS_KEY[]    = "sasl.oauthbearer.extensions";
-        static const char OAUTH_CB_KEY[]      = "oauth_cb";
+        static const char CONFIG_KEY[] = "sasl.oauthbearer.config";
+        static const char EXTENSIONS_KEY[] = "sasl.oauthbearer.extensions";
+        static const char OAUTH_CB_KEY[] = "oauth_cb";
         static const char AUTOWIRE_MODULE[] =
             "confluent_kafka._oauthbearer.aws.aws_autowire";
         static const char CREATE_HANDLER[] = "create_handler";
@@ -3027,8 +3027,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         const char *marker_c;
         const char *method_c;
 
-        /* Explicit oauth_cb wins: nothing to autowire, regardless of the
-         * marker. */
+        /* Explicit oauth_cb wins: nothing to autowire, regardless of the marker. */
         cb = PyDict_GetItemString(confdict, OAUTH_CB_KEY);
         if (cb && cb != Py_None) {
                 return 0;
@@ -3048,7 +3047,7 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
                 return 0;
         }
 
-        method   = PyDict_GetItemString(confdict, METHOD_KEY);
+        method = PyDict_GetItemString(confdict, METHOD_KEY);
         method_c = (method && PyUnicode_Check(method))
                        ? PyUnicode_AsUTF8(method)
                        : NULL;
@@ -3095,8 +3094,8 @@ static int resolve_aws_oauthbearer_marker(PyObject *confdict) {
         if (!func) {
                 return -1;
         }
-        callback = PyObject_CallFunction(func, "OO", cfg_str,
-                                         ext_str ? ext_str : Py_None);
+        callback = PyObject_CallFunction(
+            func, "OO", cfg_str, ext_str ? ext_str : Py_None);
         Py_DECREF(func);
         if (!callback) {
                 return -1;
@@ -3635,7 +3634,8 @@ int Handle_serialize_enter(Handle *h) {
         unsigned long identity = 0;
         PyObject *value        = NULL;
 
-        if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) == -1)
+        if (PyContextVar_Get(Consumer_reentry_identity_var, NULL, &value) ==
+            -1)
                 return 0;
 
         if (value && PyLong_Check(value))
@@ -3661,7 +3661,8 @@ int Handle_serialize_enter(Handle *h) {
                 }
 
                 if (owner == 0 &&
-                    atomic_ulong_cas(&h->u.Consumer.gate_owner, 0, identity)) {
+                    atomic_ulong_cas(&h->u.Consumer.gate_owner, 0,
+                                     identity)) {
                         /* Gate looked unowned and we won the race to take
                          * it. */
                         atomic_int_set(&h->u.Consumer.gate_depth, 1);
