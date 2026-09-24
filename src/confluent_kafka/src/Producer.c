@@ -579,7 +579,6 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
         /* Calling close() reentrantly from within a callback
          * is not supported and will deadlock here.
-         * TODO NOGIL: Update documentation to highlight this.
          */
 
         /* If there are concurrent calls to close(), only one of them can
@@ -1279,11 +1278,14 @@ static PyMethodDef Producer_methods[] = {
     {"close", (PyCFunction)Producer_close, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: close()\n"
      "\n"
-     "   Request to close the producer on demand.\n"
+     "   Request to close the producer on demand. Aborts any in-progress "
+     "transaction, then flushes outstanding messages before shutting down.\n"
      "\n"
      "  :rtype: bool\n"
      "  :returns: True if producer close requested successfully, False "
      "otherwise\n"
+     ".. warning:: Calling close() from within a callback is not recommended and"
+     " will deadlock.\n"
      "\n"},
     {"flush", (PyCFunction)Producer_flush, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: flush([timeout])\n"

@@ -3845,7 +3845,6 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
 
         /* Calling __exit__ reentrantly from within a callback
          * is not supported and will deadlock here.
-         * TODO NOGIL: Update documentation to highlight this.
          */
 
         /* If there are concurrent calls to __exit__, only one of them can
@@ -4023,7 +4022,10 @@ static PyMethodDef Admin_methods[] = {
     {"__enter__", (PyCFunction)Admin_enter, METH_NOARGS,
      "Context manager entry."},
     {"__exit__", (PyCFunction)Admin_exit, METH_VARARGS,
-     "Context manager exit. Automatically destroys the admin client."},
+     "Context manager exit. Automatically destroys the admin client.\n"
+     "\n"
+     ".. warning:: Calling this from within a callback is not recommended "
+     "and will deadlock.\n"},
 
     {NULL}};
 
