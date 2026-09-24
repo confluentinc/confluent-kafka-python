@@ -1185,7 +1185,7 @@ done:
 #ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_resources);
 #endif
-        Py_XDECREF(ConfigResource_type);      /* from lookup() */
+        Py_XDECREF(ConfigResource_type); /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
          * it (see options_to_c()). */
         if (future_incremented && !result)
@@ -1360,8 +1360,8 @@ done:
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
         Py_XDECREF(owned_resources);
-        Py_XDECREF(ConfigResource_type);      /* from lookup() */
-        Py_XDECREF(ConfigEntry_type);         /* from lookup() */
+        Py_XDECREF(ConfigResource_type); /* from lookup() */
+        Py_XDECREF(ConfigEntry_type);    /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
          * it (see options_to_c()). */
         if (future_incremented && !result)
@@ -1531,7 +1531,7 @@ done:
 #ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_resources);
 #endif
-        Py_XDECREF(ConfigResource_type);      /* from lookup() */
+        Py_XDECREF(ConfigResource_type); /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
          * it (see options_to_c()). */
         if (future_incremented && !result)
@@ -2150,9 +2150,9 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
 #ifdef Py_GIL_DISABLED
         PyObject *owned_users = NULL;
 #endif
-        rd_kafka_queue_t *rkqu             = NULL;
-        PyObject *result                   = NULL;
-        int future_incremented             = 0;
+        rd_kafka_queue_t *rkqu = NULL;
+        PyObject *result       = NULL;
+        int future_incremented = 0;
         CallState cs;
 
         /* users is a list of strings. */
@@ -2280,11 +2280,11 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
 #ifdef Py_GIL_DISABLED
         PyObject *owned_alterations = NULL;
 #endif
-        PyObject *UserScramCredentialAlteration_type             = NULL;
-        PyObject *UserScramCredentialUpsertion_type              = NULL;
-        PyObject *UserScramCredentialDeletion_type               = NULL;
-        PyObject *ScramCredentialInfo_type                       = NULL;
-        PyObject *ScramMechanism_type                            = NULL;
+        PyObject *UserScramCredentialAlteration_type = NULL;
+        PyObject *UserScramCredentialUpsertion_type  = NULL;
+        PyObject *UserScramCredentialDeletion_type   = NULL;
+        PyObject *ScramCredentialInfo_type           = NULL;
+        PyObject *ScramMechanism_type                = NULL;
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
@@ -2621,8 +2621,8 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_AdminOptions_t *c_options = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
-        int groups_cnt = 0;
-        int i          = 0;
+        int groups_cnt     = 0;
+        int i              = 0;
         int entered_rk_use = 0;
 
         static char *kws[] = {"future", "group_ids",
@@ -3852,7 +3852,8 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
          * flushing and destroying it.
          */
         if (!atomic_int_cas(&self->closing, 0, 1)) {
-                while (atomic_ptr_get(&self->rk) && atomic_int_get(&self->closing)) {
+                while (atomic_ptr_get(&self->rk) &&
+                       atomic_int_get(&self->closing)) {
                         if (!Handle_sleep(self, 100))
                                 return NULL;
                 }
