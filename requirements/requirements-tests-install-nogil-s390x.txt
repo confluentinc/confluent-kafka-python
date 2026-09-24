@@ -5,8 +5,8 @@
 # Same as requirements-tests-install-nogil.txt but WITHOUT
 # requirements-schemaregistry.txt and trivup, for the reason given in
 # requirements-tests-install-s390x.txt: they pull cryptography (via authlib and
-# jwcrypto), which publishes no s390x wheels. The job skips tests/schema_registry
-# to match.
+# jwcrypto), which publishes no s390x wheels. tests/conftest.py skips collecting
+# tests/schema_registry on s390x to match.
 # Keep in sync with requirements-tests-install-nogil.txt when adding new includes.
 -r requirements-tests.txt
 -r requirements-avro-nogil.txt

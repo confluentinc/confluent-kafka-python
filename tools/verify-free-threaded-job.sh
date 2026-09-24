@@ -26,14 +26,12 @@ esac
 echo "Verifying the free-threaded wheel matching $wheel_glob for $OS_NAME-$ARCH"
 
 # s390x: the schema-registry stack's deps (cryptography, via authlib and trivup's
-# jwcrypto) publish no s390x wheels, so install the reduced set and skip the
-# schema-registry tests, as the s390x smoke test does (see
-# requirements/requirements-tests-install-nogil-s390x.txt).
+# jwcrypto) publish no s390x wheels, so install the reduced set (see
+# requirements/requirements-tests-install-nogil-s390x.txt). tests/conftest.py
+# skips collecting tests/schema_registry on s390x to match.
 tests_install_reqs=requirements/requirements-tests-install-nogil.txt
-ignore_sr_tests=
 if [[ $ARCH == s390x ]]; then
     tests_install_reqs=requirements/requirements-tests-install-nogil-s390x.txt
-    ignore_sr_tests=--ignore=tests/schema_registry
 fi
 
 uv venv _venv314t --python 3.14t
@@ -49,5 +47,4 @@ ls artifacts/wheelhouse/$wheel_glob
 uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
 
 tools/verify-free-threaded-wheel.sh
-# Unquoted on purpose: an empty $ignore_sr_tests must expand to no argument.
-python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py $ignore_sr_tests --timeout 1200
+python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
