@@ -26,7 +26,7 @@ import asyncio
 
 import pytest
 
-from confluent_kafka import KafkaError
+from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.aio import AIOConsumer, AIOProducer, AsyncDeserializingConsumer, AsyncSerializingProducer
 from confluent_kafka.cimpl import Message
 from confluent_kafka.error import (
@@ -280,6 +280,101 @@ async def test_cluster_id_is_resolved_lazily(cluster_id_calls):
 
         assert await serializer.resolver() == CLUSTER_ID
         assert cluster_id_calls == [60.0]
+    finally:
+        await producer.close()
+
+
+class _BlockingClusterId:
+    """An async ``cluster_id`` stand-in that waits until released, recording its calls."""
+
+    def __init__(self, fail=False):
+        self.calls = []
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.fail = fail
+
+    async def __call__(self, timeout=-1):
+        self.calls.append(timeout)
+        self.entered.set()
+        await asyncio.wait_for(self.release.wait(), 5)
+        if self.fail:
+            raise KafkaException(KafkaError(KafkaError._TIMED_OUT, "no broker"))
+        return CLUSTER_ID
+
+
+async def _resolver_of_producer(monkeypatch, cluster_id):
+    async def _cluster_id(self, timeout=-1):
+        return await cluster_id(timeout)
+
+    monkeypatch.setattr(AIOProducer, 'cluster_id', _cluster_id)
+    serializer = _AsyncTrackingSerializer()
+    producer = await _producer(**{'value.serializer': serializer})
+    return producer, serializer.resolver
+
+
+async def test_concurrent_resolutions_share_a_single_cluster_id_call(monkeypatch):
+    cluster_id = _BlockingClusterId()
+    producer, resolver = await _resolver_of_producer(monkeypatch, cluster_id)
+    try:
+        first = asyncio.ensure_future(resolver())
+        await cluster_id.entered.wait()
+        # these join the call in flight rather than starting their own
+        others = [asyncio.ensure_future(resolver()) for _ in range(4)]
+        cluster_id.release.set()
+
+        assert await asyncio.gather(first, *others) == [CLUSTER_ID] * 5
+        assert cluster_id.calls == [60.0]
+    finally:
+        await producer.close()
+
+
+async def test_a_completed_resolution_is_not_reused(monkeypatch):
+    cluster_id = _BlockingClusterId()
+    cluster_id.release.set()
+    producer, resolver = await _resolver_of_producer(monkeypatch, cluster_id)
+    try:
+        assert await resolver() == CLUSTER_ID
+        assert await resolver() == CLUSTER_ID
+        assert cluster_id.calls == [60.0, 60.0]
+    finally:
+        await producer.close()
+
+
+async def test_a_failed_resolution_fails_every_waiter_and_is_retried(monkeypatch):
+    cluster_id = _BlockingClusterId(fail=True)
+    producer, resolver = await _resolver_of_producer(monkeypatch, cluster_id)
+    try:
+        first = asyncio.ensure_future(resolver())
+        await cluster_id.entered.wait()
+        others = [asyncio.ensure_future(resolver()) for _ in range(2)]
+        cluster_id.release.set()
+
+        results = await asyncio.gather(first, *others, return_exceptions=True)
+        assert all(isinstance(r, KafkaException) for r in results)
+        assert cluster_id.calls == [60.0]
+
+        cluster_id.fail = False
+        assert await resolver() == CLUSTER_ID
+        assert cluster_id.calls == [60.0, 60.0]
+    finally:
+        await producer.close()
+
+
+async def test_a_cancelled_waiter_leaves_the_shared_resolution_running(monkeypatch):
+    cluster_id = _BlockingClusterId()
+    producer, resolver = await _resolver_of_producer(monkeypatch, cluster_id)
+    try:
+        first = asyncio.ensure_future(resolver())
+        await cluster_id.entered.wait()
+        second = asyncio.ensure_future(resolver())
+        await asyncio.sleep(0)
+        first.cancel()
+        cluster_id.release.set()
+
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        assert await second == CLUSTER_ID
+        assert cluster_id.calls == [60.0]
     finally:
         await producer.close()
 

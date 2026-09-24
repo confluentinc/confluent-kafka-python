@@ -148,8 +148,9 @@ class Serializer(object):
         :py:class:`SerializingProducer` calls this once, right after it has
         created the underlying client. The resolver may block for as long as
         the client waits for broker metadata, so a serializer must not invoke
-        it during this call, only later when it actually needs the id. A
-        serializer that resolves subjects through the Schema Registry
+        it during this call, only later when it actually needs the id;
+        concurrent invocations share a single wait. A serializer that
+        resolves subjects through the Schema Registry
         *associated* subject name strategy keeps it and invokes it on the
         first subject lookup, unless the cluster id was configured explicitly.
         The default implementation does nothing.

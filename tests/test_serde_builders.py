@@ -22,9 +22,11 @@ librdkafka accepts without connecting, and ``cluster_id`` is patched out so no
 metadata request is ever issued.
 """
 
+import threading
+
 import pytest
 
-from confluent_kafka import DeserializingConsumer, KafkaException, SerializingProducer
+from confluent_kafka import DeserializingConsumer, KafkaError, KafkaException, SerializingProducer
 from confluent_kafka._serde_builder import build_serdes, pop_serde_props
 from confluent_kafka.cimpl import Message
 from confluent_kafka.serialization import (
@@ -328,6 +330,92 @@ def test_resolver_handed_to_built_serde(cluster_id_calls):
     SerializingProducer(_producer_conf(**{'value.serializer.builder': _RecordingBuilder(serializer)}))
 
     assert serializer.resolver() == CLUSTER_ID
+
+
+class _BlockingClusterId:
+    """A ``cluster_id`` stand-in that blocks until released, recording its calls."""
+
+    def __init__(self, fail=False):
+        self.calls = []
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.fail = fail
+
+    def __call__(self, timeout=-1):
+        self.calls.append(timeout)
+        self.entered.set()
+        self.release.wait(5)
+        if self.fail:
+            raise KafkaException(KafkaError(KafkaError._TIMED_OUT, "no broker"))
+        return CLUSTER_ID
+
+
+def _resolver_of_producer(monkeypatch, cluster_id):
+    monkeypatch.setattr(SerializingProducer, 'cluster_id', lambda self, timeout=-1: cluster_id(timeout), raising=False)
+    serializer = _TrackingSerializer()
+    SerializingProducer(_producer_conf(**{'value.serializer': serializer}))
+    return serializer.resolver
+
+
+def _run_concurrently(fn, count):
+    results = [None] * count
+
+    def _call(i):
+        try:
+            results[i] = fn()
+        except BaseException as e:
+            results[i] = e
+
+    threads = [threading.Thread(target=_call, args=(i,)) for i in range(count)]
+    for t in threads:
+        t.start()
+    return threads, results
+
+
+def test_concurrent_resolutions_share_a_single_cluster_id_call(monkeypatch):
+    cluster_id = _BlockingClusterId()
+    resolver = _resolver_of_producer(monkeypatch, cluster_id)
+
+    threads, results = _run_concurrently(resolver, 1)
+    assert cluster_id.entered.wait(5)
+    # these join the call in flight rather than starting their own
+    more, more_results = _run_concurrently(resolver, 4)
+    cluster_id.release.set()
+    for t in threads + more:
+        t.join(5)
+
+    assert results + more_results == [CLUSTER_ID] * 5
+    assert cluster_id.calls == [60.0]
+
+
+def test_a_completed_resolution_is_not_reused(monkeypatch):
+    # librdkafka caches the id itself, so the next caller asks it again
+    cluster_id = _BlockingClusterId()
+    cluster_id.release.set()
+    resolver = _resolver_of_producer(monkeypatch, cluster_id)
+
+    assert resolver() == CLUSTER_ID
+    assert resolver() == CLUSTER_ID
+    assert cluster_id.calls == [60.0, 60.0]
+
+
+def test_a_failed_resolution_fails_every_waiter_and_is_retried(monkeypatch):
+    cluster_id = _BlockingClusterId(fail=True)
+    resolver = _resolver_of_producer(monkeypatch, cluster_id)
+
+    threads, results = _run_concurrently(resolver, 1)
+    assert cluster_id.entered.wait(5)
+    more, more_results = _run_concurrently(resolver, 2)
+    cluster_id.release.set()
+    for t in threads + more:
+        t.join(5)
+
+    assert all(isinstance(r, KafkaException) for r in results + more_results)
+    assert cluster_id.calls == [60.0]
+
+    cluster_id.fail = False
+    assert resolver() == CLUSTER_ID
+    assert cluster_id.calls == [60.0, 60.0]
 
 
 def test_plain_callables_and_base_serdes_are_left_alone(cluster_id_calls):

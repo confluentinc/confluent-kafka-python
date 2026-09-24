@@ -38,7 +38,7 @@ from confluent_kafka.cimpl import Consumer as _ConsumerImpl
 from confluent_kafka.cimpl import Message
 
 from ._serde_builder import (
-    CLUSTER_ID_TIMEOUT,
+    SharedClusterIdResolver,
     build_serdes,
     close_serdes,
     pop_serde_props,
@@ -135,7 +135,7 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
         try:
             super(DeserializingConsumer, self).__init__(conf_copy)
 
-            propagate_cluster_id_resolver(lambda: self.cluster_id(timeout=CLUSTER_ID_TIMEOUT), serdes)
+            propagate_cluster_id_resolver(SharedClusterIdResolver(self.cluster_id), serdes)
         except BaseException:
             owned, self._owned_serdes = self._owned_serdes, []
             try:

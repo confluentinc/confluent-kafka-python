@@ -29,7 +29,7 @@ else:
     V = TypeVar("V")
 
 from .._serde_builder import (
-    CLUSTER_ID_TIMEOUT,
+    AsyncSharedClusterIdResolver,
     async_build_serdes,
     async_close_serdes,
     maybe_await,
@@ -118,7 +118,7 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
         try:
             AIOProducer.__init__(self, conf_copy, **kwargs)
 
-            propagate_cluster_id_resolver(self._resolve_cluster_id, serdes)
+            propagate_cluster_id_resolver(AsyncSharedClusterIdResolver(self.cluster_id), serdes)
         except BaseException:
             owned, self._owned_serdes = self._owned_serdes, []
             try:
@@ -130,9 +130,6 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
     # asyncinit awaits __init__, so it is a coroutine function; assigning it
     # keeps type checkers from objecting to an async __init__.
     __init__ = __init_impl
-
-    async def _resolve_cluster_id(self) -> str:
-        return await self.cluster_id(timeout=CLUSTER_ID_TIMEOUT)
 
     async def close(self) -> None:
         """

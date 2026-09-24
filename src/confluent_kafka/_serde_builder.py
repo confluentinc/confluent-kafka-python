@@ -25,8 +25,11 @@ produces one, own the serdes they built, and hand the serdes a resolver for
 the Kafka cluster id. That handling lives here so the clients stay in step.
 """
 
+import asyncio
+import concurrent.futures
 import inspect
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+import threading
+from typing import Any, Awaitable, Callable, Dict, List, NamedTuple, Optional, Tuple
 
 #: Time to wait for the cluster id, in seconds. Matches the default
 #: ``max.block.ms`` the Java client allows for metadata retrieval.
@@ -212,6 +215,98 @@ async def async_build_serdes(
     return serdes, owned, intersect_leftovers(conf, leftovers)
 
 
+class SharedClusterIdResolver:
+    """
+    Resolve the Kafka cluster id with at most one call in flight per client.
+
+    The resolver handed to the serdes runs on whichever thread serializes or
+    deserializes a message, and ``cluster_id()`` blocks for up to the timeout
+    while the client reaches a broker. Concurrent callers, both serdes and
+    any number of threads, share a single such call and its deadline rather
+    than each starting a wait of their own.
+
+    The outcome is not kept once the call completes: librdkafka caches the id
+    itself once known, so later calls return at once, and a failed resolution
+    is simply retried by the next caller.
+
+    Args:
+        cluster_id (callable): The client's ``cluster_id`` method.
+
+        timeout (float): Seconds to wait for the id.
+    """
+
+    def __init__(self, cluster_id: Callable[..., Any], timeout: float = CLUSTER_ID_TIMEOUT) -> None:
+        self._cluster_id = cluster_id
+        self._timeout = timeout
+        self._lock = threading.Lock()
+        self._in_flight: Optional["concurrent.futures.Future[Any]"] = None
+
+    def __call__(self) -> Any:
+        with self._lock:
+            in_flight = self._in_flight
+            if in_flight is not None:
+                joined = True
+            else:
+                joined = False
+                in_flight = self._in_flight = concurrent.futures.Future()
+
+        if joined:
+            return in_flight.result()
+
+        try:
+            result = self._cluster_id(timeout=self._timeout)
+        except BaseException as e:
+            self._clear(in_flight)
+            in_flight.set_exception(e)
+            raise
+
+        # Cleared before completing, so that a caller woken by the completion
+        # that resolves again starts a fresh call rather than getting this
+        # completed one back.
+        self._clear(in_flight)
+        in_flight.set_result(result)
+        return result
+
+    def _clear(self, in_flight: "concurrent.futures.Future[Any]") -> None:
+        with self._lock:
+            if self._in_flight is in_flight:
+                self._in_flight = None
+
+
+class AsyncSharedClusterIdResolver:
+    """
+    Asyncio counterpart of :py:class:`SharedClusterIdResolver`.
+
+    Concurrent awaiters share a single ``cluster_id()`` call, which the
+    asyncio clients run on their executor, so however many coroutines miss
+    the subject cache at once only one executor thread waits on the broker.
+    A waiter that is cancelled leaves the shared call running for the others.
+
+    Args:
+        cluster_id (coroutine function): The client's ``cluster_id`` method.
+
+        timeout (float): Seconds to wait for the id.
+    """
+
+    def __init__(self, cluster_id: Callable[..., Awaitable[Any]], timeout: float = CLUSTER_ID_TIMEOUT) -> None:
+        self._cluster_id = cluster_id
+        self._timeout = timeout
+        self._in_flight: Optional["asyncio.Task[Any]"] = None
+
+    async def __call__(self) -> Any:
+        in_flight = self._in_flight
+        if in_flight is None:
+            in_flight = self._in_flight = asyncio.get_running_loop().create_task(self._resolve())
+        return await asyncio.shield(in_flight)
+
+    async def _resolve(self) -> Any:
+        try:
+            return await self._cluster_id(timeout=self._timeout)
+        finally:
+            # cleared before the task completes, see SharedClusterIdResolver
+            self._in_flight = None
+
+
 def propagate_cluster_id_resolver(resolver: Callable[[], Any], serdes: List[Any]) -> None:
     """
     Hand a Kafka cluster id resolver to every serde that can take one.
@@ -223,8 +318,10 @@ def propagate_cluster_id_resolver(resolver: Callable[[], Any], serdes: List[Any]
     broker.
 
     Args:
-        resolver (callable): Callable returning the cluster id; a coroutine
-            function for the asyncio clients.
+        resolver (callable): Callable returning the cluster id, normally a
+            :py:class:`SharedClusterIdResolver`; a coroutine function, normally
+            an :py:class:`AsyncSharedClusterIdResolver`, for the asyncio
+            clients.
 
         serdes (list): Serdes to offer the resolver to. None entries and
             serdes without a ``set_cluster_id_resolver`` method, such as plain

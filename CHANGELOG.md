@@ -20,7 +20,8 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - Serdes that resolve subjects through the Schema Registry *associated* subject
   name strategy are now given the Kafka cluster id automatically. The id is
   resolved lazily, on the first subject lookup, so creating a client never
-  waits on a broker; until a broker has been reached the lookup raises a
+  waits on a broker, and concurrent lookups share a single `cluster_id()`
+  call; until a broker has been reached the lookup raises a
   `SerializationError` naming `subject.name.strategy.kafka.cluster.id`, which
   can be set to supply the id explicitly (#2364).
 - New `Producer.cluster_id()`, `Consumer.cluster_id()` and
