@@ -1,8 +1,10 @@
 import base64
+import datetime
+import decimal
 import io
 import sys
 from collections import deque
-from decimal import MAX_PREC, Context, Decimal
+from decimal import MAX_EMAX, MAX_PREC, MIN_EMIN, ROUND_HALF_UP, Context, Decimal
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
 from google.protobuf import __version__ as _protobuf_version
@@ -41,12 +43,18 @@ from google.type import (
 
 import confluent_kafka.schema_registry.confluent.meta_pb2 as meta_pb2
 from confluent_kafka.schema_registry import RuleKind
-from confluent_kafka.schema_registry.confluent.types import decimal_pb2
+from confluent_kafka.schema_registry.confluent.type import decimal_pb2, variant_pb2
+from confluent_kafka.schema_registry.confluent.type.decimal_utils import (
+    unscaled_to_bytes,
+)
+from confluent_kafka.schema_registry.confluent.type.variant_utils import Variant
+from confluent_kafka.schema_registry.confluent.types import decimal_pb2 as legacy_decimal_pb2
 from confluent_kafka.schema_registry.serde import (
     FieldTransform,
     FieldType,
     RuleConditionError,
     RuleContext,
+    RuleError,
     ValidationRule,
     ValidationRuleError,
     ValidationRuleExecutor,
@@ -73,6 +81,8 @@ __all__ = [
     '_is_builtin',
     'decimal_to_protobuf',
     'protobuf_to_decimal',
+    'variant_to_protobuf',
+    'protobuf_to_variant',
 ]
 
 # Convert an int to bytes (inverse of ord())
@@ -253,6 +263,137 @@ def _init_pool(pool: DescriptorPool):
 
     pool.AddSerializedFile(meta_pb2.DESCRIPTOR.serialized_pb)
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
+    pool.AddSerializedFile(variant_pb2.DESCRIPTOR.serialized_pb)
+    # The path confluent.type.Decimal used to occupy. A schema importing it is never sent with a
+    # reference - _is_builtin matches the whole confluent/ prefix - so the pool is the only place
+    # a reader can resolve it from. The stub declares nothing and publicly imports the canonical
+    # file, so it re-exports confluent.type.Decimal without a second declaration of the symbol,
+    # which a pool refuses. Added after the canonical file, which it depends on. Variant needs no
+    # such stub: it had not shipped under the old path.
+    pool.AddSerializedFile(legacy_decimal_pb2.DESCRIPTOR.serialized_pb)
+
+
+# Message types a CEL rule works with as a single value rather than as a record.
+#
+# Avro carries the same concepts as logical types on a primitive, so the field is a leaf there
+# and a CEL_FIELD rule reaches it. In protobuf they are messages, and without this the walk
+# descends into their internals and transforms `value`/`scale` or `seconds`/`nanos` one at a
+# time instead - which is not what the rule asked for, and which an untagged rule would do
+# silently. Ported from the JVM client's ProtobufSchema.isCelLeafMessage (#4538).
+#
+# Variant is deliberately *not* a leaf: it is a record in Avro too, so skipping it is the
+# behaviour that matches, and a variant is reached with a message-level CEL rule instead.
+DECIMAL_TYPE_NAME = "confluent.type.Decimal"
+TIMESTAMP_TYPE_NAME = "google.protobuf.Timestamp"
+
+
+def is_cel_leaf_message(desc: Optional[Descriptor]) -> bool:
+    """Whether *desc* is a message type bound to CEL as a single value."""
+    return desc is not None and desc.full_name in (DECIMAL_TYPE_NAME, TIMESTAMP_TYPE_NAME)
+
+
+# The widest coefficient this client can *encode*, as opposed to compute with. The wire form is
+# the unscaled integer in base 256, and decimal <-> binary radix conversion is quadratic; 4300 is
+# CPython's own ``int_max_str_digits``, the cap it puts on str <-> int for exactly that reason, and
+# the number every client in the family adopts so they agree on which decimals can be written.
+#
+# Defined here, in the lower layer, and imported by the CEL writer - there were two constants
+# named ``_MAX_COEFFICIENT_DIGITS`` in this client with different values, which is a trap for the
+# next reader. The other one is now ``_MAX_BIGINTEGER_DIGITS``, which is what it always meant.
+MAX_ENCODABLE_COEFFICIENT_DIGITS = 4300
+
+
+def set_decimal_message(target: Message, value: decimal.Decimal) -> None:
+    """Writes a Python Decimal into a confluent.type.Decimal message.
+
+    Precision and scale describe the value itself rather than a declared column width, which is
+    the same mapping the JVM client uses (DecimalUtils.fromBigDecimal) and the reverse of how a
+    decimal is read back.
+    """
+    sign, digits, exponent = value.as_tuple()
+    if not isinstance(exponent, int):
+        raise ValueError("cannot write a non-finite decimal to " + DECIMAL_TYPE_NAME)
+    # Checked here rather than left to CPython: the ``int(...)`` below is a str -> int
+    # conversion, which raises "Exceeds the limit (4300 digits) for integer string conversion"
+    # naming neither the decimal nor the field. This is the *field-level* write-back, the twin
+    # of the message-level ``_set_decimal``, and it had the unhelpful version.
+    if len(digits) > MAX_ENCODABLE_COEFFICIENT_DIGITS:
+        raise ValueError(
+            f"decimal coefficient has {len(digits)} digits, past the "
+            f"{MAX_ENCODABLE_COEFFICIENT_DIGITS} this client can encode into " + DECIMAL_TYPE_NAME
+        )
+    unscaled = int("".join(str(d) for d in digits) or "0")
+    if sign:
+        unscaled = -unscaled
+    # The scale is the negated exponent, negative included: BigDecimal("1E+3") reports
+    # unscaled 1 with scale -3, and the proto field is a signed int32, so normalising a
+    # positive exponent into the digits would write a different value than the JVM does.
+    scale = -exponent
+    target.value = unscaled_to_bytes(unscaled)
+    target.precision = len(digits)
+    target.scale = scale
+
+
+def set_timestamp_message(target: Message, value: datetime.datetime) -> None:
+    """Writes a datetime into a google.protobuf.Timestamp message."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    delta = value - _EPOCH
+    target.seconds = delta.days * 86400 + delta.seconds
+    target.nanos = delta.microseconds * 1000
+
+
+_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def rebuild_value_type(ctx, fd: FieldDescriptor, value: Any) -> Message:
+    """Rebuilds a leaf value-type message from what a CEL_FIELD rule returned.
+
+    An identity rule hands back the message it was given; a computed rule hands back a Python
+    Decimal or datetime, which has to be encoded. Anything else is a rule-authoring mistake and
+    is reported as one rather than written as a default.
+    """
+    desc = fd.message_type
+    if value is None:
+        raise _value_type_error(ctx, fd, "null", "a decimal or timestamp")
+    if isinstance(value, Message) and value.DESCRIPTOR.full_name == desc.full_name:
+        # Already the right message, which is what an identity rule produces.
+        return value
+    # A timestamp is bound as a datetime, which cannot hold the nanos it was read with, so an
+    # echoed one is copied from its source message instead of re-encoded. Same mechanism as the
+    # branch above; the difference is only that this binding converts rather than wrapping.
+    source = getattr(value, "msg", None)
+    if isinstance(source, Message) and source.DESCRIPTOR.full_name == desc.full_name:
+        return source
+    out = _message_factory(desc)
+    if desc.full_name == DECIMAL_TYPE_NAME:
+        if not isinstance(value, decimal.Decimal):
+            raise _value_type_error(ctx, fd, type(value).__name__, "a decimal")
+        set_decimal_message(out, value)
+        return out
+    if not isinstance(value, datetime.datetime):
+        raise _value_type_error(ctx, fd, type(value).__name__, "a timestamp")
+    set_timestamp_message(out, value)
+    return out
+
+
+def _message_factory(desc: Descriptor) -> Message:
+    """A new message of *desc*'s type, built from the descriptor so that a message parsed
+    dynamically from a registered schema is written back in kind."""
+    return message_factory.GetMessageClass(desc)()
+
+
+def _value_type_error(ctx, fd: FieldDescriptor, actual: str, expected: str) -> Exception:
+    return RuleError(
+        "Rule returned "
+        + actual
+        + " for field '"
+        + fd.full_name
+        + "', which is a "
+        + fd.message_type.full_name
+        + "; expected "
+        + expected
+    )
 
 
 def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_transform: FieldTransform) -> Any:
@@ -262,7 +403,7 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any, field_tran
         return [transform(ctx, descriptor, item, field_transform) for item in message]
     if isinstance(message, dict):
         return {key: transform(ctx, descriptor, value, field_transform) for key, value in message.items()}
-    if isinstance(message, Message):
+    if isinstance(message, Message) and not is_cel_leaf_message(message.DESCRIPTOR):
         # Driven by the runtime message's fields, each matched by name to the
         # schema-side descriptor, which is the one carrying the inline tags. The two
         # can differ under use.latest.version, and only the runtime field can be read
@@ -315,6 +456,19 @@ def _transform_field(
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
+            if fd.type == FieldDescriptor.TYPE_MESSAGE and is_cel_leaf_message(fd.message_type):
+                # The rule saw this field as a single value, so it hands back a decimal or a
+                # datetime rather than the message; encode it before writing.
+                #
+                # A repeated leaf field needs the same treatment per element. The walk applies
+                # the rule to each element, so what comes back is a *list* of decimals - and
+                # writing those raw failed with "Expected a message object, but got
+                # Decimal(...)". Only the singular case was rebuilt before, so a field rule
+                # over a repeated value type could not be written back at all.
+                if _is_repeated(fd):
+                    new_value = [rebuild_value_type(ctx, fd, item) for item in new_value]
+                else:
+                    new_value = rebuild_value_type(ctx, fd, new_value)
             _set_field(fd, message, new_value)
     finally:
         ctx.exit_field()
@@ -642,6 +796,10 @@ def get_type(fd: FieldDescriptor) -> FieldType:
     if is_map_field(fd):
         return FieldType.MAP
     if fd.type == FieldDescriptor.TYPE_MESSAGE:
+        # Report the same primitive type the Avro counterpart does, so that CEL_FIELD applies
+        # to the field and a rule written against one format ports to the other.
+        if is_cel_leaf_message(fd.message_type):
+            return FieldType.BYTES if fd.message_type.full_name == DECIMAL_TYPE_NAME else FieldType.LONG
         return FieldType.RECORD
     if fd.type == FieldDescriptor.TYPE_ENUM:
         return FieldType.ENUM
@@ -700,6 +858,23 @@ def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or name.startswith('google/protobuf/') or name.startswith('google/type/')
 
 
+# Exact, with the exponent range widened: the default +/-999999 is narrower than the int32
+# scale a confluent.type.Decimal field permits, and the 28-digit default precision would
+# silently round a wide unscaled value.
+_EXACT_CONTEXT = Context(prec=MAX_PREC, rounding=ROUND_HALF_UP, Emax=MAX_EMAX, Emin=MIN_EMIN)
+
+
+# The widest coefficient a BigDecimal can hold: BigInteger tops out at Integer.MAX_VALUE bits,
+# which is 646456993 decimal digits, and setScale reports anything wider as "BigInteger would
+# overflow supported range". Bisected against the JDK on BigDecimal("1.23"): setScale(1e8) and
+# setScale(-1e8) succeed, setScale(646456993) and setScale(-1e9) do not.
+#
+# `rules/cel/decimal_funcs._quantize` bounds its own rescale by the same JDK limit for the same
+# reason. The two cannot share one constant: this module needs the protobuf runtime, which is
+# an optional extra, and that one has to import without it.
+_MAX_BIGINTEGER_DIGITS = 646456993
+
+
 def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # type: ignore[name-defined]
     """
     Converts a Decimal to a Protobuf value.
@@ -715,25 +890,83 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # t
 
     delta = exp + scale  # type: ignore[operator]
 
-    if delta < 0:
-        raise ValueError("Scale provided does not match the decimal")
-
     unscaled_datum = 0
     for digit in digits:
         unscaled_datum = (unscaled_datum * 10) + digit
 
-    unscaled_datum = 10**delta * unscaled_datum
-
-    bytes_req = (unscaled_datum.bit_length() + 8) // 8
+    if delta >= 0:
+        # Widening: the coefficient grows by `delta` digits, and the JVM refuses a result
+        # wider than BigInteger can hold - instantly, where `10**delta` grinds first and then
+        # *succeeds*. Measured against the JDK and this function: setScale(1, 1e7) is accepted
+        # by both (1.4s there, 5s and a 4 MB field here), setScale(1, 1e9) throws
+        # "BigInteger would overflow supported range" there while here it ran past a 240s
+        # timeout still working towards a several-hundred-megabyte value.
+        if delta + len(digits) > _MAX_BIGINTEGER_DIGITS:
+            raise ValueError("Scale provided is too wide for the decimal")
+        unscaled_datum = 10**delta * unscaled_datum
+    else:
+        # Narrowing the scale, which BigDecimal.setScale(scale) allows whenever no rounding is
+        # needed - only the digits being dropped have to be zeros. Refusing every reduction
+        # rejected exact conversions: Decimal("1.50") at scale 1, or Decimal("1000") at the
+        # negative scale -3 that protobuf_to_decimal itself can produce.
+        #
+        # Whether the dropped digits are zeros is read off the digit tuple rather than
+        # discovered by dividing. Building a 10**-delta divisor just to find a non-zero
+        # remainder cost 178s at a scale of -1e8 and would run for hours at -1e9, to reach a
+        # rejection the trailing digits already prove. The JVM answers the same, reaching it
+        # through the division ("Rounding necessary"), so only the path changes.
+        drop = -delta
+        if unscaled_datum != 0:
+            trailing_zeros = 0
+            for digit in reversed(digits):
+                if digit != 0:
+                    break
+                trailing_zeros += 1
+            if drop > trailing_zeros:
+                raise ValueError("Scale provided does not match the decimal")
+            # drop <= trailing_zeros <= len(digits) now, so the divisor is no wider than the
+            # coefficient already in hand.
+            unscaled_datum //= 10**drop
+        # A zero is the exception: it has no digits to lose, so it narrows to any scale. The
+        # JVM agrees and gets there without the division - setScale(-1e9) on BigDecimal("0")
+        # is exact and instant, while this function would have spent hours on the divisor.
 
     if sign:
         unscaled_datum = -unscaled_datum
 
-    bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
+    bytes = unscaled_to_bytes(unscaled_datum)
 
     result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes
-    result.precision = 0
+    # The unscaled value's digit count, which is what BigDecimal.precision() reports and what
+    # every other write path in this client family carries. Left at 0 here, this was one of
+    # three paths whose output a JVM consumer rewrites on its next touch: `precision()` is
+    # never less than 1, so 0 is a value the reference cannot produce, and its reader
+    # normalises it away.
+    #
+    # Counted arithmetically rather than as `len(str(abs(unscaled_datum)))`. CPython caps
+    # str <-> int conversion at 4300 digits (`int_max_str_digits`), so the string form raised
+    # `ValueError: Exceeds the limit (4300 digits) for integer string conversion` for a
+    # coefficient this function otherwise accepts - and raised it *after* `result.value` was
+    # already assigned. `decimal_to_protobuf(Decimal("1"), 4300)` was the first failing case,
+    # against a `_MAX_COEFFICIENT_DIGITS` of 646456993 here.
+    #
+    # `len(digits) + delta` is exact in both directions, and only because this function
+    # refuses an inexact narrowing: widening multiplies by 10**delta, which appends `delta`
+    # zeros with no carry, and narrowing only ever drops digits already proven to be zeros.
+    # A rounding rescale could carry (9.9 to scale 0 is 10, one digit becoming two) and would
+    # need the count taken after the fact. Verified equal to the string form across 269
+    # value/scale combinations.
+    #
+    # Zero is the exception, since its digit tuple is `(0,)` at every scale. The reference
+    # agrees: `new BigDecimal("0").setScale(5000).precision()` is 1.
+    #
+    # Measured on the JDK, which is what the count has to match:
+    #   BigDecimal("1").setScale(4300)     -> precision 4301
+    #   BigDecimal("1").setScale(5000)     -> precision 5001
+    #   BigDecimal("1").setScale(1000000)  -> precision 1000001
+    #   BigDecimal("1.50").setScale(1)     -> precision 2
+    result.precision = 1 if unscaled_datum == 0 else len(digits) + delta
     result.scale = scale
     return result
 
@@ -750,5 +983,46 @@ def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[
     """
     unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
 
-    decimal_context = Context(prec=value.precision if value.precision > 0 else MAX_PREC)
-    return decimal_context.create_decimal(unscaled_datum).scaleb(-value.scale, decimal_context)
+    # `precision` is deliberately not applied. Java reads it as
+    # `new BigDecimal(unscaled, scale, new MathContext(precision))`, but every client - this one
+    # included - writes it as the unscaled value's own digit count, which makes that MathContext
+    # a guaranteed no-op. It has an effect only on a message from a foreign producer carrying a
+    # *declared column* precision, and there its effect is to silently round data the producer
+    # sent exactly. Six of the seven clients already ignore it; this path was the one that did
+    # not, so the same message read here and through the CEL binding gave two different values
+    # (unscaled 125 at precision 2: 1.3E+2 here, 125 there).
+    #
+    # Emax/Emin are widened because the default +/-999999 is narrower than the int32 scale this
+    # message's field permits.
+    return _EXACT_CONTEXT.create_decimal(unscaled_datum).scaleb(-value.scale, _EXACT_CONTEXT)
+
+
+def variant_to_protobuf(value: Variant) -> variant_pb2.Variant:  # type: ignore[name-defined]
+    """
+    Converts a Variant to a ``confluent.type.Variant`` Protobuf message.
+
+    Args:
+        value (Variant): The Variant to convert.
+
+    Returns:
+        The Protobuf value.
+    """
+    result = variant_pb2.Variant()  # type: ignore[attr-defined]
+    result.metadata = value.metadata
+    # standalone_value_bytes, not .value: a navigated sub-variant's own value starts at its
+    # position, and .value is the whole shared buffer.
+    result.value = value.standalone_value_bytes()
+    return result
+
+
+def protobuf_to_variant(value: variant_pb2.Variant) -> Variant:  # type: ignore[name-defined]
+    """
+    Converts a ``confluent.type.Variant`` Protobuf message to a Variant.
+
+    Args:
+        value (variant_pb2.Variant): The Protobuf value to convert.
+
+    Returns:
+        The Variant value.
+    """
+    return Variant(value.value, value.metadata)
