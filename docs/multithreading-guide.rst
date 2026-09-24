@@ -49,10 +49,15 @@ Recommended usage pattern
 
 For ``Producer``, either pattern works: run one producer per thread, or
 share a single instance across threads with each thread producing to a
-different partition to minimize internal lock contention.
+different partition to minimize internal lock contention. See
+`examples/multithreaded_producer.py
+<https://github.com/confluentinc/confluent-kafka-python/blob/master/examples/multithreaded_producer.py>`_
+for one producer per thread.
 
 For ``Consumer``, run one instance per thread; see
-`Consumer: cross-thread access`_ for why.
+`Consumer: cross-thread access`_ for why. See
+`examples/multithreaded_consumer.py
+<https://github.com/confluentinc/confluent-kafka-python/blob/master/examples/multithreaded_consumer.py>`_.
 
 *****************************
 Consumer: cross-thread access
