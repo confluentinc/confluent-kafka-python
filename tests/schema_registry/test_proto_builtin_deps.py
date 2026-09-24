@@ -40,10 +40,18 @@ def _schema_str(dep: str, message: str, name: str) -> str:
 
 
 def _load(dep: str, message: str, name: str):
-    """The production path: registry text -> _str_to_proto -> pool.Add."""
+    """The production path: registry text -> _str_to_proto -> pool.Add.
+
+    ``DescriptorPool.Add()`` returns the ``FileDescriptor`` under the upb/C++ backend, but
+    the pure-Python backend's ``Add()`` has no ``return`` statement and always answers
+    ``None`` - not a bug, just an implementation detail neither backend's docstring
+    promises either way. The production serializer/deserializer never relies on it, always
+    following up with ``pool.FindFileByName()`` instead, so this does the same.
+    """
     pool = DescriptorPool()
     _init_pool(pool)
-    return pool.Add(_str_to_proto(name, _schema_str(dep, message, name)))
+    pool.Add(_str_to_proto(name, _schema_str(dep, message, name)))
+    return pool.FindFileByName(name)
 
 
 # The canonical import path is confluent/type/... - what the Java client registers and what
