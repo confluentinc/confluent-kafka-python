@@ -5,7 +5,7 @@
 v2.16.0 is a feature release with the following features, fixes and enhancements:
 
 ### Enhancements
-- `confluent_kafka` now declares itself GIL-safe, enabling real multi-core parallelism on free-threaded CPython builds (#2347)
+- `confluent_kafka` now declares itself GIL-safe, enabling real multi-core parallelism on free-threaded CPython builds. See the [Multithreading Guide](docs/multithreading-guide.md) for thread-safety details and free-threaded caveats. (#2347)
 - Add Python 3.14t wheels (#2352)
 - Producer `close()` now aborts any open transaction (#2347)
 - Async IO Consumer's default worker pool size has been increased from 2 to 100 (#2347)
