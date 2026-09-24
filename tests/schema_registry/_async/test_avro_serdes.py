@@ -41,6 +41,7 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
 )
 from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
+from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
     DekAlgorithm,
@@ -51,6 +52,7 @@ from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
     EncryptionExecutor,
     FieldEncryptionExecutor,
 )
+from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import JsonataExecutor
 from confluent_kafka.schema_registry.schema_registry_client import (
     Rule,
     RuleKind,
@@ -82,6 +84,12 @@ _SUBJECT = _TOPIC + "-value"
 @pytest.fixture(autouse=True)
 async def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
+    # Setup: fill with any logic you want
+
+    CelExecutor.register()
+    CelFieldExecutor.register()
+    JsonataExecutor.register()
+
     yield  # this is where the testing happens
 
     # Teardown : fill with any logic you want
