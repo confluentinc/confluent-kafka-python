@@ -28,6 +28,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
   instead of leaving it as undefined behavior (#2347)
 - Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
 - Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
+- Fix crash on nullable array of $ref items in JSON Schema CSFLE (#2370)
 
 
 ## v2.15.1
