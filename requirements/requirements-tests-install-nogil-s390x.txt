@@ -1,0 +1,15 @@
+# Free-threaded (no-GIL) variant of requirements-tests-install-s390x.txt, used by
+# the "Verify free threaded" job of the Linux s390x Wheel Verification block
+# (tools/verify-free-threaded-job.sh).
+#
+# Same as requirements-tests-install-nogil.txt but WITHOUT
+# requirements-schemaregistry.txt and trivup, for the reason given in
+# requirements-tests-install-s390x.txt: they pull cryptography (via authlib and
+# jwcrypto), which publishes no s390x wheels. tests/conftest.py skips collecting
+# tests/schema_registry on s390x to match.
+# Keep in sync with requirements-tests-install-nogil.txt when adding new includes.
+-r requirements-tests.txt
+-r requirements-avro-nogil.txt
+-r requirements-protobuf.txt
+-r requirements-json.txt
+-r requirements-oauthbearer-aws.txt
