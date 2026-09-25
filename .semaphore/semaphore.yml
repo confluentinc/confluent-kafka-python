@@ -619,6 +619,32 @@ blocks:
           commands:
             - sem-version python 3.11
             - tools/pre-release-validation.sh
+  - name: "Mend SCA + SAST Scan"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-1
+      jobs:
+        - name: Trigger
+          commands:
+            # Fire-and-forget: triggers the standalone mend-source-scan task
+            # (appsec-semaphore-workflows) to run `mend dep` (SCA) + `mend sast`
+            # (SAST) against this tag's source, out-of-band from this pipeline's
+            # own wheel builds. See
+            # https://github.com/confluentinc/appsec-semaphore-workflows/pull/608.
+            # No -w/--wait: the triggered task's own scan can take far longer
+            # than a trigger call should ever block this release pipeline for,
+            # so a failed/slow trigger must not fail the release.
+            - |
+              timeout 60 sem-trigger -p appsec-semaphore-workflows -t mend-source-scan \
+                -i "REPO:confluentinc/confluent-kafka-python" \
+                -i "REF:${SEMAPHORE_GIT_TAG_NAME}" \
+                -i "VERSION:${SEMAPHORE_GIT_TAG_NAME}" \
+                -i "PRODUCT_FAMILY:COSS" \
+                || echo "WARNING: failed to trigger Mend SCA+SAST scan (or timed out after 60s); continuing without failing the release" >&2
   - name: "Source Distribution"
     run:
       when: "tag =~ '.*'"
