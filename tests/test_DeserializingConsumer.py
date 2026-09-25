@@ -117,7 +117,22 @@ def test_value_failure_raises(make_dc):
         dc._deserialize(_make_message(value=b'v', key=b'k'))
 
 
-def test_none_topic_raises_type_error(make_dc):
+def test_missing_topic_is_a_value_deserialization_error(make_dc):
     dc = make_dc(value_deserializer=StringDeserializer())
-    with pytest.raises(TypeError, match='Message topic is None'):
+    with pytest.raises(ValueDeserializationError, match='non-empty topic name') as exc_info:
         dc._deserialize(_make_message(value=b'v', topic=None))
+    assert exc_info.value.kafka_message.value() == b'v'
+
+
+def test_missing_topic_is_a_key_deserialization_error_first(make_dc):
+    vd = _RecordingDeserializer('V')
+    dc = make_dc(key_deserializer=StringDeserializer(), value_deserializer=vd)
+    with pytest.raises(KeyDeserializationError, match='non-empty topic name'):
+        dc._deserialize(_make_message(value=b'v', key=b'k', topic=None))
+    assert vd.calls == []
+
+
+def test_missing_topic_passes_through_without_deserializers(make_dc):
+    dc = make_dc()
+    msg = dc._deserialize(_make_message(value=b'v', key=b'k', topic=None))
+    assert (msg.key(), msg.value()) == (b'k', b'v')

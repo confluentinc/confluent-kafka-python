@@ -3588,3 +3588,184 @@ def test_associated_name_strategy_caching():
     # Deserialize second message
     result2 = deser(obj_bytes2, ser_ctx)
     assert obj2 == result2
+
+
+# --- cluster id resolver -----------------------------------------------------
+#
+# The serde-building clients hand their serdes a resolver for the Kafka cluster
+# id instead of the id itself, so that constructing a client never waits on a
+# broker. The strategy invokes it only when it has to look a subject up.
+
+_RESOLVER_SCHEMA = {
+    'type': 'record',
+    'name': 'ResolverRecord',
+    'fields': [
+        {'name': 'count', 'type': 'int'},
+    ],
+}
+
+
+class _Resolver:
+    """Cluster id resolver recording its invocations; ``results`` are handed out in turn."""
+
+    def __init__(self, *results):
+        self.results = list(results)
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        result = self.results.pop(0) if len(self.results) > 1 else self.results[0]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _associate(client, namespace, subject, resource_id):
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace=namespace,
+        resource_id=resource_id,
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject=subject,
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(schema_str=json.dumps(_RESOLVER_SCHEMA)),
+            )
+        ],
+    )
+    client.create_association(request)
+
+
+def _resolver_serializer(client, strategy_conf=None, strategy=SubjectNameStrategyType.ASSOCIATED):
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': strategy,
+    }
+    if strategy_conf is not None:
+        ser_conf['subject.name.strategy.conf'] = strategy_conf
+    return AvroSerializer(client, schema_str=json.dumps(_RESOLVER_SCHEMA), conf=ser_conf)
+
+
+def test_cluster_id_resolver_invoked_on_subject_cache_miss_only():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "resolver-subject", "mock-resource-resolver-1")
+
+    ser = _resolver_serializer(client)
+    resolver = _Resolver("resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # construction and handing over the resolver never invoke it
+    assert resolver.calls == 0
+
+    ser({'count': 1}, ser_ctx)
+    assert resolver.calls == 1
+    assert client.get_latest_version("resolver-subject") is not None
+
+    # the subject is cached, so no further resolution
+    ser({'count': 2}, ser_ctx)
+    assert resolver.calls == 1
+
+    client.delete_associations(resource_id="mock-resource-resolver-1", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_not_invoked_when_id_is_configured():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "configured-cluster", "configured-subject", "mock-resource-resolver-2")
+
+    ser = _resolver_serializer(client, {KAFKA_CLUSTER_ID: "configured-cluster"})
+    resolver = _Resolver(RuntimeError("must not be called"))
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 0
+    assert client.get_latest_version("configured-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-2", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_used_when_configured_id_is_empty():
+    # an empty configured id counts as unset, as in the Go client
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "empty-conf-subject", "mock-resource-resolver-3")
+
+    ser = _resolver_serializer(client, {KAFKA_CLUSTER_ID: ""})
+    resolver = _Resolver("resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 1
+    assert client.get_latest_version("empty-conf-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-3", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_failure_is_reported_and_retried():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "retry-subject", "mock-resource-resolver-4")
+
+    ser = _resolver_serializer(client)
+    # the broker is not reachable yet on the first attempt
+    resolver = _Resolver(RuntimeError("Timed out"), "resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as excinfo:
+        ser({'count': 1}, ser_ctx)
+    assert KAFKA_CLUSTER_ID in str(excinfo.value)
+    assert "Timed out" in str(excinfo.value)
+
+    # nothing was cached, so the next message resolves again and succeeds
+    ser({'count': 1}, ser_ctx)
+    assert resolver.calls == 2
+    assert client.get_latest_version("retry-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-4", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_empty_result_is_an_error():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+
+    ser = _resolver_serializer(client)
+    ser.set_cluster_id_resolver(_Resolver(""))
+
+    with pytest.raises(SerializationError) as excinfo:
+        ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+    assert KAFKA_CLUSTER_ID in str(excinfo.value)
+    assert "empty" in str(excinfo.value)
+
+
+def test_cluster_id_resolver_ignored_by_other_strategies():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+
+    ser = _resolver_serializer(client, strategy=SubjectNameStrategyType.TOPIC)
+    resolver = _Resolver(RuntimeError("must not be called"))
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 0
+    assert client.get_latest_version(_TOPIC + "-value") is not None
+
+
+def test_cluster_id_resolver_last_one_wins():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "second-cluster", "second-subject", "mock-resource-resolver-5")
+
+    ser = _resolver_serializer(client)
+    first = _Resolver("first-cluster")
+    second = _Resolver("second-cluster")
+    ser.set_cluster_id_resolver(first)
+    ser.set_cluster_id_resolver(second)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert first.calls == 0
+    assert second.calls == 1
+    assert client.get_latest_version("second-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-5", cascade_lifecycle=True)

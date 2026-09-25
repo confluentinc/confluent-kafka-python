@@ -98,6 +98,17 @@ Experimental
    - :ref:`SerializingProducer <serde_producer>`
    - :ref:`DeserializingConsumer <serde_consumer>`
    - :ref:`DeserializingShareConsumer <serde_share_consumer>`
+   - :ref:`AsyncSerializingProducer <async_serde_producer>`
+   - :ref:`AsyncDeserializingConsumer <async_serde_consumer>`
+   - Serde builders: :ref:`SerializerBuilder <serde_serializer_builder>` /
+     :ref:`DeserializerBuilder <serde_deserializer_builder>`, implemented for Schema Registry by
+     :ref:`AvroSerializerBuilder <schemaregistry_avro_serializer_builder>`,
+     :ref:`JSONSerializerBuilder <schemaregistry_json_serializer_builder>`,
+     :ref:`ProtobufSerializerBuilder <schemaregistry_protobuf_serializer_builder>`,
+     :ref:`AvroDeserializerBuilder <schemaregistry_avro_deserializer_builder>`,
+     :ref:`JSONDeserializerBuilder <schemaregistry_json_deserializer_builder>`,
+     :ref:`ProtobufDeserializerBuilder <schemaregistry_protobuf_deserializer_builder>`
+     and their asyncio (``Async``-prefixed) counterparts
 
 Legacy
    These classes are deprecated and will be removed in a future version of the library.
@@ -457,6 +468,17 @@ DeserializingConsumer (experimental)
 
    :inherited-members:
 
+.. _async_serde_consumer:
+
+*****************************************
+AsyncDeserializingConsumer (experimental)
+*****************************************
+
+.. autoclass:: confluent_kafka.aio.AsyncDeserializingConsumer
+   :members:
+
+   :inherited-members:
+
 .. _serde_share_consumer:
 
 *****************************************
@@ -489,6 +511,17 @@ SerializingProducer (experimental)
 
    :inherited-members:
 
+.. _async_serde_producer:
+
+***************************************
+AsyncSerializingProducer (experimental)
+***************************************
+
+.. autoclass:: confluent_kafka.aio.AsyncSerializingProducer
+   :members:
+
+   :inherited-members:
+
 .. _schemaregistry_client:
 
 ********************
@@ -512,6 +545,15 @@ Deserializer
 
    .. automethod:: __call__
 
+.. _serde_deserializer_builder:
+
+*******************
+DeserializerBuilder
+*******************
+
+.. autoclass:: confluent_kafka.serialization.DeserializerBuilder
+   :members:
+
 .. _schemaregistry_avro_deserializer:
 
 ****************
@@ -522,6 +564,15 @@ AvroDeserializer
    :members:
 
    .. automethod:: __call__
+
+.. _schemaregistry_avro_deserializer_builder:
+
+***********************
+AvroDeserializerBuilder
+***********************
+
+.. autoclass:: confluent_kafka.schema_registry.avro.AvroDeserializerBuilder
+   :members:
 
 .. _serde_deserializer_double:
 
@@ -557,6 +608,15 @@ JSONDeserializer
 
    .. automethod:: __call__
 
+.. _schemaregistry_json_deserializer_builder:
+
+***********************
+JSONDeserializerBuilder
+***********************
+
+.. autoclass:: confluent_kafka.schema_registry.json_schema.JSONDeserializerBuilder
+   :members:
+
 .. _schemaregistry_protobuf_deserializer:
 
 ********************
@@ -567,6 +627,15 @@ ProtobufDeserializer
    :members:
 
    .. automethod:: __call__
+
+.. _schemaregistry_protobuf_deserializer_builder:
+
+***************************
+ProtobufDeserializerBuilder
+***************************
+
+.. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufDeserializerBuilder
+   :members:
 
 .. _serde_deserializer_string:
 
@@ -590,6 +659,15 @@ Serializer
 
    .. automethod:: __call__
 
+.. _serde_serializer_builder:
+
+*****************
+SerializerBuilder
+*****************
+
+.. autoclass:: confluent_kafka.serialization.SerializerBuilder
+   :members:
+
 .. _schemaregistry_avro_serializer:
 
 **************
@@ -600,6 +678,15 @@ AvroSerializer
    :members:
 
    .. automethod:: __call__
+
+.. _schemaregistry_avro_serializer_builder:
+
+*********************
+AvroSerializerBuilder
+*********************
+
+.. autoclass:: confluent_kafka.schema_registry.avro.AvroSerializerBuilder
+   :members:
 
 .. _serde_serializer_double:
 
@@ -635,6 +722,15 @@ JSONSerializer
 
    .. automethod:: __call__
 
+.. _schemaregistry_json_serializer_builder:
+
+*********************
+JSONSerializerBuilder
+*********************
+
+.. autoclass:: confluent_kafka.schema_registry.json_schema.JSONSerializerBuilder
+   :members:
+
 .. _schemaregistry_protobuf_serializer:
 
 ******************
@@ -645,6 +741,15 @@ ProtobufSerializer
    :members:
 
    .. automethod:: __call__
+
+.. _schemaregistry_protobuf_serializer_builder:
+
+*************************
+ProtobufSerializerBuilder
+*************************
+
+.. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufSerializerBuilder
+   :members:
 
 .. _serde_serializer_string:
 
