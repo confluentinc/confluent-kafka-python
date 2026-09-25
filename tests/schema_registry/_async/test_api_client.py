@@ -19,6 +19,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor, wait
 
 import pytest
+from cachetools import TTLCache
 
 from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
@@ -282,6 +283,151 @@ async def test_delete_subject_not_found(mock_schema_registry):
         await sr.delete_subject("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
+
+
+@pytest.mark.parametrize('permanent', [False, True])
+@pytest.mark.parametrize('cache_ttl', [None, 60])
+@pytest.mark.parametrize(
+    'method, args, verb, suffix',
+    [
+        ('get_version', (1,), 'GET', '/versions/1'),
+        ('lookup_schema', (Schema('"string"', 'AVRO'),), 'POST', ''),
+        ('get_latest_version', (), 'GET', '/versions/latest'),
+        ('get_latest_with_metadata', ({'application': 'test'},), 'GET', '/metadata'),
+    ],
+)
+async def test_delete_subject_invalidates_cached_reads(respx_mock, permanent, cache_ttl, method, args, verb, suffix):
+    sr = AsyncSchemaRegistryClient({'url': TEST_URL, 'cache.latest.ttl.sec': cache_ttl})
+    read = getattr(sr, method)
+    routes = {}
+    for subject in ('deleted-subject', 'other-subject'):
+        routes[subject] = respx_mock.route(method=verb, path='/subjects/' + subject + suffix).respond(
+            200, json={'subject': subject, 'id': 47, 'version': 1, 'schema': '"string"'}
+        )
+        assert (await read(subject, *args)).schema_id == 47
+
+    respx_mock.delete(path='/subjects/deleted-subject').respond(200, json=[1])
+    routes['deleted-subject'].respond(404, json={'error_code': 40401, 'message': 'Subject not found'})
+
+    assert await sr.delete_subject('deleted-subject', permanent=permanent) == [1]
+
+    with pytest.raises(SchemaRegistryError, match='Subject not found'):
+        await read('deleted-subject', *args)
+    assert routes['deleted-subject'].call_count == 2
+    assert (await read('other-subject', *args)).schema_id == 47
+    assert routes['other-subject'].call_count == 1
+
+
+@pytest.mark.parametrize('permanent', [False, True])
+@pytest.mark.parametrize('delete_succeeds', [False, True])
+async def test_register_schema_after_subject_deletion(respx_mock, permanent, delete_succeeds):
+    sr = AsyncSchemaRegistryClient({'url': TEST_URL})
+    schema = Schema('"string"', 'AVRO')
+    registration = respx_mock.post(path='/subjects/test-delete/versions').respond(200, json={'id': 47})
+    assert await sr.register_schema('test-delete', schema) == 47
+    assert await sr.register_schema('test-delete', schema) == 47
+    assert registration.call_count == 1
+
+    deletion = respx_mock.delete(path='/subjects/test-delete')
+    if delete_succeeds:
+        deletion.respond(200, json=[1])
+        assert await sr.delete_subject('test-delete', permanent=permanent) == [1]
+    else:
+        deletion.respond(403, json={'error_code': 40301, 'message': 'Forbidden'})
+        with pytest.raises(SchemaRegistryError, match='Forbidden'):
+            await sr.delete_subject('test-delete', permanent=permanent)
+
+    assert await sr.register_schema('test-delete', schema) == 47
+    assert registration.call_count == (2 if delete_succeeds else 1)
+
+
+@pytest.mark.parametrize(
+    'method, args',
+    [
+        ('get_latest_version', ()),
+        ('get_latest_with_metadata', ({'application': 'test'},)),
+    ],
+)
+@pytest.mark.parametrize('invalidate', ['delete_subject', 'clear_latest_caches', 'clear_caches'])
+async def test_latest_read_during_invalidation_is_not_cached(monkeypatch, method, args, invalidate):
+    sr = AsyncSchemaRegistryClient({'url': TEST_URL})
+    calls = 0
+
+    async def delete(*args, **kwargs):
+        return [1]
+
+    async def get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise SchemaRegistryError(404, 40401, 'Subject not found')
+        # Finish invalidation after the cache miss, before the old response arrives.
+        invalidate_args = ('test-delete',) if invalidate == 'delete_subject' else ()
+        await getattr(sr, invalidate)(*invalidate_args)
+        return {'subject': 'test-delete', 'id': 47, 'version': 1, 'schema': '"string"'}
+
+    monkeypatch.setattr(sr._rest_client, 'get', get)
+    monkeypatch.setattr(sr._rest_client, 'delete', delete)
+    read = getattr(sr, method)
+    assert (await read('test-delete', *args)).schema_id == 47
+    with pytest.raises(SchemaRegistryError, match='Subject not found'):
+        await read('test-delete', *args)
+    assert calls == 2
+
+
+@pytest.mark.parametrize(
+    'method, args',
+    [
+        ('get_version', ('test-delete', 1)),
+        ('get_schema', (47, 'test-delete')),
+    ],
+)
+@pytest.mark.parametrize(
+    'invalidate, invalidate_args',
+    [
+        ('delete_subject', ('test-delete',)),
+        ('delete_version', ('test-delete', 1)),
+        ('clear_caches', ()),
+    ],
+)
+async def test_subject_read_during_invalidation_is_not_cached(monkeypatch, method, args, invalidate, invalidate_args):
+    sr = AsyncSchemaRegistryClient({'url': TEST_URL})
+    calls = 0
+
+    async def delete(*args, **kwargs):
+        return [1] if invalidate == 'delete_subject' else 1
+
+    async def get(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise SchemaRegistryError(404, 40401, 'Subject not found')
+        # Finish invalidation after the cache miss, before the old response arrives.
+        await getattr(sr, invalidate)(*invalidate_args)
+        return {'subject': 'test-delete', 'id': 47, 'version': 1, 'schema': '"string"'}
+
+    monkeypatch.setattr(sr._rest_client, 'get', get)
+    monkeypatch.setattr(sr._rest_client, 'delete', delete)
+    read = getattr(sr, method)
+    await read(*args)
+    with pytest.raises(SchemaRegistryError, match='Subject not found'):
+        await read(*args)
+    assert calls == 2
+
+
+async def test_delete_subject_when_metadata_expires_during_invalidation(respx_mock):
+    clock = [0]
+
+    class ExpiringCache(TTLCache):
+        def __iter__(self):
+            yield from super().__iter__()
+            clock[0] = 2
+
+    sr = AsyncSchemaRegistryClient({'url': TEST_URL})
+    sr._latest_with_metadata_cache = ExpiringCache(10, 1, timer=lambda: clock[0])
+    sr._latest_with_metadata_cache[('test-delete', frozenset(), False)] = object()
+    respx_mock.delete(path='/subjects/test-delete').respond(200, json=[1])
+    assert await sr.delete_subject('test-delete') == [1]
 
 
 async def test_get_version(mock_schema_registry, load_avsc):
