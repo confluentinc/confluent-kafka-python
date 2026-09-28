@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.16.0rc2 (Unreleased)
+## v2.16.0rc3 (Unreleased)
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
 
