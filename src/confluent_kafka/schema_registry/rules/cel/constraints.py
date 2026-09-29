@@ -42,15 +42,41 @@ def make_key_path(field_name: str, key: celtypes.Value) -> str:
     return f"{field_name}[{string_format.format_value(key)}]"  # type: ignore[str-bytes-safe]
 
 
+# A CEL timestamp is a ``datetime`` and a CEL duration a ``timedelta``, both of which resolve
+# to microseconds, so the low three digits of a nanos field cannot survive the conversion. The
+# write-back does not need them to: an echoed value can be copied from the message it was read
+# from, which is what the decimal and variant bindings already let it do (see
+# ``_set_message``'s "echoed unchanged" path in protobuf_result_writer). These two carry the
+# same source, so an identity rule - or a rule that rewrites some other field and merely passes
+# this one along - leaves the nanos exactly as the producer wrote them.
+#
+# Measured before this: a rule rewriting only a sibling field turned nanos 1 into 0, while the
+# decimal in the same message came back byte-identical. A *computed* timestamp still lands on
+# the microsecond ceiling, which is inherent to the type and matches what ``timestamp(x, 9)``
+# and ``string(ts)`` already document.
+def _with_source(value, msg: message.Message):
+    """Tags a converted value with the message it came from, for the write-back."""
+    value.msg = msg
+    return value
+
+
 def make_duration(msg: message.Message) -> celtypes.DurationType:
-    return celtypes.DurationType(
-        seconds=msg.seconds,
-        nanos=msg.nanos,
+    return _with_source(
+        celtypes.DurationType(
+            seconds=msg.seconds,
+            nanos=msg.nanos,
+        ),
+        msg,
     )
 
 
 def make_timestamp(msg: message.Message) -> celtypes.TimestampType:
-    return make_duration(msg) + celtypes.TimestampType(1970, 1, 1)  # type: ignore[return-value]
+    # The intermediate duration carries this same message; it is discarded here, and only the
+    # timestamp's own tag is read back.
+    return _with_source(
+        make_duration(msg) + celtypes.TimestampType(1970, 1, 1),  # type: ignore[operator]
+        msg,
+    )
 
 
 def unwrap(msg: message.Message) -> celtypes.Value:

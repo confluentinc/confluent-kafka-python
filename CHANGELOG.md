@@ -1,12 +1,16 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.x.0
+## v2.16.0rc3 (Unreleased)
+
+v2.16.0 is a feature release with the following features, fixes and enhancements:
 
 ### Enhancements
-
+- `confluent_kafka` now declares itself GIL-safe, enabling real multi-core parallelism on free-threaded CPython builds. See the [Multithreading Guide](docs/multithreading-guide.md) for thread-safety details and free-threaded caveats. (#2347)
+- Add Python 3.14t wheels (#2352)
+- Producer `close()` now aborts any open transaction (#2347)
+- Async IO Consumer's default worker pool size has been increased from 2 to 100 (#2347)
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
-- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
   (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
   topic and the original serialize/deserialize call still raises. With the
@@ -14,7 +18,20 @@
   `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
   shutdown) for durability.
 - Add support for inline validation rules (#2326)
+- Add Variant, Decimal, and Timestamp CEL functions (#2332)
 
+### Fixes
+
+- Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
+  `Message` classes (#2347)
+- Serialize concurrent access to a shared `Consumer` instance across threads
+  instead of leaving it as undefined behavior (#2347)
+- Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
+- Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
+- Fix crash on nullable array of $ref items in JSON Schema CSFLE (#2370)
+
+
+## v2.15.1
 
 ### Fixes
 
@@ -22,9 +39,7 @@
   message key before the value, matching `SerializingProducer` and the Java
   client. When both key and value fail to deserialize, the key error is now
   surfaced instead of the value error.
-
-### Fixes
-
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Fix race conditions (#2315)
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
@@ -34,6 +49,11 @@
   1-byte `"b"` format into 4-byte `int` targets, so on big-endian the value
   landed on the high byte and the flags could not be cleared; for example
   `purge(in_queue=False)` purged the queue anyway.
+
+
+confluent-kafka-python 2.15.1 is based on librdkafka 2.15.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.15.0

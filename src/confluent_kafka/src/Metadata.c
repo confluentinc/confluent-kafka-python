@@ -366,18 +366,17 @@ PyObject *list_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
+        if (!Handle_common_enter(self))
                 return NULL;
-        }
 
         if (topic != NULL) {
                 if (!(only_rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
-                        return PyErr_Format(
-                            PyExc_RuntimeError,
-                            "Unable to create topic object "
-                            "for \"%s\": %s",
-                            topic, rd_kafka_err2str(rd_kafka_last_error()));
+                        PyErr_Format(PyExc_RuntimeError,
+                                     "Unable to create topic object "
+                                     "for \"%s\": %s",
+                                     topic,
+                                     rd_kafka_err2str(rd_kafka_last_error()));
+                        goto end; /* result and only_rkt are NULL */
                 }
         }
 
@@ -408,6 +407,8 @@ end:
         if (only_rkt != NULL) {
                 rd_kafka_topic_destroy(only_rkt);
         }
+
+        Handle_common_exit(self);
 
         return result;
 }
@@ -619,10 +620,8 @@ PyObject *list_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
+        if (!Handle_common_enter(self))
                 return NULL;
-        }
 
         CallState_begin(self, &cs);
 
@@ -645,6 +644,7 @@ end:
         if (group_list != NULL) {
                 rd_kafka_group_list_destroy(group_list);
         }
+        Handle_common_exit(self);
         return result;
 }
 

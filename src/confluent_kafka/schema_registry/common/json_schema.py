@@ -1,15 +1,19 @@
 import decimal
+import ipaddress
 import logging
+import socket
 from io import BytesIO
 from typing import Any, List, Optional, Set, Union
+from urllib.parse import urlsplit
 
-import httpx
 import referencing
 from jsonschema import ValidationError, validate
 from referencing import Registry, Resource
 from referencing._core import Resolver
+from referencing.exceptions import Unresolvable
 
 from confluent_kafka.schema_registry import RuleKind
+from confluent_kafka.schema_registry.common._httpx_compat import httpx
 from confluent_kafka.schema_registry.serde import (
     VALIDATION_RULES_PROP,
     FieldTransform,
@@ -119,8 +123,32 @@ class _ContextStringIO(BytesIO):
         return False
 
 
+def _is_blocked_ip(ip) -> bool:
+    mapped = getattr(ip, 'ipv4_mapped', None)
+    if mapped is not None:
+        ip = mapped
+    return not ip.is_global
+
+
+def _guard_external_uri(uri: str):
+    parts = urlsplit(uri)
+    if parts.scheme not in ('http', 'https'):
+        raise ValueError("Refusing to retrieve schema from non-HTTP(S) URI: {}".format(uri))
+    host = parts.hostname
+    if not host:
+        raise ValueError("Refusing to retrieve schema from URI without a host: {}".format(uri))
+    try:
+        infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == 'https' else 80))
+    except socket.gaierror as ex:
+        raise ValueError("Could not resolve schema URI host {}: {}".format(host, ex)) from ex
+    for info in infos:
+        if _is_blocked_ip(ipaddress.ip_address(info[4][0])):
+            raise ValueError("Refusing to retrieve schema from non-public address: {}".format(uri))
+
+
 def _retrieve_via_httpx(uri: str):
-    response = httpx.get(uri)
+    _guard_external_uri(uri)
+    response = httpx.get(uri, follow_redirects=False)
     return Resource.from_contents(response.json(), default_specification=DEFAULT_SPEC)
 
 
@@ -141,7 +169,7 @@ def transform(
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
     if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
-        subschema = _validate_subtypes(schema, message, ref_registry)
+        subschema = _validate_subtypes(schema, message, ref_registry, ref_resolver)
         if subschema is not None:
             return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     all_of = schema.get("allOf")
@@ -283,7 +311,7 @@ def _validate_message(
         return
 
     if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
-        subschema = _validate_subtypes(schema, message, ref_registry)
+        subschema = _validate_subtypes(schema, message, ref_registry, ref_resolver)
         if subschema is not None:
             _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
         return
@@ -398,7 +426,9 @@ def _read_validation_rules(schema: JsonSchema) -> List[ValidationRule]:
     return parse_validation_rules(schema.get(VALIDATION_RULES_PROP))
 
 
-def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -> Optional[JsonSchema]:
+def _validate_subtypes(
+    schema: dict, message: JsonMessage, registry: Registry, resolver: Optional[Resolver] = None
+) -> Optional[JsonSchema]:
     """
     Validate the message against the subtypes.
 
@@ -410,6 +440,9 @@ def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -
         schema: The schema to validate the message against.
         message: The message to validate.
         registry: The registry to use for the validation.
+        resolver: The resolver anchored to the full document, used so that a $ref inside
+            the candidate (e.g. in "items") resolves against the whole schema rather than
+            just this fragment.
     Returns:
         A copy of the schema narrowed to the matching type, otherwise None.
     """
@@ -419,9 +452,10 @@ def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -
     for typ in schema_type:
         subschema = {**schema, "type": typ}
         try:
-            validate(instance=message, schema=subschema, registry=registry)
+            kwargs = {"_resolver": resolver} if resolver is not None else {}
+            validate(instance=message, schema=subschema, registry=registry, **kwargs)
             return subschema
-        except ValidationError:
+        except (ValidationError, Unresolvable):
             pass
     return None
 

@@ -33,8 +33,10 @@ class CelFieldExecutor(FieldRuleExecutor):
         return self._field_transform
 
     def _field_transform(self, ctx: RuleContext, field_ctx: FieldContext, field_value: Any) -> Any:
-        if field_value is None:
-            return None
+        # No null guard here, matching the reference: whether an absent value reaches a rule is
+        # each format's walk to decide, not the executor's. The protobuf walk skips an unset
+        # field before calling this (a field with presence that is unset has no value to
+        # transform); the Avro walk passes the null branch through so a rule can guard on it.
         if not field_ctx.is_primitive():
             return field_value
         args = {
