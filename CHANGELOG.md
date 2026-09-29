@@ -29,6 +29,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
 - Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
 - Fix crash on nullable array of $ref items in JSON Schema CSFLE (#2370)
+- Fix `Producer.purge()` ignoring `in_queue`, `in_flight` and `blocking` set to `False` on big-endian platforms such as s390x (#2345)
 
 
 ## v2.15.1
@@ -44,11 +45,6 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
 - Use `asyncio.get_running_loop()` instead of `asyncio.get_event_loop()` to avoid creating a new event loop and raise an error in case a loop isn't available (@AlexCai26, #2339).
-- Fix `Producer.purge()` ignoring its `in_queue`, `in_flight` and `blocking`
-  arguments on big-endian platforms (e.g. s390x). They were parsed with the
-  1-byte `"b"` format into 4-byte `int` targets, so on big-endian the value
-  landed on the high byte and the flags could not be cleared; for example
-  `purge(in_queue=False)` purged the queue anyway.
 
 
 confluent-kafka-python 2.15.1 is based on librdkafka 2.15.1, see the
