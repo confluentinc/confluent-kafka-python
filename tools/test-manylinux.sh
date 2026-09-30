@@ -41,6 +41,13 @@ function setup_ubuntu {
     apt-get install -y -q python3.9
     apt-get install -y -q python3.9-distutils
     apt-get install -y -q curl
+    # s390x: several test and extra dependencies (fastavro, psutil, librt via
+    # mypy, and cryptography via the schema-registry deps of the extras the
+    # smoke test installs) publish no s390x wheels and are built from source,
+    # which needs a C compiler plus the Python and OpenSSL headers.
+    if [[ $(uname -m) == s390x ]]; then
+        apt-get install -y -q gcc python3.9-dev libssl-dev pkg-config
+    fi
 }
 
 
@@ -76,6 +83,13 @@ function run_all_with_docker {
     if [[ ! -d ./$wheelhouse ]]; then
         echo "$wheelhouse must be a relative subdirectory of $(pwd)"
         exit 1
+    fi
+
+    # s390x: test on ubuntu:22.04 and 24.04 rather than 20.04. cryptography has
+    # no s390x wheel, so it is built against the system OpenSSL, and it needs
+    # OpenSSL >= 3.0 (ubuntu:20.04 ships 1.1.1).
+    if [[ -z $DOCKER_IMAGES && $(uname -m) == s390x ]]; then
+        DOCKER_IMAGES="ubuntu:22.04 ubuntu:24.04"
     fi
 
     [[ ! -z $DOCKER_IMAGES ]] || \

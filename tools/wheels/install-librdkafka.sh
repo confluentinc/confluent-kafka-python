@@ -28,8 +28,10 @@ ARCH=${ARCH:-x64}
 if [[ $OSTYPE == linux* ]]; then
     # Linux
 
-    # Copy the librdkafka build with least dependencies to librdkafka.so.1
-    if [[ $ARCH == arm64* ]]; then
+    # Copy the librdkafka build with least dependencies to librdkafka.so.1.
+    # arm64 and s390x redist runtimes ship only the plain librdkafka.so (no
+    # centos8- variant), so both use it directly; x64 uses the centos8 build.
+    if [[ $ARCH == arm64* || $ARCH == s390x* ]]; then
         cp -v runtimes/linux-$ARCH/native/{librdkafka.so,librdkafka.so.1}
     else
         cp -v runtimes/linux-$ARCH/native/{centos8-librdkafka.so,librdkafka.so.1}
