@@ -218,6 +218,8 @@ def test_timestamp_and_type_preserved(kafka_cluster):
     sc = kafka_cluster.share_consumer()
     try:
         sc.subscribe([topic])
+        for _ in range(10):  # subscribe is async, wait for it to complete
+            sc.poll(timeout=0.2)
 
         producer = kafka_cluster.cimpl_producer()
         producer.produce(topic, value=b'v', timestamp=ts)

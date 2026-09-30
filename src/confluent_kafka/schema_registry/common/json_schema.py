@@ -10,6 +10,7 @@ import referencing
 from jsonschema import ValidationError, validate
 from referencing import Registry, Resource
 from referencing._core import Resolver
+from referencing.exceptions import Unresolvable
 
 from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.common._httpx_compat import httpx
@@ -168,7 +169,7 @@ def transform(
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
     if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
-        subschema = _validate_subtypes(schema, message, ref_registry)
+        subschema = _validate_subtypes(schema, message, ref_registry, ref_resolver)
         if subschema is not None:
             return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     all_of = schema.get("allOf")
@@ -310,7 +311,7 @@ def _validate_message(
         return
 
     if isinstance(schema.get("type"), list) and len(schema["type"]) > 0:
-        subschema = _validate_subtypes(schema, message, ref_registry)
+        subschema = _validate_subtypes(schema, message, ref_registry, ref_resolver)
         if subschema is not None:
             _validate_message(executor, subschema, ref_registry, ref_resolver, path, message, fail_fast, out)
         return
@@ -425,7 +426,9 @@ def _read_validation_rules(schema: JsonSchema) -> List[ValidationRule]:
     return parse_validation_rules(schema.get(VALIDATION_RULES_PROP))
 
 
-def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -> Optional[JsonSchema]:
+def _validate_subtypes(
+    schema: dict, message: JsonMessage, registry: Registry, resolver: Optional[Resolver] = None
+) -> Optional[JsonSchema]:
     """
     Validate the message against the subtypes.
 
@@ -437,6 +440,9 @@ def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -
         schema: The schema to validate the message against.
         message: The message to validate.
         registry: The registry to use for the validation.
+        resolver: The resolver anchored to the full document, used so that a $ref inside
+            the candidate (e.g. in "items") resolves against the whole schema rather than
+            just this fragment.
     Returns:
         A copy of the schema narrowed to the matching type, otherwise None.
     """
@@ -446,9 +452,10 @@ def _validate_subtypes(schema: dict, message: JsonMessage, registry: Registry) -
     for typ in schema_type:
         subschema = {**schema, "type": typ}
         try:
-            validate(instance=message, schema=subschema, registry=registry)
+            kwargs = {"_resolver": resolver} if resolver is not None else {}
+            validate(instance=message, schema=subschema, registry=registry, **kwargs)
             return subschema
-        except ValidationError:
+        except (ValidationError, Unresolvable):
             pass
     return None
 

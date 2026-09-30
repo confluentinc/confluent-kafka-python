@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.16.0-RC1
+      value: v2.16.0-RC2
   prologue:
     commands:
       - checkout
@@ -652,7 +652,9 @@ blocks:
             - python -c "import glob, sys; found = glob.glob('artifacts/wheelhouse/*-cp314t-win_amd64.whl'); print(found); sys.exit(0 if found else 1)"
             - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
             - ".\\tools\\mingw-w64\\setup-msys2.ps1"
-            - C:\msys64\usr\bin\bash.exe tools/verify-free-threaded-wheel.sh _venv314t/Scripts/python.exe
+            # The Windows librdkafka build has no git tag in its version string (2.16.0, not 2.16.0-RC2)
+            # FIXME: add LIBRDKAFKA_GIT_VERSION when building Windows as well.
+            - C:\msys64\usr\bin\bash.exe -c 'LIBRDKAFKA_VERSION=${LIBRDKAFKA_VERSION%%-*} tools/verify-free-threaded-wheel.sh _venv314t/Scripts/python.exe'
             - python -m pytest tests --ignore=tests\integration --ignore=tests\test_unasync.py --timeout 1200
   - name: "Pre-release Validation"
     run:

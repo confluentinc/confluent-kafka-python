@@ -48,26 +48,26 @@
 #if defined(_MSC_VER)
 typedef volatile LONG atomic_int_t;
 
-#define atomic_int_inc(p) InterlockedIncrement((p))
-#define atomic_int_dec(p) InterlockedDecrement((p))
-#define atomic_int_get(p) InterlockedCompareExchange((p), 0, 0)
+#define atomic_int_inc(p)    InterlockedIncrement((p))
+#define atomic_int_dec(p)    InterlockedDecrement((p))
+#define atomic_int_get(p)    InterlockedCompareExchange((p), 0, 0)
 #define atomic_int_set(p, v) InterlockedExchange((p), (v))
 
 /**
  * @brief Atomic compare-and-swap: if *p == expected, set *p = desired and
  *        return 1; otherwise leave *p unchanged and return 0.
  */
-static __inline int atomic_int_cas(atomic_int_t *p, LONG expected,
-                                   LONG desired) {
+static __inline int
+atomic_int_cas(atomic_int_t *p, LONG expected, LONG desired) {
         return InterlockedCompareExchange(p, desired, expected) == expected;
 }
 
 #else /* gcc / clang */
 typedef int atomic_int_t;
 
-#define atomic_int_inc(p) __atomic_add_fetch((p), 1, __ATOMIC_SEQ_CST)
-#define atomic_int_dec(p) __atomic_sub_fetch((p), 1, __ATOMIC_SEQ_CST)
-#define atomic_int_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_int_inc(p)    __atomic_add_fetch((p), 1, __ATOMIC_SEQ_CST)
+#define atomic_int_dec(p)    __atomic_sub_fetch((p), 1, __ATOMIC_SEQ_CST)
+#define atomic_int_get(p)    __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_int_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 
 /**
@@ -90,13 +90,14 @@ static inline int atomic_int_cas(atomic_int_t *p, int expected, int desired) {
 #if defined(_MSC_VER)
 typedef volatile LONG_PTR atomic_ulong_t;
 
-#define atomic_ulong_get(p)                                                   \
-        ((unsigned long)InterlockedCompareExchangePointer(                   \
+#define atomic_ulong_get(p)                                                    \
+        ((unsigned long)InterlockedCompareExchangePointer(                     \
             (PVOID volatile *)(p), 0, 0))
-#define atomic_ulong_set(p, v)                                                \
+#define atomic_ulong_set(p, v)                                                 \
         InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
 
-static __inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+static __inline int atomic_ulong_cas(atomic_ulong_t *p,
+                                     unsigned long expected,
                                      unsigned long desired) {
         return InterlockedCompareExchangePointer(
                    (PVOID volatile *)p, (PVOID)desired, (PVOID)expected) ==
@@ -106,10 +107,11 @@ static __inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 #else /* gcc / clang */
 typedef unsigned long atomic_ulong_t;
 
-#define atomic_ulong_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_ulong_get(p)    __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_ulong_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 
-static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
+static inline int atomic_ulong_cas(atomic_ulong_t *p,
+                                   unsigned long expected,
                                    unsigned long desired) {
         return __atomic_compare_exchange_n(p, &expected, desired,
                                            0 /* strong */, __ATOMIC_SEQ_CST,
@@ -121,12 +123,12 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
  * @brief Atomic accessors for Handle.rk itself.
  */
 #if defined(_MSC_VER)
-#define atomic_ptr_get(p)                                                     \
+#define atomic_ptr_get(p)                                                      \
         InterlockedCompareExchangePointer((PVOID volatile *)(p), NULL, NULL)
-#define atomic_ptr_set(p, v)                                                  \
+#define atomic_ptr_set(p, v)                                                   \
         InterlockedExchangePointer((PVOID volatile *)(p), (PVOID)(v))
 #else /* gcc / clang */
-#define atomic_ptr_get(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
+#define atomic_ptr_get(p)    __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_ptr_set(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 #endif
 
@@ -134,7 +136,7 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.16.0rc1"
+#define CFL_VERSION_STR "2.16.0rc3"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -142,16 +144,16 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x020f00ff
+#define MIN_RD_KAFKA_VERSION 0x021000ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.15.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.16.0 or later. "        \
         "Install the latest version of librdkafka from Homebrew by running "   \
         "`brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #define MIN_VER_ERRSTR                                                         \
-        "confluent-kafka-python requires librdkafka v2.15.0 or later. "        \
+        "confluent-kafka-python requires librdkafka v2.16.0 or later. "        \
         "Install the latest version of librdkafka from the Confluent "         \
         "repositories, see http://docs.confluent.io/current/installation.html"
 #endif
@@ -159,10 +161,10 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.15.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+    "confluent-kafka-python requires librdkafka v2.16.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
 #error                                                                         \
-    "confluent-kafka-python requires librdkafka v2.15.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+    "confluent-kafka-python requires librdkafka v2.16.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -180,7 +182,7 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p, unsigned long expected,
  * no version guards. */
 #ifndef Py_BEGIN_CRITICAL_SECTION
 #define Py_BEGIN_CRITICAL_SECTION(op) {
-#define Py_END_CRITICAL_SECTION() }
+#define Py_END_CRITICAL_SECTION()     }
 #endif
 
 /**

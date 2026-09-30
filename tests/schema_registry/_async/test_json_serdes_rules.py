@@ -1240,6 +1240,89 @@ async def test_json_oneof_with_refs_nested_refs():
     assert obj == obj2
 
 
+async def test_json_nullable_array_of_refs():
+    """
+    Test a nullable array of $ref items (["null", "array"] with items: {$ref: ...}).
+
+    This validates the fix for the bug where resolving the $ref inside "items" while
+    probing candidate types in a type array would fail with:
+    PointerToNowhere: '/definitions/...' does not exist
+    because the candidate schema fragment was validated without a resolver anchored
+    to the full document. A message with a populated array used to trigger the crash,
+    while a null array masked it, making the bug look intermittent.
+    """
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "investments": {
+                "type": ["null", "array"],
+                "items": {"$ref": "#/definitions/InvestmentInfo"},
+            },
+        },
+        "definitions": {
+            "InvestmentInfo": {
+                "type": "object",
+                "properties": {
+                    "fundName": {"type": "string"},
+                    "amount": {"type": "string", "confluent:tags": ["PII"]},
+                },
+            }
+        },
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({"encrypt.kek.name": "kek1", "encrypt.kms.type": "local-kms", "encrypt.kms.key.id": "mykey"}),
+        None,
+        None,
+        "ERROR,NONE",
+        False,
+    )
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), "JSON", [], None, RuleSet(None, [rule])))
+
+    obj_with_array = {
+        "name": "alice",
+        "investments": [{"fundName": "Growth Fund", "amount": "1000"}],
+    }
+    obj_with_null = {"name": "bob", "investments": None}
+
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # A message with a populated array used to raise PointerToNowhere and
+    # never encrypt.
+    obj_bytes = await ser(obj_with_array, ser_ctx)
+    assert obj_with_array['investments'][0]['amount'] != '1000'
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    decoded = await deser(obj_bytes, ser_ctx)
+    obj_with_array['investments'][0]['amount'] = '1000'
+    assert obj_with_array == decoded
+
+    # A message with a null array must still work afterward, proving the
+    # earlier failure did not leave the cached schema corrupted.
+    executor.executor.client = dek_client
+    obj_bytes_null = await ser(obj_with_null, ser_ctx)
+    executor.executor.client = dek_client
+    decoded_null = await deser(obj_bytes_null, ser_ctx)
+    assert obj_with_null == decoded_null
+
+
 async def test_json_anyof_with_refs():
     """
     Test anyOf with $refs to ensure all union types are handled correctly.
