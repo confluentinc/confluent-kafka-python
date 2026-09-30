@@ -60,7 +60,18 @@ for py in 3.9 ; do
         hash -r
 
         uv pip install pkginfo
-        uv pip install -r requirements/requirements-tests-install.txt
+        # On s390x, use the reduced test-install set: cryptography, google-re2 and
+        # tink (pulled by the schemaregistry/rules requirements) have no s390x
+        # wheels and would fall back to slow/failing source builds. The top-level
+        # unit tests don't need them. The [avro]/[protobuf]/[json] extras
+        # installed below do pull the schema-registry deps, so on s390x
+        # cryptography is built from source there (needs a C compiler and
+        # OpenSSL >= 3.0 headers).
+        tests_install_reqs="requirements/requirements-tests-install.txt"
+        if [[ "$(uname -m)" == "s390x" ]]; then
+            tests_install_reqs="requirements/requirements-tests-install-s390x.txt"
+        fi
+        uv pip install -r "$tests_install_reqs"
 
         # Get the packages version so we can pin the install
         # command to this version (which hopefully loads it from the wheeldir
