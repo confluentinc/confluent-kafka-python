@@ -25,13 +25,8 @@ import pytest
 
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
-# s390x: the schema-registry stack's deps (cryptography, via authlib) publish
-# no s390x wheels, so the s390x test installs leave them out (see
-# requirements/requirements-tests-install-s390x.txt). Everything under
-# tests/schema_registry needs them: its conftest.py imports the
-# schema-registry client, and with it authlib, at import time. So skip
-# collecting that directory on s390x. The exclusion lives here because that
-# conftest.py would fail to import before it could exclude anything itself.
+# s390x: tests/schema_registry needs cryptography (via authlib), which ships no
+# s390x wheels, and its conftest.py imports it at load time, so skip it here.
 collect_ignore = []
 if platform.machine() == "s390x":
     collect_ignore = ["schema_registry"]
