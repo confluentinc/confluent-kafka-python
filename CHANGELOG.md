@@ -31,6 +31,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 - Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
 - Fix crash on nullable array of $ref items in JSON Schema CSFLE (#2370)
 - Fix `Producer.purge()` ignoring `in_queue`, `in_flight` and `blocking` set to `False` on big-endian platforms such as s390x (#2345)
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
 
 
 ## v2.15.1
