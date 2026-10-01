@@ -28,9 +28,10 @@ echo "Verifying the free-threaded wheel matching $wheel_glob for $OS_NAME-$ARCH"
 # s390x: cryptography (via authlib, trivup's jwcrypto) ships no s390x wheels,
 # so this installs the reduced requirements-tests-install-nogil-s390x.txt;
 # tests/conftest.py skips tests/schema_registry there to match.
-tests_install_reqs=requirements/requirements-tests-install-nogil.txt
-if [[ $ARCH == s390x ]]; then
+if [[ $ARCH == "s390x" ]]; then
     tests_install_reqs=requirements/requirements-tests-install-nogil-s390x.txt
+else
+    tests_install_reqs=requirements/requirements-tests-install-nogil.txt
 fi
 
 uv venv _venv314t --python 3.14t

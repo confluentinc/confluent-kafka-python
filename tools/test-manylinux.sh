@@ -45,7 +45,7 @@ function setup_ubuntu {
     # mypy, and cryptography via the schema-registry deps of the extras the
     # smoke test installs) publish no s390x wheels and are built from source,
     # which needs a C compiler plus the Python and OpenSSL headers.
-    if [[ $(uname -m) == s390x ]]; then
+    if [[ $(uname -m) == "s390x" ]]; then
         apt-get install -y -q gcc python3.9-dev libssl-dev pkg-config
     fi
 }
@@ -85,16 +85,9 @@ function run_all_with_docker {
         exit 1
     fi
 
-    # s390x: test on ubuntu:22.04 and 24.04 rather than 20.04. cryptography has
-    # no s390x wheel, so it is built against the system OpenSSL, and it needs
-    # OpenSSL >= 3.0 (ubuntu:20.04 ships 1.1.1).
-    if [[ -z $DOCKER_IMAGES && $(uname -m) == s390x ]]; then
-        DOCKER_IMAGES="ubuntu:22.04 ubuntu:24.04"
-    fi
-
     [[ ! -z $DOCKER_IMAGES ]] || \
-        # LTS and stable release of popular Linux distros.
-        DOCKER_IMAGES="ubuntu:20.04 ubuntu:22.04"
+        # Supported LTS releases of popular Linux distros.
+        DOCKER_IMAGES="ubuntu:22.04 ubuntu:24.04 ubuntu:26.04"
 
 
     _wheels="$wheelhouse/*manylinux*.whl"

@@ -67,9 +67,10 @@ for py in 3.9 ; do
         # installed below do pull the schema-registry deps, so on s390x
         # cryptography is built from source there (needs a C compiler and
         # OpenSSL >= 3.0 headers).
-        tests_install_reqs="requirements/requirements-tests-install.txt"
         if [[ "$(uname -m)" == "s390x" ]]; then
             tests_install_reqs="requirements/requirements-tests-install-s390x.txt"
+        else
+            tests_install_reqs="requirements/requirements-tests-install.txt"
         fi
         uv pip install -r "$tests_install_reqs"
 
