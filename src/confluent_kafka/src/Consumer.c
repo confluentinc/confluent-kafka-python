@@ -1468,7 +1468,33 @@ done:
 }
 
 
+static PyObject *Consumer_config(Handle *self,
+                                 PyObject *args,
+                                 PyObject *kwargs) {
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer is closed or not initialized");
+                return NULL;
+        }
+
+        return handle_config(self, args, kwargs);
+}
+
+
 static PyMethodDef Consumer_methods[] = {
+    {"config", (PyCFunction)Consumer_config, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: config([include_sensitive=False])\n"
+     "\n"
+     "  Returns a dictionary containing the effective configuration of the\n"
+     "  Consumer instance, including librdkafka defaults.\n"
+     "\n"
+     "  :param bool include_sensitive: If True, sensitive configuration\n"
+     "      properties (passwords, keys, tokens) are returned in plaintext.\n"
+     "      If False (default), sensitive values are redacted as '[redacted]'.\n"
+     "  :returns: Dictionary of effective configuration properties and their\n"
+     "      string values.\n"
+     "  :rtype: dict\n"
+     "\n"},
     {"subscribe", (PyCFunction)Consumer_subscribe, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None], "
      "[on_lost=None])\n"
@@ -1943,6 +1969,8 @@ static void Consumer_rebalance_cb(rd_kafka_t *rk,
 
         CallState_resume(cs);
 }
+
+
 
 
 
