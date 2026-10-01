@@ -927,10 +927,50 @@ static PyObject *ShareConsumer_exit(ShareConsumerHandle *self, PyObject *args) {
 }
 
 
+static PyObject *ShareConsumer_config(ShareConsumerHandle *self,
+                                      PyObject *args,
+                                      PyObject *kwargs) {
+        rd_kafka_t *rk;
+        Handle h;
+
+        if (!self->rkshare) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "ShareConsumer is closed or not initialized");
+                return NULL;
+        }
+
+        /* In librdkafka, struct rd_kafka_share_s has rd_kafka_t *rkshare_rk
+         * as its first member. */
+        rk = *(rd_kafka_t **)self->rkshare;
+        if (!rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "ShareConsumer client not available");
+                return NULL;
+        }
+
+        memset(&h, 0, sizeof(h));
+        h.rk = rk;
+        return handle_config(&h, args, kwargs);
+}
+
+
 /**
  * @brief ShareConsumer methods.
  */
 static PyMethodDef ShareConsumer_methods[] = {
+    {"config", (PyCFunction)ShareConsumer_config, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: config([include_sensitive=False])\n"
+     "\n"
+     "  Returns a dictionary containing the effective configuration of the\n"
+     "  ShareConsumer instance, including librdkafka defaults.\n"
+     "\n"
+     "  :param bool include_sensitive: If True, sensitive configuration\n"
+     "      properties (passwords, keys, tokens) are returned in plaintext.\n"
+     "      If False (default), sensitive values are redacted as '[redacted]'.\n"
+     "  :returns: Dictionary of effective configuration properties and their\n"
+     "      string values.\n"
+     "  :rtype: dict\n"
+     "\n"},
     {"subscribe", (PyCFunction)ShareConsumer_subscribe,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: subscribe(topics)\n"
@@ -1201,25 +1241,7 @@ static int ShareConsumer_reject_incompatible_config(PyObject *args,
  * @brief Initialize ShareConsumer.
  */
 
-static PyObject *ShareConsumer_config(PyObject *selfobj, void *closure) {
-        Handle *self = (Handle *)selfobj;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "ShareConsumer instance not initialized");
-                return NULL;
-        }
-
-        return handle_config_dict(self);
-}
-
-static PyGetSetDef ShareConsumer_getsetters[] = {
-    {"config", (getter)ShareConsumer_config, NULL,
-     ":attribute config: Effective configuration properties of the "
-     "ShareConsumer instance (dict, read-only). Callbacks such as "
-     "``error_cb`` passed in the configuration dict are not included.",
-     NULL},
-    {NULL}};
 static int
 ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         ShareConsumerHandle *self = (ShareConsumerHandle *)selfobj;
@@ -1406,7 +1428,7 @@ PyTypeObject ShareConsumerType = {
     0,                                    /* tp_iternext */
     ShareConsumer_methods,                /* tp_methods */
     0,                                    /* tp_members */
-    ShareConsumer_getsetters,             /* tp_getset */
+    0,                                    /* tp_getset */
     0,                                    /* tp_base */
     0,                                    /* tp_dict */
     0,                                    /* tp_descr_get */

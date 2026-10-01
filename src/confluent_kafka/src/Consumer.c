@@ -1254,7 +1254,33 @@ static PyObject *Consumer_consumer_group_metadata(Handle *self,
 }
 
 
+static PyObject *Consumer_config(Handle *self,
+                                 PyObject *args,
+                                 PyObject *kwargs) {
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer is closed or not initialized");
+                return NULL;
+        }
+
+        return handle_config(self, args, kwargs);
+}
+
+
 static PyMethodDef Consumer_methods[] = {
+    {"config", (PyCFunction)Consumer_config, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: config([include_sensitive=False])\n"
+     "\n"
+     "  Returns a dictionary containing the effective configuration of the\n"
+     "  Consumer instance, including librdkafka defaults.\n"
+     "\n"
+     "  :param bool include_sensitive: If True, sensitive configuration\n"
+     "      properties (passwords, keys, tokens) are returned in plaintext.\n"
+     "      If False (default), sensitive values are redacted as '[redacted]'.\n"
+     "  :returns: Dictionary of effective configuration properties and their\n"
+     "      string values.\n"
+     "  :rtype: dict\n"
+     "\n"},
     {"subscribe", (PyCFunction)Consumer_subscribe, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None], "
      "[on_lost=None])\n"
@@ -1733,24 +1759,6 @@ static void Consumer_rebalance_cb(rd_kafka_t *rk,
 
 
 
-static PyObject *Consumer_config(PyObject *selfobj, void *closure) {
-        Handle *self = (Handle *)selfobj;
-
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer instance not initialized");
-                return NULL;
-        }
-
-        return handle_config_dict(self);
-}
-
-static PyGetSetDef Consumer_getsetters[] = {
-    {"config", (getter)Consumer_config, NULL,
-     ":attribute config: Effective configuration properties of the "
-     "Consumer instance (dict, read-only). Callbacks such as ``error_cb`` "
-     "passed in the configuration dict are not included.", NULL},
-    {NULL}};
 
 static int Consumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
@@ -1860,7 +1868,7 @@ PyTypeObject ConsumerType = {
     0,                               /* tp_iternext */
     Consumer_methods,                /* tp_methods */
     0,                               /* tp_members */
-    Consumer_getsetters,             /* tp_getset */
+    0,                               /* tp_getset */
     0,                               /* tp_base */
     0,                               /* tp_dict */
     0,                               /* tp_descr_get */

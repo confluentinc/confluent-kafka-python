@@ -3482,7 +3482,33 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
 }
 
 
+static PyObject *Admin_config(Handle *self,
+                              PyObject *args,
+                              PyObject *kwargs) {
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "AdminClient instance not initialized");
+                return NULL;
+        }
+
+        return handle_config(self, args, kwargs);
+}
+
+
 static PyMethodDef Admin_methods[] = {
+    {"config", (PyCFunction)Admin_config, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: config([include_sensitive=False])\n"
+     "\n"
+     "  Returns a dictionary containing the effective configuration of the\n"
+     "  AdminClient instance, including librdkafka defaults.\n"
+     "\n"
+     "  :param bool include_sensitive: If True, sensitive configuration\n"
+     "      properties (passwords, keys, tokens) are returned in plaintext.\n"
+     "      If False (default), sensitive values are redacted as '[redacted]'.\n"
+     "  :returns: Dictionary of effective configuration properties and their\n"
+     "      string values.\n"
+     "  :rtype: dict\n"
+     "\n"},
     {"create_topics", (PyCFunction)Admin_create_topics,
      METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: create_topics(topics, future, [validate_only, "

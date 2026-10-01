@@ -785,3 +785,30 @@ def test_uninitialized_consumer_methods():
 
     with pytest.raises(RuntimeError, match="Consumer closed"):
         consumer.consumer_group_metadata()
+
+
+def test_consumer_config():
+    """Issue #465
+    The effective configuration of a Consumer instance can be inspected
+    via the config() method."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'group.id': 'test-group',
+        'client.id': 'test-consumer-id',
+        'session.timeout.ms': 1000,
+        'sasl.password': 'consumersecret',
+    }
+
+    c = TestConsumer(conf)
+
+    config = c.config()
+    assert isinstance(config, dict)
+    assert config['group.id'] == 'test-group'
+    assert config['client.id'] == 'test-consumer-id'
+    assert config['session.timeout.ms'] == '1000'
+    assert config['sasl.password'] == '[redacted]'
+
+    config_sensitive = c.config(include_sensitive=True)
+    assert config_sensitive['sasl.password'] == 'consumersecret'
+
+    c.close()

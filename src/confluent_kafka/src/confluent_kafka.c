@@ -2958,6 +2958,29 @@ static const char *handle_config_dict_excluded[] = {
     NULL};
 
 /**
+ * @brief Names of configuration properties that hold sensitive values
+ *        (passwords, secrets, private keys, ...) in librdkafka's configuration.
+ *        These match all properties tagged with _RK_SENSITIVE in librdkafka's
+ *        rdkafka_conf.c. When include_sensitive is false, their values are
+ *        redacted to "[redacted]" (matching librdkafka's internal behavior).
+ */
+static const char *handle_config_sensitive_props[] = {
+    "ssl.key.location",
+    "ssl.key.password",
+    "ssl.key.pem",
+    "ssl_key",
+    "ssl.ca.pem",
+    "ssl.keystore.password",
+    "sasl.username",
+    "sasl.password",
+    "sasl.oauthbearer.config",
+    "sasl.oauthbearer.client.secret",
+    "sasl.oauthbearer.assertion.private.key.file",
+    "sasl.oauthbearer.assertion.private.key.passphrase",
+    "sasl.oauthbearer.assertion.private.key.pem",
+    NULL};
+
+/**
  * @brief Build a Python dict of the effective configuration properties
  *        of a client Handle, using the client instance's configuration
  *        object returned by rd_kafka_conf().
@@ -2965,8 +2988,11 @@ static const char *handle_config_dict_excluded[] = {
  *        Properties reported by librdkafka that carry internal
  *        non-string values (callback pointers, opaque, ...) are
  *        excluded, see handle_config_dict_excluded.
+ *
+ *        When include_sensitive is false, sensitive properties are
+ *        redacted as "[redacted]".
  */
-PyObject *handle_config_dict(Handle *h) {
+PyObject *handle_config_dict(Handle *h, int include_sensitive) {
         const rd_kafka_conf_t *conf;
         const char **dump;
         size_t cnt = 0, i;
@@ -3000,8 +3026,9 @@ PyObject *handle_config_dict(Handle *h) {
         }
 
         for (i = 0; i < cnt; i += 2) {
-                int skip = 0, j;
+                int skip = 0, is_sensitive = 0, j;
                 PyObject *k, *v;
+                const char *val_str;
 
                 for (j = 0; handle_config_dict_excluded[j]; j++) {
                         if (!strcmp(dump[i],
@@ -3013,15 +3040,43 @@ PyObject *handle_config_dict(Handle *h) {
                 if (skip)
                         continue;
 
+                if (!include_sensitive) {
+                        for (j = 0; handle_config_sensitive_props[j]; j++) {
+                                if (!strcmp(dump[i],
+                                            handle_config_sensitive_props[j])) {
+                                        is_sensitive = 1;
+                                        break;
+                                }
+                        }
+                }
+
+                val_str = (is_sensitive ? "[redacted]" : dump[i + 1]);
+
                 k = cfl_PyUnistr(_FromString(dump[i]));
-                v = cfl_PyUnistr(_FromString(dump[i + 1]));
-                if (!k || !v || PyDict_SetItem(dict, k, v) == -1) {
-                        Py_XDECREF(k);
-                        Py_XDECREF(v);
+                if (!k) {
                         Py_DECREF(dict);
                         rd_kafka_conf_dump_free(dump, cnt);
-                        if (!PyErr_Occurred())
-                                PyErr_NoMemory();
+                        return NULL;
+                }
+
+                if (val_str) {
+                        v = cfl_PyUnistr(_FromString(val_str));
+                        if (!v) {
+                                Py_DECREF(k);
+                                Py_DECREF(dict);
+                                rd_kafka_conf_dump_free(dump, cnt);
+                                return NULL;
+                        }
+                } else {
+                        Py_INCREF(Py_None);
+                        v = Py_None;
+                }
+
+                if (PyDict_SetItem(dict, k, v) == -1) {
+                        Py_DECREF(k);
+                        Py_DECREF(v);
+                        Py_DECREF(dict);
+                        rd_kafka_conf_dump_free(dump, cnt);
                         return NULL;
                 }
                 Py_DECREF(k);
@@ -3030,6 +3085,17 @@ PyObject *handle_config_dict(Handle *h) {
 
         rd_kafka_conf_dump_free(dump, cnt);
         return dict;
+}
+
+PyObject *handle_config(Handle *h, PyObject *args, PyObject *kwargs) {
+        static char *kwnames[] = {"include_sensitive", NULL};
+        int include_sensitive = 0;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", kwnames,
+                                         &include_sensitive))
+                return NULL;
+
+        return handle_config_dict(h, include_sensitive);
 }
 
 rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
