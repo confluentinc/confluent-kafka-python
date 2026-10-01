@@ -13,6 +13,7 @@ export CIBW_TEST_REQUIRES="pytest"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
+export CIBW_MANYLINUX_S390X_IMAGE="manylinux_2_28"
 
 librdkafka_version=$1
 wheeldir=$2

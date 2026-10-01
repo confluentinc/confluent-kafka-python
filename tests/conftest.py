@@ -16,12 +16,25 @@
 # limitations under the License.
 #
 
+import platform
 import sys
 import sysconfig
+import warnings
 
 import pytest
 
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+# s390x: tests/schema_registry needs cryptography (via authlib), which ships no
+# s390x wheels, and its conftest.py imports it at load time, so skip it here.
+collect_ignore = []
+if platform.machine() == "s390x":
+    collect_ignore = ["schema_registry"]
+    warnings.warn(
+        "s390x: skipping collection of tests/schema_registry, whose "
+        "schema-registry deps (cryptography via authlib) ship no s390x wheels",
+        RuntimeWarning,
+    )
 
 
 if FREE_THREADED_BUILD:
