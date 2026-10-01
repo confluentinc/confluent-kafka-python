@@ -205,6 +205,15 @@ e.g., a timeout, restart the specific job.
 If there are permanent errors, fix them and then go back to 5.1. to create
 and push a new test tag. Don't forget to delete your previous test tag.
 
+Pushing a tag also fires the **Mend SCA + SAST Scan** block, which triggers the
+ad hoc `mend-source-scan` task in `appsec-semaphore-workflows` (via
+`sem-trigger`) to run a Mend SCA (`mend dep`) and SAST (`mend sast`) scan
+against this tag's source. This runs out-of-band: the trigger call itself is
+fire-and-forget (bounded by a 60s local timeout) and does not block or fail
+this pipeline, since the scan itself can run far longer than a release build
+should wait. Check scan results/findings in Mend directly (product family
+`COSS`), not in this pipeline's own job status.
+
 
 ### 5.4. Download build artifacts
 
