@@ -27,7 +27,7 @@ import threading
 import pytest
 
 from confluent_kafka import DeserializingConsumer, KafkaError, KafkaException, SerializingProducer
-from confluent_kafka._serde_builder import build_serdes, pop_serde_props
+from confluent_kafka._serde_builder import build_serdes, close_serdes, pop_serde_props
 from confluent_kafka.cimpl import Message
 from confluent_kafka.serialization import (
     Deserializer,
@@ -759,6 +759,60 @@ def test_deserializer_builder_closes_the_serde_it_built_when_the_init_callback_f
         builder.build({}, False)
 
     assert len(sr_client_closes) == 1
+
+
+@pytest.fixture
+def failing_sr_client_close(monkeypatch):
+    def _close(self):
+        raise RuntimeError("close broke")
+
+    monkeypatch.setattr(sr_client.SchemaRegistryClient, 'close', _close)
+
+
+def test_a_failing_cleanup_does_not_hide_the_construction_error(failing_sr_client_close, caplog):
+    builder = sr_avro.AvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_config={'not.a.property': True}
+    )
+
+    with pytest.raises(ValueError, match='not.a.property'):
+        builder.build({}, False)
+
+    assert 'close broke' in caplog.text
+
+
+def test_a_failing_cleanup_does_not_hide_the_init_callback_error(failing_sr_client_close, caplog):
+    def broken_init(serializer):
+        raise RuntimeError("init broke")
+
+    builder = sr_avro.AvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_init=broken_init
+    )
+
+    with pytest.raises(RuntimeError, match='init broke'):
+        builder.build({}, False)
+
+    assert 'close broke' in caplog.text
+
+
+def test_close_serdes_closes_all_raises_the_first_error_and_logs_the_others(caplog):
+    class _Serde:
+        def __init__(self, error=None):
+            self.error = error
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+            if self.error:
+                raise RuntimeError(self.error)
+
+    serdes = [_Serde('first broke'), _Serde(), _Serde('second broke')]
+
+    with pytest.raises(RuntimeError, match='first broke'):
+        close_serdes(serdes)
+
+    assert all(s.closed for s in serdes)
+    assert 'second broke' in caplog.text
+    assert 'first broke' not in caplog.text
 
 
 def test_builder_does_not_close_a_supplied_sr_client_when_the_serde_fails(sr_client_closes):

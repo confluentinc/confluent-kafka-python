@@ -16,6 +16,21 @@
 
 #include "confluent_kafka.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
+static int64_t monotonic_ms(void) {
+#ifdef _WIN32
+        return (int64_t)GetTickCount64();
+#else
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
 
 /**
  * @name Cluster and topic metadata retrieval
@@ -433,28 +448,64 @@ const char list_topics_doc[] = PyDoc_STR(
 
 PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
-        PyObject *result   = NULL;
-        char *c_cluster_id = NULL;
-        double tmout       = -1.0f;
-        static char *kws[] = {"timeout", NULL};
+        PyObject *result           = NULL;
+        char *c_cluster_id         = NULL;
+        double tmout               = -1.0f;
+        static char *kws[]         = {"timeout", NULL};
+        const int CHUNK_TIMEOUT_MS = 200;
+        int total_timeout_ms;
+        int chunk_timeout_ms;
+        int chunk_count = 0;
+        int closing     = 0;
+        int64_t chunk_start;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
+        if (!Handle_common_enter(self))
                 return NULL;
-        }
+
+        total_timeout_ms = cfl_timeout_ms(tmout);
 
         CallState_begin(self, &cs);
 
-        c_cluster_id = rd_kafka_clusterid(self->rk, cfl_timeout_ms(tmout));
+        /* Wait in chunks, as close() waits for this call to return before
+         * destroying the client: stop as soon as a close() starts, rather
+         * than holding it up for the rest of the timeout. */
+        while (1) {
+                chunk_timeout_ms = calculate_chunk_timeout(
+                    total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+
+                chunk_start  = monotonic_ms();
+                c_cluster_id = rd_kafka_clusterid(self->rk, chunk_timeout_ms);
+                /* A chunk ending well before its timeout means librdkafka
+                 * gave up for good: metadata without a cluster id (broker
+                 * older than KIP-78) or the client being destroyed. */
+                if (c_cluster_id || chunk_timeout_ms < CHUNK_TIMEOUT_MS ||
+                    monotonic_ms() - chunk_start < chunk_timeout_ms / 2)
+                        break;
+
+                chunk_count++;
+
+                if (atomic_int_get(&self->closing)) {
+                        closing = 1;
+                        break;
+                }
+
+                if (check_signals_between_chunks(self, &cs))
+                        goto end;
+        }
 
         if (!CallState_end(self, &cs)) {
                 /* Exception raised */
-                if (c_cluster_id != NULL)
-                        rd_kafka_mem_free(self->rk, c_cluster_id);
-                return NULL;
+                goto end;
+        }
+
+        if (closing) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__DESTROY,
+                                 "Failed to retrieve cluster id: %s",
+                                 ERR_MSG_HANDLE_CLOSED);
+                goto end;
         }
 
         if (c_cluster_id == NULL) {
@@ -464,12 +515,16 @@ PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
                     "support KIP-78 (>= 0.10.1) for the cluster id to be "
                     "available.",
                     rd_kafka_err2str(RD_KAFKA_RESP_ERR__TIMED_OUT));
-                return NULL;
+                goto end;
         }
 
         result = cfl_PyUnistr(_FromString(c_cluster_id));
 
-        rd_kafka_mem_free(self->rk, c_cluster_id);
+end:
+        if (c_cluster_id != NULL)
+                rd_kafka_mem_free(self->rk, c_cluster_id);
+
+        Handle_common_exit(self);
 
         return result;
 }

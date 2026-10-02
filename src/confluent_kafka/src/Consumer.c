@@ -1387,8 +1387,14 @@ static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
         CallState cs;
         PyObject *result = NULL;
 
-        if (!Handle_serialize_enter(self))
+        /* Set before waiting for the gate, so that a cluster_id() blocked
+         * while holding it gives up instead of holding up the close. */
+        atomic_int_set(&self->closing, 1);
+
+        if (!Handle_serialize_enter(self)) {
+                atomic_int_set(&self->closing, 0);
                 return NULL;
+        }
 
         if (!self->rk) {
                 Py_INCREF(Py_None);

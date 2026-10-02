@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional, cast
 
 if TYPE_CHECKING:
     # PEP 696 defaults, so an unparameterized DeserializingConsumer(conf) still
@@ -154,14 +154,13 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
         any Schema Registry client they own. Deserializers supplied ready-made
         are left untouched.
 
-        Safe to call more than once: later calls do nothing.
+        Safe to call more than once: later calls do nothing. If closing the
+        underlying consumer raises, the deserializers are kept, as the consumer
+        may still be using them, and are released by the next call.
         """
-        try:
-            super(DeserializingConsumer, self).close()
-        finally:
-            # released even when leaving the group raised
-            owned, self._owned_serdes = self._owned_serdes, []
-            close_serdes(owned)
+        super(DeserializingConsumer, self).close()
+        owned, self._owned_serdes = self._owned_serdes, []
+        close_serdes(owned)
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]:
         # Consumer.__exit__ is implemented in C and calls the C close directly,
@@ -224,18 +223,12 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
 
             ValueDeserializationError: If an error occurs during value deserialization.
         """
-        # Deserializers need the topic (subject names derive from it); a message
-        # without one is reported as a deserialization error, but only when a
-        # deserializer would actually run, so that it passes through otherwise.
-        topic = msg.topic()
-        ctx = SerializationContext(topic, MessageField.KEY, msg.headers()) if topic else None
+        # only error messages lack a topic, and they never get here
+        topic = cast(str, msg.topic())
+        ctx = SerializationContext(topic, MessageField.KEY, msg.headers())
 
         key: Any = msg.key()
         if self._key_deserializer is not None:
-            if ctx is None:
-                raise KeyDeserializationError(
-                    exception=ValueError("Key deserialization needs a non-empty topic name"), kafka_message=msg
-                )
             try:
                 key = self._key_deserializer(key, ctx)
             except Exception as se:
@@ -243,10 +236,6 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
 
         value: Any = msg.value()
         if self._value_deserializer is not None:
-            if ctx is None:
-                raise ValueDeserializationError(
-                    exception=ValueError("Value deserialization needs a non-empty topic name"), kafka_message=msg
-                )
             ctx.field = MessageField.VALUE
             try:
                 value = self._value_deserializer(value, ctx)

@@ -347,7 +347,11 @@ async def async_build_serde(
         serde = await construct(client)
     except BaseException:
         if owned and client is not None:
-            await client.aclose()
+            try:
+                await client.aclose()
+            except Exception:
+                # logged, so that the construction error is the one raised
+                log.warning("Failed to close the Schema Registry client of a serde that failed to build", exc_info=True)
         raise
 
     if owned:
@@ -357,7 +361,11 @@ async def async_build_serde(
         try:
             init(serde)
         except BaseException:
-            await serde.aclose()
+            try:
+                await serde.aclose()
+            except Exception:
+                # logged, so that the init callback error is the one raised
+                log.warning("Failed to close a serde whose init callback failed", exc_info=True)
             raise
 
     return serde

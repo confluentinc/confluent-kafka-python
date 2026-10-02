@@ -151,22 +151,22 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
         ``value.serializer.builder`` along with any Schema Registry client
         they own. Serializers supplied ready-made are left untouched.
 
-        Safe to call more than once: later calls do nothing.
+        Safe to call more than once: later calls do nothing. If closing the
+        underlying producer raises, the serializers are kept, as the producer
+        may still be using them, and are released by the next call.
 
         Returns:
             bool: What :py:func:`Producer.close` returned.
         """
-        try:
-            return super(SerializingProducer, self).close()
-        finally:
-            # Only now: the flush inside Producer.close() dispatches delivery
-            # callbacks, which may legitimately produce() again on this same
-            # thread, and Producer itself already rejects any other caller
-            # while it is closing.
-            self._closed = True
-            # released even when flushing/destroying the producer raised
-            owned, self._owned_serdes = self._owned_serdes, []
-            close_serdes(owned)
+        result = super(SerializingProducer, self).close()
+        # Only now: the flush inside Producer.close() dispatches delivery
+        # callbacks, which may legitimately produce() again on this same
+        # thread; a concurrent close() returns only once the producer is
+        # destroyed, so it cannot release the serializers mid-flush either.
+        self._closed = True
+        owned, self._owned_serdes = self._owned_serdes, []
+        close_serdes(owned)
+        return result
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_traceback: Any) -> Optional[bool]:
         # Producer.__exit__ is implemented in C and calls the C close directly,

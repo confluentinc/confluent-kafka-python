@@ -347,7 +347,11 @@ def build_serde(
         serde = construct(client)
     except BaseException:
         if owned and client is not None:
-            client.close()
+            try:
+                client.close()
+            except Exception:
+                # logged, so that the construction error is the one raised
+                log.warning("Failed to close the Schema Registry client of a serde that failed to build", exc_info=True)
         raise
 
     if owned:
@@ -357,7 +361,11 @@ def build_serde(
         try:
             init(serde)
         except BaseException:
-            serde.close()
+            try:
+                serde.close()
+            except Exception:
+                # logged, so that the init callback error is the one raised
+                log.warning("Failed to close a serde whose init callback failed", exc_info=True)
             raise
 
     return serde

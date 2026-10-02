@@ -28,8 +28,11 @@ the Kafka cluster id. That handling lives here so the clients stay in step.
 import asyncio
 import concurrent.futures
 import inspect
+import logging
 import threading
 from typing import Any, Awaitable, Callable, Dict, List, NamedTuple, Optional, Tuple
+
+log = logging.getLogger(__name__)
 
 #: Time to wait for the cluster id, in seconds. Matches the default
 #: ``max.block.ms`` the Java client allows for metadata retrieval.
@@ -338,7 +341,8 @@ def close_serdes(serdes: List[Any]) -> None:
     """
     Close every serde, attempting all of them before re-raising the first error.
 
-    Serdes without a ``close`` method are skipped.
+    Errors after the first are logged. Serdes without a ``close`` method are
+    skipped.
     """
 
     first_error: Optional[BaseException] = None
@@ -352,6 +356,8 @@ def close_serdes(serdes: List[Any]) -> None:
         except BaseException as e:
             if first_error is None:
                 first_error = e
+            else:
+                log.warning("Failed to close serde %r", serde, exc_info=True)
 
     if first_error is not None:
         raise first_error
@@ -379,6 +385,8 @@ async def async_close_serdes(serdes: List[Any]) -> None:
         except BaseException as e:
             if first_error is None:
                 first_error = e
+            else:
+                log.warning("Failed to close serde %r", serde, exc_info=True)
 
     if first_error is not None:
         raise first_error

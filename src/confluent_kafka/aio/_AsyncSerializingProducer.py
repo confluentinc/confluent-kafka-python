@@ -139,15 +139,15 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
         then closes the serializers built from ``key.serializer.builder`` /
         ``value.serializer.builder`` along with any Schema Registry client they
         own. Serializers supplied ready-made are left untouched.
+
+        If closing the underlying producer raises, the serializers are kept, as
+        the producer may still be using them, and are released by the next call.
         """
-        try:
-            # AIOProducer.close() shuts its executor down and cannot run twice
-            if not self._is_closed:
-                await super().close()
-        finally:
-            # released even when flushing raised
-            owned, self._owned_serdes = self._owned_serdes, []
-            await async_close_serdes(owned)
+        # AIOProducer.close() shuts its executor down and cannot run twice
+        if not self._is_closed:
+            await super().close()
+        owned, self._owned_serdes = self._owned_serdes, []
+        await async_close_serdes(owned)
 
     async def produce(  # type: ignore[override]
         self,
