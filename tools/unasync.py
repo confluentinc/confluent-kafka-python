@@ -41,6 +41,7 @@ SUBS = [
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
+    ('set_async_cluster_id_resolver', 'set_cluster_id_resolver'),
     ('async def', 'def'),
     ('await ', ''),
     ('aclose', 'close'),

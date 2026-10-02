@@ -34,7 +34,7 @@ from .._serde_builder import (
     async_close_serdes,
     maybe_await,
     pop_serde_props,
-    propagate_cluster_id_resolver,
+    propagate_async_cluster_id_resolver,
 )
 from .._types import HeadersType
 from .._util.asyncinit import asyncinit
@@ -90,10 +90,13 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
     (:py:class:`StringSerializer`, ...) are accepted; blocking serializers run on the
     event loop, so keep them to the cheap, non-blocking kind.
 
-    Serializers are handed a way to obtain the Kafka cluster id: those that need it
-    (serializers resolving subjects through the Schema Registry associated subject name
-    strategy without an explicit ``subject.name.strategy.kafka.cluster.id``) fetch it from
-    the broker on their first lookup, so constructing the producer never waits on a broker.
+    Asyncio serializers are handed a way to obtain the Kafka cluster id: those that need it
+    (asyncio serializers resolving subjects through the Schema Registry associated subject
+    name strategy without an explicit ``subject.name.strategy.kafka.cluster.id``) fetch it
+    from the broker on their first lookup, so constructing the producer never waits on a
+    broker. Blocking serializers are not, as waiting on the broker would stall the event
+    loop: a blocking Schema Registry one using that strategy looks associations up under
+    the ``-`` wildcard namespace unless ``subject.name.strategy.kafka.cluster.id`` is set.
 
     Serializers built here from a ``.builder`` property are owned by the producer and closed
     by :py:func:`close`, together with any Schema Registry client the builder created for
@@ -118,7 +121,7 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
         try:
             AIOProducer.__init__(self, conf_copy, **kwargs)
 
-            propagate_cluster_id_resolver(AsyncSharedClusterIdResolver(self.cluster_id), serdes)
+            propagate_async_cluster_id_resolver(AsyncSharedClusterIdResolver(self.cluster_id), serdes)
         except BaseException:
             owned, self._owned_serdes = self._owned_serdes, []
             try:

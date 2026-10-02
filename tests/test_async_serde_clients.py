@@ -84,6 +84,12 @@ class _TrackingSerializer(StringSerializer):
 class _AsyncTrackingSerializer(_TrackingSerializer):
     """Asyncio serializer: its call is a coroutine and it closes through aclose(), like the SR asyncio serdes."""
 
+    def set_cluster_id_resolver(self, resolver):
+        raise AssertionError("asyncio serdes are handed their resolver through set_async_cluster_id_resolver()")
+
+    def set_async_cluster_id_resolver(self, resolver):
+        self.resolver = resolver
+
     async def __call__(self, obj, ctx):
         return super().__call__(obj, ctx)
 
@@ -100,7 +106,7 @@ class _AsyncTrackingDeserializer(StringDeserializer):
         self.resolver = None
         self.closed = 0
 
-    def set_cluster_id_resolver(self, resolver):
+    def set_async_cluster_id_resolver(self, resolver):
         self.resolver = resolver
 
     async def __call__(self, data, ctx):
@@ -378,6 +384,16 @@ async def test_a_cancelled_waiter_leaves_the_shared_resolution_running(monkeypat
         await producer.close()
 
 
+async def test_blocking_serdes_get_no_resolver(cluster_id_calls):
+    # they could not await the asyncio resolver, so they are not handed one
+    serializer = _TrackingSerializer()
+    producer = await _producer(**{'value.serializer': serializer})
+    try:
+        assert serializer.resolver is None
+    finally:
+        await producer.close()
+
+
 async def test_consumer_hands_its_deserializers_a_resolver(cluster_id_calls):
     deserializer = _AsyncTrackingDeserializer()
     consumer = await _consumer(**{'value.deserializer': deserializer})
@@ -598,6 +614,7 @@ async def test_built_serdes_are_closed_when_a_later_builder_fails(cluster_id_cal
 
 sr_avro = pytest.importorskip('confluent_kafka.schema_registry.avro')
 sr_client = pytest.importorskip('confluent_kafka.schema_registry._async.schema_registry_client')
+sr_sync_client = pytest.importorskip('confluent_kafka.schema_registry._sync.schema_registry_client')
 
 SR_CONF = {'url': 'mock://'}
 AVRO_SCHEMA = (
@@ -706,6 +723,28 @@ async def test_sr_serde_resolves_the_cluster_id_through_the_producer(cluster_id_
         assert cluster_id_calls == [60.0]
         # no association exists, so the strategy fell back to <topic>-value
         assert await registry.get_latest_version(TOPIC + '-value') is not None
+    finally:
+        await producer.close()
+
+
+async def test_blocking_sr_serde_in_an_async_producer_uses_the_wildcard_namespace(cluster_id_calls, produced):
+    # handed the asyncio resolver, the blocking serde would take the coroutine it
+    # returns for the cluster id, which a real registry fails to put in a URL
+    registry = sr_sync_client.SchemaRegistryClient.new_client(SR_CONF)
+    namespaces = []
+    get_associations = registry.get_associations_by_resource_name
+
+    def _get_associations(*args, **kwargs):
+        namespaces.append(kwargs['resource_namespace'])
+        return get_associations(*args, **kwargs)
+
+    registry.get_associations_by_resource_name = _get_associations
+    producer = await _producer(**{'value.serializer': sr_avro.AvroSerializer(registry, AVRO_SCHEMA)})
+    try:
+        await producer.produce(TOPIC, value=USER)
+        assert produced[0][1][:1] == b'\x00'  # Schema Registry framing
+        assert namespaces == ['-']
+        assert registry.get_latest_version(TOPIC + '-value') is not None
     finally:
         await producer.close()
 

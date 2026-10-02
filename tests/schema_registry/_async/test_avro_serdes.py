@@ -1348,7 +1348,7 @@ async def test_cluster_id_resolver_invoked_on_subject_cache_miss_only():
 
     ser = await _resolver_serializer(client)
     resolver = _Resolver("resolved-cluster")
-    ser.set_cluster_id_resolver(resolver)
+    ser.set_async_cluster_id_resolver(resolver)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
 
     # construction and handing over the resolver never invoke it
@@ -1371,7 +1371,7 @@ async def test_cluster_id_resolver_not_invoked_when_id_is_configured():
 
     ser = await _resolver_serializer(client, {KAFKA_CLUSTER_ID: "configured-cluster"})
     resolver = _Resolver(RuntimeError("must not be called"))
-    ser.set_cluster_id_resolver(resolver)
+    ser.set_async_cluster_id_resolver(resolver)
 
     await ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
 
@@ -1388,7 +1388,7 @@ async def test_cluster_id_resolver_used_when_configured_id_is_empty():
 
     ser = await _resolver_serializer(client, {KAFKA_CLUSTER_ID: ""})
     resolver = _Resolver("resolved-cluster")
-    ser.set_cluster_id_resolver(resolver)
+    ser.set_async_cluster_id_resolver(resolver)
 
     await ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
 
@@ -1405,7 +1405,7 @@ async def test_cluster_id_resolver_failure_is_reported_and_retried():
     ser = await _resolver_serializer(client)
     # the broker is not reachable yet on the first attempt
     resolver = _Resolver(RuntimeError("Timed out"), "resolved-cluster")
-    ser.set_cluster_id_resolver(resolver)
+    ser.set_async_cluster_id_resolver(resolver)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
 
     with pytest.raises(SerializationError) as excinfo:
@@ -1425,7 +1425,7 @@ async def test_cluster_id_resolver_empty_result_is_an_error():
     client = AsyncSchemaRegistryClient.new_client({'url': _BASE_URL})
 
     ser = await _resolver_serializer(client)
-    ser.set_cluster_id_resolver(_Resolver(""))
+    ser.set_async_cluster_id_resolver(_Resolver(""))
 
     with pytest.raises(SerializationError) as excinfo:
         await ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
@@ -1438,7 +1438,7 @@ async def test_cluster_id_resolver_ignored_by_other_strategies():
 
     ser = await _resolver_serializer(client, strategy=SubjectNameStrategyType.TOPIC)
     resolver = _Resolver(RuntimeError("must not be called"))
-    ser.set_cluster_id_resolver(resolver)
+    ser.set_async_cluster_id_resolver(resolver)
 
     await ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
 
@@ -1453,8 +1453,8 @@ async def test_cluster_id_resolver_last_one_wins():
     ser = await _resolver_serializer(client)
     first = _Resolver("first-cluster")
     second = _Resolver("second-cluster")
-    ser.set_cluster_id_resolver(first)
-    ser.set_cluster_id_resolver(second)
+    ser.set_async_cluster_id_resolver(first)
+    ser.set_async_cluster_id_resolver(second)
 
     await ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
 

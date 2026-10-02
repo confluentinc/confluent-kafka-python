@@ -96,7 +96,7 @@ class AsyncAssociatedNameStrategy:
         """Create a cache key from topic, is_key, and record_name."""
         return (topic, is_key, record_name)
 
-    def set_cluster_id_resolver(self, resolver: Callable[[], Awaitable[str]]) -> None:
+    def set_async_cluster_id_resolver(self, resolver: Callable[[], Awaitable[str]]) -> None:
         """
         Supply a callable resolving the id of the Kafka cluster the client is
         connected to, used as the resource namespace of association lookups
@@ -528,7 +528,7 @@ class AsyncBaseSerde(object):
         self._subject_name_func = AsyncAssociatedNameStrategy()
         self._strategy_accepts_client = True
 
-    def set_cluster_id_resolver(self, resolver: Callable[[], Any]) -> None:
+    def set_async_cluster_id_resolver(self, resolver: Callable[[], Awaitable[str]]) -> None:
         """
         Supply a callable resolving the id of the Kafka cluster the client is
         connected to.
@@ -543,7 +543,7 @@ class AsyncBaseSerde(object):
             resolver (callable): Callable returning the cluster id.
         """
         if isinstance(self._subject_name_func, AsyncAssociatedNameStrategy):
-            self._subject_name_func.set_cluster_id_resolver(resolver)
+            self._subject_name_func.set_async_cluster_id_resolver(resolver)
 
     def own_schema_registry_client(self) -> None:
         """

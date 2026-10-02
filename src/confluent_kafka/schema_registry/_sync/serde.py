@@ -528,7 +528,7 @@ class BaseSerde(object):
         self._subject_name_func = AssociatedNameStrategy()
         self._strategy_accepts_client = True
 
-    def set_cluster_id_resolver(self, resolver: Callable[[], Any]) -> None:
+    def set_cluster_id_resolver(self, resolver: Callable[[], str]) -> None:
         """
         Supply a callable resolving the id of the Kafka cluster the client is
         connected to.

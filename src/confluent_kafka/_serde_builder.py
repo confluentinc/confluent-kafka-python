@@ -322,17 +322,41 @@ def propagate_cluster_id_resolver(resolver: Callable[[], Any], serdes: List[Any]
 
     Args:
         resolver (callable): Callable returning the cluster id, normally a
-            :py:class:`SharedClusterIdResolver`; a coroutine function, normally
-            an :py:class:`AsyncSharedClusterIdResolver`, for the asyncio
-            clients.
+            :py:class:`SharedClusterIdResolver`.
 
         serdes (list): Serdes to offer the resolver to. None entries and
             serdes without a ``set_cluster_id_resolver`` method, such as plain
             callables, are skipped.
     """
 
+    _offer_resolver('set_cluster_id_resolver', resolver, serdes)
+
+
+def propagate_async_cluster_id_resolver(resolver: Callable[[], Awaitable[Any]], serdes: List[Any]) -> None:
+    """
+    Asyncio counterpart of :py:func:`propagate_cluster_id_resolver`.
+
+    The resolver is a coroutine function, so it is offered through
+    ``set_async_cluster_id_resolver``, which only the asyncio serdes define.
+    The blocking serdes an asyncio client also accepts get no resolver: they
+    could not await it, and blocking on the cluster id would stall the event
+    loop they run on.
+
+    Args:
+        resolver (coroutine function): Coroutine function returning the
+            cluster id, normally an :py:class:`AsyncSharedClusterIdResolver`.
+
+        serdes (list): Serdes to offer the resolver to. None entries and
+            serdes without a ``set_async_cluster_id_resolver`` method are
+            skipped.
+    """
+
+    _offer_resolver('set_async_cluster_id_resolver', resolver, serdes)
+
+
+def _offer_resolver(setter: str, resolver: Callable[[], Any], serdes: List[Any]) -> None:
     for serde in serdes:
-        set_resolver = getattr(serde, 'set_cluster_id_resolver', None)
+        set_resolver = getattr(serde, setter, None)
         if callable(set_resolver):
             set_resolver(resolver)
 
