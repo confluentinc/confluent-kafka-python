@@ -23,16 +23,16 @@ from uuid import uuid4
 
 from six.moves import input
 
-from confluent_kafka import Producer
+from confluent_kafka import SerializingProducer
 from confluent_kafka.schema_registry import Rule, RuleKind, RuleMode, RuleParams, RuleSet, Schema, SchemaRegistryClient
-from confluent_kafka.schema_registry.json_schema import JSONSerializer
+from confluent_kafka.schema_registry.json_schema import JSONSerializerBuilder
 from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
-from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
+from confluent_kafka.serialization import StringSerializer
 
 
 class User(object):
@@ -158,13 +158,20 @@ def main(args):
     # KMS credentials can be passed as follows
     # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
     # Alternatively, the KMS credentials can be set via environment variables
-    json_serializer = JSONSerializer(
-        schema_str, schema_registry_client, user_to_dict, conf=ser_conf, rule_conf=rule_conf
+
+    producer = SerializingProducer(
+        {
+            'bootstrap.servers': args.bootstrap_servers,
+            'key.serializer': StringSerializer('utf_8'),
+            'value.serializer.builder': JSONSerializerBuilder(
+                schema_registry_client=schema_registry_client,
+                schema=schema_str,
+                to_dict=user_to_dict,
+                serializer_config=ser_conf,
+                rule_config=rule_conf,
+            ),
+        }
     )
-
-    string_serializer = StringSerializer('utf_8')
-
-    producer = Producer({'bootstrap.servers': args.bootstrap_servers})
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -181,12 +188,7 @@ def main(args):
                 favorite_color=user_favorite_color,
                 favorite_number=user_favorite_number,
             )
-            producer.produce(
-                topic=topic,
-                key=string_serializer(str(uuid4())),
-                value=json_serializer(user, SerializationContext(topic, MessageField.VALUE)),
-                on_delivery=delivery_report,
-            )
+            producer.produce(topic=topic, key=str(uuid4()), value=user, on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
         except ValueError:
@@ -198,7 +200,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="JSONSerailizer example")
+    parser = argparse.ArgumentParser(description="JSONSerializerBuilder encryption example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_json", help="Topic name")

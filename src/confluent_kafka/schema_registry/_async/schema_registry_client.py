@@ -715,6 +715,14 @@ class AsyncSchemaRegistryClient(object):
         return self
 
     async def __aexit__(self, *args):
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """
+        Close the underlying HTTP session.
+
+        The client is unusable afterwards. Safe to call more than once.
+        """
         if self._rest_client is not None:
             await self._rest_client.session.aclose()
 
