@@ -47,6 +47,29 @@ def test_consume_error(kafka_cluster):
     )
 
 
+def test_offset_out_of_range_is_returned_by_poll(kafka_cluster):
+    """With auto.offset.reset=error, expose offset reset on the polled message."""
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_offset_out_of_range")
+
+    producer = kafka_cluster.producer()
+    producer.produce(topic=topic, value="a")
+    producer.flush()
+
+    consumer = kafka_cluster.cimpl_consumer(
+        {'group.id': 'pytest', 'auto.offset.reset': 'error'}
+    )
+    try:
+        # The partition has data only at offset 0; offset 100 is out of range.
+        consumer.assign([TopicPartition(topic, 0, 100)])
+        msg = consumer.poll(10)
+
+        assert msg is not None
+        assert msg.error() is not None
+        assert msg.error().code() == KafkaError._AUTO_OFFSET_RESET
+    finally:
+        consumer.close()
+
+
 # Skipping the test for consumer protocol for now. Update the test to use
 # IncrementalAlterConfigs Admin operation to update
 # group.session.timeout.ms and enable the test again.

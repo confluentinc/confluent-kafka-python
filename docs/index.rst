@@ -1108,6 +1108,29 @@ addition to the properties dictated by the underlying librdkafka C library:
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events, these errors are typically to be considered informational since the client will automatically try to recover. This callback is served upon calling
   ``client.poll()`` or ``producer.flush()``.
 
+   Consumer partition errors, such as an offset that is no longer available, are
+   reported on the ``Message`` returned by ``Consumer.poll()``, not through
+   ``error_cb``. With ``auto.offset.reset`` set to ``earliest`` or ``latest`` (the
+   default is ``latest``), librdkafka resets an out-of-range offset and polling may
+   return ``None`` while the consumer resumes. To handle the reset explicitly, set
+   ``auto.offset.reset`` to ``error`` and inspect the returned message:
+
+   .. code-block:: python
+
+      from confluent_kafka import Consumer, KafkaError, TopicPartition
+
+      consumer = Consumer({
+            'bootstrap.servers': 'mybroker.com',
+            'group.id': 'mygroup',
+            'auto.offset.reset': 'error',
+      })
+      consumer.assign([TopicPartition('mytopic', 0, 100)])
+      msg = consumer.poll(10)
+      if msg is not None and msg.error():
+            if msg.error().code() == KafkaError._AUTO_OFFSET_RESET:
+                  # Choose an application-specific recovery action.
+                  ...
+
 * ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
   This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
 
