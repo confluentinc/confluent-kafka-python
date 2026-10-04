@@ -382,7 +382,7 @@ class StringSerializer(Serializer):
 
         try:
             return obj.encode(self.codec)
-        except _struct.error as e:
+        except UnicodeError as e:
             raise SerializationError(str(e))
 
 
@@ -430,5 +430,5 @@ class StringDeserializer(Deserializer):
 
         try:
             return value.decode(self.codec)
-        except _struct.error as e:
+        except UnicodeError as e:
             raise SerializationError(str(e))
