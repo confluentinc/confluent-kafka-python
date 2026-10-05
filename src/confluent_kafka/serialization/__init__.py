@@ -145,6 +145,8 @@ class Serializer(object):
         Supply a callable returning the id of the Kafka cluster the client is
         connected to.
 
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+
         :py:class:`SerializingProducer` calls this once, right after it has
         created the underlying client. The resolver may block for as long as
         the client waits for broker metadata, so a serializer must not invoke
@@ -164,6 +166,8 @@ class Serializer(object):
     def close(self) -> None:
         """
         Release the resources this serializer created for itself.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Called by :py:class:`SerializingProducer` when it is closed, for the
         serializers it built from a builder. Resources handed to the
@@ -235,6 +239,8 @@ class Deserializer(object):
         Supply a callable returning the id of the Kafka cluster the client is
         connected to.
 
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+
         See :py:func:`Serializer.set_cluster_id_resolver`; the resolver is
         supplied by :py:class:`DeserializingConsumer`. The default
         implementation does nothing.
@@ -249,6 +255,8 @@ class Deserializer(object):
         """
         Release the resources this deserializer created for itself.
 
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+
         See :py:func:`Serializer.close`; called by
         :py:class:`DeserializingConsumer`. The default implementation does
         nothing.
@@ -260,6 +268,8 @@ class Deserializer(object):
 class SerializerBuilder(object):
     """
     Extensible class from which all Serializer builders derive.
+
+    *This class is experimental and subject to incompatible API changes in future versions of the library.*
 
     A builder defers construction of a :py:class:`Serializer` until the client
     is created, which lets it take the client's own configuration into account
@@ -302,6 +312,8 @@ class SerializerBuilder(object):
 class DeserializerBuilder(object):
     """
     Extensible class from which all Deserializer builders derive.
+
+    *This class is experimental and subject to incompatible API changes in future versions of the library.*
 
     The deserializing counterpart of :py:class:`SerializerBuilder`. Pass one to
     :py:class:`DeserializingConsumer` through the ``key.deserializer.builder``

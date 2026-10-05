@@ -48,8 +48,8 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
     """
     An asyncio Kafka producer with serialization capabilities.
 
-    `This class is experimental and likely to be removed, or subject to incompatible API
-    changes in future versions of the library.`
+    *This class is experimental and likely to be removed, or subject to incompatible API
+    changes in future versions of the library.*
 
     The asyncio counterpart of :py:class:`SerializingProducer`: derived from
     :py:class:`AIOProducer`, overriding :py:func:`AIOProducer.produce` to serialize
@@ -137,6 +137,8 @@ class AsyncSerializingProducer(AIOProducer, Generic[K, V]):
     async def close(self) -> None:
         """
         Close the producer, then the serializers it built.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Flushes and shuts down the underlying :py:class:`AIOProducer` first,
         then closes the serializers built from ``key.serializer.builder`` /

@@ -581,6 +581,8 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
     """
     Builds an :py:class:`AsyncProtobufSerializer` for a serializing producer.
 
+    *This class is experimental and subject to incompatible API changes in future versions of the library.*
+
     Pass one to a producer through the ``key.serializer.builder`` or
     ``value.serializer.builder`` configuration property and it constructs the
     Schema Registry client and the serializer for you, and lets the producer
@@ -1014,6 +1016,8 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
 class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
     """
     Builds an :py:class:`AsyncProtobufDeserializer` for a deserializing consumer.
+
+    *This class is experimental and subject to incompatible API changes in future versions of the library.*
 
     The deserializing counterpart of :py:class:`AsyncProtobufSerializerBuilder`.
     Pass one to a consumer through the ``key.deserializer.builder`` or

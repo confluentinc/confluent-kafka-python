@@ -109,6 +109,11 @@ Experimental
      :ref:`JSONDeserializerBuilder <schemaregistry_json_deserializer_builder>`,
      :ref:`ProtobufDeserializerBuilder <schemaregistry_protobuf_deserializer_builder>`
      and their asyncio (``Async``-prefixed) counterparts
+   - ``cluster_id()`` on :ref:`Producer <pythonclient_producer>`, :ref:`Consumer <pythonclient_consumer>`,
+     :ref:`AdminClient <pythonclient_adminclient>`, ``AIOProducer`` and ``AIOConsumer``;
+     ``Message.deserialized_key()`` / ``Message.deserialized_value()``; the ``*.serializer.builder`` /
+     ``*.deserializer.builder`` configuration properties; and the new ``set_cluster_id_resolver()`` and
+     ``close()`` / ``aclose()`` methods of serdes, serde clients and the Schema Registry client
 
 Legacy
    These classes are deprecated and will be removed in a future version of the library.
@@ -547,9 +552,9 @@ Deserializer
 
 .. _serde_deserializer_builder:
 
-*******************
-DeserializerBuilder
-*******************
+**********************************
+DeserializerBuilder (experimental)
+**********************************
 
 .. autoclass:: confluent_kafka.serialization.DeserializerBuilder
    :members:
@@ -567,9 +572,9 @@ AvroDeserializer
 
 .. _schemaregistry_avro_deserializer_builder:
 
-***********************
-AvroDeserializerBuilder
-***********************
+**************************************
+AvroDeserializerBuilder (experimental)
+**************************************
 
 .. autoclass:: confluent_kafka.schema_registry.avro.AvroDeserializerBuilder
    :members:
@@ -610,9 +615,9 @@ JSONDeserializer
 
 .. _schemaregistry_json_deserializer_builder:
 
-***********************
-JSONDeserializerBuilder
-***********************
+**************************************
+JSONDeserializerBuilder (experimental)
+**************************************
 
 .. autoclass:: confluent_kafka.schema_registry.json_schema.JSONDeserializerBuilder
    :members:
@@ -630,9 +635,9 @@ ProtobufDeserializer
 
 .. _schemaregistry_protobuf_deserializer_builder:
 
-***************************
-ProtobufDeserializerBuilder
-***************************
+******************************************
+ProtobufDeserializerBuilder (experimental)
+******************************************
 
 .. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufDeserializerBuilder
    :members:
@@ -661,9 +666,9 @@ Serializer
 
 .. _serde_serializer_builder:
 
-*****************
-SerializerBuilder
-*****************
+********************************
+SerializerBuilder (experimental)
+********************************
 
 .. autoclass:: confluent_kafka.serialization.SerializerBuilder
    :members:
@@ -681,9 +686,9 @@ AvroSerializer
 
 .. _schemaregistry_avro_serializer_builder:
 
-*********************
-AvroSerializerBuilder
-*********************
+************************************
+AvroSerializerBuilder (experimental)
+************************************
 
 .. autoclass:: confluent_kafka.schema_registry.avro.AvroSerializerBuilder
    :members:
@@ -724,9 +729,9 @@ JSONSerializer
 
 .. _schemaregistry_json_serializer_builder:
 
-*********************
-JSONSerializerBuilder
-*********************
+************************************
+JSONSerializerBuilder (experimental)
+************************************
 
 .. autoclass:: confluent_kafka.schema_registry.json_schema.JSONSerializerBuilder
    :members:
@@ -744,9 +749,9 @@ ProtobufSerializer
 
 .. _schemaregistry_protobuf_serializer_builder:
 
-*************************
-ProtobufSerializerBuilder
-*************************
+****************************************
+ProtobufSerializerBuilder (experimental)
+****************************************
 
 .. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufSerializerBuilder
    :members:

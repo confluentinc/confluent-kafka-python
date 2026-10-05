@@ -47,8 +47,8 @@ class AsyncDeserializingConsumer(AIOConsumer, Generic[K, V]):
     """
     An asyncio Kafka consumer with deserialization capabilities.
 
-    `This class is experimental and likely to be removed, or subject to incompatible API
-    changes in future versions of the library.`
+    *This class is experimental and likely to be removed, or subject to incompatible API
+    changes in future versions of the library.*
 
     The asyncio counterpart of :py:class:`DeserializingConsumer`: derived from
     :py:class:`AIOConsumer`, overriding :py:func:`AIOConsumer.poll` and
@@ -140,6 +140,8 @@ class AsyncDeserializingConsumer(AIOConsumer, Generic[K, V]):
     async def close(self, *args: Any, **kwargs: Any) -> Any:
         """
         Close the consumer, then the deserializers it built.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Leaves the group and closes the underlying :py:class:`AIOConsumer`
         first, then closes the deserializers built from

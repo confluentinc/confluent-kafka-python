@@ -768,6 +768,9 @@ static PyMethodDef Message_methods[] = {
      METH_NOARGS,
      "  Retrieve the deserialized message value.\n"
      "\n"
+     "  *This API is experimental and subject to incompatible changes in future "
+     "versions of the library.*\n"
+     "\n"
      "  This returns the very same object as :py:func:`value`. On a message\n"
      "  produced by :py:class:`DeserializingConsumer` that is the deserialized\n"
      "  object; on any other message it is the raw payload. Prefer this\n"
@@ -781,6 +784,9 @@ static PyMethodDef Message_methods[] = {
      "\n"},
     {"deserialized_key", (PyCFunction)Message_deserialized_key, METH_NOARGS,
      "  Retrieve the deserialized message key.\n"
+     "\n"
+     "  *This API is experimental and subject to incompatible changes in future "
+     "versions of the library.*\n"
      "\n"
      "  See :py:func:`deserialized_value`; this is the key counterpart and\n"
      "  returns the same object as :py:func:`key`.\n"

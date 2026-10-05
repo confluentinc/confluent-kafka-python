@@ -102,6 +102,8 @@ class AsyncAssociatedNameStrategy:
         connected to, used as the resource namespace of association lookups
         when KAFKA_CLUSTER_ID is not configured.
 
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+
         The resolver is not invoked here, only on a cache miss of a subject
         lookup, so that creating a client never waits on a broker. The most
         recently set resolver wins.
@@ -533,6 +535,8 @@ class AsyncBaseSerde(object):
         Supply a callable resolving the id of the Kafka cluster the client is
         connected to.
 
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+
         Only the associated subject name strategy uses the cluster id, as the
         resource namespace of its association lookups, so the resolver is
         handed to that strategy and dropped otherwise. The strategy invokes it
@@ -548,6 +552,8 @@ class AsyncBaseSerde(object):
     def own_schema_registry_client(self) -> None:
         """
         Make this serde responsible for closing its Schema Registry client.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Called by the serde builders for the client they created; a client
         supplied by the application is never closed by the serde.
@@ -813,6 +819,8 @@ class AsyncBaseSerde(object):
         Release what this serde owns: the executors and actions of a rule
         registry set on it, and the Schema Registry client when it was created
         by a serde builder (see :py:func:`own_schema_registry_client`).
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         A rule registry other than the global one is taken to be dedicated to
         this serde, so its members are closed here; the global registry is

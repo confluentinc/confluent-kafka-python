@@ -81,6 +81,9 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
     |                              |                     | ready-made one in ``value.serializer``.        |
     +------------------------------+---------------------+------------------------------------------------+
 
+    The ``key.serializer.builder`` and ``value.serializer.builder`` properties are experimental and
+    subject to incompatible changes in future versions of the library.
+
     Serializers for string, integer and double (:py:class:`StringSerializer`, :py:class:`IntegerSerializer`
     and :py:class:`DoubleSerializer`) are supplied out-of-the-box in the ``confluent_kafka.serialization``
     namespace.
@@ -145,6 +148,8 @@ class SerializingProducer(_ProducerImpl, Generic[K, V]):
     def close(self) -> bool:
         """
         Close the producer, then the serializers it built.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Flushes and destroys the underlying :py:class:`Producer` first, then
         closes the serializers built from ``key.serializer.builder`` /

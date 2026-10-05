@@ -253,7 +253,11 @@ class AIOProducer:
         return await self._call(self._producer.list_topics, *args, **kwargs)
 
     async def cluster_id(self, *args: Any, **kwargs: Any) -> str:
-        """Request the id of the cluster the producer is connected to. See :py:func:`Producer.cluster_id`."""
+        """
+        Request the id of the cluster the producer is connected to. See :py:func:`Producer.cluster_id`.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+        """
         return await self._call(self._producer.cluster_id, *args, **kwargs)
 
     # ========================================================================

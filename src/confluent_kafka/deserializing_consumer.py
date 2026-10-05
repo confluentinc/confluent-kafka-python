@@ -81,6 +81,9 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
     |                                |                     | one in ``value.deserializer``.             |
     +--------------------------------+---------------------+--------------------------------------------+
 
+    The ``key.deserializer.builder`` and ``value.deserializer.builder`` properties are experimental and
+    subject to incompatible changes in future versions of the library.
+
     Deserializers for string, integer and double (:py:class:`StringDeserializer`, :py:class:`IntegerDeserializer`
     and :py:class:`DoubleDeserializer`) are supplied out-of-the-box in the ``confluent_kafka.serialization``
     namespace.
@@ -147,6 +150,8 @@ class DeserializingConsumer(_ConsumerImpl, Generic[K, V]):
     def close(self) -> None:
         """
         Close the consumer, then the deserializers it built.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
 
         Leaves the group and destroys the underlying :py:class:`Consumer`
         first, then closes the deserializers built from
