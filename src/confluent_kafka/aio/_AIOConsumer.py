@@ -215,6 +215,14 @@ class AIOConsumer:
     async def list_topics(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.list_topics, *args, **kwargs)
 
+    async def cluster_id(self, *args: Any, **kwargs: Any) -> str:
+        """
+        Request the id of the cluster the consumer is connected to. See :py:func:`Consumer.cluster_id`.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+        """
+        return await self._call(self._consumer.cluster_id, *args, **kwargs)
+
     async def get_watermark_offsets(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._consumer.get_watermark_offsets, *args, **kwargs)
 

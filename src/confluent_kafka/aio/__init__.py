@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from ._AIOConsumer import AIOConsumer
+from ._AsyncDeserializingConsumer import AsyncDeserializingConsumer
+from ._AsyncSerializingProducer import AsyncSerializingProducer
 from .producer import AIOProducer
 
-__all__ = ['AIOConsumer', 'AIOProducer']
+__all__ = ['AIOConsumer', 'AIOProducer', 'AsyncDeserializingConsumer', 'AsyncSerializingProducer']
