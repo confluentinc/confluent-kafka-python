@@ -17,7 +17,7 @@
 import asyncio as _locks
 import io
 import logging
-from typing import Any, Callable, Coroutine, Dict, Optional, Tuple, Union, cast
+from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Tuple, Union, cast
 
 from cachetools import LRUCache
 from jsonschema import ValidationError
@@ -601,7 +601,7 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
         json_encode: Optional[Callable] = None,
-        serializer_init: Optional[Callable[['AsyncJSONSerializer'], None]] = None,
+        serializer_init: Optional[Callable[['AsyncJSONSerializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -656,11 +656,11 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
         return self
 
     def set_serializer_init(
-        self, serializer_init: Callable[['AsyncJSONSerializer'], None]
+        self, serializer_init: Callable[['AsyncJSONSerializer'], Awaitable[None]]
     ) -> 'AsyncJSONSerializerBuilder':
         """
-        Callable invoked with the serializer once built, for any setup that the
-        other setters do not cover.
+        Coroutine function awaited with the serializer once built, for
+        any setup that the other setters do not cover.
         """
         self._serializer_init = serializer_init
         return self
@@ -1084,7 +1084,7 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
         json_decode: Optional[Callable] = None,
-        deserializer_init: Optional[Callable[['AsyncJSONDeserializer'], None]] = None,
+        deserializer_init: Optional[Callable[['AsyncJSONDeserializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -1141,11 +1141,11 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
         return self
 
     def set_deserializer_init(
-        self, deserializer_init: Callable[['AsyncJSONDeserializer'], None]
+        self, deserializer_init: Callable[['AsyncJSONDeserializer'], Awaitable[None]]
     ) -> 'AsyncJSONDeserializerBuilder':
         """
-        Callable invoked with the deserializer once built, for any setup that
-        the other setters do not cover.
+        Coroutine function awaited with the deserializer once built, for
+        any setup that the other setters do not cover.
         """
         self._deserializer_init = deserializer_init
         return self

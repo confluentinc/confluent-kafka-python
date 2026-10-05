@@ -305,7 +305,7 @@ async def async_build_serde(
     schema_registry_client: Optional[AsyncSchemaRegistryClient],
     schema_registry_conf: Optional[dict],
     construct: Callable[[Optional[AsyncSchemaRegistryClient]], Awaitable[_S]],
-    init: Optional[Callable[[_S], None]] = None,
+    init: Optional[Callable[[_S], Awaitable[None]]] = None,
 ) -> _S:
     """
     Construct a serde for a builder, creating the Schema Registry client from
@@ -325,8 +325,8 @@ async def async_build_serde(
 
         construct (callable): Called with the client and returning the serde.
 
-        init (callable): Optional callback invoked with the built serde, for
-            setup the builder's setters do not cover.
+        init (callable): Optional coroutine function awaited with the built
+            serde, for setup the builder's setters do not cover.
 
     Returns:
         The constructed serde.
@@ -361,7 +361,7 @@ async def async_build_serde(
 
     if init is not None:
         try:
-            init(serde)
+            await init(serde)
         except BaseException:
             try:
                 await serde.aclose()

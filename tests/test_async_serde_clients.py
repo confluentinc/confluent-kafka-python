@@ -648,6 +648,56 @@ async def test_async_builder_rejects_a_client_and_a_config_together(cluster_id_c
     assert sr_client_closes == []
 
 
+async def test_async_builder_awaits_the_init_callback(sr_client_closes):
+    seen = []
+
+    async def init(serializer):
+        await asyncio.sleep(0)
+        seen.append(serializer)
+
+    async def deserializer_init(deserializer):
+        await asyncio.sleep(0)
+        seen.append(deserializer)
+
+    serializer, _ = await sr_avro.AsyncAvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_init=init
+    ).build({}, False)
+    deserializer, _ = (
+        await sr_avro.AsyncAvroDeserializerBuilder(schema_registry_config=SR_CONF)
+        .set_deserializer_init(deserializer_init)
+        .build({}, False)
+    )
+
+    assert seen == [serializer, deserializer]
+
+
+async def test_async_builder_closes_the_serde_it_built_when_the_init_callback_fails(sr_client_closes):
+    async def broken_init(serializer):
+        raise RuntimeError("init broke")
+
+    builder = sr_avro.AsyncAvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_init=broken_init
+    )
+
+    with pytest.raises(RuntimeError, match='init broke'):
+        await builder.build({}, False)
+
+    # the serializer already owned the client the builder created for it
+    assert len(sr_client_closes) == 1
+
+
+async def test_async_builder_rejects_a_blocking_init_callback(sr_client_closes):
+    builder = sr_avro.AsyncAvroSerializerBuilder(
+        schema_registry_config=SR_CONF, schema=AVRO_SCHEMA, serializer_init=lambda serializer: None
+    )
+
+    # a plain function returns None, which cannot be awaited
+    with pytest.raises(TypeError):
+        await builder.build({}, False)
+
+    assert len(sr_client_closes) == 1
+
+
 async def test_sr_builders_round_trip_through_the_async_clients(cluster_id_calls, produced, polled, sr_client_closes):
     # one mock registry shared by both sides, as a real one would be
     registry = sr_client.AsyncSchemaRegistryClient.new_client(SR_CONF)

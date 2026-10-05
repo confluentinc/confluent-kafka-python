@@ -17,7 +17,7 @@
 import asyncio as _locks
 import io
 import json
-from typing import Any, Callable, Coroutine, Dict, Optional, Tuple, Union, cast
+from typing import Any, Awaitable, Callable, Coroutine, Dict, Optional, Tuple, Union, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 from fastavro.schema import expand_schema
@@ -599,7 +599,7 @@ class AsyncAvroSerializerBuilder(SerializerBuilder):
         serializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
-        serializer_init: Optional[Callable[['AsyncAvroSerializer'], None]] = None,
+        serializer_init: Optional[Callable[['AsyncAvroSerializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -648,11 +648,11 @@ class AsyncAvroSerializerBuilder(SerializerBuilder):
         return self
 
     def set_serializer_init(
-        self, serializer_init: Callable[['AsyncAvroSerializer'], None]
+        self, serializer_init: Callable[['AsyncAvroSerializer'], Awaitable[None]]
     ) -> 'AsyncAvroSerializerBuilder':
         """
-        Callable invoked with the serializer once built, for any setup that the
-        other setters do not cover.
+        Coroutine function awaited with the serializer once built, for
+        any setup that the other setters do not cover.
         """
         self._serializer_init = serializer_init
         return self
@@ -1052,7 +1052,7 @@ class AsyncAvroDeserializerBuilder(DeserializerBuilder):
         deserializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
-        deserializer_init: Optional[Callable[['AsyncAvroDeserializer'], None]] = None,
+        deserializer_init: Optional[Callable[['AsyncAvroDeserializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -1109,11 +1109,11 @@ class AsyncAvroDeserializerBuilder(DeserializerBuilder):
         return self
 
     def set_deserializer_init(
-        self, deserializer_init: Callable[['AsyncAvroDeserializer'], None]
+        self, deserializer_init: Callable[['AsyncAvroDeserializer'], Awaitable[None]]
     ) -> 'AsyncAvroDeserializerBuilder':
         """
-        Callable invoked with the deserializer once built, for any setup that
-        the other setters do not cover.
+        Coroutine function awaited with the deserializer once built, for
+        any setup that the other setters do not cover.
         """
         self._deserializer_init = deserializer_init
         return self

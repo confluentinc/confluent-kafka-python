@@ -17,7 +17,7 @@
 
 import asyncio as _locks
 import io
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Awaitable, Callable, Coroutine, Dict, List, Optional, Set, Tuple, Union, cast
 
 from google.protobuf import descriptor_pb2, json_format
 from google.protobuf.descriptor import Descriptor, FileDescriptor
@@ -613,7 +613,7 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
         serializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
-        serializer_init: Optional[Callable[['AsyncProtobufSerializer'], None]] = None,
+        serializer_init: Optional[Callable[['AsyncProtobufSerializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -656,11 +656,11 @@ class AsyncProtobufSerializerBuilder(SerializerBuilder):
         return self
 
     def set_serializer_init(
-        self, serializer_init: Callable[['AsyncProtobufSerializer'], None]
+        self, serializer_init: Callable[['AsyncProtobufSerializer'], Awaitable[None]]
     ) -> 'AsyncProtobufSerializerBuilder':
         """
-        Callable invoked with the serializer once built, for any setup that the
-        other setters do not cover.
+        Coroutine function awaited with the serializer once built, for
+        any setup that the other setters do not cover.
         """
         self._serializer_init = serializer_init
         return self
@@ -1049,7 +1049,7 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
         deserializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
-        deserializer_init: Optional[Callable[['AsyncProtobufDeserializer'], None]] = None,
+        deserializer_init: Optional[Callable[['AsyncProtobufDeserializer'], Awaitable[None]]] = None,
     ) -> None:
         self._schema_registry_conf = schema_registry_config
         self._schema_registry_client = schema_registry_client
@@ -1092,11 +1092,11 @@ class AsyncProtobufDeserializerBuilder(DeserializerBuilder):
         return self
 
     def set_deserializer_init(
-        self, deserializer_init: Callable[['AsyncProtobufDeserializer'], None]
+        self, deserializer_init: Callable[['AsyncProtobufDeserializer'], Awaitable[None]]
     ) -> 'AsyncProtobufDeserializerBuilder':
         """
-        Callable invoked with the deserializer once built, for any setup that
-        the other setters do not cover.
+        Coroutine function awaited with the deserializer once built, for
+        any setup that the other setters do not cover.
         """
         self._deserializer_init = deserializer_init
         return self
