@@ -16,7 +16,13 @@
 # limitations under the License.
 
 
-# A simple example demonstrating use of ProtobufDeserializer.
+# A simple example demonstrating use of ProtobufDeserializerBuilder with a
+# DeserializingConsumer.
+#
+# The builder is handed to the consumer through the
+# 'value.deserializer.builder' configuration property; the consumer then
+# constructs the deserializer and passes it the Kafka cluster id if it needs
+# one. poll() returns a message whose value is already a User.
 #
 # To regenerate Protobuf classes you must first install the protobuf
 # compiler. Once installed you may call protoc directly or use make.
@@ -33,23 +39,24 @@ import argparse
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
 
-from confluent_kafka import Consumer
-from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
-from confluent_kafka.serialization import MessageField, SerializationContext
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry.protobuf import ProtobufDeserializerBuilder
 
 
 def main(args):
     topic = args.topic
 
-    protobuf_deserializer = ProtobufDeserializer(user_pb2.User, {'use.deprecated.format': False})
-
     consumer_conf = {
         'bootstrap.servers': args.bootstrap_servers,
         'group.id': args.group,
         'auto.offset.reset': "earliest",
+        'value.deserializer.builder': ProtobufDeserializerBuilder(
+            message_type=user_pb2.User,
+            deserializer_config={'use.deprecated.format': False},
+        ),
     }
 
-    consumer = Consumer(consumer_conf)
+    consumer = DeserializingConsumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -59,7 +66,9 @@ def main(args):
             if msg is None:
                 continue
 
-            user = protobuf_deserializer(msg.value(), SerializationContext(topic, MessageField.VALUE))
+            # deserialized_value() returns the same object as value(); prefer it
+            # so the type is the User this consumer was parameterized with.
+            user = msg.deserialized_value()
 
             if user is not None:
                 print(
@@ -75,7 +84,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="ProtobufDeserializer example")
+    parser = argparse.ArgumentParser(description="ProtobufDeserializerBuilder example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_protobuf", help="Topic name")
