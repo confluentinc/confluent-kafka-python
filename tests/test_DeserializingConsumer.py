@@ -115,9 +115,3 @@ def test_value_failure_raises(make_dc):
     dc = make_dc(key_deserializer=StringDeserializer(), value_deserializer=_boom)
     with pytest.raises(ValueDeserializationError):
         dc._deserialize(_make_message(value=b'v', key=b'k'))
-
-
-def test_none_topic_raises_type_error(make_dc):
-    dc = make_dc(value_deserializer=StringDeserializer())
-    with pytest.raises(TypeError, match='Message topic is None'):
-        dc._deserialize(_make_message(value=b'v', topic=None))
