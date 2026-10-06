@@ -1371,8 +1371,14 @@ static PyObject *Consumer_close(Handle *self, PyObject *ignore) {
         CallState cs;
         PyObject *result = NULL;
 
-        if (!Handle_serialize_enter(self))
+        /* Set before waiting for the gate, so that a cluster_id() blocked
+         * while holding it gives up instead of holding up the close. */
+        atomic_int_set(&self->closing, 1);
+
+        if (!Handle_serialize_enter(self)) {
+                atomic_int_set(&self->closing, 0);
                 return NULL;
+        }
 
         if (!self->rk) {
                 Py_INCREF(Py_None);
@@ -1823,6 +1829,8 @@ static PyMethodDef Consumer_methods[] = {
      "\n"},
     {"list_topics", (PyCFunction)list_topics, METH_VARARGS | METH_KEYWORDS,
      list_topics_doc},
+    {"cluster_id", (PyCFunction)cluster_id, METH_VARARGS | METH_KEYWORDS,
+     cluster_id_doc},
     {"consumer_group_metadata", (PyCFunction)Consumer_consumer_group_metadata,
      METH_NOARGS,
      ".. py:function:: consumer_group_metadata()\n"

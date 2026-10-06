@@ -30,6 +30,8 @@ def test_unasync_line():
         ("class AsyncTest:", "class Test:"),
         ("class _AsyncTest:", "class _Test:"),
         ("async_test_func", "test_func"),
+        ("Coroutine function awaited with the serializer once built", "Function called with the serializer once built"),
+        ("init (callable): Optional coroutine function awaited with", "init (callable): Optional function called with"),
     ]
 
     for input_line, expected in test_cases:
