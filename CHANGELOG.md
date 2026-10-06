@@ -53,6 +53,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
+- Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
 - Serialize concurrent access to a shared `Consumer` instance across threads
