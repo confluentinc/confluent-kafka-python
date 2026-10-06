@@ -43,6 +43,8 @@ SUBS = [
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
     ('set_async_cluster_id_resolver', 'set_cluster_id_resolver'),
     ('async def', 'def'),
+    ('Coroutine function awaited with', 'Function called with'),
+    ('coroutine function awaited with', 'function called with'),
     ('await ', ''),
     ('aclose', 'close'),
     ('__aenter__', '__enter__'),

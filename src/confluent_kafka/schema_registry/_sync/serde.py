@@ -325,7 +325,7 @@ def build_serde(
 
         construct (callable): Called with the client and returning the serde.
 
-        init (callable): Optional coroutine function awaited with the built
+        init (callable): Optional function called with the built
             serde, for setup the builder's setters do not cover.
 
     Returns:

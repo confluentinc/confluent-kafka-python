@@ -651,7 +651,7 @@ class ProtobufSerializerBuilder(SerializerBuilder):
         self, serializer_init: Callable[['ProtobufSerializer'], None]
     ) -> 'ProtobufSerializerBuilder':
         """
-        Coroutine function awaited with the serializer once built, for
+        Function called with the serializer once built, for
         any setup that the other setters do not cover.
         """
         self._serializer_init = serializer_init
@@ -1078,7 +1078,7 @@ class ProtobufDeserializerBuilder(DeserializerBuilder):
         self, deserializer_init: Callable[['ProtobufDeserializer'], None]
     ) -> 'ProtobufDeserializerBuilder':
         """
-        Coroutine function awaited with the deserializer once built, for
+        Function called with the deserializer once built, for
         any setup that the other setters do not cover.
         """
         self._deserializer_init = deserializer_init
