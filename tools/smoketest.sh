@@ -100,6 +100,9 @@ for py in 3.9 ; do
     mkdir -p $testdir/tests
     cp tests/*.py $testdir/tests/
     cp -r tests/common $testdir/tests/
+    # pytest config (asyncio_mode = "auto") lives in pyproject.toml; without it
+    # the async tests fail with "async def functions are not natively supported".
+    cp pyproject.toml $testdir/
     # Remove tests that depend on the project tools/ directory
     rm -f $testdir/tests/test_unasync.py
 
