@@ -1,6 +1,8 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
 ## v2.x.x (Unreleased)
+
+### Fixes
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 
 ## v2.16.0
