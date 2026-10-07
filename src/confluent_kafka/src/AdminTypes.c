@@ -149,7 +149,10 @@ static PyMemberDef NewTopic_members[] = {
      "replication_factor and replica_assignment are mutually exclusive.\n"},
     {"config", T_OBJECT, offsetof(NewTopic, config), 0,
      ":py:attribute: Optional topic configuration.\n"
-     "See http://kafka.apache.org/documentation.html#topicconfigs.\n"},
+     "See http://kafka.apache.org/documentation.html#topicconfigs.\n"
+     "To associate a schema with this topic at creation time, set\n"
+     "``confluent.value.association`` (and optionally ``confluent.key.association``)\n"
+     "in this dict.\n"},
     {NULL}};
 
 
