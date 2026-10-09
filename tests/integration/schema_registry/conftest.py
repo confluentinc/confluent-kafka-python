@@ -18,17 +18,20 @@
 import sysconfig
 import warnings
 
-# test_dlq.py imports celpy; test_avro_serializers.py imports fastavro.
+# test_dlq.py imports celpy; test_avro_serializers.py and
+# test_associated_cluster_id.py import fastavro (through the Avro serdes).
 # celpy ships no free-threaded wheel; fastavro ships one but has not declared
 # itself GIL-safe. Neither is installed on free-threaded builds (see
-# requirements-tests-install-nogil.txt), so both are excluded here.
+# requirements-tests-install-nogil.txt), so all of them are excluded here.
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 collect_ignore = []
 if FREE_THREADED_BUILD:
     collect_ignore = [
+        "_async/test_associated_cluster_id.py",
         "_async/test_avro_serializers.py",
         "_async/test_dlq.py",
+        "_sync/test_associated_cluster_id.py",
         "_sync/test_avro_serializers.py",
         "_sync/test_dlq.py",
     ]

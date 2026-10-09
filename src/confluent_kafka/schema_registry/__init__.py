@@ -20,6 +20,11 @@ from typing import Optional
 
 from ..serialization import MessageField, SerializationContext, SerializationError
 from .schema_registry_client import (
+    Association,
+    AssociationCreateOrUpdateInfo,
+    AssociationCreateOrUpdateRequest,
+    AssociationInfo,
+    AssociationResponse,
     AsyncSchemaRegistryClient,
     ConfigCompatibilityLevel,
     Metadata,
@@ -46,6 +51,11 @@ _MAGIC_BYTE_V0 = _MAGIC_BYTE
 _MAGIC_BYTE_V1 = 1
 
 __all__ = [
+    "Association",
+    "AssociationCreateOrUpdateInfo",
+    "AssociationCreateOrUpdateRequest",
+    "AssociationInfo",
+    "AssociationResponse",
     "ConfigCompatibilityLevel",
     "Metadata",
     "MetadataProperties",

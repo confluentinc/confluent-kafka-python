@@ -21,7 +21,7 @@ from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Producer, SerializingProducer
+from confluent_kafka import DeserializingConsumer, Producer, SerializingProducer
 from confluent_kafka.admin import (
     AdminClient,
     AlterConfigOpType,
@@ -30,6 +30,7 @@ from confluent_kafka.admin import (
     NewTopic,
     ResourceType,
 )
+from confluent_kafka.aio import AsyncDeserializingConsumer, AsyncSerializingProducer
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from tests.common import TestConsumer, TestDeserializingShareConsumer, TestShareConsumer
@@ -46,6 +47,13 @@ class KafkaClusterFixture(object):
 
     def schema_registry(self, conf=None):
         raise NotImplementedError("schema_registry has not been implemented")
+
+    def schema_registry_conf(self, conf=None):
+        """
+        Configuration for a Schema Registry client bound to this cluster, for
+        handing to a serde builder.
+        """
+        raise NotImplementedError("schema_registry_conf has not been implemented")
 
     def client_conf(self, conf=None):
         raise NotImplementedError("client_conf has not been implemented")
@@ -122,6 +130,30 @@ class KafkaClusterFixture(object):
             client_conf['value.serializer'] = value_serializer
 
         return TestAsyncSerializingProducer(client_conf)
+
+    def builder_producer(self, conf=None):
+        """
+        Returns a SerializingProducer bound to this cluster, configured through
+        serde builders (``key.serializer.builder`` / ``value.serializer.builder``
+        in ``conf``).
+
+        Args:
+            conf (dict): Producer configuration overrides, builders included
+
+        Returns:
+            SerializingProducer: A new SerializingProducer instance
+        """
+        return SerializingProducer(self.client_conf(conf))
+
+    def async_builder_producer(self, conf=None, **kwargs):
+        """
+        Asyncio counterpart of :py:func:`builder_producer`; the result must be
+        awaited.
+
+        Returns:
+            AsyncSerializingProducer: A new AsyncSerializingProducer instance
+        """
+        return AsyncSerializingProducer(self.client_conf(conf), **kwargs)
 
     def cimpl_consumer(self, conf=None):
         """
@@ -281,6 +313,40 @@ class KafkaClusterFixture(object):
             consumer_conf['value.deserializer'] = value_deserializer
 
         return TestAsyncDeserializingConsumer(consumer_conf)
+
+    def builder_consumer(self, conf=None):
+        """
+        Returns a DeserializingConsumer bound to this cluster, configured
+        through serde builders (``key.deserializer.builder`` /
+        ``value.deserializer.builder`` in ``conf``).
+
+        Args:
+            conf (dict): Consumer configuration overrides, builders included
+
+        Returns:
+            DeserializingConsumer: A new DeserializingConsumer instance
+        """
+        consumer_conf = self.client_conf({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        return DeserializingConsumer(consumer_conf)
+
+    def async_builder_consumer(self, conf=None, **kwargs):
+        """
+        Asyncio counterpart of :py:func:`builder_consumer`; the result must be
+        awaited.
+
+        Returns:
+            AsyncDeserializingConsumer: A new AsyncDeserializingConsumer instance
+        """
+        consumer_conf = self.client_conf({'group.id': str(uuid1()), 'auto.offset.reset': 'earliest'})
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        return AsyncDeserializingConsumer(consumer_conf, **kwargs)
 
     def admin(self, conf=None):
         if conf:
@@ -445,6 +511,15 @@ class TrivupFixture(KafkaClusterFixture):
             sr_conf.update(conf)
         return AsyncSchemaRegistryClient(sr_conf)
 
+    def schema_registry_conf(self, conf=None):
+        if not hasattr(self._cluster, 'sr'):
+            raise RuntimeError("No Schema-registry available in Trivup cluster")
+
+        sr_conf = {'url': self._cluster.sr.get('url')}
+        if conf is not None:
+            sr_conf.update(conf)
+        return sr_conf
+
     def client_conf(self, conf=None):
         """
         Default client configuration
@@ -481,6 +556,19 @@ class ByoFixture(KafkaClusterFixture):
         if self._sr_url is None:
             raise RuntimeError("No Schema-registry available in Byo cluster")
         return SchemaRegistryClient({"url": self._sr_url})
+
+    def async_schema_registry(self, conf=None):
+        if self._sr_url is None:
+            raise RuntimeError("No Schema-registry available in Byo cluster")
+        return AsyncSchemaRegistryClient({"url": self._sr_url})
+
+    def schema_registry_conf(self, conf=None):
+        if self._sr_url is None:
+            raise RuntimeError("No Schema-registry available in Byo cluster")
+        sr_conf = {"url": self._sr_url}
+        if conf is not None:
+            sr_conf.update(conf)
+        return sr_conf
 
     def client_conf(self, conf=None):
         """

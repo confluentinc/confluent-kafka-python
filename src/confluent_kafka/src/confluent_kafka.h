@@ -136,7 +136,7 @@ static inline int atomic_ulong_cas(atomic_ulong_t *p,
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
  */
-#define CFL_VERSION_STR "2.16.0rc3"
+#define CFL_VERSION_STR "2.16.0"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -673,12 +673,14 @@ PyObject *c_topic_partition_result_to_py_dict(
     const rd_kafka_topic_partition_result_t **partition_results,
     size_t cnt);
 PyObject *list_topics(Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups(Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
 int wait_for_oauth_token_set(Handle *self);
 
 
 extern const char list_topics_doc[];
+extern const char cluster_id_doc[];
 extern const char list_groups_doc[];
 extern const char set_sasl_credentials_doc[];
 
