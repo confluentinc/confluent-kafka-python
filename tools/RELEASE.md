@@ -205,7 +205,8 @@ e.g., a timeout, restart the specific job.
 If there are permanent errors, fix them and then go back to 5.1. to create
 and push a new test tag. Don't forget to delete your previous test tag.
 
-Pushing a tag also fires the **Mend SCA + SAST Scan** block, which triggers the
+Pushing a release tag (`vX.Y.Z...`) also fires the **Mend SCA + SAST Scan** block (after
+Pre-release Validation passes), which triggers the
 ad hoc `mend-source-scan` task in `appsec-semaphore-workflows` (via
 `sem-trigger`) to run a Mend SCA (`mend dep`) and SAST (`mend sast`) scan
 against this tag's source. This runs out-of-band: the trigger call itself is

@@ -621,8 +621,9 @@ blocks:
             - tools/pre-release-validation.sh
   - name: "Mend SCA + SAST Scan"
     run:
-      when: "tag =~ '.*'"
-    dependencies: []
+      when: "tag =~ '^v[0-9]\\.'"
+    dependencies:
+      - "Pre-release Validation"
     task:
       agent:
         machine:
@@ -642,7 +643,8 @@ blocks:
               timeout 60 sem-trigger -p appsec-semaphore-workflows -t mend-source-scan \
                 -i "REPO:confluentinc/confluent-kafka-python" \
                 -i "REF:${SEMAPHORE_GIT_TAG_NAME}" \
-                -i "VERSION:${SEMAPHORE_GIT_TAG_NAME}" \
+                -i "VERSION:${SEMAPHORE_GIT_TAG_NAME#v}" \
+                -i "SCAN_ID:confluent-kafka-python-${SEMAPHORE_GIT_TAG_NAME}" \
                 -i "PRODUCT_FAMILY:COSS" \
                 || echo "WARNING: failed to trigger Mend SCA+SAST scan (or timed out after 60s); continuing without failing the release" >&2
   - name: "Source Distribution"
