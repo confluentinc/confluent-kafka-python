@@ -946,3 +946,27 @@ def test_double_init_raises():
         assert ex.match('already initialized')
     finally:
         sc.close()
+
+
+def test_share_consumer_config():
+    """Issue #465
+    The effective configuration of a ShareConsumer instance can be inspected
+    via the config() method."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'group.id': unique_id('test-share-config'),
+        'client.id': 'test-share-id',
+        'sasl.password': 'sharesecret',
+    }
+
+    sc = TestShareConsumer(conf)
+
+    config = sc.config()
+    assert isinstance(config, dict)
+    assert config['client.id'] == 'test-share-id'
+    assert config['sasl.password'] == '[redacted]'
+
+    config_sensitive = sc.config(include_sensitive=True)
+    assert config_sensitive['sasl.password'] == 'sharesecret'
+
+    sc.close()
