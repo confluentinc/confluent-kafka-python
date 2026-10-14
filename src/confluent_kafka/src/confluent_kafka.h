@@ -446,16 +446,34 @@ typedef struct {
  */
 
 static inline void cfl_exception_fetch(PyObject **exc_value) {
+        PyObject *new_exc_value;
 #if PY_VERSION_HEX >= 0x030c0000
         /* Python 3.12+ - use new API */
-        *exc_value = PyErr_GetRaisedException();
+        new_exc_value = PyErr_GetRaisedException();
 #else
-        /* Python < 3.12 - use legacy API */
+        /* Python < 3.12 - use legacy API. PyErr_Fetch() alone does not
+         * normalize: for an exception set via PyErr_SetObject(type, value)
+         * where value isn't yet an instance of type (e.g. the KafkaException
+         * raised with a bare KafkaError as its value), new_exc_value would
+         * stay that raw KafkaError object instead of a KafkaException
+         * instance wrapping it. PyErr_NormalizeException() turns it into a
+         * proper instance of exc_type, matching what PyErr_GetRaisedException()
+         * already guarantees on 3.12+. */
         PyObject *exc_type, *exc_traceback;
-        PyErr_Fetch(&exc_type, exc_value, &exc_traceback);
+        PyErr_Fetch(&exc_type, &new_exc_value, &exc_traceback);
+        PyErr_NormalizeException(&exc_type, &new_exc_value, &exc_traceback);
         Py_XDECREF(exc_type);
         Py_XDECREF(exc_traceback);
 #endif
+        if (*exc_value) {
+                /* A call episode can dispatch more than one callback
+                 * (e.g. error_cb followed by dr_msg_cb for a message purged
+                 * by the same fatal error). Keep the first saved exception
+                 * rather than leaking its reference by overwriting it. */
+                Py_XDECREF(new_exc_value);
+        } else {
+                *exc_value = new_exc_value;
+        }
 }
 
 static inline void cfl_exception_restore(PyObject *exc_value) {
