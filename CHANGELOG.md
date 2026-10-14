@@ -1,5 +1,13 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.16.1 (unreleased)
+
+### Fixes
+
+- Fix the `Consumer.commit()` docstring: a failed partition is reported in the
+  `error` attribute of the returned `TopicPartition`, not `err`
+
+
 ## v2.16.0
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
