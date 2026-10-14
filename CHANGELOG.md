@@ -1,5 +1,10 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+
 ## v2.16.0
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
