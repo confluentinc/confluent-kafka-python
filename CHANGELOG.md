@@ -53,6 +53,10 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
+- Fix `MetadataTags.__hash__` raising `TypeError: unhashable type: 'list'`
+  for any schema whose metadata carries tags (e.g. path-based tags for
+  CSFLE), which crashed the Schema Registry client as soon as such a
+  schema was cached.
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
