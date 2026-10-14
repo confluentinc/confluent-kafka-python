@@ -54,6 +54,10 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 ### Fixes
 
 - Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Fix `Producer.flush()` raising a bare, uncatchable `KafkaError` instead of
+  `KafkaException` for a fatal error on Python < 3.12 (e.g. idempotent
+  producer failing to acquire a PID), and fix a reference leak when more than
+  one callback in the same call episode reports an exception.
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
