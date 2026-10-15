@@ -274,9 +274,9 @@ class AvroSerializer(BaseSerializer):
         'validation.rules.executor': None,
     }
 
-    def __init_impl(
+    def __init__(
         self,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
         schema_str: Union[str, Schema, None] = None,
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
@@ -390,8 +390,6 @@ class AvroSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     def __call__(  # type: ignore[override]
         self, obj: object, ctx: Optional[SerializationContext] = None
@@ -768,9 +766,9 @@ class AvroDeserializer(BaseDeserializer):
         'schema.id.deserializer': dual_schema_id_deserializer,
     }
 
-    def __init_impl(
+    def __init__(
         self,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
         schema_str: Union[str, Schema, None] = None,
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
         return_record_name: bool = False,
@@ -841,8 +839,6 @@ class AvroDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)

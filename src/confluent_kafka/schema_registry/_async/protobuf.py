@@ -271,7 +271,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
     async def __init_impl(
         self,
         msg_type: Message,
-        schema_registry_client: AsyncSchemaRegistryClient,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,

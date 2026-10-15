@@ -53,6 +53,7 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
+- Fix Schema Registry serializers and deserializers resolving to `Any` under mypy (#2390)
 - Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
