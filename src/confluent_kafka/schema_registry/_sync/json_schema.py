@@ -267,10 +267,10 @@ class JSONSerializer(BaseSerializer):
         'validation.rules.executor': None,
     }
 
-    def __init_impl(
+    def __init__(
         self,
         schema_str: Union[str, Schema, None],
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
@@ -364,8 +364,6 @@ class JSONSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     def __call__(  # type: ignore[override]
         self, obj: object, ctx: Optional[SerializationContext] = None
@@ -781,7 +779,7 @@ class JSONDeserializer(BaseDeserializer):
         'validate': True,
     }
 
-    def __init_impl(
+    def __init__(
         self,
         schema_str: Union[str, Schema, None],
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
@@ -864,8 +862,6 @@ class JSONDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__deserialize(data, ctx)

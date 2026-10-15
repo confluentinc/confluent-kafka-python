@@ -280,7 +280,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
     async def __init_impl(
         self,
-        schema_registry_client: AsyncSchemaRegistryClient,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema_str: Union[str, Schema, None] = None,
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
@@ -779,7 +779,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
     async def __init_impl(
         self,
-        schema_registry_client: AsyncSchemaRegistryClient,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema_str: Union[str, Schema, None] = None,
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
         return_record_name: bool = False,

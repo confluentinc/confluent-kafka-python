@@ -266,10 +266,10 @@ class ProtobufSerializer(BaseSerializer):
         'validation.rules.executor': None,
     }
 
-    def __init_impl(
+    def __init__(
         self,
         msg_type: Message,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -352,8 +352,6 @@ class ProtobufSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     @staticmethod
     def _write_varint(buf: io.BytesIO, val: int, zigzag: bool = True):
@@ -761,7 +759,7 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    def __init_impl(
+    def __init__(
         self,
         message_type: Message,
         conf: Optional[dict] = None,
@@ -813,8 +811,6 @@ class ProtobufDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
         for action in self._rule_registry.get_actions():
             action.configure(self._registry.config() if self._registry else {}, rule_conf if rule_conf else {})
-
-    __init__ = __init_impl
 
     def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__deserialize(data, ctx)

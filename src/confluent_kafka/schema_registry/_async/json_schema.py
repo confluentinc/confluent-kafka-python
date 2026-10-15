@@ -272,7 +272,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
     async def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
-        schema_registry_client: AsyncSchemaRegistryClient,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,

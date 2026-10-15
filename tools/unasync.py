@@ -42,6 +42,8 @@ SUBS = [
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
     ('set_async_cluster_id_resolver', 'set_cluster_id_resolver'),
+    (r'\s*__init__ = __init_impl', ''),
+    ('__init_impl', '__init__'),
     ('async def', 'def'),
     ('Coroutine function awaited with', 'Function called with'),
     ('coroutine function awaited with', 'function called with'),
