@@ -1,5 +1,16 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.16.1
+
+### Fixes
+
+- Require `certifi>=2026.10.19` for the Schema Registry client. When
+  `ssl.ca.location` is not set, the client verifies Schema Registry
+  certificates against the `certifi` CA bundle, and earlier `certifi` releases
+  still trust the eMudhra root whose intermediate CA keys were compromised
+  ([details](https://emudhra.we-have-a-problem.com/)).
+
+
 ## v2.16.0
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
