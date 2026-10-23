@@ -72,6 +72,10 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 ### Fixes
 
 - Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Fix `Producer.produce()` raising a `KafkaError` with code `_FATAL` and
+  `fatal()` false after a prior fatal error, instead of a `KafkaError` that
+  reports `fatal()` true and carries the original fatal error's code and
+  reason.
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)

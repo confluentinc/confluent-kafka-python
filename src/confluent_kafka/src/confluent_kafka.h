@@ -312,6 +312,13 @@ PyObject *KafkaError_new_or_None(rd_kafka_resp_err_t err, const char *str);
 PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 
 /**
+ * @brief Mark a KafkaError object (as returned by KafkaError_new0() et al)
+ *        as reporting a fatal error, so KafkaError.fatal() matches the
+ *        error it's raised for.
+ */
+void cfl_KafkaError_set_fatal(PyObject *eo);
+
+/**
  * @brief Raise an exception using KafkaError.
  * \p err and and \p ... (string representation of error) is set on the returned
  * KafkaError object.
