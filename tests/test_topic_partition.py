@@ -37,6 +37,13 @@ def test_cmp():
     assert TopicPartition('ulv', 2) <= TopicPartition('ulv', 3)
 
 
+def test_str():
+    """TopicPartition string representation"""
+
+    tp = TopicPartition('topic', 3, 5)
+    assert str(tp) == 'TopicPartition{topic=topic,partition=3,offset=5,leader_epoch=None,error=None}'
+
+
 def test_hash():
 
     tp1 = TopicPartition('test', 99)
