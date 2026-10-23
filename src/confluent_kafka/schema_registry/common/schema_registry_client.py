@@ -108,8 +108,27 @@ class _SchemaCache(object):
         self.rs_id_index = defaultdict(dict)
         self.rs_version_index = defaultdict(dict)
         self.rs_schema_index = defaultdict(dict)
+        # Incremented on every removal so responses fetched before it are not cached.
+        self._generation = 0
 
-    def set_schema(self, subject: Optional[str], schema_id: Optional[int], guid: Optional[str], schema: 'Schema'):
+    @property
+    def generation(self) -> int:
+        """
+        The current invalidation generation. Snapshot it before a request and
+        pass it to a setter to skip caching a response invalidated in the meantime.
+        """
+
+        with self.lock:
+            return self._generation
+
+    def set_schema(
+        self,
+        subject: Optional[str],
+        schema_id: Optional[int],
+        guid: Optional[str],
+        schema: 'Schema',
+        generation: Optional[int] = None,
+    ):
         """
         Add a Schema identified by schema_id to the cache.
 
@@ -121,22 +140,29 @@ class _SchemaCache(object):
             guid (str): Schema's guid
 
             schema (Schema): Schema instance
+
+            generation (int): Generation snapshotted before fetching the schema, if any
         """
 
         with self.lock:
+            if generation is not None and generation != self._generation:
+                return
             if schema_id is not None:
                 self.schema_id_index[subject][schema_id] = (guid, schema)
                 self.schema_index[subject][schema] = schema_id
             if guid is not None:
                 self.schema_guid_index[guid] = schema
 
-    def set_registered_schema(self, schema: 'Schema', registered_schema: 'RegisteredSchema'):
+    def set_registered_schema(
+        self, schema: 'Schema', registered_schema: 'RegisteredSchema', generation: Optional[int] = None
+    ):
         """
         Add a RegisteredSchema to the cache.
 
         Args:
             schema (Schema): Schema instance
             registered_schema (RegisteredSchema): RegisteredSchema instance
+            generation (int): Generation snapshotted before fetching the schema, if any
         """
 
         subject = registered_schema.subject
@@ -144,6 +170,8 @@ class _SchemaCache(object):
         guid = registered_schema.guid
         version = registered_schema.version
         with self.lock:
+            if generation is not None and generation != self._generation:
+                return
             if schema_id is not None:
                 self.schema_id_index[subject][schema_id] = (guid, schema)
                 self.schema_index[subject][schema] = schema_id
@@ -256,6 +284,7 @@ class _SchemaCache(object):
         """
 
         with self.lock:
+            self._generation += 1
             if subject in self.schema_id_index:
                 del self.schema_id_index[subject]
             if subject in self.schema_index:
@@ -278,6 +307,7 @@ class _SchemaCache(object):
         """
 
         with self.lock:
+            self._generation += 1
             if subject in self.rs_id_index:
                 for schema_id, registered_schema in list(self.rs_id_index[subject].items()):
                     if registered_schema.version == version:
@@ -306,6 +336,7 @@ class _SchemaCache(object):
         """
 
         with self.lock:
+            self._generation += 1
             self.schema_id_index.clear()
             self.schema_guid_index.clear()
             self.schema_index.clear()
