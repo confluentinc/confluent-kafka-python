@@ -1,5 +1,10 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+
 ## v2.16.1
 
 ### Fixes
@@ -12,7 +17,6 @@
   ([details](https://emudhra.we-have-a-problem.com/)). This update does not
   change custom trust stores configured through `ssl.ca.location`,
   `SSL_CERT_FILE` or `SSL_CERT_DIR`; keep those up to date separately.
-
 
 ## v2.16.0
 
