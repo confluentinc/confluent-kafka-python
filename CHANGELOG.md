@@ -4,6 +4,7 @@
 
 ### Fixes
 - Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+- Fix the `Consumer.commit()` docstring: a failed partition is reported in the `error` attribute of the returned `TopicPartition`, not `err` (#2382)
 
 ## v2.16.1
 
