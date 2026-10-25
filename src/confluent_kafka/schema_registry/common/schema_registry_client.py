@@ -598,7 +598,9 @@ class MetadataTags:
         return metadata_tags
 
     def __hash__(self):
-        return hash(frozenset(self.tags.items()))
+        return hash(
+            frozenset((k, tuple(v) if isinstance(v, (list, tuple)) else v) for k, v in (self.tags or {}).items())
+        )
 
 
 @_attrs_define

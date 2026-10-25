@@ -1,12 +1,23 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.16.1 (unreleased)
+## Unreleased
+
+### Fixes
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+- Fix the `Consumer.commit()` docstring: a failed partition is reported in the `error` attribute of the returned `TopicPartition`, not `err` (#2382)
+
+## v2.16.1
 
 ### Fixes
 
-- Fix the `Consumer.commit()` docstring: a failed partition is reported in the
-  `error` attribute of the returned `TopicPartition`, not `err`
-
+- Require `certifi>=2026.10.19` for the Schema Registry client. When
+  `ssl.ca.location` is not set (and the `SSL_CERT_FILE` and `SSL_CERT_DIR`
+  environment variables are not set), the client verifies Schema Registry
+  certificates against the `certifi` CA bundle, and earlier `certifi` releases
+  still trust the eMudhra root whose intermediate CA keys were compromised
+  ([details](https://emudhra.we-have-a-problem.com/)). This update does not
+  change custom trust stores configured through `ssl.ca.location`,
+  `SSL_CERT_FILE` or `SSL_CERT_DIR`; keep those up to date separately.
 
 ## v2.16.0
 
@@ -61,6 +72,8 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
+- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
 - Serialize concurrent access to a shared `Consumer` instance across threads

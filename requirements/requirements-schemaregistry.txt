@@ -1,6 +1,6 @@
 attrs>=21.2.0
 cachetools>=5.5.0
-certifi
+certifi>=2026.10.19
 # Prefer httpx2 (Python >=3.10); older Pythons stay on httpx.
 # Authlib gained httpx2 support in 1.8.0, so require it where httpx is absent.
 httpx>=0.26; python_version < "3.10"
