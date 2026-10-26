@@ -16,6 +16,17 @@ def _describe_user(admin_client, user):
     return admin_client.describe_client_quotas(quota_filter).result(timeout=15)
 
 
+def _remove_user_quota(admin_client, entity, key):
+    removal = ClientQuotaAlteration(entity, [ClientQuotaAlterationOp(key, None)])
+    assert admin_client.alter_client_quotas([removal])[entity].result(timeout=15) is None
+    for _ in range(6):
+        result = _describe_user(admin_client, entity.entries["user"])
+        if entity not in result:
+            return
+        time.sleep(0.2)
+    assert entity not in result
+
+
 def test_client_quotas(kafka_cluster):
     admin_client = kafka_cluster.admin()
     user = "confluent-kafka-python-{}".format(uuid.uuid4().hex)
@@ -26,21 +37,15 @@ def test_client_quotas(kafka_cluster):
     assert admin_client.alter_client_quotas([validate_only], validate_only=True)[entity].result(timeout=15) is None
     assert entity not in _describe_user(admin_client, user)
 
-    alteration = ClientQuotaAlteration(entity, [ClientQuotaAlterationOp(key, 222222.0)])
-    assert admin_client.alter_client_quotas([alteration])[entity].result(timeout=15) is None
+    try:
+        alteration = ClientQuotaAlteration(entity, [ClientQuotaAlterationOp(key, 222222.0)])
+        assert admin_client.alter_client_quotas([alteration])[entity].result(timeout=15) is None
 
-    for _ in range(6):
-        result = _describe_user(admin_client, user)
-        if result.get(entity, {}).get(key) == 222222.0:
-            break
-        time.sleep(0.2)
-    assert result[entity][key] == 222222.0
-
-    removal = ClientQuotaAlteration(entity, [ClientQuotaAlterationOp(key, None)])
-    assert admin_client.alter_client_quotas([removal])[entity].result(timeout=15) is None
-    for _ in range(6):
-        result = _describe_user(admin_client, user)
-        if entity not in result:
-            break
-        time.sleep(0.2)
-    assert entity not in result
+        for _ in range(6):
+            result = _describe_user(admin_client, user)
+            if result.get(entity, {}).get(key) == 222222.0:
+                break
+            time.sleep(0.2)
+        assert result[entity][key] == 222222.0
+    finally:
+        _remove_user_quota(admin_client, entity, key)

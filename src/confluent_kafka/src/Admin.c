@@ -3410,6 +3410,26 @@ const char Admin_elect_leaders_doc[] = PyDoc_STR(
     "confluent_kafka.AdminClient.elect_leaders()\n");
 
 
+static const char *Admin_quota_unicode_as_utf8(PyObject *value,
+                                                const char *field) {
+        const char *text;
+        Py_ssize_t size;
+
+        text = PyUnicode_AsUTF8AndSize(value, &size);
+        if (!text)
+                return NULL;
+
+        if ((Py_ssize_t)strlen(text) != size) {
+                PyErr_Format(PyExc_ValueError,
+                             "%s must not contain embedded NUL characters",
+                             field);
+                return NULL;
+        }
+
+        return text;
+}
+
+
 static PyObject *
 Admin_describe_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *filter, *future, *components = NULL, *strict_obj = NULL;
@@ -3475,10 +3495,12 @@ Admin_describe_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
-                entity_type = PyUnicode_AsUTF8(type_obj);
+                entity_type = Admin_quota_unicode_as_utf8(type_obj,
+                                                          "entity_type");
                 match_type  = PyLong_AsLong(match_value_obj);
                 if (match_obj != Py_None)
-                        match = PyUnicode_AsUTF8(match_obj);
+                        match = Admin_quota_unicode_as_utf8(match_obj,
+                                                           "match");
                 if (!entity_type || (match_obj != Py_None && !match) ||
                     PyErr_Occurred()) {
                         Py_DECREF(type_obj);
@@ -3606,9 +3628,11 @@ Admin_alter_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
                                 Py_DECREF(ops);
                                 goto err;
                         }
-                        entity_type = PyUnicode_AsUTF8(entity_type_obj);
+                        entity_type = Admin_quota_unicode_as_utf8(
+                            entity_type_obj, "entity type");
                         if (entity_name_obj != Py_None)
-                                entity_name = PyUnicode_AsUTF8(entity_name_obj);
+                                entity_name = Admin_quota_unicode_as_utf8(
+                                    entity_name_obj, "entity name");
                         if (!entity_type ||
                             (entity_name_obj != Py_None && !entity_name)) {
                                 Py_DECREF(entity);
@@ -3650,7 +3674,8 @@ Admin_alter_client_quotas(Handle *self, PyObject *args, PyObject *kwargs) {
                                                 "Invalid client quota op");
                                 goto err;
                         }
-                        key = PyUnicode_AsUTF8(key_obj);
+                        key = Admin_quota_unicode_as_utf8(key_obj,
+                                                         "quota key");
                         if (!key) {
                                 Py_DECREF(key_obj);
                                 Py_DECREF(value_obj);

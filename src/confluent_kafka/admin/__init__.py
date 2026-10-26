@@ -553,6 +553,8 @@ class AdminClient(_AdminClientImpl):
                 raise TypeError("entity_type must be a string")
             if not component.entity_type:
                 raise ValueError("entity_type must not be empty")
+            if "\x00" in component.entity_type:
+                raise ValueError("entity_type must not contain embedded NUL characters")
             if component.entity_type in entity_types:
                 raise ValueError("entity_type values must be unique")
             entity_types.add(component.entity_type)
@@ -561,6 +563,8 @@ class AdminClient(_AdminClientImpl):
             if component.match_type is ClientQuotaMatchType.EXACT:
                 if not isinstance(component.match, string_type) or not component.match:
                     raise ValueError("EXACT match requires a non-empty match string")
+                if "\x00" in component.match:
+                    raise ValueError("match must not contain embedded NUL characters")
             elif component.match is not None:
                 raise ValueError("DEFAULT and ANY matches require match=None")
 
@@ -582,8 +586,12 @@ class AdminClient(_AdminClientImpl):
             for entity_type, entity_name in alteration.entity.entries.items():
                 if not isinstance(entity_type, string_type) or not entity_type:
                     raise ValueError("entity type must be a non-empty string")
+                if "\x00" in entity_type:
+                    raise ValueError("entity type must not contain embedded NUL characters")
                 if entity_name is not None and (not isinstance(entity_name, string_type) or not entity_name):
                     raise ValueError("entity name must be None or a non-empty string")
+                if entity_name is not None and "\x00" in entity_name:
+                    raise ValueError("entity name must not contain embedded NUL characters")
             if alteration.entity in entities:
                 raise ValueError("quota entities must be unique")
             entities.add(alteration.entity)
@@ -595,6 +603,8 @@ class AdminClient(_AdminClientImpl):
                     raise TypeError("ops must contain ClientQuotaAlterationOp objects")
                 if not isinstance(op.key, string_type) or not op.key:
                     raise ValueError("quota key must be a non-empty string")
+                if "\x00" in op.key:
+                    raise ValueError("quota key must not contain embedded NUL characters")
                 if op.key in keys:
                     raise ValueError("quota keys must be unique within an alteration")
                 keys.add(op.key)
