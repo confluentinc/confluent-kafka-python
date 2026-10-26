@@ -9,7 +9,7 @@ if [[ -z "$1" ]]; then
 fi
 
 # List of Python versions to run the code with
-python_versions=("3.8" "3.9" "3.10" "3.11" "3.12" "3.13" "3.14")
+python_versions=("3.8" "3.9" "3.10" "3.11" "3.12" "3.13" "3.14" "3.15")
 
 if command -v sem-version &> /dev/null; then
     use_sem_version=true

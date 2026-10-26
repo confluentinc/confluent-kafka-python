@@ -35,7 +35,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX x64 - Python 3.13-3.14"
+  - name: "Wheels: OSX x64 - Python 3.13-3.15"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -58,6 +58,8 @@ blocks:
             - sem-version python 3.13
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - CIBW_BUILD="cp315-* cp315t-*" PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 4.3.4
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
@@ -83,7 +85,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64 - Python 3.13-3.14"
+  - name: "Wheels: OSX arm64 - Python 3.13-3.15"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -108,6 +110,8 @@ blocks:
             - sem-version python 3.13
             - pip install uv
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - CIBW_BUILD="cp315-* cp315t-*" PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 4.3.4
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
@@ -129,6 +133,8 @@ blocks:
             - sem-version python 3.13
             - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - CIBW_BUILD="cp315-* cp315t-*" ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 4.3.4
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux s390x"
@@ -150,6 +156,8 @@ blocks:
             - sem-version python 3.13
             - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - CIBW_BUILD="cp315-* cp315t-*" ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 4.3.4
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
@@ -171,6 +179,8 @@ blocks:
             - sem-version python 3.11
             - pip install uv
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - CIBW_BUILD="cp315-* cp315t-*" ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 4.3.4
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
@@ -203,6 +213,10 @@ blocks:
             - sem-version python 3.11
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
+            - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+            # CPython 3.15 needs cibuildwheel 4, which no longer builds 3.8 wheels, so 3.15 gets a second pass with it.
+            - python -m pip install cibuildwheel==4.3.4
+            - $env:CIBW_BUILD = "cp315-win_amd64 cp315t-win_amd64"
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
@@ -530,7 +544,7 @@ blocks:
       when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
-      - "Wheels: OSX x64 - Python 3.13-3.14"
+      - "Wheels: OSX x64 - Python 3.13-3.15"
     task:
       agent:
         machine:
@@ -569,7 +583,7 @@ blocks:
       when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX arm64 - Python 3.8-3.12"
-      - "Wheels: OSX arm64 - Python 3.13-3.14"
+      - "Wheels: OSX arm64 - Python 3.13-3.15"
     task:
       agent:
         machine:

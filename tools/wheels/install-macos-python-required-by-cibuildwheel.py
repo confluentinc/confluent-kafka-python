@@ -2,8 +2,8 @@
 #
 #
 # Get python versions required for cibuildwheel from their config and
-# install them. This implementation is based on cibuildwheel 3.2.1
-# version. Might need tweak if something changes in cibuildwheel.
+# install them. This implementation is based on cibuildwheel 3.2.1 and
+# 4.3.4 versions. Might need tweak if something changes in cibuildwheel.
 #
 # This was added as there is a permission issue when cibuildwheel
 # tries to install these versions on its own.
@@ -41,11 +41,22 @@ skip_versions_list = skip_versions.split()
 skip_versions_regex_string = ("|".join(skip_versions_list)).replace("*", ".*")
 skip_versions_regex = re.compile(skip_versions_regex_string)
 
+# Honour CIBW_BUILD as well, so that a run building only some versions
+# (e.g. the CPython 3.15 wheels) installs only those.
+build_versions = os.environ.get('CIBW_BUILD', '*')
+print(f"Versions to build are '{build_versions}'")
+build_versions_regex_string = ("|".join(build_versions.split())).replace("*", ".*")
+build_versions_regex = re.compile(build_versions_regex_string)
+
 py_versions_info = []
 
 for py_version_config in macos_config:
     identifier = py_version_config['identifier']
-    if not skip_versions_regex.match(identifier) and machine_arc_regex.match(identifier):
+    if (
+        build_versions_regex.match(identifier)
+        and not skip_versions_regex.match(identifier)
+        and machine_arc_regex.match(identifier)
+    ):
         pkg_url = py_version_config['url']
         py_versions_info.append((identifier, pkg_url))
 

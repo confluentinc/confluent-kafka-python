@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Enhancements
+- Add Python 3.15 and 3.15t wheels (#2299)
+
 ### Fixes
 - Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
 
