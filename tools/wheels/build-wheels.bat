@@ -13,7 +13,8 @@ set WHEELHOUSE=%4
 if [%WHEELHOUSE%]==[] goto usage
 echo on
 
-set CIBW_BUILD=cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH% cp312-%BW_ARCH% cp313-%BW_ARCH% cp314-%BW_ARCH% cp314t-%BW_ARCH%
+rem The caller may preset CIBW_BUILD, e.g. to build only the CPython 3.15 wheels.
+if not defined CIBW_BUILD set CIBW_BUILD=cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH% cp312-%BW_ARCH% cp313-%BW_ARCH% cp314-%BW_ARCH% cp314t-%BW_ARCH%
 set CIBW_BEFORE_BUILD=python -m pip install delvewheel==1.10.0
 set CIBW_TEST_REQUIRES=pytest
 set CIBW_TEST_COMMAND=pytest {project}\tests\test_error.py

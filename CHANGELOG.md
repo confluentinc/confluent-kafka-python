@@ -1,5 +1,10 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Enhancements
+- Add Python 3.15 and 3.15t wheels (#2299)
+
 ## v2.16.1
 
 ### Fixes
