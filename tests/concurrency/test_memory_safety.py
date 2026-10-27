@@ -611,3 +611,11 @@ def test_alter_consumer_group_offsets_non_list_request_is_rejected():
     internal_future = AdminClient._create_future()
     with pytest.raises((TypeError, ValueError)):
         super(AdminClient, admin).alter_consumer_group_offsets({'not': 'a list'}, internal_future)
+
+
+@subprocess_isolated
+def test_delete_consumer_group_offsets_non_list_request_is_rejected():
+    admin = AdminClient(_CONF)
+    internal_future = AdminClient._create_future()
+    with pytest.raises((TypeError, ValueError)):
+        super(AdminClient, admin).delete_consumer_group_offsets({'not': 'a list'}, internal_future)
