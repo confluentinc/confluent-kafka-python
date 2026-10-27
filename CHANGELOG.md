@@ -4,6 +4,7 @@
 
 ### Fixes
 - Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+- Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
 
 ## v2.16.1
 
