@@ -1434,3 +1434,51 @@ def test_producer_close():
     producer.produce('mytopic', value='somedata', key='a key', callback=on_delivery)
     assert producer.close(), "The producer could not be closed on demand"
     assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"
+
+
+def test_producer_config():
+    """Issue #465
+    The effective configuration of a Producer instance can be inspected
+    via the config() method."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'client.id': 'test-client-id',
+        'sasl.password': 'supersecret',
+    }
+
+    p = Producer(conf)
+
+    # Default call redacts sensitive values.
+    config = p.config()
+    assert isinstance(config, dict)
+    assert config['client.id'] == 'test-client-id'
+    assert config['sasl.password'] == '[redacted]'
+    # librdkafka defaults are included.
+    assert config['api.version.request'] == 'true'
+
+    # include_sensitive=True returns plaintext sensitive values.
+    config_sensitive = p.config(include_sensitive=True)
+    assert config_sensitive['sasl.password'] == 'supersecret'
+
+    # The returned dict is a copy: mutating it must not affect the client.
+    config['client.id'] = 'mutated'
+    assert p.config()['client.id'] == 'test-client-id'
+
+    p.poll(timeout=0.1)
+
+
+def test_producer_config_excludes_callbacks():
+    """Issue #465
+    Python callbacks passed in the config dict are not librdkafka
+    properties and must not appear in the config dump."""
+    def error_cb(error_msg):
+        pass
+
+    p = Producer({
+        'bootstrap.servers': 'localhost:65531',
+        'error_cb': error_cb,
+    })
+
+    config = p.config()
+    assert 'error_cb' not in config
+    p.poll(timeout=0.1)
