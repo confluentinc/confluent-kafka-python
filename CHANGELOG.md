@@ -3,7 +3,6 @@
 ## Unreleased
 
 ### Fixes
-- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
 - Fix `import confluent_kafka.aio` raising `TypeError: 'type' object is not subscriptable` on Python 3.8
 
@@ -19,6 +18,14 @@
   ([details](https://emudhra.we-have-a-problem.com/)). This update does not
   change custom trust stores configured through `ssl.ca.location`,
   `SSL_CERT_FILE` or `SSL_CERT_DIR`; keep those up to date separately.
+- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+
+
+confluent-kafka-python 2.16.1 is based on librdkafka 2.16.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.16.0
 
@@ -73,7 +80,6 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
-- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
