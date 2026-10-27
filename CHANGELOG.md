@@ -5,6 +5,7 @@
 ### Fixes
 - Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `import confluent_kafka.aio` raising `TypeError: 'type' object is not subscriptable` on Python 3.8
 
 ## v2.16.1
 
