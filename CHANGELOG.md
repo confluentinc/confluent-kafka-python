@@ -1,5 +1,11 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `import confluent_kafka.aio` raising `TypeError: 'type' object is not subscriptable` on Python 3.8
+
 ## v2.16.1
 
 ### Fixes
