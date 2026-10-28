@@ -18,6 +18,7 @@
 import json
 import os
 import re
+import sys
 import sysconfig
 import warnings
 from base64 import b64decode
@@ -46,54 +47,72 @@ if _active_httpx.__name__ == 'httpx2':
 # fail at collection; exclude them there. fastavro (avro extra) does ship a
 # free-threaded wheel, but has not declared itself GIL-safe (see
 # https://github.com/fastavro/fastavro/issues/873), so it is excluded from
-# the free-threaded install too. On regular builds the deps are expected to be
-# installed, so a missing dep stays a loud collection error instead of a
-# silent skip.
+# the free-threaded install too. On Python 3.15, tink and google-re2 (rules
+# extra) ship no wheels yet and their source builds need Bazel / system
+# re2+abseil, so the rules extra is not installed there either (see
+# requirements-tests-install-py315.txt); exclude the rules modules there.
+# TODO: drop the 3.15 exclusion once tink and google-re2 publish 3.15 wheels.
+# On other regular builds the deps are expected to be installed, so a missing
+# dep stays a loud collection error instead of a silent skip.
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+# Modules importing the rules extra's deps (tink, celpy, azure, hvac).
+_RULES_TEST_MODULES = [
+    "test_azure_aead.py",
+    "test_azure_client.py",
+    "test_azure_driver.py",
+    "test_cel_field_value_types.py",
+    "test_cel_message_transform.py",
+    "test_cel_null_avro_field.py",
+    "test_cel_validator.py",
+    "test_encrypt_executor.py",
+    "test_hcvault_driver.py",
+    "test_proto_transform.py",
+    "test_validate_message.py",
+    "test_variant_utils.py",
+    "_async/test_avro_serdes.py",
+    "_async/test_avro_serdes_rules.py",
+    "_async/test_cel_avro_message_transform.py",
+    "_async/test_config_rules.py",
+    "_async/test_dlq_serdes.py",
+    "_async/test_json_serdes_rules.py",
+    "_async/test_proto_serdes.py",
+    "_async/test_proto_serdes_rules.py",
+    "_async/test_validation_serdes.py",
+    "_sync/test_avro_serdes.py",
+    "_sync/test_avro_serdes_rules.py",
+    "_sync/test_cel_avro_message_transform.py",
+    "_sync/test_config_rules.py",
+    "_sync/test_dlq_serdes.py",
+    "_sync/test_json_serdes_rules.py",
+    "_sync/test_proto_serdes.py",
+    "_sync/test_proto_serdes_rules.py",
+    "_sync/test_validation_serdes.py",
+]
+# Modules importing fastavro or orjson, but none of the rules deps.
+_FASTAVRO_ORJSON_TEST_MODULES = [
+    "test_dlq_action.py",
+    "test_inline_tags.py",
+    "_async/test_avro.py",
+    "_sync/test_avro.py",
+]
 
 collect_ignore = []
 if FREE_THREADED_BUILD:
-    collect_ignore = [
-        "test_azure_aead.py",
-        "test_azure_client.py",
-        "test_azure_driver.py",
-        "test_cel_field_value_types.py",
-        "test_cel_message_transform.py",
-        "test_cel_null_avro_field.py",
-        "test_cel_validator.py",
-        "test_dlq_action.py",
-        "test_encrypt_executor.py",
-        "test_hcvault_driver.py",
-        "test_inline_tags.py",
-        "test_proto_transform.py",
-        "test_validate_message.py",
-        "test_variant_utils.py",
-        "_async/test_avro.py",
-        "_async/test_avro_serdes.py",
-        "_async/test_avro_serdes_rules.py",
-        "_async/test_cel_avro_message_transform.py",
-        "_async/test_config_rules.py",
-        "_async/test_dlq_serdes.py",
-        "_async/test_json_serdes_rules.py",
-        "_async/test_proto_serdes.py",
-        "_async/test_proto_serdes_rules.py",
-        "_async/test_validation_serdes.py",
-        "_sync/test_avro.py",
-        "_sync/test_avro_serdes.py",
-        "_sync/test_avro_serdes_rules.py",
-        "_sync/test_cel_avro_message_transform.py",
-        "_sync/test_config_rules.py",
-        "_sync/test_dlq_serdes.py",
-        "_sync/test_json_serdes_rules.py",
-        "_sync/test_proto_serdes.py",
-        "_sync/test_proto_serdes_rules.py",
-        "_sync/test_validation_serdes.py",
-    ]
+    collect_ignore = _RULES_TEST_MODULES + _FASTAVRO_ORJSON_TEST_MODULES
     warnings.warn(
         "free-threaded build: skipping collection of {} schema_registry "
         "test modules requiring optional deps (tink/celpy/orjson/fastavro) "
         "that ship no free-threaded wheels, or have not "
         "declared themselves GIL-safe".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
+elif sys.version_info >= (3, 15):
+    collect_ignore = _RULES_TEST_MODULES
+    warnings.warn(
+        "Python 3.15: skipping collection of {} schema_registry test modules "
+        "requiring the rules extra (tink/google-re2), which ships no "
+        "Python 3.15 wheels yet".format(len(collect_ignore)),
         RuntimeWarning,
     )
 

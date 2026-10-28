@@ -2,7 +2,7 @@
 #
 #
 # Get python versions required for cibuildwheel from their config and
-# install them. This implementation is based on cibuildwheel 3.2.1
+# install them. This implementation is based on cibuildwheel 4.3.3
 # version. Might need tweak if something changes in cibuildwheel.
 #
 # This was added as there is a permission issue when cibuildwheel
