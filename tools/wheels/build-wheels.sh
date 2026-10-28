@@ -6,8 +6,11 @@
 this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
-# Skip PyPy, Python2, old Python3 versions, musl, x86 builds and free threaded 3.13 build.
-export CIBW_SKIP="pp* cp27-* cp35-* cp36-* *i686 *musllinux* cp313t-* $CIBW_SKIP"
+# Skip PyPy, musl and x86 builds. Pythons older than requires-python in
+# pyproject.toml are skipped by cibuildwheel itself. cibuildwheel 4.x builds
+# PyPy only when enabled (and warns about pp*), but the 2.x used for the macOS
+# 3.9-3.12 wheels and install-macos-python-required-by-cibuildwheel.py need it.
+export CIBW_SKIP="pp* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="pytest"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py"
@@ -17,7 +20,7 @@ export CIBW_MANYLINUX_S390X_IMAGE="manylinux_2_28"
 
 librdkafka_version=$1
 wheeldir=$2
-cibuildwheel_version=${3:-"3.2.1"}
+cibuildwheel_version=${3:-"4.3.5"}
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"

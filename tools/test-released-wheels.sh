@@ -9,7 +9,7 @@ if [[ -z "$1" ]]; then
 fi
 
 # List of Python versions to run the code with
-python_versions=("3.8" "3.9" "3.10" "3.11" "3.12" "3.13" "3.14")
+python_versions=("3.9" "3.10" "3.11" "3.12" "3.13" "3.14" "3.15")
 
 if command -v sem-version &> /dev/null; then
     use_sem_version=true
@@ -25,13 +25,6 @@ fi
 
 # Loop through each Python version and execute the code
 for version in "${python_versions[@]}"; do
-    if [ "$version" = "3.8" ]; then
-        export MISE_PYTHON_GITHUB_ATTESTATIONS=false
-    else
-        # Attestation verification is available for Python versions >= 3.10
-        unset MISE_PYTHON_GITHUB_ATTESTATIONS
-    fi
-
     echo -e "\e[1;34mRunning with Python version $version \e[0m"
 
     if [[ "$use_sem_version" = true ]]; then
