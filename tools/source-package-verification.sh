@@ -6,6 +6,7 @@
 set -e
 
 FREE_THREADED=$(python -c "import sysconfig; print(sysconfig.get_config_var('Py_GIL_DISABLED') or 0)")
+PY315_OR_NEWER=$(python -c "import sys; print(int(sys.version_info >= (3, 15)))")
 
 if [[ $FREE_THREADED == "1" ]]; then
     # The rules and json-fast extras' compiled deps (tink, google-re2, grpcio;
@@ -13,7 +14,14 @@ if [[ $FREE_THREADED == "1" ]]; then
     # (e.g. tink needs protoc), so install the supported subset.
     uv pip install -r requirements/requirements-tests-install-nogil.txt
 else
-    uv pip install -r requirements/requirements-tests-install.txt
+    if [[ $PY315_OR_NEWER == "1" ]]; then
+        # tink and google-re2 (rules extra) ship no Python 3.15 wheels yet and
+        # their source builds need Bazel / system re2+abseil, so install
+        # everything but the rules extra.
+        uv pip install -r requirements/requirements-tests-install-py315.txt
+    else
+        uv pip install -r requirements/requirements-tests-install.txt
+    fi
     # Install orjson (CI-only) so the test suite exercises the orjson fast-path
     # of the JSON codec. It is intentionally NOT in
     # requirements-tests-install.txt: orjson has no free-threaded wheels yet,

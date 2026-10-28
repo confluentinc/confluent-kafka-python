@@ -3,7 +3,7 @@
 # Verify an installed free-threaded (cp3XXt) confluent-kafka wheel.
 #
 # Usage: tools/verify-free-threaded-wheel.sh [python]
-#   python   interpreter to check with; defaults to "python", i.e. the activated 3.14t venv.
+#   python   interpreter to check with; defaults to "python", i.e. the activated free-threaded venv.
 #
 # Expects the wheel to be installed already and LIBRDKAFKA_VERSION (e.g. v2.15.0)
 # to name the librdkafka it must bundle. Exits non-zero on the first failed check.

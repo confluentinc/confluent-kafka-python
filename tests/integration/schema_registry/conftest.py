@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import sys
 import sysconfig
 import warnings
 
@@ -23,6 +24,9 @@ import warnings
 # celpy ships no free-threaded wheel; fastavro ships one but has not declared
 # itself GIL-safe. Neither is installed on free-threaded builds (see
 # requirements-tests-install-nogil.txt), so all of them are excluded here.
+# On Python 3.15 the rules extra (celpy needs google-re2) is not installed
+# either (see requirements-tests-install-py315.txt), so test_dlq.py is excluded
+# there. TODO: drop that once tink and google-re2 publish 3.15 wheels.
 FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
 
 collect_ignore = []
@@ -39,5 +43,16 @@ if FREE_THREADED_BUILD:
         "free-threaded build: skipping collection of {} schema_registry "
         "integration test modules requiring celpy (no free-threaded wheel) "
         "or fastavro (not declared GIL-safe)".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
+elif sys.version_info >= (3, 15):
+    collect_ignore = [
+        "_async/test_dlq.py",
+        "_sync/test_dlq.py",
+    ]
+    warnings.warn(
+        "Python 3.15: skipping collection of {} schema_registry integration "
+        "test modules requiring the rules extra (celpy needs google-re2), "
+        "which ships no Python 3.15 wheels yet".format(len(collect_ignore)),
         RuntimeWarning,
     )

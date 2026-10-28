@@ -1,0 +1,9 @@
+# requirements-tests-install.txt without the rules extra: tink and google-re2
+# ship no Python 3.15 wheels yet (see tests/schema_registry/conftest.py).
+-r requirements-tests.txt
+-r requirements-schemaregistry.txt
+-r requirements-avro.txt
+-r requirements-protobuf.txt
+-r requirements-json.txt
+-r requirements-oauthbearer-aws.txt
+tests/trivup/trivup-0.14.0.tar.gz
