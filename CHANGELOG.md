@@ -6,9 +6,9 @@
 
 - Add Python 3.15 and 3.15t (free-threaded) wheels. The `rules` extra
   (CSFLE and data quality rules) can't be installed on Python 3.15 yet, as
-  its `tink` and `google-re2` dependencies publish no Python 3.15 wheels (#TBD)
+  its `tink` and `google-re2` dependencies publish no Python 3.15 wheels (#2406)
 - Drop Python 3.8 support. Python 3.8 reached end of life in October 2024;
-  pip on Python 3.8 keeps installing v2.16.x (#TBD)
+  pip on Python 3.8 keeps installing v2.16.x (#2406)
 
 
 ## v2.16.1
