@@ -714,9 +714,6 @@ Producer_validate_and_parse_batch(Handle *self,
                 Py_ssize_t value_len = 0, key_len = 0;
                 int msg_partition   = default_partition;
                 PyObject *msg_dr_cb = default_dr_cb;
-#ifdef RD_KAFKA_V_HEADERS
-                rd_kafka_headers_t *rd_headers = NULL;
-#endif
 
                 if (!PyDict_Check(msg_dict)) {
                         PyErr_Format(PyExc_TypeError,
@@ -786,21 +783,18 @@ Producer_validate_and_parse_batch(Handle *self,
                         return -1;
                 }
 
+                /* Parse headers - currently not supported in batch mode */
+                if (headers_obj && headers_obj != Py_None) {
+                        PyErr_Format(PyExc_NotImplementedError,
+                                     "Message headers are not currently "
+                                     "supported in batch mode");
+                        return -1;
+                }
+
                 /* Parse callback */
                 if (callback_obj && callback_obj != Py_None) {
                         msg_dr_cb = callback_obj;
                 }
-
-#ifdef RD_KAFKA_V_HEADERS
-                /* Parse headers */
-                if (headers_obj && headers_obj != Py_None) {
-                        if (!(rd_headers = py_headers_to_c(headers_obj))) {
-                                PyErr_Format(PyExc_ValueError,
-                                             "Invalid headers at index %d", i);
-                                return -1;
-                        }
-                }
-#endif
 
                 /* Create msgstate for this message */
                 msgstates[i] = Producer_msgstate_new(self, msg_dr_cb);
@@ -813,18 +807,6 @@ Producer_validate_and_parse_batch(Handle *self,
                 rkmessages[i].partition = msg_partition;
                 rkmessages[i]._private  = msgstates[i];
                 rkmessages[i].err       = RD_KAFKA_RESP_ERR_NO_ERROR;
-
-#ifdef RD_KAFKA_V_HEADERS
-                /* Note: headers are not directly supported in
-                 * rd_kafka_produce_batch This is a limitation of the current
-                 * librdkafka batch API */
-                if (rd_headers) {
-                        rd_kafka_headers_destroy(rd_headers);
-                        rd_headers = NULL;
-                        /* Could warn user that headers are ignored in batch
-                         * mode */
-                }
-#endif
         }
 
         return 0;
@@ -974,8 +956,16 @@ cleanup:
         /* Cleanup resources not tied to self->rk */
         if (rkmessages)
                 free(rkmessages);
-        if (msgstates)
+        if (msgstates) {
+                int j;
+                for (j = 0; j < message_cnt; j++) {
+                        if (msgstates[j]) {
+                                Producer_msgstate_destroy(msgstates[j]);
+                                msgstates[j] = NULL;
+                        }
+                }
                 free(msgstates);
+        }
 
 #ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_messages);
@@ -1293,7 +1283,8 @@ static PyMethodDef Producer_methods[] = {
      "  :rtype: bool\n"
      "  :returns: True if producer close requested successfully, False "
      "otherwise\n"
-     ".. warning:: Calling close() from within a callback is not recommended and"
+     ".. warning:: Calling close() from within a callback is not recommended "
+     "and"
      " will deadlock.\n"
      "\n"},
     {"flush", (PyCFunction)Producer_flush, METH_VARARGS | METH_KEYWORDS,
@@ -1333,7 +1324,6 @@ static PyMethodDef Producer_methods[] = {
      "    - 'key' (str|bytes): Message key (optional)\n"
      "    - 'partition' (int): Specific partition (optional, overrides batch "
      "partition)\n"
-     "    - 'timestamp' (int): Message timestamp in milliseconds (optional)\n"
      "    - 'callback' (func): Per-message delivery callback (optional)\n"
      "  :param int partition: Default partition for all messages (optional)\n"
      "  :param func on_delivery(err,msg): Default delivery callback for all "
@@ -1343,13 +1333,14 @@ static PyMethodDef Producer_methods[] = {
      "\n"
      "  :raises TypeError: if messages is not a list or message format is "
      "invalid\n"
+     "  :raises NotImplementedError: if 'headers' or 'timestamp' is specified\n"
      "  :raises BufferError: if the internal producer message queue is full\n"
      "  :raises KafkaException: for other errors\n"
      "\n"
-     "  .. note:: Message headers are not currently supported in batch mode "
-     "due to\n"
-     "            librdkafka API limitations. Use individual produce() calls "
-     "if headers are needed.\n"
+     "  .. note:: Message headers and timestamps are not currently supported "
+     "in "
+     "batch mode due to librdkafka API limitations. Use individual produce() "
+     "calls if headers or timestamps are needed.\n"
      "\n"
      "  .. note:: Failed messages will have an '_error' field added to their "
      "dict\n"
