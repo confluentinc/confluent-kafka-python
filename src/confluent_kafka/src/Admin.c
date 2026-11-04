@@ -5905,9 +5905,9 @@ raise:
                 excargs = PyTuple_New(1);
                 Py_INCREF(error); /* tuple's reference */
                 PyTuple_SET_ITEM(excargs, 0, error);
-                exc = ((PyTypeObject *)KafkaException)
-                          ->tp_new((PyTypeObject *)KafkaException, NULL, NULL);
-                exc->ob_type->tp_init(exc, excargs, NULL);
+                /* Calling KafkaException picks the subclass matching
+                 * the error's flags (see KafkaException_new()). */
+                exc = PyObject_Call(KafkaException, excargs, NULL);
                 Py_DECREF(excargs);
                 Py_XDECREF(error); /* from error source above */
         }

@@ -1,5 +1,16 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Enhancements
+- Add `KafkaRetriableException`, `KafkaFatalException` and
+  `KafkaTxnRequiresAbortException`, subclasses of `KafkaException` that are
+  raised when the wrapped `KafkaError` is retriable, fatal or requires the
+  current transaction to be aborted, so these cases can be handled with
+  separate `except` clauses. `KafkaException(error)` returns the matching
+  subclass; errors without these flags are still plain `KafkaException`, and
+  existing `except KafkaException` handlers are unaffected (#147)
+
 ## v2.16.1
 
 ### Fixes
