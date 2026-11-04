@@ -2960,6 +2960,77 @@ static PyObject *resolve_plugins(PyObject *plugins) {
 }
 
 /**
+ * @brief Convert a configuration property value to a string object.
+ *
+ * A list or tuple value is joined into a comma-separated string, which
+ * allows list-like librdkafka properties (such as bootstrap.servers) to
+ * be specified as Python lists, as requested in issue #711.
+ * Any other value is converted the same way as before, through its
+ * string representation.
+ *
+ * List and tuple items must be plain values: None, and nested lists,
+ * tuples and dicts, are rejected with a TypeError instead of being
+ * stringified into a value librdkafka would silently misinterpret,
+ * which is the failure mode reported in issue #711.
+ *
+ * @returns a new reference to a unicode string object, or NULL if an
+ *          exception was raised.
+ */
+static PyObject *conf_value_to_str(PyObject *vo, const char *name) {
+        PyObject *items, *item, *item_str, *sep, *joined;
+        Py_ssize_t i, len;
+
+        if (!PyList_Check(vo) && !PyTuple_Check(vo))
+                return cfl_PyObject_Unistr(vo);
+
+        len = PySequence_Size(vo);
+        if (len == -1)
+                return NULL;
+
+        items = PyList_New(len);
+        if (!items)
+                return NULL;
+
+        for (i = 0; i < len; i++) {
+                item = PySequence_GetItem(vo, i);
+                if (!item) {
+                        Py_DECREF(items);
+                        return NULL;
+                }
+
+                if (item == Py_None || PyList_Check(item) ||
+                    PyTuple_Check(item) || PyDict_Check(item)) {
+                        Py_DECREF(item);
+                        Py_DECREF(items);
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected configuration property %s "
+                                     "list items as type unicode string",
+                                     name);
+                        return NULL;
+                }
+
+                item_str = cfl_PyObject_Unistr(item);
+                Py_DECREF(item);
+                if (!item_str) {
+                        Py_DECREF(items);
+                        return NULL;
+                }
+                PyList_SET_ITEM(items, i, item_str);
+        }
+
+        sep = cfl_PyUnistr(_FromString(","));
+        if (!sep) {
+                Py_DECREF(items);
+                return NULL;
+        }
+        joined = PyUnicode_Join(sep, items);
+        Py_DECREF(sep);
+        Py_DECREF(items);
+        return joined;
+}
+
+
+/**
  * @brief Remove property from confidct and set rd_kafka_conf with its value
  *
  * @param vo The property value object
@@ -2975,11 +3046,12 @@ static int common_conf_set_special(PyObject *confdict,
         PyObject *vs;
         PyObject *vs8 = NULL;
 
-        if (!(vs = cfl_PyObject_Unistr(vo))) {
-                PyErr_Format(PyExc_TypeError,
-                             "expected configuration property %s "
-                             "as type unicode string",
-                             name);
+        if (!(vs = conf_value_to_str(vo, name))) {
+                if (!PyErr_Occurred())
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected configuration property %s "
+                                     "as type unicode string",
+                                     name);
                 return 0;
         }
 
@@ -3427,11 +3499,13 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 if (vo == Py_None) {
                         v = NULL;
                 } else {
-                        if (!(vs = cfl_PyObject_Unistr(vo))) {
-                                PyErr_SetString(PyExc_TypeError,
-                                                "expected configuration "
-                                                "property value as type "
-                                                "unicode string");
+                        if (!(vs = conf_value_to_str(vo, k))) {
+                                if (!PyErr_Occurred())
+                                        PyErr_SetString(
+                                            PyExc_TypeError,
+                                            "expected configuration "
+                                            "property value as type "
+                                            "unicode string");
                                 goto inner_err;
                         }
                         v = cfl_PyUnistr_AsUTF8(vs, &vs8);
