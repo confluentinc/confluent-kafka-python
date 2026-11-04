@@ -304,12 +304,17 @@ static __inline PyObject *cfl_PyUnistr_FromStringSafe(const char *s) {
  *
  ****************************************************************************/
 extern PyObject *KafkaException;
+extern PyObject *KafkaRetriableException;
+extern PyObject *KafkaFatalException;
+extern PyObject *KafkaTxnRequiresAbortException;
 extern PyObject *IllegalStateException;
 extern PyObject *ConcurrentModificationException;
 
 PyObject *KafkaError_new0(rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None(rd_kafka_resp_err_t err, const char *str);
 PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
+PyObject *cfl_KafkaException_type_for(PyObject *error);
+void cfl_PyErr_SetKafkaError(PyObject *error);
 
 /**
  * @brief Raise an exception using KafkaError.
@@ -319,7 +324,7 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 #define cfl_PyErr_Format(err, ...)                                             \
         do {                                                                   \
                 PyObject *_eo = KafkaError_new0(err, __VA_ARGS__);             \
-                PyErr_SetObject(KafkaException, _eo);                          \
+                cfl_PyErr_SetKafkaError(_eo);                                  \
         } while (0)
 
 /**
@@ -329,7 +334,7 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
 #define cfl_PyErr_from_error_destroy(error)                                    \
         do {                                                                   \
                 PyObject *_eo = KafkaError_new_from_error_destroy(error);      \
-                PyErr_SetObject(KafkaException, _eo);                          \
+                cfl_PyErr_SetKafkaError(_eo);                                  \
         } while (0)
 
 

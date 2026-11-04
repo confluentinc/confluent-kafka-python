@@ -4,7 +4,15 @@ import time
 
 import pytest
 
-from confluent_kafka import KafkaError, KafkaException, Producer
+from confluent_kafka import (
+    KafkaError,
+    KafkaException,
+    KafkaFatalException,
+    KafkaRetriableException,
+    KafkaTxnRequiresAbortException,
+    Producer,
+)
+from confluent_kafka.error import ConsumeError, ProduceError
 
 seen_all_brokers_down = False
 
@@ -113,3 +121,95 @@ def test_kafkaException_unknown_KafkaError_with_subclass():
     assert not e.value.args[0].fatal()
     assert not e.value.args[0].retriable()
     assert not e.value.args[0].txn_requires_abort()
+
+
+def _expected_exception_type(err):
+    if err.fatal():
+        return KafkaFatalException
+    if err.txn_requires_abort():
+        return KafkaTxnRequiresAbortException
+    if err.retriable():
+        return KafkaRetriableException
+    return KafkaException
+
+
+@pytest.mark.parametrize(
+    "flags,expected",
+    [
+        ({}, KafkaException),
+        ({'retriable': True}, KafkaRetriableException),
+        ({'fatal': True}, KafkaFatalException),
+        ({'txn_requires_abort': True}, KafkaTxnRequiresAbortException),
+        # The most severe flag wins: fatal, then abort, then retriable.
+        ({'fatal': True, 'retriable': True}, KafkaFatalException),
+        ({'fatal': True, 'txn_requires_abort': True}, KafkaFatalException),
+        ({'txn_requires_abort': True, 'retriable': True}, KafkaTxnRequiresAbortException),
+    ],
+)
+def test_kafkaException_picks_subclass_from_flags(flags, expected):
+    err = KafkaError(KafkaError._TIMED_OUT, **flags)
+    exc = KafkaException(err)
+
+    assert type(exc) is expected
+    assert isinstance(exc, KafkaException)
+    assert exc.args == (err,)
+    assert exc.args[0] is err
+    assert str(exc) == str(err)
+
+    # Handlers for the specific class and for the base class both catch it.
+    with pytest.raises(expected):
+        raise KafkaException(err)
+    with pytest.raises(KafkaException):
+        raise KafkaException(err)
+
+
+def test_kafkaException_subclass_hierarchy():
+    for cls in (KafkaRetriableException, KafkaFatalException, KafkaTxnRequiresAbortException):
+        assert issubclass(cls, KafkaException)
+        assert cls.__doc__
+    assert not issubclass(KafkaRetriableException, KafkaFatalException)
+    assert not issubclass(KafkaFatalException, KafkaRetriableException)
+    assert not issubclass(KafkaTxnRequiresAbortException, KafkaRetriableException)
+
+
+def test_kafkaException_without_flagged_error_stays_base_class():
+    assert type(KafkaException()) is KafkaException
+    assert type(KafkaException("some message")) is KafkaException
+    assert type(KafkaException(KafkaError(KafkaError._ALL_BROKERS_DOWN))) is KafkaException
+    # Only the first argument is inspected.
+    assert type(KafkaException("msg", KafkaError(KafkaError._TIMED_OUT, retriable=True))) is KafkaException
+    assert KafkaException("a", "b").args == ("a", "b")
+
+
+def test_kafkaException_subclasses_are_not_redirected():
+    retriable = KafkaError(KafkaError._TIMED_OUT, retriable=True)
+
+    # Constructing a subclass directly always gives that subclass.
+    assert type(KafkaFatalException(retriable)) is KafkaFatalException
+    assert type(KafkaRetriableException(KafkaError(KafkaError._TIMED_OUT))) is KafkaRetriableException
+
+    # User and library subclasses keep their own type.
+    class MyExc(KafkaException):
+        pass
+
+    assert type(MyExc(retriable)) is MyExc
+    assert type(ConsumeError(retriable)) is ConsumeError
+    assert type(ProduceError(retriable)) is ProduceError
+
+
+def test_transactional_api_raises_retriable_exception():
+    """Errors raised from C carry the subclass matching their flags."""
+    p = Producer({"transactional.id": "test", "bootstrap.servers": "127.0.0.1:1"})
+
+    with pytest.raises(KafkaRetriableException) as ex:
+        p.init_transactions(0.5)
+    err = ex.value.args[0]
+    assert err.code() == KafkaError._TIMED_OUT
+    assert err.retriable()
+    assert type(ex.value) is _expected_exception_type(err)
+
+    # Subsequent calls fail too; whatever librdkafka reports, the class
+    # must agree with the KafkaError flags.
+    with pytest.raises(KafkaException) as ex:
+        p.begin_transaction()
+    assert type(ex.value) is _expected_exception_type(ex.value.args[0])

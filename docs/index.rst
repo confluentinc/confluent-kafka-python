@@ -44,6 +44,9 @@ Supporting classes
     - Errors:
        - :ref:`KafkaError <pythonclient_kafkaerror>`
        - :ref:`KafkaException <pythonclient_kafkaexception>`
+       - :ref:`KafkaRetriableException <pythonclient_kafkaretriableexception>`
+       - :ref:`KafkaFatalException <pythonclient_kafkafatalexception>`
+       - :ref:`KafkaTxnRequiresAbortException <pythonclient_kafkatxnrequiresabortexception>`
        - :ref:`ConsumeError <pyclient_error_consumer>`
        - :ref:`ProduceError <pyclient_error_producer>`
        - :ref:`SerializationError <serde_error>`
@@ -933,6 +936,44 @@ KafkaException
 .. autoclass:: confluent_kafka.KafkaException
    :members:
 
+Errors that librdkafka flags as retriable, fatal or requiring a transaction
+abort are raised as one of the subclasses below, so they can be handled with
+separate ``except`` clauses. All of them are still ``KafkaException``
+instances with the :py:class:`KafkaError` in ``exception.args[0]``, so
+existing ``except KafkaException`` handlers keep working.
+
+``KafkaException(error)`` itself returns the matching subclass when ``error``
+is a :py:class:`KafkaError` with one of these flags set; if several are set the
+most severe wins (fatal, then transaction abort, then retriable). Errors
+without any of these flags remain plain ``KafkaException`` instances.
+
+.. _pythonclient_kafkaretriableexception:
+
+***********************
+KafkaRetriableException
+***********************
+
+.. autoclass:: confluent_kafka.KafkaRetriableException
+   :members:
+
+.. _pythonclient_kafkafatalexception:
+
+*******************
+KafkaFatalException
+*******************
+
+.. autoclass:: confluent_kafka.KafkaFatalException
+   :members:
+
+.. _pythonclient_kafkatxnrequiresabortexception:
+
+******************************
+KafkaTxnRequiresAbortException
+******************************
+
+.. autoclass:: confluent_kafka.KafkaTxnRequiresAbortException
+   :members:
+
 .. _pythonclient_illegalstateexception:
 
 **********************
@@ -1126,7 +1167,8 @@ transaction may be started by calling
 Some error cases allow the attempted operation to be retried, this is
 indicated by the error object having the retriable flag set which can
 be detected by calling :py:meth:`confluent_kafka.KafkaError.retriable()` on
-the KafkaError object.
+the KafkaError object. Such errors are raised as
+:py:class:`confluent_kafka.KafkaRetriableException`.
 When this flag is set the application may retry the operation immediately
 or preferably after a shorter grace period (to avoid busy-looping).
 Retriable errors include timeouts, broker transport failures, etc.
@@ -1142,6 +1184,8 @@ start a new transaction by calling
 :py:meth:`confluent_kafka.Producer.begin_transaction()`.
 Whether an error is abortable or not is detected by calling
 :py:meth:`confluent_kafka.KafkaError.txn_requires_abort()`.
+Abortable errors are raised as
+:py:class:`confluent_kafka.KafkaTxnRequiresAbortException`.
 
 **Fatal errors**
 
@@ -1156,6 +1200,7 @@ producer and terminate. There is no way for a producer instance to recover
 from fatal errors.
 Whether an error is fatal or not is detected by calling
 :py:meth:`confluent_kafka.KafkaError.fatal()`.
+Fatal errors are raised as :py:class:`confluent_kafka.KafkaFatalException`.
 
 **Handling of other errors**
 
@@ -1175,19 +1220,22 @@ neither the retriable or abortable flags set, as fatal.
        try:
            producer.commit_transaction(10.0)
            break
-       except KafkaException as e:
-           if e.args[0].retriable():
-              # retriable error, try again
-              continue
-           elif e.args[0].txn_requires_abort():
-              # abort current transaction, begin a new transaction,
-              # and rewind the consumer to start over.
-              producer.abort_transaction()
-              producer.begin_transaction()
-              rewind_consumer_offsets...()
-           else:
-               # treat all other errors as fatal
-               raise
+       except KafkaRetriableException:
+           # retriable error, try again
+           continue
+       except KafkaTxnRequiresAbortException:
+           # abort current transaction, begin a new transaction,
+           # and rewind the consumer to start over.
+           producer.abort_transaction()
+           producer.begin_transaction()
+           rewind_consumer_offsets...()
+       except KafkaException:
+           # treat all other errors (including KafkaFatalException) as fatal
+           raise
+
+The same checks can be made on the error object with
+``e.args[0].retriable()``, ``e.args[0].txn_requires_abort()`` and
+``e.args[0].fatal()``.
 
 
 .. _pythonclient_configuration:

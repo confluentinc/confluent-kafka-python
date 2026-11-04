@@ -160,7 +160,7 @@ ShareConsumer_PyErr_Format(rd_kafka_resp_err_t code, const char *fmt, ...) {
                 PyObject *eo = KafkaError_new0(code, "%s", msg);
                 if (!eo)
                         return;
-                PyErr_SetObject(KafkaException, eo);
+                cfl_PyErr_SetKafkaError(eo);
                 Py_DECREF(eo);
         } else {
                 PyErr_SetString(etype, msg);
@@ -178,7 +178,7 @@ static void ShareConsumer_PyErr_from_error_destroy(rd_kafka_error_t *error) {
                 PyObject *eo = KafkaError_new_from_error_destroy(error);
                 if (!eo)
                         return;
-                PyErr_SetObject(KafkaException, eo);
+                cfl_PyErr_SetKafkaError(eo);
                 Py_DECREF(eo);
         } else {
                 const char *estr = rd_kafka_error_string(error);

@@ -51,6 +51,11 @@
 
 
 PyObject *KafkaException;
+/* KafkaException subclasses selected from the wrapped KafkaError's flags,
+ * see cfl_KafkaException_type_for(). */
+PyObject *KafkaRetriableException;
+PyObject *KafkaFatalException;
+PyObject *KafkaTxnRequiresAbortException;
 /* Share consumer error types. These subclass RuntimeError, not
  * KafkaException. */
 PyObject *IllegalStateException;
@@ -462,7 +467,104 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error) {
 static void cfl_PyErr_Fatal(rd_kafka_resp_err_t err, const char *reason) {
         PyObject *eo              = KafkaError_new0(err, "%s", reason);
         ((KafkaError *)eo)->fatal = 1;
-        PyErr_SetObject(KafkaException, eo);
+        cfl_PyErr_SetKafkaError(eo);
+}
+
+
+/**
+ * @brief Returns the KafkaException class matching \p error's flags
+ *        (borrowed reference).
+ *
+ * The most severe flag wins: fatal, then txn_requires_abort, then retriable.
+ * Anything that is not a KafkaError, or a KafkaError without any of these
+ * flags, maps to the plain KafkaException base class.
+ */
+PyObject *cfl_KafkaException_type_for(PyObject *error) {
+        const KafkaError *kerr;
+
+        if (!error || !PyObject_TypeCheck(error, &KafkaErrorType))
+                return KafkaException;
+
+        kerr = (const KafkaError *)error;
+        if (kerr->fatal)
+                return KafkaFatalException;
+        if (kerr->txn_requires_abort)
+                return KafkaTxnRequiresAbortException;
+        if (kerr->retriable)
+                return KafkaRetriableException;
+        return KafkaException;
+}
+
+
+/**
+ * @brief KafkaException.__new__(cls, *args, **kwargs)
+ *
+ * Like OSError picking FileNotFoundError from an errno, constructing the
+ * KafkaException base class with a KafkaError as the first argument returns
+ * an instance of the matching subclass (see cfl_KafkaException_type_for()).
+ * This way exceptions raised from C, from the Python layers
+ * (e.g. `raise KafkaException(err)`) and those handed to futures are all
+ * classified the same way. Subclasses are always instantiated as-is.
+ */
+static PyObject *
+KafkaException_new(PyObject *unused, PyObject *args, PyObject *kwargs) {
+        PyObject *cls, *rest, *ret;
+        PyObject *target;
+        Py_ssize_t nargs = PyTuple_GET_SIZE(args);
+
+        if (nargs < 1 || !PyType_Check(PyTuple_GET_ITEM(args, 0))) {
+                PyErr_SetString(PyExc_TypeError,
+                                "KafkaException.__new__(): "
+                                "first argument must be a type");
+                return NULL;
+        }
+        cls = PyTuple_GET_ITEM(args, 0);
+
+        rest = PyTuple_GetSlice(args, 1, nargs);
+        if (!rest)
+                return NULL;
+
+        target = cls;
+        if (cls == KafkaException && PyTuple_GET_SIZE(rest) > 0)
+                target = cfl_KafkaException_type_for(PyTuple_GET_ITEM(rest, 0));
+
+        ret = ((PyTypeObject *)PyExc_Exception)
+                  ->tp_new((PyTypeObject *)target, rest, kwargs);
+        Py_DECREF(rest);
+        return ret;
+}
+
+static PyMethodDef KafkaException_new_def = {
+    "__new__", (PyCFunction)KafkaException_new, METH_VARARGS | METH_KEYWORDS,
+    "Create a KafkaException, picking the subclass matching the "
+    "KafkaError's flags when called on KafkaException itself."};
+
+
+/**
+ * @brief Raise a KafkaException (or the subclass matching its flags)
+ *        wrapping \p error.
+ *
+ * Does not steal the reference to \p error, same as PyErr_SetObject().
+ */
+void cfl_PyErr_SetKafkaError(PyObject *error) {
+        PyObject *exc;
+
+        if (!error) {
+                /* KafkaError allocation failed: keep that exception. */
+                if (!PyErr_Occurred())
+                        PyErr_SetNone(KafkaException);
+                return;
+        }
+
+        exc = PyObject_CallFunctionObjArgs(KafkaException, error, NULL);
+        if (!exc)
+                return;
+
+        /* Raise with the instance's own type so that
+         * `except KafkaRetriableException` matches on every Python version,
+         * including those that match on the type before normalization. */
+        PyErr_SetObject((PyObject *)Py_TYPE(exc), exc);
+        Py_DECREF(exc);
 }
 
 
@@ -4412,8 +4514,74 @@ static PyObject *_init_cimpl(void) {
 #else
         KafkaException = PyErr_NewException("cimpl.KafkaException", NULL, NULL);
 #endif
+        if (!KafkaException)
+                return NULL;
+        {
+                PyObject *fn, *sm;
+                int r;
+
+                fn = PyCFunction_New(&KafkaException_new_def, NULL);
+                if (!fn)
+                        return NULL;
+                sm = PyStaticMethod_New(fn);
+                Py_DECREF(fn);
+                if (!sm)
+                        return NULL;
+                r = PyObject_SetAttrString(KafkaException, "__new__", sm);
+                Py_DECREF(sm);
+                if (r == -1)
+                        return NULL;
+        }
         Py_INCREF(KafkaException);
         PyModule_AddObject(m, "KafkaException", KafkaException);
+
+        KafkaRetriableException = PyErr_NewExceptionWithDoc(
+            "cimpl.KafkaRetriableException",
+            "Raised when the wrapped :py:class:`KafkaError` is retriable "
+            "(``retriable()`` is True): the operation failed temporarily and "
+            "may be retried.\n"
+            "\n"
+            "Subclass of :py:class:`KafkaException`; "
+            "``exception.args[0]`` is the :py:class:`KafkaError`.\n"
+            "\n",
+            KafkaException, NULL);
+        if (!KafkaRetriableException)
+                return NULL;
+        Py_INCREF(KafkaRetriableException);
+        PyModule_AddObject(m, "KafkaRetriableException",
+                           KafkaRetriableException);
+
+        KafkaFatalException = PyErr_NewExceptionWithDoc(
+            "cimpl.KafkaFatalException",
+            "Raised when the wrapped :py:class:`KafkaError` is fatal "
+            "(``fatal()`` is True): the client instance is no longer "
+            "usable and must be closed and recreated.\n"
+            "\n"
+            "Subclass of :py:class:`KafkaException`; "
+            "``exception.args[0]`` is the :py:class:`KafkaError`.\n"
+            "\n",
+            KafkaException, NULL);
+        if (!KafkaFatalException)
+                return NULL;
+        Py_INCREF(KafkaFatalException);
+        PyModule_AddObject(m, "KafkaFatalException", KafkaFatalException);
+
+        KafkaTxnRequiresAbortException = PyErr_NewExceptionWithDoc(
+            "cimpl.KafkaTxnRequiresAbortException",
+            "Raised when the wrapped :py:class:`KafkaError` requires the "
+            "current transaction to be aborted "
+            "(``txn_requires_abort()`` is True): call "
+            "``abort_transaction()`` and start a new transaction.\n"
+            "\n"
+            "Subclass of :py:class:`KafkaException`; "
+            "``exception.args[0]`` is the :py:class:`KafkaError`.\n"
+            "\n",
+            KafkaException, NULL);
+        if (!KafkaTxnRequiresAbortException)
+                return NULL;
+        Py_INCREF(KafkaTxnRequiresAbortException);
+        PyModule_AddObject(m, "KafkaTxnRequiresAbortException",
+                           KafkaTxnRequiresAbortException);
 
         /* Subclass RuntimeError, not KafkaException. These carry a plain
          * message string (str(exc)), not a KafkaError — the type conveys the
