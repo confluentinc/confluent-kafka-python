@@ -1,5 +1,13 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `Producer.produce()` raising a `KafkaError` with code `_FATAL` and
+  `fatal()` false after a prior fatal error, instead of a `KafkaError` that
+  reports `fatal()` true and carries the original fatal error's code and
+  reason (#2387)
+
 ## v2.16.1
 
 ### Fixes

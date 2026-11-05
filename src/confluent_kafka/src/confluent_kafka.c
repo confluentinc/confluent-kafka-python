@@ -457,11 +457,21 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error) {
 
 
 /**
+ * @brief Mark a KafkaError object (as returned by KafkaError_new0() et al)
+ *        as reporting a fatal error, so KafkaError.fatal() matches the
+ *        error it's raised for.
+ */
+void cfl_KafkaError_set_fatal(PyObject *eo) {
+        ((KafkaError *)eo)->fatal = 1;
+}
+
+
+/**
  * @brief Raise exception from fatal error.
  */
 static void cfl_PyErr_Fatal(rd_kafka_resp_err_t err, const char *reason) {
-        PyObject *eo              = KafkaError_new0(err, "%s", reason);
-        ((KafkaError *)eo)->fatal = 1;
+        PyObject *eo = KafkaError_new0(err, "%s", reason);
+        cfl_KafkaError_set_fatal(eo);
         PyErr_SetObject(KafkaException, eo);
 }
 

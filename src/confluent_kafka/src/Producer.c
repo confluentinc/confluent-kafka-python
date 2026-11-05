@@ -256,6 +256,8 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
+        rd_kafka_resp_err_t fatal_err = RD_KAFKA_RESP_ERR_NO_ERROR;
+        char fatal_errstr[512]        = {0};
         struct Producer_msgstate *msgstate;
 #ifdef RD_KAFKA_V_HEADERS
         rd_kafka_headers_t *rd_headers = NULL;
@@ -333,6 +335,14 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
                                 key_len, msgstate);
 #endif
 
+        if (err == RD_KAFKA_RESP_ERR__FATAL) {
+                /* self->rk is only guaranteed alive up to Handle_rk_use_end()
+                 * below, so fetch the original fatal error while still
+                 * inside the Producer_rk_use_begin() window. */
+                fatal_err = rd_kafka_fatal_error(self->rk, fatal_errstr,
+                                                 sizeof(fatal_errstr));
+        }
+
         Handle_rk_use_end(self);
 
         if (err) {
@@ -346,7 +356,20 @@ Producer_produce(Handle *self, PyObject *args, PyObject *kwargs) {
                 if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL)
                         PyErr_Format(PyExc_BufferError, "%s",
                                      rd_kafka_err2str(err));
-                else
+                else if (err == RD_KAFKA_RESP_ERR__FATAL) {
+                        /* produce() returns __FATAL once a prior fatal error
+                         * (already raised from poll()/flush()) has occurred;
+                         * carry that original error's code/reason and mark
+                         * this one fatal() too, rather than an opaque,
+                         * non-fatal-looking __FATAL error (#2387). */
+                        PyObject *eo = KafkaError_new0(
+                            err,
+                            "Unable to produce message: Local: Fatal "
+                            "error: %s: %s",
+                            rd_kafka_err2name(fatal_err), fatal_errstr);
+                        cfl_KafkaError_set_fatal(eo);
+                        PyErr_SetObject(KafkaException, eo);
+                } else
                         cfl_PyErr_Format(err, "Unable to produce message: %s",
                                          rd_kafka_err2str(err));
 
