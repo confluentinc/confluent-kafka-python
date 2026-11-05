@@ -716,7 +716,7 @@ class AdminClient(_AdminClientImpl):
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
                   The type of the value returned by the future result() method is
-                  dict(<configname, ConfigEntry>). On Confluent Server and
+                  dict(<configname, ConfigEntry>). On Confluent Platform and
                   Confluent Cloud, the result for a topic with a Schema Registry
                   subject association includes ``confluent.value.association``
                   and/or ``confluent.key.association`` entries. Apache Kafka
@@ -795,7 +795,7 @@ class AdminClient(_AdminClientImpl):
         and rest remain as is.
 
         :param list(ConfigResource) resources: Resources to update configuration of.
-                  On Confluent Server and Confluent Cloud, a topic's Schema
+                  On Confluent Platform and Confluent Cloud, a topic's Schema
                   Registry subject association can be set or updated with a SET
                   operation on ``confluent.value.association`` or
                   ``confluent.key.association``, and removed with a DELETE

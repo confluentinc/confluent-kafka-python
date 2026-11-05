@@ -150,7 +150,7 @@ static PyMemberDef NewTopic_members[] = {
     {"config", T_OBJECT, offsetof(NewTopic, config), 0,
      ":py:attribute: Optional topic configuration.\n"
      "See http://kafka.apache.org/documentation.html#topicconfigs.\n"
-     "On Confluent Server and Confluent Cloud, the topic configs\n"
+     "On Confluent Platform and Confluent Cloud, the topic configs\n"
      "``confluent.value.association`` and ``confluent.key.association``\n"
      "can be set in this dict to associate the topic's value and/or key\n"
      "with a Schema Registry subject at creation time. Apache Kafka\n"
