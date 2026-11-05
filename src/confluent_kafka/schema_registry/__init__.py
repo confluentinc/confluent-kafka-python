@@ -164,9 +164,27 @@ def reference_subject_name_strategy(ctx: Optional[SerializationContext], schema_
     return schema_ref.name if schema_ref is not None else None
 
 
+def _schema_id_header_key(ctx: SerializationContext) -> str:
+    return _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
+
+
+def _remove_schema_id_header(headers, header_key: str) -> None:
+    """
+    Removes every header named header_key, in place, so a message never
+    carries a stale schema id header (for example one copied from an inbound
+    message) alongside the schema id written by the serializer.
+    """
+    if isinstance(headers, list):
+        headers[:] = [header for header in headers if header[0] != header_key]
+    elif isinstance(headers, dict):
+        headers.pop(header_key, None)
+
+
 def header_schema_id_serializer(payload: bytes, ctx: Optional[SerializationContext], schema_id) -> bytes:
     """
     Serializes the schema guid into the header.
+
+    Any existing schema id header for the same field is replaced.
 
     Args:
         payload (bytes): The payload to serialize.
@@ -183,20 +201,25 @@ def header_schema_id_serializer(payload: bytes, ctx: Optional[SerializationConte
     headers = ctx.headers
     if headers is None:
         raise SerializationError("Missing headers")
-    header_key = _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
+    if not isinstance(headers, (list, dict)):
+        raise SerializationError("Invalid headers type")
+    header_key = _schema_id_header_key(ctx)
     header_value = schema_id.guid_to_bytes()
+    _remove_schema_id_header(headers, header_key)
     if isinstance(headers, list):
         headers.append((header_key, header_value))
-    elif isinstance(headers, dict):
-        headers[header_key] = header_value
     else:
-        raise SerializationError("Invalid headers type")
+        headers[header_key] = header_value
     return payload
 
 
 def prefix_schema_id_serializer(payload: bytes, ctx, schema_id) -> bytes:
     """
     Serializes the schema id into the payload prefix.
+
+    Any existing schema id header for the same field is removed from
+    ``ctx.headers``, since a deserializer would otherwise read the schema id
+    from that header and decode the prefix as part of the data.
 
     Args:
         payload (bytes): The payload to serialize.
@@ -207,12 +230,17 @@ def prefix_schema_id_serializer(payload: bytes, ctx, schema_id) -> bytes:
     Returns:
         bytes: The payload prefixed with the schema id
     """
+    if ctx is not None and ctx.headers is not None:
+        _remove_schema_id_header(ctx.headers, _schema_id_header_key(ctx))
     return schema_id.id_to_bytes() + payload
 
 
 def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationContext], schema_id) -> io.BytesIO:
     """
     Deserializes the schema id by first checking the header, then the payload prefix.
+
+    If the header appears more than once, the last occurrence is used, matching
+    the Java client.
 
     Args:
         payload (bytes): The payload to serialize.
@@ -229,10 +257,10 @@ def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationConte
     if ctx is not None:
         headers = ctx.headers
         if headers is not None:
-            header_key = _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
+            header_key = _schema_id_header_key(ctx)
             if isinstance(headers, list):
-                # look for header_key in headers
-                for header in headers:
+                # use the last header_key in headers, like Java's Headers.lastHeader()
+                for header in reversed(headers):
                     if header[0] == header_key:
                         header_value = header[1]
                         break
