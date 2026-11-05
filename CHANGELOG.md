@@ -1,5 +1,13 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `Producer.flush()` raising a bare, uncatchable `KafkaError` instead of
+  `KafkaException` for a fatal error on Python < 3.12 (e.g. idempotent
+  producer failing to acquire a PID), and fix a reference leak when more than
+  one callback in the same call episode reports an exception (#2386)
+
 ## v2.16.1
 
 ### Fixes

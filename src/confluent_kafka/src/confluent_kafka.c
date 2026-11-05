@@ -2426,8 +2426,8 @@ error_cb(rd_kafka_t *rk, int err, const char *reason, void *opaque) {
         if (result)
                 Py_DECREF(result);
         else {
-                CallState_fetch_exception(cs);
         crash:
+                CallState_fetch_exception(cs);
                 CallState_crash(cs);
                 /* Use the callback's rk: h->rk is NULL on a share consumer. */
                 rd_kafka_yield(rk);
