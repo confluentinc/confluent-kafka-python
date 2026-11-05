@@ -1,5 +1,34 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `Producer.flush()` raising a bare, uncatchable `KafkaError` instead of
+  `KafkaException` for a fatal error on Python < 3.12 (e.g. idempotent
+  producer failing to acquire a PID), and fix a reference leak when more than
+  one callback in the same call episode reports an exception (#2386)
+
+## v2.16.1
+
+### Fixes
+
+- Require `certifi>=2026.10.19` for the Schema Registry client. When
+  `ssl.ca.location` is not set (and the `SSL_CERT_FILE` and `SSL_CERT_DIR`
+  environment variables are not set), the client verifies Schema Registry
+  certificates against the `certifi` CA bundle, and earlier `certifi` releases
+  still trust the eMudhra root whose intermediate CA keys were compromised
+  ([details](https://emudhra.we-have-a-problem.com/)). This update does not
+  change custom trust stores configured through `ssl.ca.location`,
+  `SSL_CERT_FILE` or `SSL_CERT_DIR`; keep those up to date separately.
+- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+
+
+confluent-kafka-python 2.16.1 is based on librdkafka 2.16.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.16.0
 
 v2.16.0 is a feature release with the following features, fixes and enhancements:
@@ -53,11 +82,6 @@ v2.16.0 is a feature release with the following features, fixes and enhancements
 
 ### Fixes
 
-- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
-- Fix `Producer.flush()` raising a bare, uncatchable `KafkaError` instead of
-  `KafkaException` for a fatal error on Python < 3.12 (e.g. idempotent
-  producer failing to acquire a PID), and fix a reference leak when more than
-  one callback in the same call episode reports an exception.
 - Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
 - Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
   `Message` classes (#2347)
