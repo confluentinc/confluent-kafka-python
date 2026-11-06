@@ -11,6 +11,16 @@ fi
 # List of Python versions to run the code with
 python_versions=("3.8" "3.9" "3.10" "3.11" "3.12" "3.13" "3.14")
 
+# Optional third argument restricts the run to a comma-separated list of
+# Python versions (e.g. "3.13,3.14"), or "none" to skip verification
+if [[ "$3" = "none" ]]; then
+    echo "No wheels were published, skipping verification"
+    exit 0
+fi
+if [[ -n "$3" && "$3" != "all" ]]; then
+    IFS=',' read -r -a python_versions <<< "${3// /}"
+fi
+
 if command -v sem-version &> /dev/null; then
     use_sem_version=true
 else
