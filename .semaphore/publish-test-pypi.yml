@@ -20,7 +20,8 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts
             - ls *.tgz |xargs -n1 tar -xvf
-            - cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true
+            - if [ "${INCLUDE_SDIST:-True}" = "True" ]; then cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true; fi
+            - if [ "${PYTHON_VERSIONS:-all}" != "all" ]; then ../tools/filter-wheelhouse.sh wheelhouse "$PYTHON_VERSIONS"; fi
             - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive wheelhouse/*
   - name: "Verify Test PyPI Release"
     dependencies:
@@ -34,7 +35,20 @@ blocks:
             - checkout
             - sem-version python 3.11
             - export CK_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-            - tools/test-released-wheels.sh $CK_VERSION test
+            - tools/test-released-wheels.sh $CK_VERSION test "${PYTHON_VERSIONS:-all}"
 promotions:
   - name: "Publish to PyPI"
     pipeline_file: publish-pypi.yml
+    parameters:
+      env_vars:
+        - name: PYTHON_VERSIONS
+          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything."
+          required: true
+          default_value: all
+        - name: INCLUDE_SDIST
+          description: "Upload the source distribution too. Set to False when adding wheels to an already published release."
+          required: true
+          default_value: "True"
+          options:
+            - "True"
+            - "False"
