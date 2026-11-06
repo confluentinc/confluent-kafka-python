@@ -1,5 +1,26 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## Unreleased
+
+### Fixes
+- Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
+  sent in a header (`header_schema_id_serializer`), for example `int` keys or short
+  strings. The length check now runs where the schema id framing is parsed, so it
+  applies only to the bytes that actually carry the framing (payload prefix or header).
+  Truncated framing now raises `SerializationError` for Avro, JSON Schema and Protobuf,
+  and a prefix-framed Avro message with an empty body (5 bytes) is accepted.
+- When a message has more than one `__key_schema_id` / `__value_schema_id` header, the
+  Schema Registry deserializers now use the last one, matching the Java client. They
+  previously used the first.
+- `header_schema_id_serializer` now replaces an existing schema id header for the same
+  field instead of appending a second one, and `prefix_schema_id_serializer` removes an
+  existing schema id header for the same field from the message headers. A message
+  re-serialized with headers copied from an inbound message no longer carries both a
+  schema id header and a payload prefix, which deserializers decoded as wrong values
+  without raising an error.
+- A Protobuf payload with truncated message indexes now raises `SerializationError`
+  instead of `EOFError`.
+
 ## v2.16.1
 
 ### Fixes
