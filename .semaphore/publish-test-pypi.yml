@@ -22,6 +22,8 @@ blocks:
             - ls *.tgz |xargs -n1 tar -xvf
             - if [ "${INCLUDE_SDIST:-True}" = "True" ]; then cp sdist/*.tar.gz wheelhouse/ 2>/dev/null || true; fi
             - if [ "${PYTHON_VERSIONS:-all}" != "all" ]; then ../tools/filter-wheelhouse.sh wheelhouse "$PYTHON_VERSIONS"; fi
+            - export CK_VERSION=$(python -c "import tomllib; print(tomllib.load(open('../pyproject.toml','rb'))['project']['version'])")
+            - python ../tools/check-existing-files.py wheelhouse test $CK_VERSION "${INCLUDE_SDIST:-True}" "${PYTHON_VERSIONS:-all}"
             - twine upload --repository-url https://test.pypi.org/legacy/ --non-interactive wheelhouse/*
   - name: "Verify Test PyPI Release"
     dependencies:
@@ -42,7 +44,7 @@ promotions:
     parameters:
       env_vars:
         - name: PYTHON_VERSIONS
-          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything."
+          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything, or 'none' to publish no wheels (sdist only)."
           required: true
           default_value: all
         - name: INCLUDE_SDIST
