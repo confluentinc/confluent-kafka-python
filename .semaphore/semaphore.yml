@@ -719,7 +719,7 @@ promotions:
     parameters:
       env_vars:
         - name: PYTHON_VERSIONS
-          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything."
+          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything, or 'none' to publish no wheels (sdist only)."
           required: true
           default_value: all
         - name: INCLUDE_SDIST
