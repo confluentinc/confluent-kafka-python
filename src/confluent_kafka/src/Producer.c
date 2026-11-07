@@ -1226,7 +1226,33 @@ static PyObject *Producer_exit(Handle *self, PyObject *args) {
 }
 
 
+static PyObject *Producer_config(Handle *self,
+                                 PyObject *args,
+                                 PyObject *kwargs) {
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Producer instance not initialized");
+                return NULL;
+        }
+
+        return handle_config(self, args, kwargs);
+}
+
+
 static PyMethodDef Producer_methods[] = {
+    {"config", (PyCFunction)Producer_config, METH_VARARGS | METH_KEYWORDS,
+     ".. py:function:: config([include_sensitive=False])\n"
+     "\n"
+     "  Returns a dictionary containing the effective configuration of the\n"
+     "  Producer instance, including librdkafka defaults.\n"
+     "\n"
+     "  :param bool include_sensitive: If True, sensitive configuration\n"
+     "      properties (passwords, keys, tokens) are returned in plaintext.\n"
+     "      If False (default), sensitive values are redacted as '[redacted]'.\n"
+     "  :returns: Dictionary of effective configuration properties and their\n"
+     "      string values.\n"
+     "  :rtype: dict\n"
+     "\n"},
     {"produce", (PyCFunction)Producer_produce, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: produce(topic, [value], [key], [partition], "
      "[on_delivery], [timestamp], [headers])\n"
@@ -1598,6 +1624,8 @@ static PyNumberMethods Producer_num_methods = {
     0,                         // nb_absolute
     (inquiry)Producer__bool__  // nb_bool
 };
+
+
 
 
 static int Producer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
