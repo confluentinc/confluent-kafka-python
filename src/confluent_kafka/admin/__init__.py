@@ -468,6 +468,41 @@ class AdminClient(_AdminClientImpl):
                     raise ValueError("Element of 'topic_partitions' must not have negative value for 'offset' field")
 
     @staticmethod
+    def _check_delete_consumer_group_offsets_request(request: Optional[List[_ConsumerGroupTopicPartitions]]) -> None:
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request, list):
+            raise TypeError("request must be a list")
+        if len(request) != 1:
+            raise ValueError("Currently we support deleting offsets for a single consumer group only")
+        for req in request:
+            if not isinstance(req, _ConsumerGroupTopicPartitions):
+                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
+            if req.group_id is None:
+                raise TypeError("'group_id' cannot be None")
+            if not isinstance(req.group_id, string_type):
+                raise TypeError("'group_id' must be a string")
+            if not req.group_id:
+                raise ValueError("'group_id' cannot be empty")
+            if req.topic_partitions is None:
+                raise ValueError("'topic_partitions' cannot be null")
+            if not isinstance(req.topic_partitions, list):
+                raise TypeError("'topic_partitions' must be a list")
+            if len(req.topic_partitions) == 0:
+                raise ValueError("'topic_partitions' cannot be empty")
+            for topic_partition in req.topic_partitions:
+                if topic_partition is None:
+                    raise ValueError("Element of 'topic_partitions' cannot be None")
+                if not isinstance(topic_partition, _TopicPartition):
+                    raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                if topic_partition.topic is None:
+                    raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                if not topic_partition.topic:
+                    raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                if topic_partition.partition < 0:
+                    raise ValueError("Element of 'topic_partitions' must not have negative value for 'partition' field")
+
+    @staticmethod
     def _check_describe_user_scram_credentials_request(users: Optional[List[str]]) -> None:
         if users is None:
             return
@@ -1170,6 +1205,43 @@ class AdminClient(_AdminClientImpl):
         )
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
+
+        return futmap
+
+    def delete_consumer_group_offsets(  # type: ignore[override]
+        self, delete_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: Any
+    ) -> Dict[str, concurrent.futures.Future]:
+        """
+        Delete committed offsets for the consumer group and topic partitions provided in the request.
+
+        :note: Currently, the API supports only a single group.
+
+        :param list(ConsumerGroupTopicPartitions) delete_consumer_group_offsets_request: List of
+                    :class:`ConsumerGroupTopicPartitions` which consist of group name and topic
+                    partitions whose committed offsets are to be deleted.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
+
+        :returns: A dict of futures for each group, keyed by the group id.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        AdminClient._check_delete_consumer_group_offsets_request(delete_consumer_group_offsets_request)
+
+        f, futmap = AdminClient._make_futures(
+            [request.group_id for request in delete_consumer_group_offsets_request],
+            string_type,
+            AdminClient._make_consumer_group_offsets_result,
+        )
+
+        super(AdminClient, self).delete_consumer_group_offsets(delete_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
