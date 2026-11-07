@@ -281,7 +281,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         self,
         schema_registry_client: AsyncSchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -475,8 +475,6 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         value: Any
         parsed_schema: Any
         if self._to_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
             value = obj
@@ -594,7 +592,7 @@ class AsyncAvroSerializerBuilder(SerializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         serializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -626,7 +624,7 @@ class AsyncAvroSerializerBuilder(SerializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_to_dict(self, to_dict: Callable[[object, SerializationContext], dict]) -> 'AsyncAvroSerializerBuilder':
+    def set_to_dict(self, to_dict: Callable[..., dict]) -> 'AsyncAvroSerializerBuilder':
         """Callable converting the object being serialized to a dict."""
         self._to_dict = to_dict
         return self
@@ -780,7 +778,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         self,
         schema_registry_client: AsyncSchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         return_record_name: bool = False,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
@@ -980,8 +978,6 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             )
 
         if self._from_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx)
 
         return obj_dict
@@ -1038,7 +1034,7 @@ class AsyncAvroDeserializerBuilder(DeserializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         return_record_name: bool = False,
         deserializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
@@ -1072,9 +1068,7 @@ class AsyncAvroDeserializerBuilder(DeserializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_from_dict(
-        self, from_dict: Callable[[dict, SerializationContext], object]
-    ) -> 'AsyncAvroDeserializerBuilder':
+    def set_from_dict(self, from_dict: Callable[..., Any]) -> 'AsyncAvroDeserializerBuilder':
         """Callable converting the deserialized dict to the object handed to the application."""
         self._from_dict = from_dict
         return self

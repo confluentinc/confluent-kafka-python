@@ -24,6 +24,7 @@ from confluent_kafka.schema_registry import (
     Schema,
     SchemaRegistryClient,
     header_schema_id_serializer,
+    record_subject_name_strategy,
 )
 from confluent_kafka.schema_registry._sync.serde import (
     FALLBACK_TYPE,
@@ -525,3 +526,35 @@ def test_json_associated_name_strategy_caching():
 
     result2 = deser(obj_bytes2, ser_ctx)
     assert obj2 == result2
+
+
+def test_json_serde_optional_context():
+    """
+    Ensures JSONSerializer and JSONDeserializer work when SerializationContext is None
+    with to_dict and from_dict callbacks (regression test for #2183).
+    """
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    class User:
+        def __init__(self, name, id):
+            self.name = name
+            self.id = id
+
+    ser = JSONSerializer(
+        _JSON_SCHEMA,
+        client,
+        to_dict=lambda obj, ctx: {'name': obj.name, 'id': obj.id},
+        conf={'subject.name.strategy': record_subject_name_strategy},
+    )
+    deser = JSONDeserializer(
+        _JSON_SCHEMA,
+        from_dict=lambda d, ctx: User(d['name'], d['id']),
+    )
+
+    data = ser(User("Kafka", 123))
+    assert data is not None
+    user = deser(data)
+    assert isinstance(user, User)
+    assert user.name == "Kafka"
+    assert user.id == 123
