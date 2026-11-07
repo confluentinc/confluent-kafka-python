@@ -101,6 +101,7 @@ class _SchemaStore(object):
         self, subject_name: str, metadata: Dict[str, str], deleted: bool = False, fmt: Optional[str] = None
     ) -> Optional[RegisteredSchema]:
         with self.lock:
+            latest: Optional[RegisteredSchema] = None
             if subject_name in self.subject_schemas:
                 rs: RegisteredSchema
                 for rs in self.subject_schemas[subject_name]:
@@ -109,9 +110,10 @@ class _SchemaStore(object):
                         and rs.schema.metadata
                         and rs.schema.metadata.properties
                         and metadata.items() <= rs.schema.metadata.properties.properties.items()
+                        and (latest is None or rs.version > latest.version)
                     ):
-                        return rs
-            return None
+                        latest = rs
+            return latest
 
     def get_subjects(self) -> List[str]:
         with self.lock:
@@ -120,7 +122,7 @@ class _SchemaStore(object):
     def get_versions(self, subject_name: str) -> List[int]:
         with self.lock:
             if subject_name in self.subject_schemas:
-                return [rs.version for rs in self.subject_schemas[subject_name]]
+                return sorted(rs.version for rs in self.subject_schemas[subject_name])
             return []
 
     def remove_by_schema(self, registered_schema: RegisteredSchema):
