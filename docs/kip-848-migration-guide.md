@@ -49,7 +49,8 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 - In the **rebalance callbacks**, you **must only use** (optional - if not used, client will handle it internally):
   - `consumer.incremental_assign(partitions)` to assign new partitions
   - `consumer.incremental_unassign(partitions)` to revoke partitions
-- **Do not** use `consumer.assign()` or `consumer.unassign()` when using `group.protocol='consumer'` (KIP-848).
+- **Do not** use `consumer.assign()` or `consumer.unassign()` after subscribing with `group.protocol='consumer'` (KIP-848).
+  `consumer.assign()` can still be used for manual partition assignment without subscribing.
 - If you don't provide incremental assign/unassign inside rebalance callbacks, the client will automatically use incremental assign/unassign internally.
 - ⚠️ The `partitions` list passed to `incremental_assign()` and `incremental_unassign()` contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, as was the case with `assign()` in the classic protocol.
 - All assignors under KIP-848 are now **sticky**, including `range`, which was **not sticky** in the classic protocol.
