@@ -454,6 +454,50 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.assertEqual(self.batch_processor.get_buffer_size(), initial_size)
 
 
+class TestBatchRetry(unittest.IsolatedAsyncioTestCase):
+    async def test_retry_excludes_successfully_submitted_batches(self):
+        for target_topic in (None, 'topic'):
+            for delivered in (False, True):
+                with self.subTest(target_topic=target_topic, delivered=delivered):
+                    calls = []
+                    failure = BufferError("queue full")
+
+                    async def execute_batch(topic, messages, partition):
+                        calls.append((topic, partition))
+                        if len(calls) == 2:
+                            raise failure
+                        if delivered:
+                            for message in messages:
+                                message['callback'](None, message['value'])
+
+                    executor = Mock()
+                    executor.execute_batch = execute_batch
+                    processor = ProducerBatchProcessor(executor)
+                    futures = [asyncio.get_running_loop().create_future() for _ in range(3)]
+                    for partition, future in enumerate(futures):
+                        processor.add_message(
+                            {'topic': 'topic', 'partition': partition, 'value': str(partition)}, future
+                        )
+                    try:
+                        with self.assertRaises(BufferError):
+                            await processor.flush_buffer(target_topic)
+                        self.assertIs(futures[1].exception(), failure)
+                        self.assertFalse(futures[2].done())
+                        self.assertEqual(futures[0].done(), delivered)
+                        self.assertEqual(processor.get_buffer_size(), 2)
+                        self.assertEqual(processor._buffer_futures, futures[1:])
+
+                        await processor.flush_buffer(target_topic)
+                        self.assertEqual(calls, [('topic', 0), ('topic', 1), ('topic', 1), ('topic', 2)])
+                        self.assertTrue(processor.is_buffer_empty())
+                    finally:
+                        for future in futures:
+                            if future.done():
+                                future.exception()
+                            else:
+                                future.cancel()
+
+
 if __name__ == '__main__':
     # Run all tests
     unittest.main(verbosity=2)
