@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Enhancements
+- Add `musllinux_1_2` wheels for Python 3.8–3.14 and free-threaded 3.14 on
+  Linux x86-64 and ARM64, using the Alpine libraries from `librdkafka.redist` (#520).
+
 ### Fixes
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
