@@ -184,6 +184,10 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
     |                                  |          | validating the payload. Only applies when          |
     |                                  |          | ``validate`` is True.                              |
     |                                  |          |                                                    |
+    |                                  |          | Some formats (such as ``date-time``) are only      |
+    |                                  |          | checked when their optional dependencies are       |
+    |                                  |          | installed (``pip install jsonschema[format]``).    |
+    |                                  |          |                                                    |
     |                                  |          | Defaults to False.                                 |
     +----------------------------------+----------+----------------------------------------------------+
     |                                  |          | Callable(bytes, SerializationContext, schema_id)   |
@@ -762,6 +766,10 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     | ``validate.formats``             | bool     | ``email``, ``date-time`` or ``ipv4``) when         |
     |                                  |          | validating the payload. Only applies when          |
     |                                  |          | ``validate`` is True.                              |
+    |                                  |          |                                                    |
+    |                                  |          | Some formats (such as ``date-time``) are only      |
+    |                                  |          | checked when their optional dependencies are       |
+    |                                  |          | installed (``pip install jsonschema[format]``).    |
     |                                  |          |                                                    |
     |                                  |          | Defaults to False.                                 |
     +----------------------------------+----------+----------------------------------------------------+
