@@ -1,5 +1,17 @@
 # Confluent's Python Client for Apache Kafka®
 
+> [!NOTE]
+> **Preview: confluent-kafka 4.4**
+>
+> A next-generation Python client is available in preview as `confluent-kafka` 4.4.0b1. It is built on a native Rust core and mirrors the Apache Kafka Java client API.
+>
+> - **Not for production yet.** The API may change before GA.
+> - **New API.** 4.x is not compatible with 2.x code.
+> - **Opt-in.** `pip install confluent-kafka` still installs 2.x. To try the preview: `pip install confluent-kafka==4.4.0b1`.
+> - **Why 4.4?** Versions now track Apache Kafka (4.4 = Apache Kafka 4.4), so there is no 3.x. See the [versioning RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/versioning.md).
+>
+> Read the [Python API RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/apis/python.md) and share feedback in [confluentinc/kafka-clients](https://github.com/confluentinc/kafka-clients/issues).
+
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
 **confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
