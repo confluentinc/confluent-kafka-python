@@ -1,5 +1,8 @@
 # Confluent's Python Client for Apache Kafka®
 
+> [!WARNING]
+> **Pin your version.** 4.x will be a breaking change once released for production (GA). If you don't pin to 2.x, you will upgrade to it automatically. Use `confluent-kafka~=2.16` or `confluent-kafka>=2.16,<3`. See [Python packaging: versioning](https://packaging.python.org/en/latest/discussions/versioning/).
+
 > [!NOTE]
 > **Preview: confluent-kafka 4.4**
 >
