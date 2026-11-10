@@ -110,7 +110,7 @@ class _SchemaStore(object):
                         and rs.schema.metadata
                         and rs.schema.metadata.properties
                         and metadata.items() <= rs.schema.metadata.properties.properties.items()
-                        and (latest is None or rs.version > latest.version)
+                        and (latest is None or (rs.version or 0) > (latest.version or 0))
                     ):
                         latest = rs
             return latest
