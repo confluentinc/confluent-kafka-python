@@ -20,6 +20,7 @@
   without raising an error.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
+- Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
 
 ## v2.16.1
 
