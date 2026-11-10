@@ -9,6 +9,7 @@
 > - **New API.** 4.x is not compatible with 2.x code.
 > - **Opt-in.** `pip install confluent-kafka` still installs 2.x. To try the preview: `pip install confluent-kafka==4.4.0b1`.
 > - **Why 4.4?** Versions now track Apache Kafka (4.4 = Apache Kafka 4.4), so there is no 3.x. See the [versioning RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/versioning.md).
+> - **Why a new repository?** The Rust core and every language binding live in one monorepo, [confluentinc/kafka-clients](https://github.com/confluentinc/kafka-clients), so one change can ship across all languages. Python development for 4.x happens there. See the [repository structure RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/repository-structure.md).
 >
 > Read the [Python API RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/apis/python.md) and share feedback in [confluentinc/kafka-clients](https://github.com/confluentinc/kafka-clients/issues).
 
