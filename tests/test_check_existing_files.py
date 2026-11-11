@@ -22,6 +22,7 @@ _loader.exec_module(check)
 
 WHEEL_312 = "confluent_kafka-1.0.0-cp312-cp312-manylinux_2_28_x86_64.whl"
 WHEEL_314 = "confluent_kafka-1.0.0-cp314-cp314-manylinux_2_28_x86_64.whl"
+WHEEL_314T = "confluent_kafka-1.0.0-cp314t-cp314t-manylinux_2_28_x86_64.whl"
 SDIST = "confluent_kafka-1.0.0.tar.gz"
 
 
@@ -81,6 +82,36 @@ def test_empty_wheelhouse_fails():
     assert "Nothing to upload" in code
 
 
+def test_missing_sdist_fails():
+    code, out = _run_main([WHEEL_314], existing=None, include_sdist="True")
+    assert "Nothing was uploaded" in code
+    assert "the sdist (INCLUDE_SDIST=True)" in out
+
+
+def test_no_wheels_with_all_fails():
+    code, out = _run_main([SDIST], existing=None, python_versions="all")
+    assert "Nothing was uploaded" in code
+    assert "any wheel (PYTHON_VERSIONS=all)" in out
+
+
+def test_missing_requested_python_version_fails():
+    code, out = _run_main([WHEEL_314, SDIST], existing=None, python_versions="3.13, 3.14")
+    assert "Nothing was uploaded" in code
+    assert "a wheel for Python 3.13" in out
+    assert "a wheel for Python 3.14" not in out
+
+
+def test_trailing_comma_in_python_versions_is_ignored():
+    code, out = _run_main([WHEEL_314, SDIST], existing=None, python_versions="3.14,")
+    assert code is None
+    assert "does not have" not in out
+
+
+def test_free_threaded_wheel_counts_for_its_version():
+    code, _ = _run_main([WHEEL_314T], existing={SDIST}, include_sdist="False", python_versions="3.14")
+    assert code is None
+
+
 def test_new_release_with_sdist_passes():
     code, out = _run_main([WHEEL_314, SDIST], existing=None)
     assert code is None
@@ -97,6 +128,13 @@ def test_new_release_with_some_python_versions_warns():
     code, out = _run_main([WHEEL_314, SDIST], existing=None, python_versions="3.14")
     assert code is None
     assert "WARNING: new release 1.0.0 will only get wheels for Python 3.14" in out
+
+
+def test_new_release_with_no_wheels_warns():
+    code, out = _run_main([SDIST], existing=None, python_versions="none")
+    assert code is None
+    assert "WARNING: new release 1.0.0 will get no wheels, only the sdist" in out
+    assert "only get wheels for Python" not in out
 
 
 def test_existing_release_with_clashing_wheel_fails():
