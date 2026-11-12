@@ -641,15 +641,32 @@ class SchemaId(object):
         self.message_indexes = message_indexes
 
     def from_bytes(self, payload: io.BytesIO) -> io.BytesIO:
-        magic = struct.unpack('>b', payload.read(1))[0]
+        """
+        Reads the schema id framing (magic byte, then a schema id or GUID) from
+        payload, which may be a payload prefix or a schema id header value.
+
+        Args:
+            payload (BytesIO): The buffer to read from.
+
+        Raises:
+            SerializationError: if the framing is truncated or has an unknown
+                magic byte.
+
+        Returns:
+            BytesIO: payload, positioned after the framing.
+        """
+        magic = struct.unpack('>b', self._read_framing(payload, 1, None))[0]
         if magic == _MAGIC_BYTE_V0:
-            self.id = struct.unpack('>I', payload.read(4))[0]
+            self.id = struct.unpack('>I', self._read_framing(payload, 4, magic))[0]
         elif magic == _MAGIC_BYTE_V1:
-            self.guid = uuid.UUID(bytes=payload.read(16))
+            self.guid = uuid.UUID(bytes=self._read_framing(payload, 16, magic))
         else:
             raise SerializationError("Invalid magic byte")
         if self.schema_type == "PROTOBUF":
-            self.message_indexes = self._read_index_array(payload, zigzag=True)
+            try:
+                self.message_indexes = self._read_index_array(payload, zigzag=True)
+            except EOFError as e:
+                raise SerializationError("Invalid schema id framing: truncated message indexes") from e
         return payload
 
     def id_to_bytes(self) -> bytes:
@@ -670,6 +687,32 @@ class SchemaId(object):
         if self.message_indexes is not None:
             self._encode_varints(buf, self.message_indexes, zigzag=True)
         return buf.getvalue()
+
+    @staticmethod
+    def _read_framing(buf: io.BytesIO, size: int, magic: Optional[int]) -> bytes:
+        """
+        Reads exactly size bytes of schema id framing from buf.
+
+        Args:
+            buf (BytesIO): The buffer to read from.
+            size (int): The number of bytes to read.
+            magic (int): The magic byte already read, or None when reading
+                the magic byte itself.
+
+        Raises:
+            SerializationError: if fewer than size bytes are available.
+        """
+        data = buf.read(size)
+        if len(data) != size:
+            if magic is None:
+                detail = "expected a magic byte but found no data"
+            else:
+                detail = "expected {} bytes after magic byte {} but found {}".format(size, magic, len(data))
+            raise SerializationError(
+                "Invalid schema id framing: {}. This message was not produced "
+                "with a Confluent Schema Registry serializer".format(detail)
+            )
+        return data
 
     @staticmethod
     def _decode_varint(buf: io.BytesIO, zigzag: bool = True) -> int:

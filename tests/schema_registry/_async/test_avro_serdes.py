@@ -169,6 +169,89 @@ async def test_avro_guid_in_header():
     assert obj == obj2
 
 
+@pytest.mark.parametrize(
+    "schema, obj",
+    [
+        ("int", 1),
+        ("boolean", True),
+        ("string", "abcd"),
+        ({'type': 'record', 'name': 'empty', 'fields': []}, {}),
+        ({'type': 'record', 'name': 'key', 'fields': [{'name': 'id', 'type': 'int'}]}, {'id': 7}),
+    ],
+)
+@pytest.mark.parametrize("field", [MessageField.KEY, MessageField.VALUE])
+@pytest.mark.parametrize("headers_type", [dict, list])
+async def test_avro_guid_in_header_deserializes_payloads_of_five_bytes_or_fewer(schema, obj, field, headers_type):
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'schema.id.serializer': header_schema_id_serializer}
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, field, headers_type())
+    obj_bytes = await ser(obj, ser_ctx)
+    assert len(obj_bytes) <= 5
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_payload_prefix_serializer_drops_stale_schema_id_header():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    schema = {
+        'type': 'record',
+        'name': 'user',
+        'fields': [{'name': 'id', 'type': 'int'}, {'name': 'name', 'type': 'string'}],
+    }
+    obj = {'id': 99, 'name': 'radia perlman'}
+
+    # Headers copied from an inbound message that was serialized in header mode
+    header_ser = await AsyncAvroSerializer(
+        client,
+        schema_str=json.dumps(schema),
+        conf={'auto.register.schemas': True, 'schema.id.serializer': header_schema_id_serializer},
+    )
+    headers = []
+    await header_ser(obj, SerializationContext(_TOPIC, MessageField.VALUE, headers))
+    assert [k for k, _ in headers] == ['__value_schema_id']
+
+    # Re-serialize in prefix mode, keeping the inbound headers
+    prefix_ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf={'auto.register.schemas': True})
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, headers)
+    obj_bytes = await prefix_ser(obj, ser_ctx)
+    assert headers == []
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_avro_payload_prefix_deserializes_empty_body():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    schema = {'type': 'record', 'name': 'empty', 'fields': []}
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser({}, ser_ctx)
+    assert len(obj_bytes) == 5
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj2 == {}
+
+
+@pytest.mark.parametrize("data", [b'', b'\x00', b'\x00\x00\x00\x01', b'\x01\x02\x03\x04\x05'])
+async def test_avro_deserializer_raises_serialization_error_when_prefix_is_truncated(data):
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
+
+    deser = await AsyncAvroDeserializer(client)
+    with pytest.raises(SerializationError, match="Invalid schema id framing"):
+        await deser(data, ser_ctx)
+
+
 async def test_avro_serialize_use_schema_id():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)

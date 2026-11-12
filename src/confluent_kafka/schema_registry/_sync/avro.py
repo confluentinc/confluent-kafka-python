@@ -55,7 +55,6 @@ from confluent_kafka.serialization import (
     DeserializerBuilder,
     MessageField,
     SerializationContext,
-    SerializationError,
     SerializerBuilder,
 )
 
@@ -884,14 +883,6 @@ class AvroDeserializer(BaseDeserializer):
 
         if data is None:
             return None
-
-        if len(data) <= 5:
-            raise SerializationError(
-                "Expecting data framing of length 6 bytes or "
-                "more but total data size is {} bytes. This "
-                "message was not produced with a Confluent "
-                "Schema Registry serializer".format(len(data))
-            )
 
         subject = (
             (
