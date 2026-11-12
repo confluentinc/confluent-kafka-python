@@ -21,6 +21,11 @@
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix the kafkatest verifiable clients on Python 3. `python -m
+  confluent_kafka.kafkatest.verifiable_consumer` and `verifiable_producer` failed with
+  `ModuleNotFoundError: No module named 'verifiable_client'`, both clients then failed
+  on startup on `dict.iteritems()`, and the producer's delivery reports (and the
+  consumer's `--verbose` records) failed to serialize message keys and values to JSON.
 
 ## v2.16.1
 

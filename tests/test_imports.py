@@ -20,8 +20,9 @@ import subprocess
 import sys
 
 # Imports every confluent_kafka submodule, prints the names of those imported and a
-# traceback for each one that fails. A module is skipped only when its import fails because
-# an optional dependency is not installed.
+# traceback for each one that fails. A module of a subpackage with optional dependencies is
+# skipped only when its import fails because one of them is not installed. Every other module
+# needs only the required dependencies, so it is never skipped.
 _IMPORT_ALL_MODULES = '''
 import importlib
 import pkgutil
@@ -34,6 +35,13 @@ import confluent_kafka
 # Python < 3.11, and not needed at runtime on later versions) and, on Python 3.10+, the
 # standard library.
 NOT_OPTIONAL = {'confluent_kafka', 'typing_extensions', *getattr(sys, 'stdlib_module_names', ())}
+
+# The subpackages whose modules may need optional dependencies (the extras in pyproject.toml).
+OPTIONAL_SUBPACKAGES = (
+    'confluent_kafka._oauthbearer.aws.',
+    'confluent_kafka.avro.',
+    'confluent_kafka.schema_registry.',
+)
 
 
 def is_namespace_package(name):
@@ -66,7 +74,8 @@ for module in pkgutil.walk_packages(confluent_kafka.__path__, 'confluent_kafka.'
     try:
         importlib.import_module(module.name)
     except Exception as e:
-        if isinstance(e, ImportError) and not_installed(e):
+        optional = (module.name + '.').startswith(OPTIONAL_SUBPACKAGES)
+        if optional and isinstance(e, ImportError) and not_installed(e):
             continue
         failed = True
         traceback.print_exc()
@@ -84,5 +93,5 @@ def test_import_all_modules():
     """
     result = subprocess.run([sys.executable, '-c', _IMPORT_ALL_MODULES], capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stderr
-    # confluent_kafka.aio has no optional dependencies, so it must not have been skipped.
+    # Guards against walking no modules at all.
     assert 'confluent_kafka.aio' in result.stdout.splitlines()
