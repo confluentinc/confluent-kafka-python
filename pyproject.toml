@@ -55,7 +55,7 @@ follow_imports = "skip"
 
 [tool.black]
 line-length = 120
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+target-version = ['py39', 'py310', 'py311', 'py312', 'py313']
 skip-string-normalization = true
 include = '\.pyi?$'
 extend-exclude = '''

@@ -6,11 +6,11 @@
 this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
-# Skip PyPy, musl and x86 builds. Pythons older than requires-python in
-# pyproject.toml are skipped by cibuildwheel itself. cibuildwheel 4.x builds
-# PyPy only when enabled (and warns about pp*), but the 2.x used for the macOS
-# 3.9-3.12 wheels and install-macos-python-required-by-cibuildwheel.py need it.
-export CIBW_SKIP="pp* *i686 *musllinux* $CIBW_SKIP"
+# Skip PyPy, Pythons older than 3.9, musl and x86 builds. cibuildwheel 4.x no
+# longer knows cp36-cp38 and builds PyPy only when enabled (it warns about
+# these patterns), but the 2.x used for the macOS 3.9-3.12 wheels and
+# install-macos-python-required-by-cibuildwheel.py need them.
+export CIBW_SKIP="pp* cp36-* cp37-* cp38-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="pytest"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py"

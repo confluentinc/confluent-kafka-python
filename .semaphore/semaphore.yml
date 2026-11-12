@@ -26,8 +26,6 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: osx
-        - name: CIBW_SKIP
-          value: cp36-* cp37-* cp38-*
       jobs:
         - name: Build
           commands:
@@ -76,8 +74,6 @@ blocks:
           value: osx
         - name: CIBW_ARCHS
           value: arm64
-        - name: CIBW_SKIP
-          value: cp36-* cp37-* cp38-*
       jobs:
         - name: Build
           commands:
@@ -258,7 +254,7 @@ blocks:
             - cp test-report.xml test-output
             - test-results publish test-output
             - artifact push workflow coverage.xml
-  - name: "Source package verification and Integration tests with Python 3.14t free-threaded (Linux x64)"
+  - name: "Source package verification and Integration tests with Python 3.15t free-threaded (Linux x64)"
     dependencies: []
     task:
       agent:
@@ -278,7 +274,7 @@ blocks:
             - sem-version python 3.11
             - sem-version java 17
             - pip install uv
-            - uv venv _venv --python 3.14t && source _venv/bin/activate
+            - uv venv _venv --python 3.15t && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
         - name: Build and Tests with 'consumer' group protocol
@@ -286,39 +282,7 @@ blocks:
             - sem-version python 3.11
             - sem-version java 17
             - pip install uv
-            - uv venv _venv --python 3.14t && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
-            - tools/source-package-verification.sh
-  - name: "Source package verification and Integration tests with Python 3.15 (Linux x64)"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu24-04-amd64-3
-      env_vars:
-        - name: OS_NAME
-          value: linux
-      prologue:
-        commands:
-          - export ARCH=x64
-          - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
-          - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
-      jobs:
-        - name: Build and Tests with 'classic' group protocol
-          commands:
-            - sem-version python 3.11
-            - sem-version java 17
-            - pip install uv
-            - uv venv _venv --python 3.15 && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
-        - name: Build and Tests with 'consumer' group protocol
-          commands:
-            - sem-version python 3.11
-            - sem-version java 17
-            - pip install uv
-            - uv venv _venv --python 3.15 && source _venv/bin/activate
+            - uv venv _venv --python 3.15t && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
@@ -501,12 +465,9 @@ blocks:
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
         - name: Verify free threaded
-          matrix:
-            - env_var: FT_PYTHON
-              values: ["3.14t", "3.15t"]
           commands:
             - export ARCH=x64
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the $FT_PYTHON venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.9
             - pip install uv
             - tools/verify-free-threaded-job.sh
@@ -531,12 +492,9 @@ blocks:
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
         - name: Verify free threaded
-          matrix:
-            - env_var: FT_PYTHON
-              values: ["3.14t", "3.15t"]
           commands:
             - export ARCH=arm64
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the $FT_PYTHON venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.9
             - pip install uv
             - tools/verify-free-threaded-job.sh
@@ -561,12 +519,9 @@ blocks:
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
         - name: Verify free threaded
-          matrix:
-            - env_var: FT_PYTHON
-              values: ["3.14t", "3.15t"]
           commands:
             - export ARCH=s390x
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the $FT_PYTHON venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.13
             - pip install uv
             - tools/verify-free-threaded-job.sh
@@ -602,12 +557,10 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
-        # 3.14t only: cryptography (via authlib) ships no free-threaded 3.15 wheel
-        # for macOS x86_64, so the 3.15t test install would need a Rust build.
         - name: Verify free threaded
           commands:
             - export ARCH=x64
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.14t venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.11
             - pip install uv
             - tools/verify-free-threaded-job.sh
@@ -644,12 +597,9 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
         - name: Verify free threaded
-          matrix:
-            - env_var: FT_PYTHON
-              values: ["3.14t", "3.15t"]
           commands:
             - export ARCH=arm64
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the $FT_PYTHON venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.11
             - pip install uv
             - tools/verify-free-threaded-job.sh
@@ -686,15 +636,12 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests\test_error.py
         - name: Verify free threaded
-          matrix:
-            - env_var: FT_PYTHON
-              values: ["3.14t", "3.15t"]
           commands:
-            # sem-version only provides a pip to bootstrap uv; the wheel runs in the $FT_PYTHON venv uv creates.
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
             - sem-version python 3.11
             - python -m pip install uv
-            - uv venv _venvft --python $env:FT_PYTHON
-            - . .\_venvft\Scripts\Activate.ps1
+            - uv venv _venv315t --python 3.15t
+            - . .\_venv315t\Scripts\Activate.ps1
             - python -m ensurepip
             - python -m pip install -r requirements/requirements-tests-install-nogil.txt
             - artifact pull workflow artifacts
@@ -702,12 +649,12 @@ blocks:
             - cd artifacts
             - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
             - cd ..
-            - python -c "import glob, os, sys; tag = 'cp' + os.environ['FT_PYTHON'].replace('.', ''); found = glob.glob('artifacts/wheelhouse/*-' + tag + '-win_amd64.whl'); print(found); sys.exit(0 if found else 1)"
+            - python -c "import glob, sys; found = glob.glob('artifacts/wheelhouse/*-cp315t-win_amd64.whl'); print(found); sys.exit(0 if found else 1)"
             - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
             - ".\\tools\\mingw-w64\\setup-msys2.ps1"
             # The Windows librdkafka build has no git tag in its version string (2.16.0, not 2.16.0-RC2)
             # FIXME: add LIBRDKAFKA_GIT_VERSION when building Windows as well.
-            - C:\msys64\usr\bin\bash.exe -c 'LIBRDKAFKA_VERSION=${LIBRDKAFKA_VERSION%%-*} tools/verify-free-threaded-wheel.sh _venvft/Scripts/python.exe'
+            - C:\msys64\usr\bin\bash.exe -c 'LIBRDKAFKA_VERSION=${LIBRDKAFKA_VERSION%%-*} tools/verify-free-threaded-wheel.sh _venv315t/Scripts/python.exe'
             - python -m pytest tests --ignore=tests\integration --ignore=tests\test_unasync.py --timeout 1200
   - name: "Pre-release Validation"
     run:
