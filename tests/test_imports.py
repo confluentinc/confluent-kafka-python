@@ -21,32 +21,53 @@ import sys
 
 # Imports every confluent_kafka submodule, prints the names of those imported and a
 # traceback for each one that fails. A module is skipped only when its import fails because
-# an optional dependency is not installed: a ModuleNotFoundError for a top-level package
-# that cannot be found. A symbol missing from an installed dependency, or a missing
-# submodule of an installed package, still fails.
+# an optional dependency is not installed.
 _IMPORT_ALL_MODULES = '''
 import importlib
-import importlib.util
 import pkgutil
 import sys
 import traceback
 
 import confluent_kafka
 
+# Never an optional dependency: confluent_kafka itself, typing_extensions (required on
+# Python < 3.11, and not needed at runtime on later versions) and, on Python 3.10+, the
+# standard library.
+NOT_OPTIONAL = {'confluent_kafka', 'typing_extensions', *getattr(sys, 'stdlib_module_names', ())}
+
+
+def is_namespace_package(name):
+    spec = getattr(sys.modules.get(name), '__spec__', None)
+    return spec is not None and spec.origin is None and spec.submodule_search_locations is not None
+
+
+def not_installed(e):
+    """Whether the ImportError e only means that an optional dependency is not installed."""
+    if e.name is None and isinstance(e.__cause__, ImportError):
+        # Re-raised by a dependency, as tink does for its extras.
+        return not_installed(e.__cause__)
+    if not e.name or e.name.partition('.')[0] in NOT_OPTIONAL:
+        return False
+    if isinstance(e, ModuleNotFoundError):
+        # e.name is the first module of the import that was not found. A top-level module, or
+        # a portion of a namespace package such as azure or google.cloud, is installed by a
+        # distribution of its own, which is therefore missing. A missing submodule of an
+        # installed regular package is an error.
+        parent = e.name.rpartition('.')[0]
+        return not parent or is_namespace_package(parent)
+    # "from package import name" raises a plain ImportError naming the package when name is
+    # neither an attribute nor a submodule of it: a portion that is not installed if package
+    # is a namespace package, and a missing symbol otherwise.
+    return is_namespace_package(e.name)
+
+
 failed = False
 for module in pkgutil.walk_packages(confluent_kafka.__path__, 'confluent_kafka.', onerror=lambda name: None):
     try:
         importlib.import_module(module.name)
-    except ModuleNotFoundError as e:
-        top = e.name.partition('.')[0] if e.name else None
-        if top and top != 'confluent_kafka' and importlib.util.find_spec(top) is None:
+    except Exception as e:
+        if isinstance(e, ImportError) and not_installed(e):
             continue
-        failed = True
-        traceback.print_exc()
-    except ImportError:
-        failed = True
-        traceback.print_exc()
-    except Exception:
         failed = True
         traceback.print_exc()
     else:
