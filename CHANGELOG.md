@@ -32,6 +32,11 @@
   could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
   wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
   applies to Python 3.9 only.
+- Fix the kafkatest verifiable clients on Python 3. `python -m
+  confluent_kafka.kafkatest.verifiable_consumer` and `verifiable_producer` failed with
+  `ModuleNotFoundError: No module named 'verifiable_client'`, both clients then failed
+  on startup on `dict.iteritems()`, and the producer's delivery reports (and the
+  consumer's `--verbose` records) failed to serialize message keys and values to JSON.
 
 ## v2.16.1
 
