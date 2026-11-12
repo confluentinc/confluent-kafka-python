@@ -21,6 +21,10 @@
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `confluent-kafka[rules]` failing to install on Python 3.14 unless google-re2
+  could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
+  wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
+  applies to Python 3.9 only.
 
 ## v2.16.1
 
