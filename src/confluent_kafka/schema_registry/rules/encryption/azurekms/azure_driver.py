@@ -19,7 +19,7 @@ from azure.identity import ClientSecretCredential, DefaultAzureCredential
 from azure.keyvault.keys import KeyClient
 from tink import KmsClient, TinkError
 
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_client import AzureKmsClient
+from confluent_kafka.schema_registry.rules.encryption.azurekms import azure_client
 from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import KmsDriver, register_kms_driver
 
 _PREFIX = "azure-kms://"
@@ -123,7 +123,7 @@ class AzureKmsDriver(KmsDriver):
         uri_prefix = _PREFIX
         if key_url is not None:
             uri_prefix = key_url
-        return AzureKmsClient(uri_prefix, _get_credentials(conf), conf)
+        return azure_client.AzureKmsClient(uri_prefix, _get_credentials(conf), conf)
 
     @classmethod
     def register(cls) -> None:
