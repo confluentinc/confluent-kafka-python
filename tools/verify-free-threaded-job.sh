@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Body of the "Verify free threaded" job in the Linux and macOS Wheel
-# Verification blocks of .semaphore/semaphore.yml: install the cp314t wheel,
+# Verification blocks of .semaphore/semaphore.yml: install the cp315t wheel,
 # run the free-threaded wheel checks (tools/verify-free-threaded-wheel.sh) and then the unit suite.
 #
 # Run from the repo root with uv on PATH. Expects OS_NAME (linux|osx) and ARCH
@@ -16,11 +16,11 @@ set -eu
 # cibuildwheel tags Linux wheels manylinux_*_{x86_64,aarch64,s390x} and macOS
 # wheels macosx_*_{x86_64,arm64}.
 case "$OS_NAME-$ARCH" in
-    linux-x64)   wheel_glob='*-cp314t-manylinux*x86_64.whl' ;;
-    linux-arm64) wheel_glob='*-cp314t-manylinux*aarch64.whl' ;;
-    linux-s390x) wheel_glob='*-cp314t-manylinux*s390x.whl' ;;
-    osx-x64)     wheel_glob='*-cp314t-macosx*x86_64.whl' ;;
-    osx-arm64)   wheel_glob='*-cp314t-macosx*arm64.whl' ;;
+    linux-x64)   wheel_glob='*-cp315t-manylinux*x86_64.whl' ;;
+    linux-arm64) wheel_glob='*-cp315t-manylinux*aarch64.whl' ;;
+    linux-s390x) wheel_glob='*-cp315t-manylinux*s390x.whl' ;;
+    osx-x64)     wheel_glob='*-cp315t-macosx*x86_64.whl' ;;
+    osx-arm64)   wheel_glob='*-cp315t-macosx*arm64.whl' ;;
     *) echo "$0: unsupported OS_NAME-ARCH '$OS_NAME-$ARCH'" >&2; exit 1 ;;
 esac
 echo "Verifying the free-threaded wheel matching $wheel_glob for $OS_NAME-$ARCH"
@@ -34,8 +34,8 @@ else
     tests_install_reqs=requirements/requirements-tests-install-nogil.txt
 fi
 
-uv venv _venv314t --python 3.14t
-source _venv314t/bin/activate
+uv venv _venv315t --python 3.15t
+source _venv315t/bin/activate
 uv pip install -r "$tests_install_reqs"
 
 artifact pull workflow artifacts
