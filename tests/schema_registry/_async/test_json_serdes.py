@@ -121,6 +121,78 @@ async def test_json_basic_failing_validation():
         await ser(obj, ser_ctx)
 
 
+_EMAIL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "email": {"type": "string", "format": "email"},
+    },
+}
+
+
+async def test_json_format_not_validated_by_default():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True}
+    obj = {'email': 'not-an-email'}
+    ser = await AsyncJSONSerializer(json.dumps(_EMAIL_SCHEMA), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_json_format_validation_passes():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True, 'validate.formats': True}
+    obj = {'email': 'jane@example.com'}
+    ser = await AsyncJSONSerializer(json.dumps(_EMAIL_SCHEMA), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser_conf = {'validate.formats': True}
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_json_format_failing_validation():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True, 'validate.formats': True}
+    obj = {'email': 'not-an-email'}
+    ser = await AsyncJSONSerializer(json.dumps(_EMAIL_SCHEMA), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError):
+        await ser(obj, ser_ctx)
+
+
+async def test_json_format_failing_validation_deserializer():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    obj = {'email': 'not-an-email'}
+    ser = await AsyncJSONSerializer(json.dumps(_EMAIL_SCHEMA), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser_conf = {'validate.formats': True}
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
+    with pytest.raises(SerializationError):
+        await deser(obj_bytes, ser_ctx)
+
+
+async def test_json_format_validation_invalid_conf():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    with pytest.raises(ValueError, match="validate.formats must be a boolean value"):
+        await AsyncJSONSerializer(json.dumps(_EMAIL_SCHEMA), client, conf={'validate.formats': 'yes'})
+    with pytest.raises(ValueError, match="validate.formats must be a boolean value"):
+        await AsyncJSONDeserializer(json.dumps(_EMAIL_SCHEMA), conf={'validate.formats': 'yes'})
+
+
 async def test_json_guid_in_header():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
