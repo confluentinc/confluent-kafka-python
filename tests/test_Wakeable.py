@@ -70,8 +70,9 @@ WAKEABLE_POLL_TIMEOUT_MAX = 2.0  # Maximum timeout (seconds)
 #    - Test both infinite and finite timeouts, including edge cases like num_messages=0
 #
 # 3. Testing Methodology:
-#    - Signal Injection: Use TestUtils.send_sigint_after_delay() in a background thread
-#      to simulate KeyboardInterrupt at specific times during blocking operations
+#    - Signal Injection: Wrap blocking operations in TestUtils.interrupt_main_after(), which
+#      simulates a KeyboardInterrupt at a specific time from a background thread and keeps it
+#      inside the wrapped operation, even when the interrupt comes late
 #    - Chunking Verification: Measure elapsed time to verify >= 200ms timeouts use chunking
 #      (multiple 200ms intervals) while < 200ms timeouts bypass chunking entirely
 #    - Interruptibility Verification: Wrap blocking calls in try/except to catch
@@ -90,13 +91,10 @@ def test_producer_wakeable_poll_utility_functions_interaction():
     # Assert: Chunk calculation and signal check work together
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        producer1.poll(timeout=1.0)
+        with TestUtils.interrupt_main_after(0.4):
+            producer1.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -107,13 +105,10 @@ def test_producer_wakeable_poll_utility_functions_interaction():
     # Assert: Multiple chunks before signal detection
     producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+        with TestUtils.interrupt_main_after(0.6):
+            producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -127,13 +122,10 @@ def test_producer_wakeable_poll_interruptibility_and_messages():
     # Assert: Infinite timeout can be interrupted
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        producer1.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+        with TestUtils.interrupt_main_after(0.1):
+            producer1.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -144,13 +136,10 @@ def test_producer_wakeable_poll_interruptibility_and_messages():
     # Assert: Finite timeout can be interrupted before timeout expires
     producer2 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+        with TestUtils.interrupt_main_after(0.3):
+            producer2.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -161,13 +150,10 @@ def test_producer_wakeable_poll_interruptibility_and_messages():
     # Assert: Signal sent after multiple chunks still interrupts
     producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        producer3.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+        with TestUtils.interrupt_main_after(0.6):
+            producer3.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -296,13 +282,10 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
         producer_thread.start()
         time.sleep(0.1)
 
-        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
-        interrupt_thread.daemon = True
-        interrupt_thread.start()
-
         interrupted = False
         try:
-            producer1.flush()
+            with TestUtils.interrupt_main_after(0.1):
+                producer1.flush()
         except KeyboardInterrupt:
             interrupted = True
         finally:
@@ -370,13 +353,10 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
         producer_thread2.start()
         time.sleep(0.1)
 
-        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-        interrupt_thread.daemon = True
-        interrupt_thread.start()
-
         interrupted = False
         try:
-            producer2.flush(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
+            with TestUtils.interrupt_main_after(0.3):
+                producer2.flush(timeout=WAKEABLE_POLL_TIMEOUT_MAX)
         except KeyboardInterrupt:
             interrupted = True
         finally:
@@ -444,13 +424,10 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
         producer_thread3.start()
         time.sleep(0.1)
 
-        interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-        interrupt_thread.daemon = True
-        interrupt_thread.start()
-
         interrupted = False
         try:
-            producer3.flush()
+            with TestUtils.interrupt_main_after(0.6):
+                producer3.flush()
         except KeyboardInterrupt:
             interrupted = True
         finally:
@@ -564,13 +541,10 @@ def test_consumer_wakeable_poll_utility_functions_interaction():
     )
     consumer1.subscribe(['test-topic'])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        consumer1.poll(timeout=1.0)  # 1 second timeout, interrupt after 0.4s
+        with TestUtils.interrupt_main_after(0.4):
+            consumer1.poll(timeout=WAKEABLE_POLL_TIMEOUT_MAX)  # Interrupted after 0.4s
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -590,13 +564,10 @@ def test_consumer_wakeable_poll_utility_functions_interaction():
     consumer2.subscribe(['test-topic'])
 
     # Send signal after 0.6 seconds (3 chunks should have passed: 0.2s, 0.4s, 0.6s)
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        consumer2.poll()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.6):
+            consumer2.poll()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -620,13 +591,10 @@ def test_consumer_wakeable_poll_interruptibility_and_messages():
     )
     consumer1.subscribe([topic])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        consumer1.poll()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.1):
+            consumer1.poll()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -645,14 +613,11 @@ def test_consumer_wakeable_poll_interruptibility_and_messages():
     )
     consumer2.subscribe([topic])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     timeout_value = WAKEABLE_POLL_TIMEOUT_MAX  # Use constant instead of hardcoded 2.0
     try:
-        consumer2.poll(timeout=timeout_value)  # Use constant for timeout
+        with TestUtils.interrupt_main_after(0.3):
+            consumer2.poll(timeout=timeout_value)  # Use constant for timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -671,13 +636,10 @@ def test_consumer_wakeable_poll_interruptibility_and_messages():
     )
     consumer3.subscribe([topic])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        consumer3.poll()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.6):
+            consumer3.poll()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -988,13 +950,10 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 1: Infinite timeout chunks forever with 200ms intervals
     obj1, blocking_call1 = create_api_obj("infinite")
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        blocking_call1()  # Infinite timeout - should chunk every 200ms
+        with TestUtils.interrupt_main_after(0.3):
+            blocking_call1()  # Infinite timeout - should chunk every 200ms
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1080,14 +1039,11 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 7: Finite timeout with interruption (chunk calculation continues correctly)
     obj7, blocking_call7 = create_api_obj("interrupt")
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     timeout_value = WAKEABLE_POLL_TIMEOUT_MAX  # Use constant instead of hardcoded 1.0
     try:
-        blocking_call7(timeout_value)  # Use constant for timeout
+        with TestUtils.interrupt_main_after(0.4):
+            blocking_call7(timeout_value)  # Use constant for timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1124,13 +1080,10 @@ def test_check_signals_between_chunks_utility_function(api_type):
 
     # Assertion 1: Signal detected on first chunk check
     obj1, blocking_call1 = create_api_obj("first-chunk")
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.05))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        blocking_call1()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.05):
+            blocking_call1()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1140,13 +1093,10 @@ def test_check_signals_between_chunks_utility_function(api_type):
 
     # Assertion 2: Signal detected on later chunk check
     obj2, blocking_call2 = create_api_obj("later-chunk")
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.5))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        blocking_call2()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.5):
+            blocking_call2()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1172,13 +1122,10 @@ def test_check_signals_between_chunks_utility_function(api_type):
     # Assertion 4: Signal checked every chunk (not just once)
     obj4, blocking_call4 = create_api_obj("every-chunk")
     # Send signal after 0.6 seconds (3 chunks should have passed)
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.6))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        blocking_call4()  # Infinite timeout
+        with TestUtils.interrupt_main_after(0.6):
+            blocking_call4()  # Infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1188,14 +1135,11 @@ def test_check_signals_between_chunks_utility_function(api_type):
 
     # Assertion 5: Signal check works during finite timeout
     obj5, blocking_call5 = create_api_obj("finite-timeout")
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     timeout_value = WAKEABLE_POLL_TIMEOUT_MAX  # Use constant instead of hardcoded 2.0
     try:
-        blocking_call5(timeout_value)  # Use constant for timeout
+        with TestUtils.interrupt_main_after(0.3):
+            blocking_call5(timeout_value)  # Use constant for timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -1227,18 +1171,14 @@ def test_utilities_interaction(api_type):
         def blocking_call(t):
             return obj.poll(timeout=t)
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     timeout_value = WAKEABLE_POLL_TIMEOUT_MAX  # Use constant instead of hardcoded 1.0
     try:
-        blocking_call(timeout_value)  # Use constant for timeout
+        with TestUtils.interrupt_main_after(0.4):
+            blocking_call(timeout_value)  # Use constant for timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
-        time.sleep(0.5)  # Wait for signal thread
         obj.close()
 
     # Key assertion: interrupted before full timeout
@@ -1259,7 +1199,7 @@ def test_can_be_interrupted(api_type, method):
     call and is not interruptible.
     """
     if api_type == "producer":
-        obj = Producer({'bootstrap.servers': 'localhost:9092', 'socket.timeout.ms': 100, 'message.timeout.ms': 10})
+        obj = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
         def blocking_call():
             return obj.poll()
@@ -1278,22 +1218,13 @@ def test_can_be_interrupted(api_type, method):
         def blocking_call():
             return obj.poll()
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.1))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        blocking_call()
+        with TestUtils.interrupt_main_after(0.1):
+            blocking_call()
     except KeyboardInterrupt:
         interrupted = True
     finally:
-        # A SIGINT delivered after the blocking call already returned must not
-        # escape cleanup and abort the whole pytest session.
-        try:
-            time.sleep(0.2)
-        except KeyboardInterrupt:
-            interrupted = True
         obj.close()
 
     # Key assertion: operation was interruptible

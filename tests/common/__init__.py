@@ -18,6 +18,7 @@
 
 import _thread
 import os
+import threading
 import time
 import uuid
 
@@ -46,6 +47,20 @@ class TestUtils:
         """
         time.sleep(delay_seconds)
         _thread.interrupt_main()
+
+    @staticmethod
+    def interrupt_main_after(delay_seconds):
+        """Return a context manager that runs send_sigint_after_delay(delay_seconds) in a thread.
+
+        Wrap the blocking call to interrupt in it. The KeyboardInterrupt is always raised inside
+        the with block: if the block ends before the interrupt is sent, leaving the block waits
+        for it and raises AssertionError instead. A KeyboardInterrupt raised after the block, in
+        a later test or in pytest itself, would abort the whole test session.
+
+        Args:
+            delay_seconds: Delay in seconds, from entering the block, before interrupting
+        """
+        return _InterruptMainAfter(delay_seconds)
 
     # TODO KIP-932: broker_version() previously branched on
     # use_group_protocol_consumer() to return '4.0.0' or '3.9.0'. It is now
@@ -122,6 +137,35 @@ class TestUtils:
             if prop in conf:
                 print(f"Skipping setting forbidden configuration {prop} for `CONSUMER` protocol")
                 del conf[prop]
+
+
+class _InterruptMainAfter:
+    """Context manager returned by TestUtils.interrupt_main_after()."""
+
+    def __init__(self, delay_seconds):
+        self._delay_seconds = delay_seconds
+        self._sent = threading.Event()
+
+    def _interrupt(self):
+        TestUtils.send_sigint_after_delay(self._delay_seconds)
+        self._sent.set()
+
+    def __enter__(self):
+        threading.Thread(target=self._interrupt, daemon=True).start()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is KeyboardInterrupt:
+            return False  # Interrupted inside the block, as intended.
+        # The block ended first. Wait for the interrupt, so that it is raised here, not later.
+        try:
+            self._sent.wait()
+        except KeyboardInterrupt:
+            pass
+        if exc_type is None:
+            raise AssertionError(
+                f"Not interrupted: the block ended before the interrupt sent after {self._delay_seconds}s"
+            )
+        return False
 
 
 class TestConsumer(Consumer):
