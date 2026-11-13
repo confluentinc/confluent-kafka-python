@@ -379,7 +379,7 @@ static int Producer_poll0(Handle *self, int tmout) {
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms       = tmout;
         int chunk_timeout_ms;
-        int chunk_count = 0;
+        int64_t start_ms = cfl_monotonic_ms();
 
         CallState_begin(self, &cs);
 
@@ -393,7 +393,7 @@ static int Producer_poll0(Handle *self, int tmout) {
                 while (1) {
                         /* Calculate timeout for this chunk */
                         chunk_timeout_ms = calculate_chunk_timeout(
-                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                            total_timeout_ms, start_ms, CHUNK_TIMEOUT_MS);
                         if (chunk_timeout_ms == 0) {
                                 /* Timeout expired */
                                 break;
@@ -411,8 +411,6 @@ static int Producer_poll0(Handle *self, int tmout) {
 
                         if (chunk_result > 0)
                                 break;
-
-                        chunk_count++;
 
                         /* Exit early if a close() has been initiated */
                         if (atomic_int_get(&self->closing)) {
@@ -486,7 +484,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
-        int chunk_count  = 0;
+        int64_t start_ms;
         PyObject *result = NULL; /* NULL means an exception is already set */
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
@@ -496,6 +494,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
 
         total_timeout_ms = cfl_timeout_ms(tmout);
+        start_ms         = cfl_monotonic_ms();
         CallState_begin(self, &cs);
 
         /* Skip wakeable poll pattern for non-blocking or very short timeouts.
@@ -514,7 +513,7 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
                 while (1) {
                         /* Calculate timeout for this chunk */
                         chunk_timeout_ms = calculate_chunk_timeout(
-                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                            total_timeout_ms, start_ms, CHUNK_TIMEOUT_MS);
                         if (chunk_timeout_ms == 0) {
                                 /* Timeout expired */
                                 err = RD_KAFKA_RESP_ERR__TIMED_OUT;
@@ -523,8 +522,6 @@ Producer_flush(Handle *self, PyObject *args, PyObject *kwargs) {
 
                         /* Flush with chunk timeout */
                         err = rd_kafka_flush(self->rk, chunk_timeout_ms);
-
-                        chunk_count++;
 
                         if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
                                 break;
