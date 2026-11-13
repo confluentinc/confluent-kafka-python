@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixes
+- Fix `TopicPartition.metadata` reading past the end of committed metadata that has no
+  NUL terminator, as stored by clients such as kafka-python or the Java client. Reading
+  such offsets (`Consumer.committed()`, `AdminClient.list_consumer_group_offsets()`)
+  returned trailing heap bytes, raised `UnicodeDecodeError`, or crashed with SIGSEGV (#2430).
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
