@@ -41,6 +41,64 @@ def _new_consumer(conf=None):
     return TestConsumer(consumer_conf)
 
 
+class _GateHolder:
+    """Keeps a consumer's gate taken by another thread for as long as needed.
+
+    Inside the with block, a thread presenting `identity` (or its own thread id)
+    is inside poll(), blocked in the first stats_cb, so it holds the gate until
+    the block ends. Tests can then check what other callers do meanwhile without
+    relying on sleeps or on how fast threads get scheduled.
+    """
+
+    def __init__(self, identity=None):
+        self._holding = threading.Event()
+        self._release = threading.Event()
+        self._identity = identity
+        self.consumer = _new_consumer({'statistics.interval.ms': 100, 'stats_cb': self._stats_cb})
+        self._thread = threading.Thread(target=self._poll)
+
+    def _stats_cb(self, stats_json):
+        if not self._holding.is_set():
+            self._holding.set()
+            self._release.wait()
+
+    def _poll(self):
+        if self._identity is not None:
+            cimpl._reentry_identity_var.set(self._identity)
+        while not self._release.is_set():
+            self.consumer.poll(1.0)
+
+    def __enter__(self):
+        self._thread.start()
+        if not self._holding.wait(30):
+            self.__exit__()
+            raise AssertionError("stats_cb never ran inside poll()")
+        return self
+
+    def __exit__(self, *exc_info):
+        self._release.set()
+        self._thread.join()
+
+
+def _gated_call_in_thread(consumer, identity, results, name):
+    """Call consumer.pause([]) from a new thread presenting `identity`. Returns the
+    thread and an Event set once the call has returned or raised."""
+    done = threading.Event()
+
+    def call():
+        cimpl._reentry_identity_var.set(identity)
+        try:
+            consumer.pause([])
+            results[name] = 'ok'
+        except Exception as e:  # noqa: BLE001 - recording whatever happens
+            results[name] = e
+        done.set()
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    return thread, done
+
+
 def test_sequential_calls_from_same_thread_never_raise_spuriously():
     """Repeated gated calls from the same thread, one after another, must
     never raise ConcurrentModificationException -- the gate is
@@ -141,74 +199,29 @@ def test_identity_match_admits_across_threads_mismatch_waits():
     Two different OS threads presenting the SAME identity v are both admitted immediately (re-entrant),
     but a third thread presenting a different identity must wait for the gate to free up before proceeding.
     """
-    c = _new_consumer()
     results = {}
-    timings = {}
-
-    def holder():
-        cimpl._reentry_identity_var.set(4242)
-        results['holder'] = c.poll(1.0)
-
-    def same_identity():
-        # Give the holder time to enter the gate and be inside its
-        # 1-second poll()
-        time.sleep(0.2)
-        cimpl._reentry_identity_var.set(4242)
-        t0 = time.time()
-        try:
-            c.pause([])
-            results['same_identity'] = 'ok'
-        except Exception as e:
-            results['same_identity'] = e
-        timings['same_identity'] = time.time() - t0
-
-    def different_identity():
-        time.sleep(0.2)
-        cimpl._reentry_identity_var.set(9999)
-        t0 = time.time()
-        try:
-            c.pause([])
-            results['different_identity'] = 'ok'
-        except Exception as e:
-            results['different_identity'] = e
-        timings['different_identity'] = time.time() - t0
-
+    gate = _GateHolder(identity=4242)
     try:
-        threads = [
-            threading.Thread(target=holder),
-            threading.Thread(target=same_identity),
-            threading.Thread(target=different_identity),
-        ]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        print(f"results={results}, timings={timings}")
-        assert results['holder'] is None
-        assert results['same_identity'] == 'ok', (
-            f"same identity from a different thread should be admitted as "
-            f"re-entrant, got: {results['same_identity']!r}"
-        )
-        # Re-entrant admission must be immediate, not queued behind the
-        # holder's own poll().
-        assert timings['same_identity'] < 0.5, (
-            f"same_identity took {timings['same_identity']:.2f}s -- it should "
-            f"have been admitted immediately as re-entrant, not waited"
-        )
+        with gate:
+            same, same_done = _gated_call_in_thread(gate.consumer, 4242, results, 'same_identity')
+            different, different_done = _gated_call_in_thread(gate.consumer, 9999, results, 'different_identity')
+            # Re-entrant admission must not be queued behind the holder.
+            assert same_done.wait(30), "same identity was not admitted while the holder held the gate"
+            assert results['same_identity'] == 'ok', (
+                f"same identity from a different thread should be admitted as "
+                f"re-entrant, got: {results['same_identity']!r}"
+            )
+            assert not different_done.wait(
+                0.5
+            ), f"a different identity returned while the holder held the gate: {results['different_identity']!r}"
+        same.join()
+        different.join()
         assert results['different_identity'] == 'ok', (
             f"a different identity should wait for the gate rather than being "
             f"rejected, got: {results['different_identity']!r}"
         )
-        # different_identity attempted its call ~0.2s in; the holder releases
-        # at ~1.0s, so it must have actually waited out most of that gap
-        # rather than slipping through immediately.
-        assert timings['different_identity'] >= 0.5, (
-            f"different_identity returned in {timings['different_identity']:.2f}s -- "
-            f"too fast to have actually waited for the gate"
-        )
     finally:
-        c.close()
+        gate.consumer.close()
 
 
 def test_zero_identity_falls_back_to_own_thread():
@@ -216,45 +229,22 @@ def test_zero_identity_falls_back_to_own_thread():
     it must be treated the same as "not set", falling back to the calling thread's own id.
     Two different threads both explicitly presenting identity 0 must still collide with each
     other, waiting rather than being rejected."""
-    c = _new_consumer()
     results = {}
-
-    def holder():
-        cimpl._reentry_identity_var.set(0)
-        results['holder'] = c.poll(1.0)
-
-    def other_with_zero():
-        time.sleep(0.2)
-        cimpl._reentry_identity_var.set(0)
-        t0 = time.time()
-        try:
-            c.pause([])
-            results['other_with_zero'] = 'ok'
-        except Exception as e:
-            results['other_with_zero'] = e
-        results['other_with_zero_elapsed'] = time.time() - t0
-
+    gate = _GateHolder(identity=0)
     try:
-        t1 = threading.Thread(target=holder)
-        t2 = threading.Thread(target=other_with_zero)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-
-        print(f"results={results}")
-        assert results['holder'] is None
+        with gate:
+            other, other_done = _gated_call_in_thread(gate.consumer, 0, results, 'other_with_zero')
+            assert not other_done.wait(
+                0.5
+            ), f"other_with_zero returned while the holder held the gate: {results['other_with_zero']!r}"
+        other.join()
         assert results['other_with_zero'] == 'ok', (
             f"two threads both presenting identity 0 should each fall back "
             f"to their own (different) thread id, collide, and wait rather "
             f"than being rejected, got: {results['other_with_zero']!r}"
         )
-        assert results['other_with_zero_elapsed'] >= 0.5, (
-            f"other_with_zero returned in {results['other_with_zero_elapsed']:.2f}s -- "
-            f"too fast to have actually waited for the gate"
-        )
     finally:
-        c.close()
+        gate.consumer.close()
 
 
 def test_gate_released_after_error_return_path():
@@ -412,51 +402,25 @@ def test_gate_released_after_every_local_method(call_method):
 
 
 def test_concurrent_call_waits_while_poll_in_progress():
-    """A long poll() holds the gate for a known, deterministic duration.
-    A call from a genuinely different thread launched partway through
+    """A call from a genuinely different thread while poll() holds the gate
     must wait for it rather than being rejected, then succeed once poll()
     returns and releases the gate."""
-    c = _new_consumer()
     results = {}
-
-    def do_poll():
-        results['poll'] = c.poll(2)
-
-    def do_pause():
-        time.sleep(0.2)
-        t0 = time.time()
-        try:
-            c.pause([])
-            results['pause'] = 'ok'
-        except Exception as e:
-            results['pause'] = e
-        results['pause_elapsed'] = time.time() - t0
-
+    gate = _GateHolder()
     try:
-        t1 = threading.Thread(target=do_poll)
-        t2 = threading.Thread(target=do_pause)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
-
-        print(f"results={results}")
-        assert results['poll'] is None
+        with gate:
+            other, done = _gated_call_in_thread(gate.consumer, 0, results, 'pause')
+            assert not done.wait(0.5), f"pause() returned while poll() held the gate: {results['pause']!r}"
+        other.join()
         assert (
             results['pause'] == 'ok'
         ), f"expected pause() to wait out poll()'s gate hold and then succeed, got: {results['pause']!r}"
-        # pause() was attempted ~0.2s in; poll() releases at ~2.0s, so it
-        # must have actually waited rather than slipping through immediately.
-        assert results['pause_elapsed'] >= 1.0, (
-            f"pause() returned in {results['pause_elapsed']:.2f}s -- too fast "
-            f"to have actually waited for poll()'s gate hold"
-        )
 
         # The gate must be free again now that poll() has returned.
-        c.pause([])
-        c.resume([])
+        gate.consumer.pause([])
+        gate.consumer.resume([])
     finally:
-        c.close()
+        gate.consumer.close()
 
 
 def test_many_waiters_all_eventually_succeed():
