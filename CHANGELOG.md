@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixes
+- Fix crashes in `Producer.produce(headers=...)` and `Producer.produce_batch()` when Python
+  code they run while converting the headers or the messages, such as a header key's
+  `__str__()`, changed the list or dict being converted. Like the other methods that take
+  a list, such as `Consumer.subscribe()` and the ones taking `TopicPartition` lists, they
+  now convert a copy of it with the GIL too, not only on free-threaded Python.
+  `ShareConsumer.subscribe()` now converts a copy on both.
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
@@ -18,6 +24,11 @@
   re-serialized with headers copied from an inbound message no longer carries both a
   schema id header and a payload prefix, which deserializers decoded as wrong values
   without raising an error.
+- Fix crashes when a topic, configuration property or header name, a configuration value
+  or a SCRAM user name cannot be encoded as UTF-8, such as a `str` with a lone surrogate
+  from `os.fsdecode()`: a NULL pointer was passed on to librdkafka. These now raise
+  `UnicodeEncodeError`, and `Producer.produce_batch()` no longer queues the message with
+  an empty value or key before raising it.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
