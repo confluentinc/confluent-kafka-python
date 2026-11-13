@@ -109,7 +109,15 @@ class _SchemaCache(object):
         self.rs_version_index = defaultdict(dict)
         self.rs_schema_index = defaultdict(dict)
 
-    def set_schema(self, subject: Optional[str], schema_id: Optional[int], guid: Optional[str], schema: 'Schema'):
+    def set_schema(
+        self,
+        subject: Optional[str],
+        schema_id: Optional[int],
+        guid: Optional[str],
+        schema: 'Schema',
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
+    ):
         """
         Add a Schema identified by schema_id to the cache.
 
@@ -121,22 +129,38 @@ class _SchemaCache(object):
             guid (str): Schema's guid
 
             schema (Schema): Schema instance
+
+            fmt (str, optional): Schema format
+
+            reference_format (str, optional): Reference format
         """
 
         with self.lock:
             if schema_id is not None:
-                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, schema)
+                if fmt is None and reference_format is None:
+                    self.schema_id_index[subject][schema_id] = (guid, schema)
                 self.schema_index[subject][schema] = schema_id
             if guid is not None:
-                self.schema_guid_index[guid] = schema
+                self.schema_guid_index[(guid, fmt)] = schema
+                if fmt is None:
+                    self.schema_guid_index[guid] = schema
 
-    def set_registered_schema(self, schema: 'Schema', registered_schema: 'RegisteredSchema'):
+    def set_registered_schema(
+        self,
+        schema: 'Schema',
+        registered_schema: 'RegisteredSchema',
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
+    ):
         """
         Add a RegisteredSchema to the cache.
 
         Args:
             schema (Schema): Schema instance
             registered_schema (RegisteredSchema): RegisteredSchema instance
+            fmt (str, optional): Schema format
+            reference_format (str, optional): Reference format
         """
 
         subject = registered_schema.subject
@@ -145,15 +169,32 @@ class _SchemaCache(object):
         version = registered_schema.version
         with self.lock:
             if schema_id is not None:
-                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, schema)
+                if fmt is None and reference_format is None:
+                    self.schema_id_index[subject][schema_id] = (guid, schema)
                 self.schema_index[subject][schema] = schema_id
-                self.rs_id_index[subject][schema_id] = registered_schema
+                self.rs_id_index[subject][(schema_id, fmt, reference_format)] = registered_schema
+                if fmt is None and reference_format is None:
+                    self.rs_id_index[subject][schema_id] = registered_schema
             if guid is not None:
-                self.schema_guid_index[guid] = schema
-            self.rs_version_index[subject][version] = registered_schema
-            self.rs_schema_index[subject][schema] = registered_schema
+                self.schema_guid_index[(guid, fmt)] = schema
+                if fmt is None:
+                    self.schema_guid_index[guid] = schema
+            if version is not None:
+                self.rs_version_index[subject][(version, fmt)] = registered_schema
+                if fmt is None:
+                    self.rs_version_index[subject][version] = registered_schema
+            self.rs_schema_index[subject][(schema, fmt)] = registered_schema
+            if fmt is None:
+                self.rs_schema_index[subject][schema] = registered_schema
 
-    def get_schema_by_id(self, subject: Optional[str], schema_id: int) -> Optional[Tuple[str, 'Schema']]:
+    def get_schema_by_id(
+        self,
+        subject: Optional[str],
+        schema_id: int,
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
+    ) -> Optional[Tuple[Optional[str], 'Schema']]:
         """
         Get the schema instance associated with schema id from the cache.
 
@@ -162,26 +203,38 @@ class _SchemaCache(object):
 
             schema_id (int): Id used to identify a schema
 
+            fmt (str, optional): Schema format
+
+            reference_format (str, optional): Reference format
+
         Returns:
             Tuple[str, Schema]: The guid and schema if known; else None
         """
 
         with self.lock:
-            return self.schema_id_index.get(subject, {}).get(schema_id, None)
+            res = self.schema_id_index.get(subject, {}).get((schema_id, fmt, reference_format), None)
+            if res is None and fmt is None and reference_format is None:
+                res = self.schema_id_index.get(subject, {}).get(schema_id, None)
+            return res
 
-    def get_schema_by_guid(self, guid: str) -> Optional['Schema']:
+    def get_schema_by_guid(self, guid: str, fmt: Optional[str] = None) -> Optional['Schema']:
         """
         Get the schema instance associated with guid from the cache.
 
         Args:
             guid (str): Guid used to identify a schema
 
+            fmt (str, optional): Format of the schema
+
         Returns:
             Schema: The schema if known; else None
         """
 
         with self.lock:
-            return self.schema_guid_index.get(guid, None)
+            res = self.schema_guid_index.get((guid, fmt), None)
+            if res is None and fmt is None:
+                res = self.schema_guid_index.get(guid, None)
+            return res
 
     def get_id_by_schema(self, subject: str, schema: 'Schema') -> Optional[int]:
         """
@@ -199,7 +252,9 @@ class _SchemaCache(object):
         with self.lock:
             return self.schema_index.get(subject, {}).get(schema, None)
 
-    def get_registered_by_subject_schema(self, subject: str, schema: 'Schema') -> Optional['RegisteredSchema']:
+    def get_registered_by_subject_schema(
+        self, subject: str, schema: 'Schema', fmt: Optional[str] = None
+    ) -> Optional['RegisteredSchema']:
         """
         Get the schema associated with this schema registered under subject.
 
@@ -208,14 +263,25 @@ class _SchemaCache(object):
 
             schema (Schema): The schema associated with this schema
 
+            fmt (str, optional): Schema format
+
         Returns:
             RegisteredSchema: The registered schema if known; else None
         """
 
         with self.lock:
-            return self.rs_schema_index.get(subject, {}).get(schema, None)
+            res = self.rs_schema_index.get(subject, {}).get((schema, fmt), None)
+            if res is None and fmt is None:
+                res = self.rs_schema_index.get(subject, {}).get(schema, None)
+            return res
 
-    def get_registered_by_subject_id(self, subject: str, schema_id: int) -> Optional['RegisteredSchema']:
+    def get_registered_by_subject_id(
+        self,
+        subject: str,
+        schema_id: int,
+        fmt: Optional[str] = None,
+        reference_format: Optional[str] = None,
+    ) -> Optional['RegisteredSchema']:
         """
         Get the schema associated with this id registered under subject.
 
@@ -224,14 +290,23 @@ class _SchemaCache(object):
 
             schema_id (int): The schema id associated with this schema
 
+            fmt (str, optional): Schema format
+
+            reference_format (str, optional): Reference format
+
         Returns:
             RegisteredSchema: The registered schema if known; else None
         """
 
         with self.lock:
-            return self.rs_id_index.get(subject, {}).get(schema_id, None)
+            res = self.rs_id_index.get(subject, {}).get((schema_id, fmt, reference_format), None)
+            if res is None and fmt is None and reference_format is None:
+                res = self.rs_id_index.get(subject, {}).get(schema_id, None)
+            return res
 
-    def get_registered_by_subject_version(self, subject: str, version: int) -> Optional['RegisteredSchema']:
+    def get_registered_by_subject_version(
+        self, subject: str, version: int, fmt: Optional[str] = None
+    ) -> Optional['RegisteredSchema']:
         """
         Get the schema associated with this version registered under subject.
 
@@ -240,12 +315,17 @@ class _SchemaCache(object):
 
             version (int): The version associated with this schema
 
+            fmt (str, optional): Schema format
+
         Returns:
             RegisteredSchema: The registered schema if known; else None
         """
 
         with self.lock:
-            return self.rs_version_index.get(subject, {}).get(version, None)
+            res = self.rs_version_index.get(subject, {}).get((version, fmt), None)
+            if res is None and fmt is None:
+                res = self.rs_version_index.get(subject, {}).get(version, None)
+            return res
 
     def remove_by_subject(self, subject: str):
         """
@@ -279,23 +359,27 @@ class _SchemaCache(object):
 
         with self.lock:
             if subject in self.rs_id_index:
-                for schema_id, registered_schema in list(self.rs_id_index[subject].items()):
+                for key, registered_schema in list(self.rs_id_index[subject].items()):
                     if registered_schema.version == version:
-                        del self.rs_id_index[subject][schema_id]
+                        del self.rs_id_index[subject][key]
 
             if subject in self.rs_schema_index:
-                for schema, registered_schema in list(self.rs_schema_index[subject].items()):
+                for key, registered_schema in list(self.rs_schema_index[subject].items()):
                     if registered_schema.version == version:
-                        del self.rs_schema_index[subject][schema]
+                        del self.rs_schema_index[subject][key]
             rs = None
             if subject in self.rs_version_index:
-                if version in self.rs_version_index[subject]:
-                    rs = self.rs_version_index[subject][version]
-                    del self.rs_version_index[subject][version]
+                for key in list(self.rs_version_index[subject].keys()):
+                    k_ver = key[0] if isinstance(key, tuple) else key
+                    if k_ver == version:
+                        rs = self.rs_version_index[subject][key]
+                        del self.rs_version_index[subject][key]
             if rs is not None:
                 if subject in self.schema_id_index:
-                    if rs.schema_id in self.schema_id_index[subject]:
-                        del self.schema_id_index[subject][rs.schema_id]
+                    for key in list(self.schema_id_index[subject].keys()):
+                        k_id = key[0] if isinstance(key, tuple) else key
+                        if k_id == rs.schema_id:
+                            del self.schema_id_index[subject][key]
                 if subject in self.schema_index:
                     if rs.schema in self.schema_index[subject]:
                         del self.schema_index[subject][rs.schema]
