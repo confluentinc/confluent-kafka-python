@@ -611,3 +611,35 @@ def test_alter_consumer_group_offsets_non_list_request_is_rejected():
     internal_future = AdminClient._create_future()
     with pytest.raises((TypeError, ValueError)):
         super(AdminClient, admin).alter_consumer_group_offsets({'not': 'a list'}, internal_future)
+
+
+###############################################################################
+# Objects that only claim a C type
+#
+# create_topics() and create_partitions() read each NewTopic or NewPartitions
+# item as a C struct. isinstance() also accepts other objects whose __class__
+# claims the type, such as Mock(spec=NewTopic): reading those as structs
+# segfaulted.
+###############################################################################
+
+
+@subprocess_isolated
+def test_create_topics_rejects_mock_new_topic():
+    from unittest import mock
+
+    item = mock.Mock(spec=NewTopic)
+    item.topic = 't'
+    assert isinstance(item, NewTopic)
+    with pytest.raises(ValueError, match="Expected list of NewTopic objects"):
+        AdminClient(_CONF).create_topics([item])
+
+
+@subprocess_isolated
+def test_create_partitions_rejects_mock_new_partitions():
+    from unittest import mock
+
+    item = mock.Mock(spec=NewPartitions)
+    item.topic = 't'
+    assert isinstance(item, NewPartitions)
+    with pytest.raises(ValueError, match="Expected list of NewPartitions objects"):
+        AdminClient(_CONF).create_partitions([item])

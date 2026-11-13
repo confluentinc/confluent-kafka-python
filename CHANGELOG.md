@@ -12,6 +12,9 @@
 - When a message has more than one `__key_schema_id` / `__value_schema_id` header, the
   Schema Registry deserializers now use the last one, matching the Java client. They
   previously used the first.
+- Fix a crash in `AdminClient.create_topics()` and `create_partitions()` when given an
+  object that is not a `NewTopic` or `NewPartitions` but passes `isinstance()` checks, such
+  as `unittest.mock.Mock(spec=NewTopic)`. They now raise `ValueError`.
 - `header_schema_id_serializer` now replaces an existing schema id header for the same
   field instead of appending a second one, and `prefix_schema_id_serializer` removes an
   existing schema id header for the same field from the message headers. A message

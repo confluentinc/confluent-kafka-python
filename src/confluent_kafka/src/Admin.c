@@ -688,13 +688,11 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         for (i = 0; i < tcnt; i++) {
                 NewTopic *newt = (NewTopic *)PyList_GET_ITEM(topics, i);
                 char errstr[512];
-                int r;
 
-                r = PyObject_IsInstance((PyObject *)newt,
-                                        (PyObject *)&NewTopicType);
-                if (r == -1)
-                        goto done; /* Exception raised by IsInstance() */
-                else if (r == 0) {
+                /* Not PyObject_IsInstance(): it also accepts objects whose
+                 * __class__ claims the type, such as Mock(spec=NewTopic),
+                 * and newt is read as a NewTopic struct below. */
+                if (!PyObject_TypeCheck((PyObject *)newt, &NewTopicType)) {
                         PyErr_SetString(PyExc_ValueError,
                                         "Expected list of NewTopic objects");
                         goto done;
@@ -977,13 +975,10 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
                 NewPartitions *newp =
                     (NewPartitions *)PyList_GET_ITEM(topics, i);
                 char errstr[512];
-                int r;
 
-                r = PyObject_IsInstance((PyObject *)newp,
-                                        (PyObject *)&NewPartitionsType);
-                if (r == -1)
-                        goto done; /* Exception raised by IsInstance() */
-                else if (r == 0) {
+                /* Not PyObject_IsInstance(): newp is read as a struct, see
+                 * create_topics() above. */
+                if (!PyObject_TypeCheck((PyObject *)newp, &NewPartitionsType)) {
                         PyErr_SetString(PyExc_ValueError,
                                         "Expected list of "
                                         "NewPartitions objects");
