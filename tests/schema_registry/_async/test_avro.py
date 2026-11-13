@@ -304,3 +304,37 @@ async def test_avro_serializer_config_validate_strict_allow_default_default():
     test_client = AsyncSchemaRegistryClient(conf)
     test_serializer = await AsyncAvroSerializer(test_client, '"string"')
     assert test_serializer._strict_allow_default is False
+
+
+async def test_async_avro_serde_optional_context(mock_schema_registry, load_avsc):
+    """
+    Ensures AsyncAvroSerializer and AsyncAvroDeserializer work when SerializationContext is None
+    with to_dict and from_dict callbacks (regression test for #2183).
+    """
+    conf = {'url': TEST_URL}
+    test_client = AsyncSchemaRegistryClient(conf)
+    schema_str = load_avsc('basic_schema.avsc')
+
+    class User:
+        def __init__(self, name, number):
+            self.name = name
+            self.number = number
+
+    serializer = await AsyncAvroSerializer(
+        test_client,
+        schema_str,
+        to_dict=lambda obj, ctx: {'name': obj.name, 'number': obj.number},
+        conf={'subject.name.strategy': record_subject_name_strategy},
+    )
+    deserializer = await AsyncAvroDeserializer(
+        test_client,
+        schema_str,
+        from_dict=lambda d, ctx: User(d['name'], d['number']),
+    )
+
+    data = await serializer(User('test_user', 123))
+    assert data is not None
+    user = await deserializer(data)
+    assert isinstance(user, User)
+    assert user.name == 'test_user'
+    assert user.number == 123

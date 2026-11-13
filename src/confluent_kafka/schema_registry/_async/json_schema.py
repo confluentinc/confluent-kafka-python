@@ -286,7 +286,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: AsyncSchemaRegistryClient,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -463,8 +463,6 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         value: Any
         if self._to_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
             value = obj
@@ -614,7 +612,7 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         serializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -648,7 +646,7 @@ class AsyncJSONSerializerBuilder(SerializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_to_dict(self, to_dict: Callable[[object, SerializationContext], dict]) -> 'AsyncJSONSerializerBuilder':
+    def set_to_dict(self, to_dict: Callable[..., dict]) -> 'AsyncJSONSerializerBuilder':
         """Callable converting the object being serialized to a dict."""
         self._to_dict = to_dict
         return self
@@ -822,7 +820,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     async def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
@@ -950,9 +948,13 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             return None
 
         subject = (
-            await self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
-            if self._strategy_accepts_client
-            else self._subject_name_func(ctx, None)
+            (
+                await self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
+                else self._subject_name_func(ctx, None)
+            )
+            if ctx
+            else None
         )
         latest_schema = None
         if subject is not None and self._registry is not None:
@@ -967,11 +969,15 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
                 subject = (
-                    await self._subject_name_func(
-                        ctx, writer_schema.get("title"), self._registry, self._subject_name_conf
+                    (
+                        await self._subject_name_func(
+                            ctx, writer_schema.get("title"), self._registry, self._subject_name_conf
+                        )
+                        if self._strategy_accepts_client
+                        else self._subject_name_func(ctx, writer_schema.get("title"))
                     )
-                    if self._strategy_accepts_client
-                    else self._subject_name_func(ctx, writer_schema.get("title"))
+                    if ctx
+                    else None
                 )
                 if subject is not None:
                     latest_schema = await self._get_reader_schema(subject)
@@ -1042,8 +1048,6 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
                 )
 
         if self._from_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx)  # type: ignore[return-value]
 
         return obj_dict
@@ -1115,7 +1119,7 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         deserializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -1149,9 +1153,7 @@ class AsyncJSONDeserializerBuilder(DeserializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_from_dict(
-        self, from_dict: Callable[[dict, SerializationContext], object]
-    ) -> 'AsyncJSONDeserializerBuilder':
+    def set_from_dict(self, from_dict: Callable[..., Any]) -> 'AsyncJSONDeserializerBuilder':
         """Callable converting the deserialized dict to the object handed to the application."""
         self._from_dict = from_dict
         return self

@@ -284,7 +284,7 @@ class JSONSerializer(BaseSerializer):
         self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: SchemaRegistryClient,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -461,8 +461,6 @@ class JSONSerializer(BaseSerializer):
 
         value: Any
         if self._to_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
             value = obj
@@ -612,7 +610,7 @@ class JSONSerializerBuilder(SerializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[SchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        to_dict: Optional[Callable[..., dict]] = None,
         serializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -644,7 +642,7 @@ class JSONSerializerBuilder(SerializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_to_dict(self, to_dict: Callable[[object, SerializationContext], dict]) -> 'JSONSerializerBuilder':
+    def set_to_dict(self, to_dict: Callable[..., dict]) -> 'JSONSerializerBuilder':
         """Callable converting the object being serialized to a dict."""
         self._to_dict = to_dict
         return self
@@ -815,7 +813,7 @@ class JSONDeserializer(BaseDeserializer):
     def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         schema_registry_client: Optional[SchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
@@ -939,9 +937,13 @@ class JSONDeserializer(BaseDeserializer):
             return None
 
         subject = (
-            self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
-            if self._strategy_accepts_client
-            else self._subject_name_func(ctx, None)
+            (
+                self._subject_name_func(ctx, None, self._registry, self._subject_name_conf)
+                if self._strategy_accepts_client
+                else self._subject_name_func(ctx, None)
+            )
+            if ctx
+            else None
         )
         latest_schema = None
         if subject is not None and self._registry is not None:
@@ -956,9 +958,15 @@ class JSONDeserializer(BaseDeserializer):
             writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
             if subject is None and isinstance(writer_schema, dict):
                 subject = (
-                    self._subject_name_func(ctx, writer_schema.get("title"), self._registry, self._subject_name_conf)
-                    if self._strategy_accepts_client
-                    else self._subject_name_func(ctx, writer_schema.get("title"))
+                    (
+                        self._subject_name_func(
+                            ctx, writer_schema.get("title"), self._registry, self._subject_name_conf
+                        )
+                        if self._strategy_accepts_client
+                        else self._subject_name_func(ctx, writer_schema.get("title"))
+                    )
+                    if ctx
+                    else None
                 )
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject)
@@ -1029,8 +1037,6 @@ class JSONDeserializer(BaseDeserializer):
                 )
 
         if self._from_dict is not None:
-            if ctx is None:
-                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx)  # type: ignore[return-value]
 
         return obj_dict
@@ -1102,7 +1108,7 @@ class JSONDeserializerBuilder(DeserializerBuilder):
         schema_registry_config: Optional[dict] = None,
         schema_registry_client: Optional[SchemaRegistryClient] = None,
         schema: Union[str, Schema, None] = None,
-        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        from_dict: Optional[Callable[..., Any]] = None,
         deserializer_config: Optional[dict] = None,
         rule_config: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -1134,7 +1140,7 @@ class JSONDeserializerBuilder(DeserializerBuilder):
         self._schema_str = schema_str
         return self
 
-    def set_from_dict(self, from_dict: Callable[[dict, SerializationContext], object]) -> 'JSONDeserializerBuilder':
+    def set_from_dict(self, from_dict: Callable[..., Any]) -> 'JSONDeserializerBuilder':
         """Callable converting the deserialized dict to the object handed to the application."""
         self._from_dict = from_dict
         return self
