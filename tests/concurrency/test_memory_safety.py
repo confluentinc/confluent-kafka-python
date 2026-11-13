@@ -520,6 +520,47 @@ def test_delete_acls_releases_snapshot_on_error():
 
 
 ###############################################################################
+# AdminClient: lifetime of the str() of each name
+#
+# describe_consumer_groups(), delete_consumer_groups() and
+# describe_user_scram_credentials() hand librdkafka the UTF-8 data of str()
+# of each name. For a str subclass, such as an enum.StrEnum member, str()
+# returns a new object, which they released right after taking its data: two
+# such names then pointed to the same reused memory, and librdkafka rejected
+# them as duplicates.
+###############################################################################
+
+
+@pytest.mark.parametrize(
+    "method", ["describe_consumer_groups", "delete_consumer_groups", "describe_user_scram_credentials"]
+)
+def test_str_of_names_kept_until_all_are_converted(method):
+    events = []
+
+    class Converted(str):
+        def __del__(self):
+            events.append('released')
+
+    class Name(str):
+        def __str__(self):
+            events.append('converted')
+            return Converted(str.__str__(self))
+
+    getattr(AdminClient(_CONF), method)([Name('name-1'), Name('name-2')])
+    assert events == ['converted', 'converted', 'released', 'released']
+
+
+@subprocess_isolated
+def test_names_not_encodable_as_utf8_raise():
+    """str() of a name with a lone surrogate has no UTF-8 data: raise instead
+    of passing NULL to librdkafka."""
+    admin = AdminClient(_CONF)
+    for method in ('describe_consumer_groups', 'delete_consumer_groups', 'describe_user_scram_credentials'):
+        with pytest.raises(UnicodeEncodeError):
+            getattr(admin, method)(['name-\ud800'])
+
+
+###############################################################################
 # Consumer
 ###############################################################################
 
