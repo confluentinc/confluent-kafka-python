@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -30,8 +31,9 @@ def _response(payload):
     return io.BytesIO(json.dumps(payload).encode())
 
 
-def _run_main(files, existing, include_sdist="True", python_versions="all", index="pypi"):
-    """Run main() on a wheelhouse holding `files`, with `existing` as the files published on the index.
+def _run_main(files, existing, include_sdist="True", python_versions="all", index="pypi", differences=()):
+    """Run main() on a wheelhouse holding `files`, with `existing` as the files published on the index
+    and `differences` as what source_differences() finds.
 
     Returns the exit code (None if main() returned normally) and what it printed.
     """
@@ -43,7 +45,7 @@ def _run_main(files, existing, include_sdist="True", python_versions="all", inde
         code = None
         with mock.patch.object(sys, "argv", argv), mock.patch.object(
             check, "published_files", return_value=existing
-        ), redirect_stdout(out):
+        ), mock.patch.object(check, "source_differences", return_value=list(differences)), redirect_stdout(out):
             try:
                 check.main()
             except SystemExit as e:
@@ -154,3 +156,101 @@ def test_existing_release_without_clash_passes():
     code, out = _run_main([WHEEL_314], existing={WHEEL_312, SDIST}, include_sdist="False", python_versions="3.14")
     assert code is None
     assert "none of the 1 files to upload is there yet" in out
+
+
+def test_existing_release_with_different_source_fails():
+    code, out = _run_main(
+        [WHEEL_314], existing={WHEEL_312, SDIST}, include_sdist="False", differences=["src/confluent_kafka/a.py"]
+    )
+    assert "Nothing was uploaded" in code
+    assert "differs from tag v1.0.0" in out
+    assert "src/confluent_kafka/a.py" in out
+
+
+def test_different_source_is_reported_before_clashes():
+    code, out = _run_main([WHEEL_312], existing={WHEEL_312}, include_sdist="False", differences=["setup.py"])
+    assert "Nothing was uploaded" in code
+    assert "setup.py" in out
+    assert "already published" not in out
+
+
+def test_new_release_skips_source_check():
+    # A new release has no tag to compare with yet, so differences must not fail it.
+    code, out = _run_main([WHEEL_314, SDIST], existing=None, differences=["src/confluent_kafka/a.py"])
+    assert code is None
+    assert "differs from tag" not in out
+
+
+SEMAPHORE_YML = "global_job_config:\n  env_vars:\n    - name: LIBRDKAFKA_VERSION\n      value: {}\n"
+
+
+def _git(repo, *args):
+    # Override settings from the user's git config that would make commit or tag need input.
+    config = ["-c", "user.name=test", "-c", "user.email=test@example.com"]
+    config += ["-c", "commit.gpgSign=false", "-c", "tag.gpgSign=false"]
+    subprocess.run(["git", "-C", repo, *config, *args], check=True, capture_output=True)
+
+
+def _commit(repo, files, message):
+    for name, content in files.items():
+        Path(repo, name).parent.mkdir(parents=True, exist_ok=True)
+        Path(repo, name).write_text(content)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", message)
+
+
+@pytest.fixture
+def release_repo(tmp_path):
+    """A clone of a repo whose origin has tag v1.0.0, checked out at that tag."""
+    origin, clone = str(tmp_path / "origin"), str(tmp_path / "clone")
+    _git(str(tmp_path), "init", "-q", origin)
+    _commit(
+        origin,
+        {
+            "src/confluent_kafka/a.py": "a = 1\n",
+            "pyproject.toml": 'version = "1.0.0"\n',
+            "tools/build.sh": "build\n",
+            ".semaphore/semaphore.yml": SEMAPHORE_YML.format("v2.0.0"),
+        },
+        "1.0.0",
+    )
+    _git(origin, "tag", "v1.0.0")
+    _git(str(tmp_path), "clone", "-q", "--no-tags", origin, clone)
+    return clone
+
+
+def test_librdkafka_version_is_read_from_semaphore_yml():
+    assert check.librdkafka_version(SEMAPHORE_YML.format("v2.16.0")) == "v2.16.0"
+    assert check.librdkafka_version("blocks: []\n") is None
+
+
+def test_source_same_as_tag_has_no_differences(release_repo):
+    assert check.source_differences("1.0.0", repo=release_repo) == []
+
+
+def test_build_and_ci_changes_are_not_differences(release_repo):
+    _commit(
+        release_repo,
+        {"tools/build.sh": "build 3.15\n", ".semaphore/semaphore.yml": SEMAPHORE_YML.format("v2.0.0") + "# 3.15\n"},
+        "Add 3.15",
+    )
+    assert check.source_differences("1.0.0", repo=release_repo) == []
+
+
+def test_package_file_changes_are_differences(release_repo):
+    _commit(
+        release_repo, {"src/confluent_kafka/a.py": "a = 2\n", "pyproject.toml": 'version = "1.0.0"\n# x\n'}, "Change"
+    )
+    assert check.source_differences("1.0.0", repo=release_repo) == ["pyproject.toml", "src/confluent_kafka/a.py"]
+
+
+def test_librdkafka_version_change_is_a_difference(release_repo):
+    _commit(release_repo, {".semaphore/semaphore.yml": SEMAPHORE_YML.format("v2.1.0")}, "Bump librdkafka")
+    differences = check.source_differences("1.0.0", repo=release_repo)
+    assert differences == ["LIBRDKAFKA_VERSION in .semaphore/semaphore.yml (v2.0.0 in v1.0.0, v2.1.0 here)"]
+
+
+def test_missing_tag_fails(release_repo):
+    with pytest.raises(SystemExit) as e:
+        check.source_differences("9.9.9", repo=release_repo)
+    assert "could not fetch tag v9.9.9" in str(e.value.code)
