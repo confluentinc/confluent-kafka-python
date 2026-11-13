@@ -896,9 +896,7 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
         int message_cnt                      = 0;
         int good                             = 0;
         rd_kafka_topic_t *rkt                = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_messages = NULL;
-#endif
+        PyObject *owned_messages             = NULL;
 
         static char *kws[] = {"topic",    "messages",    "partition",
                               "callback", "on_delivery", NULL};
@@ -929,7 +927,6 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!Producer_rk_use_begin(self))
                 return NULL;
 
-#ifdef Py_GIL_DISABLED
         owned_messages = PyList_GetSlice(messages_list, 0, PY_SSIZE_T_MAX);
         if (!owned_messages)
                 goto cleanup;
@@ -937,7 +934,6 @@ Producer_produce_batch(Handle *self, PyObject *args, PyObject *kwargs) {
         message_cnt   = (int)PyList_Size(messages_list);
         if (message_cnt == 0)
                 goto cleanup;
-#endif
 
         /* Allocate arrays for librdkafka messages and msgstates */
         rkmessages = calloc(message_cnt, sizeof(*rkmessages));
@@ -977,9 +973,7 @@ cleanup:
         if (msgstates)
                 free(msgstates);
 
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_messages);
-#endif
 
         if (PyErr_Occurred())
                 return NULL;

@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixes
+- Fix crashes in `Producer.produce(headers=...)` and `Producer.produce_batch()` when Python
+  code they run while converting the headers or the messages, such as a header key's
+  `__str__()`, changed the list or dict being converted. Like the other methods that take
+  a list, such as `Consumer.subscribe()` and the ones taking `TopicPartition` lists, they
+  now convert a copy of it with the GIL too, not only on free-threaded Python.
+  `ShareConsumer.subscribe()` now converts a copy on both.
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
