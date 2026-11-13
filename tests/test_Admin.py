@@ -698,6 +698,15 @@ def test_describe_topics_api():
                 a.describe_topics(*args, **kwargs)
 
 
+def test_describe_consumer_groups_and_topics_keyword_arguments():
+    """The C methods take their positional arguments by the same names."""
+    a = AdminClient({"socket.timeout.ms": 10})
+    impl = super(AdminClient, a)
+
+    assert impl.describe_consumer_groups(group_ids=["test-group-1"], future=AdminClient._create_future()) is None
+    assert impl.describe_topics(topic_names=["test-topic-1"], future=AdminClient._create_future()) is None
+
+
 def test_describe_cluster():
     a = AdminClient({"socket.timeout.ms": 10})
 
