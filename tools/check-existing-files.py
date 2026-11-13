@@ -6,7 +6,10 @@ mistake fails before `twine upload` starts and not halfway through it.
 - Wheelhouse does not match the parameters: fail if INCLUDE_SDIST=True but
   there is no sdist, if a requested Python version has no wheel, or if
   PYTHON_VERSIONS=all finds no wheels at all.
-- Release already on the index: fail if any file to upload is already there.
+- Release already on the index: fail if this build's package files differ
+  from the release's tag (v<package-version>), so files added to a release
+  are built from that release's code, and fail if any file to upload is
+  already there.
 - Release not on the index yet: fail if the sdist is not included, since the
   first upload of a release must have a source distribution. Warn if only
   some Python versions are published.
@@ -17,6 +20,8 @@ Usage: check-existing-files.py <wheelhouse-dir> <pypi|test> <package-version>
 
 import json
 import os
+import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -25,6 +30,15 @@ INDEX_URLS = {
     "pypi": "https://pypi.org/pypi/confluent-kafka/{}/json",
     "test": "https://test.pypi.org/pypi/confluent-kafka/{}/json",
 }
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Everything that ends up in the sdist or the wheels. .semaphore/ and tools/
+# are left out, since adding a Python version to a release means changing them.
+PACKAGE_PATHS = ["src", "setup.py", "pyproject.toml", "requirements", "MANIFEST.in", "README.md", "LICENSE"]
+
+# The wheels bundle librdkafka, whose version is set in this file.
+SEMAPHORE_YML = ".semaphore/semaphore.yml"
 
 
 def published_files(index, version):
@@ -57,6 +71,34 @@ def missing_files(to_upload, include_sdist, python_versions):
     return missing
 
 
+def git(repo, *args):
+    return subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True, text=True).stdout
+
+
+def librdkafka_version(semaphore_yml):
+    """Return the LIBRDKAFKA_VERSION value set in a semaphore.yml, or None."""
+    match = re.search(r"- name: LIBRDKAFKA_VERSION\s+value: (\S+)", semaphore_yml)
+    return match.group(1) if match else None
+
+
+def source_differences(version, repo=REPO_ROOT):
+    """Return what differs in the package files between tag v<version> and HEAD.
+
+    Exits if the tag can't be fetched, since there is then nothing to compare with.
+    """
+    tag = "v" + version
+    try:
+        git(repo, "fetch", "--no-tags", "origin", "refs/tags/" + tag)
+    except subprocess.CalledProcessError as e:
+        sys.exit("ERROR: could not fetch tag %s to compare the source with:\n%s" % (tag, e.stderr.strip()))
+    changed = git(repo, "diff", "--name-only", "FETCH_HEAD", "HEAD", "--", *PACKAGE_PATHS).split()
+    released = librdkafka_version(git(repo, "show", "FETCH_HEAD:" + SEMAPHORE_YML))
+    building = librdkafka_version(git(repo, "show", "HEAD:" + SEMAPHORE_YML))
+    if released != building:
+        changed.append("LIBRDKAFKA_VERSION in %s (%s in %s, %s here)" % (SEMAPHORE_YML, released, tag, building))
+    return changed
+
+
 def main():
     wheelhouse, index, version, include_sdist, python_versions = sys.argv[1:6]
 
@@ -87,6 +129,18 @@ def main():
         elif python_versions not in ("all", ""):
             print("WARNING: new release %s will only get wheels for Python %s" % (version, python_versions))
         return
+
+    differences = source_differences(version)
+    if differences:
+        print("ERROR: release %s exists on %s, but this build differs from tag v%s in:" % (version, index, version))
+        for d in differences:
+            print("  " + d)
+        sys.exit(
+            "Files added to an existing release must be built from that release's code: branch "
+            "from v%s and keep the files listed above as they are in that tag (see "
+            "tools/RELEASE.md). Nothing was uploaded." % version
+        )
+    print("Package files match tag v%s" % version)
 
     clashes = [f for f in to_upload if f in existing]
     if clashes:
