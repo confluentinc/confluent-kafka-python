@@ -307,7 +307,9 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
             interrupted = True
         finally:
             stop_producing.set()
-            time.sleep(0.1)
+            producer_thread.join()
+            # No broker: close() would wait message.timeout.ms (30s) for the queued messages
+            producer1.purge()
             producer1.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
@@ -381,7 +383,9 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
             interrupted = True
         finally:
             stop_producing2.set()
-            time.sleep(0.1)
+            producer_thread2.join()
+            # No broker: close() would wait message.timeout.ms (30s) for the queued messages
+            producer2.purge()
             producer2.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
@@ -455,7 +459,9 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
             interrupted = True
         finally:
             stop_producing3.set()
-            time.sleep(0.1)
+            producer_thread3.join()
+            # No broker: close() would wait message.timeout.ms (30s) for the queued messages
+            producer3.purge()
             producer3.close()
 
         assert interrupted, "Should have raised KeyboardInterrupt"
