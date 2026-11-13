@@ -195,7 +195,7 @@ static void ShareConsumer_PyErr_from_error_destroy(rd_kafka_error_t *error) {
 static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                                          PyObject *args,
                                          PyObject *kwargs) {
-        PyObject *tlist;
+        PyObject *tlist, *owned_tlist;
         static char *kws[] = {"topics", NULL};
         rd_kafka_topic_partition_list_t *c_topics;
         rd_kafka_resp_err_t err;
@@ -216,6 +216,13 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                 return NULL;
         }
 
+        /* Iterate a snapshot of the list, as Consumer.subscribe() does:
+         * str() of an item can run Python code that changes the list, and
+         * so can another thread. */
+        if (!(owned_tlist = PyList_GetSlice(tlist, 0, PY_SSIZE_T_MAX)))
+                return NULL;
+        tlist = owned_tlist;
+
         /* Build partition list from topic name strings */
         c_topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
         for (i = 0; i < PyList_Size(tlist); i++) {
@@ -225,6 +232,7 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                         PyErr_SetString(PyExc_TypeError,
                                         "expected list of unicode strings");
                         rd_kafka_topic_partition_list_destroy(c_topics);
+                        Py_DECREF(owned_tlist);
                         return NULL;
                 }
                 /* TODO KIP-932: cfl_PyUnistr_AsUTF8 can return NULL; passing
@@ -237,6 +245,7 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                 Py_XDECREF(uo8);
                 Py_DECREF(uo);
         }
+        Py_DECREF(owned_tlist);
 
         err = rd_kafka_share_subscribe(self->rkshare, c_topics);
 

@@ -283,6 +283,72 @@ def test_produce_headers_list_races_mutation():
     _race(lambda s: producer.produce('memref', value=b'value', headers=s), _headers(), _churn(_headers))
 
 
+# The parse loops can also run Python code that changes the list or dict while
+# it is being converted, with or without the GIL: below, the first such call
+# clears it. Iterating the caller's container then went on with a stale count
+# and borrowed items, and segfaulted on GIL builds.
+
+
+@subprocess_isolated
+def test_produce_headers_list_cleared_by_key_str():
+    """py_headers_list_to_c() calls str() on each header key."""
+    headers = []
+
+    class ClearListOnStr:
+        def __str__(self):
+            headers.clear()
+            return 'k0'
+
+    headers.extend([(ClearListOnStr(), b'v0')] + [('k%d' % i, b'v%d' % i) for i in range(1, 8)])
+    Producer(_CONF).produce('memref', value=b'value', headers=headers)
+    assert not headers
+
+
+@subprocess_isolated
+def test_produce_headers_dict_cleared_by_key_str():
+    """py_headers_dict_to_c() calls str() on each header key: the value of that
+    header must stay alive while the dict is cleared."""
+    events = []
+    headers = {}
+
+    class Value(bytes):
+        def __del__(self):
+            events.append('value released')
+
+    class ClearDictOnStr:
+        def __str__(self):
+            headers.clear()
+            events.append('dict cleared')
+            return 'k1'
+
+    headers[ClearDictOnStr()] = Value(b'v1')
+    headers['k2'] = b'v2'
+    Producer(_CONF).produce('memref', value=b'value', headers=headers)
+    assert events == ['dict cleared', 'value released']
+
+
+@subprocess_isolated
+def test_produce_batch_list_cleared_by_message_key_eq():
+    """Producer_validate_and_parse_batch() looks up the fields of each message
+    dict, which calls __eq__ of a key with the same hash as the field name."""
+    messages = []
+
+    class ClearListOnEq:
+        def __hash__(self):
+            return hash('value')
+
+        def __eq__(self, other):
+            messages.clear()
+            return False
+
+    first = {ClearListOnEq(): None}
+    first['value'] = b'v0'
+    messages.extend([first] + [{'value': b'v%d' % i} for i in range(1, 8)])
+    del first
+    Producer(_CONF).produce_batch('memref', messages)
+    assert not messages
+
+
 ###############################################################################
 # AdminClient
 ###############################################################################
