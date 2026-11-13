@@ -32,6 +32,10 @@ that mutates the same container concurrently causes:
 Each test races victim threads (calling the API on a shared container) against
 mutator threads (mutating that same container). On a vulnerable build the
 process segfaults. On a memory-safe build the process survives and the test passes.
+
+The re-entrant mutation tests further down need no second thread, and apply to
+builds with the GIL too: Python code run by the parse loop itself mutates the
+container.
 """
 
 import os
@@ -421,6 +425,191 @@ def test_list_consumer_groups_types_races_list_mutation():
     tests below."""
     _admin_list_crash(
         lambda a, s: super(AdminClient, a).list_consumer_groups(AdminClient._create_future(), types_int=s), _group_types
+    )
+
+
+###############################################################################
+# AdminClient: re-entrant mutation
+#
+# The parse loops run Python code while they iterate the caller's list: str()
+# of a topic name, group id or config value, an attribute getter, an Enum's
+# .value. That code can mutate the list, and with the GIL another thread can
+# run there and do the same, so the parse loops need their private snapshot of
+# the list on every build. In each test below, the first such call clears the
+# list. A loop over the caller's list then went on with its old count and read
+# from the emptied list, and the process segfaulted on GIL builds as well.
+###############################################################################
+
+
+class _ClearListOnStr:
+    """An item or config value that clears ``items`` when str() is called on it."""
+
+    def __init__(self, items, text):
+        self.items = items
+        self.text = text
+
+    def __str__(self):
+        self.items.clear()
+        return self.text
+
+
+class _StrClearListOnStr(str):
+    """Same as _ClearListOnStr, for the APIs that only accept str items."""
+
+    def __str__(self):
+        self.items.clear()
+        return self
+
+
+def _str_clearing(items, text):
+    s = _StrClearListOnStr(text)
+    s.items = items
+    return s
+
+
+def _clearing_attribute(cls, attr):
+    """Return a subclass of ``cls`` whose ``attr`` getter clears ``self.items``
+    once that is set."""
+
+    def get(self):
+        if 'items' in self.__dict__:
+            self.items.clear()
+        return self.__dict__['_' + attr]
+
+    def set_(self, value):
+        self.__dict__['_' + attr] = value
+
+    return type('Clearing' + cls.__name__, (cls,), {attr: property(get, set_)})
+
+
+_ACL_ARGS = (
+    ResourceType.TOPIC,
+    't0',
+    ResourcePatternType.LITERAL,
+    'User:p',
+    '*',
+    AclOperation.READ,
+    AclPermissionType.ALLOW,
+)
+
+
+def _admin_list_cleared_while_parsed(call, items):
+    """Call ``call(admin, items)``, which clears ``items`` while the C code
+    parses it, and check that it returns."""
+    admin = AdminClient(_CONF)
+    call(admin, items)
+    assert not items, "nothing cleared the list"
+    os._exit(0)  # skip cleanup -- see _admin_list_crash()
+
+
+@subprocess_isolated
+def test_alter_configs_list_cleared_by_config_value_str():
+    """Admin_config_dict_to_c() calls str() on each set_config value."""
+    items = [ConfigResource(ResourceType.TOPIC, 't%d' % i) for i in range(8)]
+    items[0] = ConfigResource(ResourceType.TOPIC, 't0', set_config={'retention.ms': _ClearListOnStr(items, '1000')})
+    _admin_list_cleared_while_parsed(lambda a, s: a.alter_configs(s), items)
+
+
+@subprocess_isolated
+def test_create_topics_list_cleared_by_config_value_str():
+    """Admin_config_dict_to_c() calls str() on each NewTopic config value."""
+    items = [NewTopic('t%d' % i, num_partitions=1, replication_factor=1) for i in range(8)]
+    items[0] = NewTopic(
+        't0', num_partitions=1, replication_factor=1, config={'retention.ms': _ClearListOnStr(items, '1000')}
+    )
+    _admin_list_cleared_while_parsed(lambda a, s: a.create_topics(s), items)
+
+
+@subprocess_isolated
+def test_delete_topics_list_cleared_by_topic_str():
+    """Admin_delete_topics() calls str() on each topic."""
+    items = ['t%d' % i for i in range(8)]
+    items[0] = _ClearListOnStr(items, 't0')
+    _admin_list_cleared_while_parsed(lambda a, s: a.delete_topics(s), items)
+
+
+@subprocess_isolated
+def test_describe_consumer_groups_list_cleared_by_group_id_str():
+    """Admin_describe_consumer_groups() calls str() on each group id."""
+    items = ['g%d' % i for i in range(8)]
+    items[0] = _ClearListOnStr(items, 'g0')
+    _admin_list_cleared_while_parsed(lambda a, s: a.describe_consumer_groups(s), items)
+
+
+@subprocess_isolated
+def test_delete_consumer_groups_list_cleared_by_group_id_str():
+    """Admin_delete_consumer_groups() calls str() on each group id."""
+    items = ['g%d' % i for i in range(8)]
+    items[0] = _str_clearing(items, 'g0')
+    _admin_list_cleared_while_parsed(lambda a, s: a.delete_consumer_groups(s), items)
+
+
+@subprocess_isolated
+def test_describe_user_scram_credentials_list_cleared_by_user_str():
+    """Admin_describe_user_scram_credentials() calls str() on each user."""
+    items = ['u%d' % i for i in range(8)]
+    items[0] = _str_clearing(items, 'u0')
+    _admin_list_cleared_while_parsed(lambda a, s: a.describe_user_scram_credentials(s), items)
+
+
+@subprocess_isolated
+def test_alter_user_scram_credentials_list_cleared_by_mechanism_value():
+    """Admin_alter_user_scram_credentials() reads each mechanism's .value, an
+    Enum property, so it runs Python code with plain inputs. A profile hook
+    makes the first Python function called by the C code clear the list, as
+    another thread could after taking the GIL there."""
+    items = [UserScramCredentialDeletion('u%d' % i, ScramMechanism.SCRAM_SHA_256) for i in range(8)]
+
+    def clear_on_first_call(frame, event, arg):
+        if event == 'call':
+            sys.setprofile(None)
+            items.clear()
+
+    def call(admin, alterations):
+        method = super(AdminClient, admin).alter_user_scram_credentials
+        future = AdminClient._create_future()
+        sys.setprofile(clear_on_first_call)
+        try:
+            method(alterations, future)
+        finally:
+            sys.setprofile(None)
+
+    _admin_list_cleared_while_parsed(call, items)
+
+
+@subprocess_isolated
+def test_describe_configs_list_cleared_by_attribute_getter():
+    """Admin_describe_configs() reads each resource's name attribute. Called via
+    super() so that only the C code reads it."""
+    items = [ConfigResource(ResourceType.TOPIC, 't%d' % i) for i in range(8)]
+    items[0] = _clearing_attribute(ConfigResource, 'name')(ResourceType.TOPIC, 't0')
+    items[0].items = items
+    _admin_list_cleared_while_parsed(
+        lambda a, s: super(AdminClient, a).describe_configs(s, AdminClient._create_future()), items
+    )
+
+
+@subprocess_isolated
+def test_create_acls_list_cleared_by_attribute_getter():
+    """Admin_py_to_c_AclBinding() reads each binding's principal attribute.
+    Called via super() so that only the C code reads it."""
+    items = _acl_bindings()[:8]
+    items[0] = _clearing_attribute(AclBinding, 'principal')(*_ACL_ARGS)
+    items[0].items = items
+    _admin_list_cleared_while_parsed(
+        lambda a, s: super(AdminClient, a).create_acls(s, AdminClient._create_future()), items
+    )
+
+
+@subprocess_isolated
+def test_delete_acls_list_cleared_by_attribute_getter():
+    """Admin_py_to_c_AclBindingFilter() reads each filter's principal attribute.
+    Called via super() so that only the C code reads it."""
+    items = _acl_binding_filters()[:8]
+    items[0] = _clearing_attribute(AclBindingFilter, 'principal')(*_ACL_ARGS)
+    items[0].items = items
+    _admin_list_cleared_while_parsed(
+        lambda a, s: super(AdminClient, a).delete_acls(s, AdminClient._create_future()), items
     )
 
 

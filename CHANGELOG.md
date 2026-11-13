@@ -20,6 +20,11 @@
   without raising an error.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
+- Fix crashes in the `AdminClient` methods that take a list, such as `alter_configs()`,
+  `create_topics()` and `alter_user_scram_credentials()`, when the list was changed during
+  the call by another thread or by Python code run while converting its items (`str()` of a
+  config value, an Enum's `.value`). They now convert a copy of the list with the GIL too,
+  not only on free-threaded Python.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
 
 ## v2.16.1
