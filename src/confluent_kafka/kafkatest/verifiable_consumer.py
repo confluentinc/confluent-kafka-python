@@ -19,9 +19,8 @@ import argparse
 import os
 import time
 
-from verifiable_client import VerifiableClient
-
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from confluent_kafka.kafkatest.verifiable_client import VerifiableClient
 
 
 class VerifiableConsumer(VerifiableClient):
@@ -43,6 +42,7 @@ class VerifiableConsumer(VerifiableClient):
         self.use_auto_commit = False
         self.use_async_commit = False
         self.max_msgs = -1
+        self.verbose = False
         self.assignment = []
         self.assignment_dict = dict()
 
@@ -203,8 +203,8 @@ class VerifiableConsumer(VerifiableClient):
                     'name': 'record_data',
                     'topic': msg.topic(),
                     'partition': msg.partition(),
-                    'key': msg.key(),
-                    'value': msg.value(),
+                    'key': self.decode(msg.key()),
+                    'value': self.decode(msg.value()),
                     'offset': msg.offset(),
                 }
             )

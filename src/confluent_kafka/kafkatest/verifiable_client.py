@@ -65,9 +65,14 @@ class VerifiableClient(object):
         sys.stdout.flush()
 
     @staticmethod
+    def decode(b):
+        """Return message key or value bytes as str, for a JSON event."""
+        return None if b is None else b.decode('utf-8', errors='replace')
+
+    @staticmethod
     def set_config(conf, args):
         """Set client config properties using args dict."""
-        for n, v in args.iteritems():
+        for n, v in args.items():
             if v is None:
                 continue
 
