@@ -21,6 +21,11 @@
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `Consumer.poll()`, `ShareConsumer.poll()`, `Producer.poll()`, `Producer.flush()` and
+  `cluster_id()` blocking for longer than their timeout. Since v2.13.0 they wait in 200ms
+  chunks to check for signals in between, and they counted the timeout in whole chunks, so
+  every delay between chunks (a late wakeup on a loaded machine, waiting for the GIL) added
+  to it: a 10s `Consumer.poll()` could take 11s. The remaining time is now measured.
 
 ## v2.16.1
 

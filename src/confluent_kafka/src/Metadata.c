@@ -16,22 +16,6 @@
 
 #include "confluent_kafka.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <time.h>
-#endif
-
-static int64_t monotonic_ms(void) {
-#ifdef _WIN32
-        return (int64_t)GetTickCount64();
-#else
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-#endif
-}
-
 /**
  * @name Cluster and topic metadata retrieval
  *
@@ -455,8 +439,8 @@ PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
         const int CHUNK_TIMEOUT_MS = 200;
         int total_timeout_ms;
         int chunk_timeout_ms;
-        int chunk_count = 0;
-        int closing     = 0;
+        int64_t start_ms;
+        int closing = 0;
         int64_t chunk_start;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
@@ -466,6 +450,7 @@ PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
 
         total_timeout_ms = cfl_timeout_ms(tmout);
+        start_ms         = cfl_monotonic_ms();
 
         CallState_begin(self, &cs);
 
@@ -474,18 +459,16 @@ PyObject *cluster_id(Handle *self, PyObject *args, PyObject *kwargs) {
          * than holding it up for the rest of the timeout. */
         while (1) {
                 chunk_timeout_ms = calculate_chunk_timeout(
-                    total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                    total_timeout_ms, start_ms, CHUNK_TIMEOUT_MS);
 
-                chunk_start  = monotonic_ms();
+                chunk_start  = cfl_monotonic_ms();
                 c_cluster_id = rd_kafka_clusterid(self->rk, chunk_timeout_ms);
                 /* A chunk ending well before its timeout means librdkafka
                  * gave up for good: metadata without a cluster id (broker
                  * older than KIP-78) or the client being destroyed. */
                 if (c_cluster_id || chunk_timeout_ms < CHUNK_TIMEOUT_MS ||
-                    monotonic_ms() - chunk_start < chunk_timeout_ms / 2)
+                    cfl_monotonic_ms() - chunk_start < chunk_timeout_ms / 2)
                         break;
-
-                chunk_count++;
 
                 if (atomic_int_get(&self->closing)) {
                         closing = 1;

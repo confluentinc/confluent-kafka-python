@@ -754,34 +754,44 @@ static CFL_UNUSED CFL_INLINE int cfl_timeout_ms(double tmout) {
 
 
 /**
+ * @returns the current time of a monotonic clock, in milliseconds.
+ */
+int64_t cfl_monotonic_ms(void);
+
+
+/**
  * @brief Calculate the timeout for the current chunk in wakeable poll pattern.
  *
  * This function calculates how long each chunk should wait, ensuring:
  * - Infinite timeouts (-1) use the chunk size repeatedly
  * - Finite timeouts are properly divided and don't exceed the total
  * - The final chunk uses any remaining time (may be < chunk_size)
-
+ *
+ * The remaining time is measured from \p start_ms rather than counted in
+ * chunks: a chunk can last longer than its timeout (a late wakeup, a
+ * callback, waiting for the GIL between chunks), and counting chunks would
+ * add these delays up, making the call block for longer than its timeout.
  *
  * @param total_timeout_ms Total timeout in milliseconds (-1 for infinite)
- * @param chunk_count Current chunk iteration count (0-based)
+ * @param start_ms Start time of the call, from cfl_monotonic_ms()
  * @param chunk_timeout_ms Chunk size in milliseconds (200ms by default)
  * @return int Chunk timeout in milliseconds, or 0 if total timeout expired
  */
 static CFL_UNUSED CFL_INLINE int calculate_chunk_timeout(int total_timeout_ms,
-                                                         int chunk_count,
+                                                         int64_t start_ms,
                                                          int chunk_timeout_ms) {
         if (total_timeout_ms < 0) {
                 /* Infinite timeout - use chunk size */
                 return chunk_timeout_ms;
         } else {
                 /* Finite timeout - calculate remaining */
-                int remaining_ms =
-                    total_timeout_ms - (chunk_count * chunk_timeout_ms);
+                int64_t remaining_ms =
+                    total_timeout_ms - (cfl_monotonic_ms() - start_ms);
                 if (remaining_ms <= 0) {
                         /* Timeout expired */
                         return 0;
                 }
-                return (remaining_ms < chunk_timeout_ms) ? remaining_ms
+                return (remaining_ms < chunk_timeout_ms) ? (int)remaining_ms
                                                          : chunk_timeout_ms;
         }
 }
