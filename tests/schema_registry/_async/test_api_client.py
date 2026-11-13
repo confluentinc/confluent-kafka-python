@@ -189,6 +189,131 @@ async def test_get_schema_cache(mock_schema_registry):
     assert count_after - count_before == 1
 
 
+async def test_get_schema_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    count_before = COUNTER['GET'].get('/schemas/ids/47', 0)
+
+    raw = await sr.get_schema(47)
+    assert not raw.schema_str.endswith('_serialized')
+
+    serialized = await sr.get_schema(47, fmt='serialized')
+    assert serialized.schema_str.endswith('_serialized')
+
+    # Both are cached separately; additional calls do not hit the server
+    assert (await sr.get_schema(47)).schema_str == raw.schema_str
+    assert (await sr.get_schema(47, fmt='serialized')).schema_str == serialized.schema_str
+
+    count_after = COUNTER['GET'].get('/schemas/ids/47', 0)
+    assert count_after - count_before == 2
+
+
+async def test_get_schema_by_guid_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    count_before = COUNTER['GET'].get('/schemas/guids/guid-1', 0)
+
+    raw = await sr.get_schema_by_guid('guid-1')
+    assert not raw.schema_str.endswith('_serialized')
+
+    serialized = await sr.get_schema_by_guid('guid-1', fmt='serialized')
+    assert serialized.schema_str.endswith('_serialized')
+
+    assert (await sr.get_schema_by_guid('guid-1')).schema_str == raw.schema_str
+    assert (await sr.get_schema_by_guid('guid-1', fmt='serialized')).schema_str == serialized.schema_str
+
+    count_after = COUNTER['GET'].get('/schemas/guids/guid-1', 0)
+    assert count_after - count_before == 2
+
+
+async def test_get_version_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    count_before = COUNTER['GET'].get('/subjects/test-ver/versions/1', 0)
+
+    raw = await sr.get_version('test-ver', 1)
+    assert not raw.schema.schema_str.endswith('_serialized')
+
+    serialized = await sr.get_version('test-ver', 1, fmt='serialized')
+    assert serialized.schema.schema_str.endswith('_serialized')
+
+    assert (await sr.get_version('test-ver', 1)).schema.schema_str == raw.schema.schema_str
+    assert (await sr.get_version('test-ver', 1, fmt='serialized')).schema.schema_str == serialized.schema.schema_str
+
+    count_after = COUNTER['GET'].get('/subjects/test-ver/versions/1', 0)
+    assert count_after - count_before == 2
+
+
+async def test_get_latest_version_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    count_before = COUNTER['GET'].get('/subjects/test-latest/versions/latest', 0)
+
+    raw = await sr.get_latest_version('test-latest')
+    assert not raw.schema.schema_str.endswith('_serialized')
+
+    serialized = await sr.get_latest_version('test-latest', fmt='serialized')
+    assert serialized.schema.schema_str.endswith('_serialized')
+
+    assert (await sr.get_latest_version('test-latest')).schema.schema_str == raw.schema.schema_str
+    assert (
+        (await sr.get_latest_version('test-latest', fmt='serialized')).schema.schema_str
+        == serialized.schema.schema_str
+    )
+
+    count_after = COUNTER['GET'].get('/subjects/test-latest/versions/latest', 0)
+    assert count_after - count_before == 2
+
+
+async def test_get_latest_with_metadata_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    count_before = COUNTER['GET'].get('/subjects/test-meta/metadata', 0)
+
+    raw = await sr.get_latest_with_metadata('test-meta', {'key1': 'val1'})
+    assert not raw.schema.schema_str.endswith('_serialized')
+
+    serialized = await sr.get_latest_with_metadata('test-meta', {'key1': 'val1'}, fmt='serialized')
+    assert serialized.schema.schema_str.endswith('_serialized')
+
+    assert (await sr.get_latest_with_metadata('test-meta', {'key1': 'val1'})).schema.schema_str == raw.schema.schema_str
+    assert (
+        (await sr.get_latest_with_metadata('test-meta', {'key1': 'val1'}, fmt='serialized')).schema.schema_str
+        == serialized.schema.schema_str
+    )
+
+    count_after = COUNTER['GET'].get('/subjects/test-meta/metadata', 0)
+    assert count_after - count_before == 2
+
+
+async def test_lookup_schema_cache_format(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+    schema = Schema('basic_schema_string', schema_type='PROTOBUF')
+
+    count_before = COUNTER['POST'].get('/subjects/test-lookup', 0)
+
+    raw = await sr.lookup_schema('test-lookup', schema)
+    assert raw.schema.schema_str == 'basic_schema_string'
+
+    serialized = await sr.lookup_schema('test-lookup', schema, fmt='serialized')
+    assert serialized.schema.schema_str == 'basic_schema_string_serialized'
+
+    assert (await sr.lookup_schema('test-lookup', schema)).schema.schema_str == 'basic_schema_string'
+    assert (
+        (await sr.lookup_schema('test-lookup', schema, fmt='serialized')).schema.schema_str
+        == 'basic_schema_string_serialized'
+    )
+
+    count_after = COUNTER['POST'].get('/subjects/test-lookup', 0)
+    assert count_after - count_before == 2
+
+
 async def test_get_schema_types(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
