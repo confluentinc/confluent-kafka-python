@@ -356,3 +356,47 @@ Python API docs on docs.confluent.io.
 ### 6.3. Done!
 
 That's it, back to the coal mine.
+
+
+## 7. Add wheels for a new Python version to a published release
+
+To publish, for example, Python 3.15 wheels for the already released v2.16.1,
+the wheels must be built from v2.16.1's code. Master may have the same version
+in `pyproject.toml` but newer code, and PyPI never lets a file be replaced.
+
+1. Branch from the release tag, not master:
+
+       $ git switch -c 2.16.1-py315 v2.16.1
+
+2. Copy only the build and CI changes that add the new Python version, for
+   example from master once they are merged there:
+
+       $ git fetch origin
+       $ git restore --source origin/master --staged --worktree -- .semaphore/ tools/ tests/test_check_existing_files.py
+
+   This makes those paths match master, including removing files that master
+   has deleted, and leaves everything else as it is in the tag.
+
+   `tests/test_check_existing_files.py` tests `tools/check-existing-files.py`,
+   so copy it along with `tools/` to keep them in step. Otherwise the tag's
+   own copy of the test, if it has one, runs against the newer script from
+   master and can fail the build.
+
+   Leave `src/`, `setup.py`, `pyproject.toml`, `requirements/`,
+   `MANIFEST.in`, `README.md`, `LICENSE` and `LIBRDKAFKA_VERSION` as they are
+   in the tag. Don't copy the rest of `tests/`: master's tests may test code
+   or Python versions that the release doesn't have, and the tag build runs
+   them.
+
+3. Commit, push the branch and create a new tag on it, e.g. `v2.16.1-py315`.
+   Wait for its CI build to pass.
+
+4. Promote the build to "Publish to Test PyPI" with
+   `PYTHON_VERSIONS=3.15` and `INCLUDE_SDIST=False`, then promote that to
+   "Publish to PyPI" with the same values.
+
+When the release already exists, the Upload job checks that the package files
+above are the same as in tag `v<version>` and that none of the files to upload
+is published yet. If either check fails, nothing is uploaded. The release's own
+tag must be named `v<version>`, e.g. `v2.16.1` for 2.16.1. If it isn't, the
+check can't find it and stops.
