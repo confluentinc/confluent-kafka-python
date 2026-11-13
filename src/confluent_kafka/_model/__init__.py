@@ -52,8 +52,9 @@ class Node:
 class ConsumerGroupTopicPartitions:
     """
     Represents consumer group and its topic partition information.
-    Used by :meth:`AdminClient.list_consumer_group_offsets` and
-    :meth:`AdminClient.alter_consumer_group_offsets`.
+    Used by :meth:`AdminClient.list_consumer_group_offsets`,
+    :meth:`AdminClient.alter_consumer_group_offsets`, and
+    :meth:`AdminClient.delete_consumer_group_offsets`.
 
     Parameters
     ----------

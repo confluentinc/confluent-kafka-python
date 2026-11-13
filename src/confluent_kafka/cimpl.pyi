@@ -692,6 +692,9 @@ class _AdminClientImpl:
     def alter_consumer_group_offsets(
         self, requests: Any, future: Any, request_timeout: float = -1  # List[ConsumerGroupTopicPartitions]
     ) -> None: ...
+    def delete_consumer_group_offsets(
+        self, requests: Any, future: Any, request_timeout: float = -1  # List[ConsumerGroupTopicPartitions]
+    ) -> None: ...
     def delete_consumer_groups(self, group_ids: List[str], future: Any, request_timeout: float = -1) -> None: ...
     def create_acls(self, acls: List[Any], future: Any, request_timeout: float = -1) -> None: ...  # List[AclBinding]
     def describe_acls(
