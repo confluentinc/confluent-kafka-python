@@ -73,10 +73,17 @@ for py_version_info in py_versions_info:
         # The free-threaded framework is an opt-in installer choice that
         # is unchecked by default, so it must be explicitly selected via
         # -applyChoiceChangesXML, otherwise only the regular (GIL)
-        # framework gets installed and the cpython314t interpreter is
-        # never created.
+        # framework gets installed and the cpython3.XXt interpreter is
+        # never created. The choice identifier contains the Python
+        # version, so it is filled into the generic XML here.
         py_version_digits = cpython_tag[2:-1]
-        choicechanges_xml = os.path.join(script_dir, f"free-threaded-enable-{py_version_digits}-macos.xml")
+        py_version = f"{py_version_digits[0]}.{py_version_digits[1:]}"
+        with open(os.path.join(script_dir, "free-threaded-enable-macos.xml")) as f:
+            choicechanges = f.read().replace("PYTHON_VERSION", py_version)
+        # Written next to the downloaded package in tmp_download_dir (the cwd).
+        choicechanges_xml = f"free-threaded-enable-{py_version_digits}-macos.xml"
+        with open(choicechanges_xml, "w") as f:
+            f.write(choicechanges)
         install_args = f"-applyChoiceChangesXML {choicechanges_xml} "
     os.system(f"sudo installer -pkg {tmp_pkg_file_name} {install_args}-target /")
     os.remove(tmp_pkg_file_full_path)
