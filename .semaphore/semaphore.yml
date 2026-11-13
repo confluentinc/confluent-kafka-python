@@ -464,6 +464,12 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify musllinux
+          commands:
+            - export ARCH=x64
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-musllinux.sh artifacts/wheelhouse
         - name: Verify free threaded
           commands:
             - export ARCH=x64
@@ -491,6 +497,12 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify musllinux
+          commands:
+            - export ARCH=arm64
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-musllinux.sh artifacts/wheelhouse
         - name: Verify free threaded
           commands:
             - export ARCH=arm64
