@@ -1473,6 +1473,7 @@ static void TopicPartition_setup(TopicPartition *self,
                                  long long offset,
                                  int32_t leader_epoch,
                                  const char *metadata,
+                                 size_t metadata_size,
                                  rd_kafka_resp_err_t err) {
         self->topic     = strdup(topic);
         self->partition = partition;
@@ -1483,7 +1484,11 @@ static void TopicPartition_setup(TopicPartition *self,
         self->leader_epoch = leader_epoch;
 
         if (metadata != NULL) {
-                self->metadata = strdup(metadata);
+                /* metadata is not guaranteed to be NUL-terminated:
+                 * librdkafka passes it as a buffer plus metadata_size. */
+                self->metadata = malloc(metadata_size + 1);
+                memcpy(self->metadata, metadata, metadata_size);
+                self->metadata[metadata_size] = '\0';
         } else {
                 self->metadata = NULL;
         }
@@ -1519,7 +1524,8 @@ TopicPartition_init(PyObject *self, PyObject *args, PyObject *kwargs) {
         }
 
         TopicPartition_setup((TopicPartition *)self, topic, partition, offset,
-                             leader_epoch, metadata, 0);
+                             leader_epoch, metadata,
+                             metadata ? strlen(metadata) : 0, 0);
         return 0;
 }
 
@@ -1731,6 +1737,7 @@ static PyObject *TopicPartition_new0(const char *topic,
                                      long long offset,
                                      int32_t leader_epoch,
                                      const char *metadata,
+                                     size_t metadata_size,
                                      rd_kafka_resp_err_t err) {
         TopicPartition *self;
 
@@ -1738,7 +1745,7 @@ static PyObject *TopicPartition_new0(const char *topic,
                                                            NULL, NULL);
 
         TopicPartition_setup(self, topic, partition, offset, leader_epoch,
-                             metadata, err);
+                             metadata, metadata_size, err);
 
         return (PyObject *)self;
 }
@@ -1748,8 +1755,8 @@ static PyObject *TopicPartition_new0(const char *topic,
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
         return TopicPartition_new0(
             rktpar->topic, rktpar->partition, rktpar->offset,
-            rd_kafka_topic_partition_get_leader_epoch(rktpar), rktpar->metadata,
-            rktpar->err);
+            rd_kafka_topic_partition_get_leader_epoch(rktpar),
+            (const char *)rktpar->metadata, rktpar->metadata_size, rktpar->err);
 }
 
 /**
