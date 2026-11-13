@@ -102,7 +102,7 @@ for py in 3.9 ; do
     cp -r tests/common $testdir/tests/
     cp pyproject.toml $testdir/
     # Remove tests that depend on the project tools/ directory
-    rm -f $testdir/tests/test_unasync.py
+    rm -f $testdir/tests/test_unasync.py $testdir/tests/test_check_existing_files.py
 
     # Change to a neutral path where there is no confluent_kafka sub-directory
     # that might interfere with module load.
