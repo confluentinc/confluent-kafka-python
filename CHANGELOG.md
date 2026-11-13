@@ -24,6 +24,11 @@
   re-serialized with headers copied from an inbound message no longer carries both a
   schema id header and a payload prefix, which deserializers decoded as wrong values
   without raising an error.
+- Fix crashes when a topic, configuration property or header name, a configuration value
+  or a SCRAM user name cannot be encoded as UTF-8, such as a `str` with a lone surrogate
+  from `os.fsdecode()`: a NULL pointer was passed on to librdkafka. These now raise
+  `UnicodeEncodeError`, and `Producer.produce_batch()` no longer queues the message with
+  an empty value or key before raising it.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`

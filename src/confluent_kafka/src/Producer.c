@@ -740,6 +740,8 @@ Producer_validate_and_parse_batch(Handle *self,
                         } else if (PyUnicode_Check(value_obj)) {
                                 value = PyUnicode_AsUTF8AndSize(value_obj,
                                                                 &value_len);
+                                if (!value)
+                                        return -1; /* UnicodeEncodeError */
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                              "Message value at index %d must "
@@ -757,6 +759,8 @@ Producer_validate_and_parse_batch(Handle *self,
                         } else if (PyUnicode_Check(key_obj)) {
                                 key =
                                     PyUnicode_AsUTF8AndSize(key_obj, &key_len);
+                                if (!key)
+                                        return -1; /* UnicodeEncodeError */
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                              "Message key at index %d must be "

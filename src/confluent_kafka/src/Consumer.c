@@ -158,14 +158,19 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         for (pos = 0; pos < PyList_Size(tlist); pos++) {
                 PyObject *o = PyList_GetItem(tlist, pos);
                 PyObject *uo, *uo8;
+                const char *topic;
                 if (!(uo = cfl_PyObject_Unistr(o))) {
                         PyErr_Format(PyExc_TypeError,
                                      "expected list of unicode strings");
                         rd_kafka_topic_partition_list_destroy(topics);
                         goto done;
                 }
-                rd_kafka_topic_partition_list_add(topics,
-                                                  cfl_PyUnistr_AsUTF8(uo, &uo8),
+                if (!(topic = cfl_PyUnistr_AsUTF8(uo, &uo8))) {
+                        Py_DECREF(uo);
+                        rd_kafka_topic_partition_list_destroy(topics);
+                        goto done; /* e.g. UnicodeEncodeError */
+                }
+                rd_kafka_topic_partition_list_add(topics, topic,
                                                   RD_KAFKA_PARTITION_UA);
                 Py_XDECREF(uo8);
                 Py_DECREF(uo);
@@ -547,7 +552,8 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         } else if (msg) {
                 Message *m;
-                PyObject *uo8;
+                PyObject *uo8 = NULL;
+                const char *c_topic;
                 rd_kafka_topic_partition_t *rktpar;
 
                 if (PyObject_Type((PyObject *)msg) !=
@@ -576,10 +582,17 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic   = Message_topic(m, NULL);
+                c_topic = NULL; /* None topic: left to librdkafka, as before */
+                if (topic != Py_None &&
+                    !(c_topic = cfl_PyUnistr_AsUTF8(topic, &uo8))) {
+                        Py_DECREF(topic); /* e.g. UnicodeEncodeError */
+                        Handle_serialize_exit(self);
+                        return NULL;
+                }
                 c_offsets = rd_kafka_topic_partition_list_new(1);
-                rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
+                rktpar = rd_kafka_topic_partition_list_add(c_offsets, c_topic,
+                                                           m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
@@ -702,7 +715,8 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto done;
         } else {
                 Message *m;
-                PyObject *uo8;
+                PyObject *uo8 = NULL;
+                const char *c_topic;
                 rd_kafka_topic_partition_t *rktpar;
                 PyObject *error;
                 PyObject *topic;
@@ -729,10 +743,16 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic   = Message_topic(m, NULL);
+                c_topic = NULL; /* None topic: left to librdkafka, as before */
+                if (topic != Py_None &&
+                    !(c_topic = cfl_PyUnistr_AsUTF8(topic, &uo8))) {
+                        Py_DECREF(topic); /* e.g. UnicodeEncodeError */
+                        goto done;
+                }
                 c_offsets = rd_kafka_topic_partition_list_new(1);
-                rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
+                rktpar = rd_kafka_topic_partition_list_add(c_offsets, c_topic,
+                                                           m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);

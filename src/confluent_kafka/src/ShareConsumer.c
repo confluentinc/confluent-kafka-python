@@ -228,6 +228,7 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
         for (i = 0; i < PyList_Size(tlist); i++) {
                 PyObject *o = PyList_GetItem(tlist, i);
                 PyObject *uo, *uo8 = NULL;
+                const char *topic;
                 if (!(uo = cfl_PyObject_Unistr(o))) {
                         PyErr_SetString(PyExc_TypeError,
                                         "expected list of unicode strings");
@@ -235,12 +236,14 @@ static PyObject *ShareConsumer_subscribe(ShareConsumerHandle *self,
                         Py_DECREF(owned_tlist);
                         return NULL;
                 }
-                /* TODO KIP-932: cfl_PyUnistr_AsUTF8 can return NULL; passing
-                 * NULL to rd_kafka_topic_partition_list_add would crash.
-                 * Consumer.c has the same gap (pre-existing); fix at least
-                 * here for ShareConsumer. */
-                rd_kafka_topic_partition_list_add(c_topics,
-                                                  cfl_PyUnistr_AsUTF8(uo, &uo8),
+                if (!(topic = cfl_PyUnistr_AsUTF8(uo, &uo8))) {
+                        /* e.g. UnicodeEncodeError */
+                        Py_DECREF(uo);
+                        rd_kafka_topic_partition_list_destroy(c_topics);
+                        Py_DECREF(owned_tlist);
+                        return NULL;
+                }
+                rd_kafka_topic_partition_list_add(c_topics, topic,
                                                   RD_KAFKA_PARTITION_UA);
                 Py_XDECREF(uo8);
                 Py_DECREF(uo);
