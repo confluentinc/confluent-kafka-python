@@ -4,7 +4,8 @@
 # Verification blocks of .semaphore/semaphore.yml: install the cp315t wheel,
 # run the free-threaded wheel checks (tools/verify-free-threaded-wheel.sh) and then the unit suite.
 #
-# Run from the repo root with uv on PATH. Expects OS_NAME (linux|osx) and ARCH
+# Run from the repo root with the uv package installed in the active python
+# (`pip install uv`). Expects OS_NAME (linux|osx) and ARCH
 # (x64|arm64, or s390x on linux) as the Wheel blocks set them, and
 # LIBRDKAFKA_VERSION for the wheel checks.
 
@@ -34,9 +35,15 @@ else
     tests_install_reqs=requirements/requirements-tests-install-nogil.txt
 fi
 
-uv venv _venv315t --python 3.15t
+# Use the uv that `pip install uv` just installed, not the first uv on PATH: the
+# macOS and s390x agent images ship uv 0.11.17, which only knows 3.15.0b1 for 3.15t.
+uv=$(python -c 'from uv import find_uv_bin; print(find_uv_bin())')
+"$uv" --version
+
+"$uv" venv _venv315t --python 3.15t
 source _venv315t/bin/activate
-uv pip install -r "$tests_install_reqs"
+python -c 'import sys; print(sys.version); sys.exit(sys.version_info.releaselevel != "final")'
+"$uv" pip install -r "$tests_install_reqs"
 
 artifact pull workflow artifacts
 # Fail fast, with a clear message, if the pull brought no wheel tarballs at all.
@@ -44,7 +51,7 @@ ls artifacts/*.tgz
 (cd artifacts && ls *.tgz | xargs -n1 tar -xvf)
 # Unquoted on purpose: the glob must expand, and ls fails if nothing matches.
 ls artifacts/wheelhouse/$wheel_glob
-uv pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+"$uv" pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
 
 tools/verify-free-threaded-wheel.sh
 python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200
