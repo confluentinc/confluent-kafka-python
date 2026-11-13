@@ -1046,7 +1046,7 @@ class AdminClient(_AdminClientImpl):
 
         f, futmap = AdminClient._make_futures_v2(topic_names, None, AdminClient._make_futmap_result_from_list)
 
-        super(AdminClient, self).describe_topics(topic_names, f, **kwargs)  # type: ignore[arg-type]
+        super(AdminClient, self).describe_topics(topic_names, f, **kwargs)
 
         return futmap
 

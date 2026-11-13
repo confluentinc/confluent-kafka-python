@@ -657,8 +657,8 @@ class _AdminClientImpl:
     ) -> None: ...
     def describe_topics(
         self,
-        future: Any,
         topic_names: List[str],
+        future: Any,
         request_timeout: float = -1,
         include_authorized_operations: bool = False,
     ) -> None: ...
