@@ -179,6 +179,17 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
     | ``validate``                     | bool     | the given schema.                                  |
     |                                  |          |                                                    |
     +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to also check ``format`` keywords (such as |
+    | ``validate.formats``             | bool     | ``email``, ``date-time`` or ``ipv4``) when         |
+    |                                  |          | validating the payload. Only applies when          |
+    |                                  |          | ``validate`` is True.                              |
+    |                                  |          |                                                    |
+    |                                  |          | Some formats (such as ``date-time``) are only      |
+    |                                  |          | checked when their optional dependencies are       |
+    |                                  |          | installed (``pip install jsonschema[format]``).    |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to False.                                 |
+    +----------------------------------+----------+----------------------------------------------------+
     |                                  |          | Callable(bytes, SerializationContext, schema_id)   |
     |                                  |          |   -> bytes                                         |
     |                                  |          |                                                    |
@@ -250,6 +261,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         '_validators',
         '_validators_lock',
         '_validate',
+        '_validate_formats',
         '_json_encode',
     ]
 
@@ -264,6 +276,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         'subject.name.strategy': None,
         'schema.id.serializer': prefix_schema_id_serializer,
         'validate': True,
+        'validate.formats': False,
         'validation.rules.execution': ValidationRulesExecution.DISABLED,
         'validation.rules.fail.fast': False,
         'validation.rules.executor': None,
@@ -346,6 +359,10 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self._validate = cast(bool, conf_copy.pop('validate'))
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
+
+        self._validate_formats = cast(bool, conf_copy.pop('validate.formats'))
+        if not isinstance(self._validate_formats, bool):
+            raise ValueError("validate.formats must be a boolean value")
 
         self.configure_validation_rules(conf_copy)
 
@@ -554,7 +571,8 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
-        validator = cls(parsed_schema, registry=registry)
+        format_checker = cls.FORMAT_CHECKER if self._validate_formats else None
+        validator = cls(parsed_schema, registry=registry, format_checker=format_checker)
 
         async with self._validators_lock:
             self._validators[schema] = validator
@@ -744,6 +762,17 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     | ``validate``                     | bool     | the given schema.                                  |
     |                                  |          |                                                    |
     +----------------------------------+----------+----------------------------------------------------+
+    |                                  |          | Whether to also check ``format`` keywords (such as |
+    | ``validate.formats``             | bool     | ``email``, ``date-time`` or ``ipv4``) when         |
+    |                                  |          | validating the payload. Only applies when          |
+    |                                  |          | ``validate`` is True.                              |
+    |                                  |          |                                                    |
+    |                                  |          | Some formats (such as ``date-time``) are only      |
+    |                                  |          | checked when their optional dependencies are       |
+    |                                  |          | installed (``pip install jsonschema[format]``).    |
+    |                                  |          |                                                    |
+    |                                  |          | Defaults to False.                                 |
+    +----------------------------------+----------+----------------------------------------------------+
     |                                  |          | Callable(bytes, SerializationContext, schema_id)   |
     |                                  |          |   -> io.BytesIO                                    |
     |                                  |          |                                                    |
@@ -775,6 +804,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         '_validators',
         '_validators_lock',
         '_validate',
+        '_validate_formats',
         '_json_decode',
     ]
 
@@ -786,6 +816,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         'subject.name.strategy': None,
         'schema.id.deserializer': dual_schema_id_deserializer,
         'validate': True,
+        'validate.formats': False,
     }
 
     async def __init_impl(
@@ -851,6 +882,10 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         self._validate = cast(bool, conf_copy.pop('validate'))
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
+
+        self._validate_formats = cast(bool, conf_copy.pop('validate.formats'))
+        if not isinstance(self._validate_formats, bool):
+            raise ValueError("validate.formats must be a boolean value")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}".format(", ".join(conf_copy.keys())))
@@ -1037,7 +1072,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         cls = validator_for(parsed_schema)
         cls.check_schema(parsed_schema)
-        validator = cls(parsed_schema, registry=registry)
+        format_checker = cls.FORMAT_CHECKER if self._validate_formats else None
+        validator = cls(parsed_schema, registry=registry, format_checker=format_checker)
 
         async with self._validators_lock:
             self._validators[schema] = validator
