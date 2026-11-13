@@ -344,7 +344,7 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
-        int chunk_count = 0;
+        int64_t start_ms;
         size_t i;
 
         if (!self->rkshare) {
@@ -357,13 +357,14 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
                 return NULL;
 
         total_timeout_ms = cfl_timeout_ms(tmout);
+        start_ms         = cfl_monotonic_ms();
 
         CallState_begin(&self->base, &cs);
 
         /* Chunked polling pattern for signal interruptibility. */
         while (1) {
                 chunk_timeout_ms = calculate_chunk_timeout(
-                    total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                    total_timeout_ms, start_ms, CHUNK_TIMEOUT_MS);
 
                 /* chunk_timeout_ms==0 means a non-blocking drain. share_poll()
                  * allocates rkmessages for us and sets it to NULL when there's
@@ -387,8 +388,6 @@ static PyObject *ShareConsumer_poll(ShareConsumerHandle *self,
                 if (chunk_timeout_ms == 0) {
                         break;
                 }
-
-                chunk_count++;
 
                 /* Check for Ctrl+C before next chunk */
                 if (check_signals_between_chunks(&self->base, &cs)) {

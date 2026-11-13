@@ -32,6 +32,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <time.h>
 #include <unistd.h>
 #endif
 
@@ -3779,6 +3780,17 @@ void Handle_common_exit(Handle *h) {
                 Handle_rk_use_end(h);
         else
                 Handle_serialize_exit(h);
+}
+
+
+int64_t cfl_monotonic_ms(void) {
+#ifdef _WIN32
+        return (int64_t)GetTickCount64();
+#else
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
 }
 
 
