@@ -2154,6 +2154,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
         PyObject *result       = NULL;
         int future_incremented = 0;
         CallState cs;
+        PyObject *user_strs = NULL; /* str() of each user, see below */
 
         /* users is a list of strings. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws, &users,
@@ -2192,6 +2193,10 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
                 user_cnt = (int)PyList_Size(users);
                 if (user_cnt > 0)
                         c_users = malloc(sizeof(char *) * user_cnt);
+                /* c_users[i] points into the str() of user i, which can be
+                 * a new object: keep them until librdkafka has copied them */
+                if (!(user_strs = PyList_New(user_cnt)))
+                        goto done;
 
                 for (i = 0; i < user_cnt; i++) {
                         PyObject *user = PyList_GET_ITEM(users, i);
@@ -2216,8 +2221,10 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
                                 goto done;
                         }
 
+                        PyList_SET_ITEM(user_strs, i, u_user);
                         c_users[i] = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
-                        Py_XDECREF(u_user);
+                        if (!c_users[i])
+                                goto done; /* e.g. UnicodeEncodeError */
                         Py_XDECREF(uo_user);
                 }
         }
@@ -2246,6 +2253,7 @@ done:
         free(c_users);
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
+        Py_XDECREF(user_strs);
         if (c_options)
                 rd_kafka_AdminOptions_destroy(c_options);
         /* Release our extra ref only on failure; on success the opaque keeps
@@ -2620,6 +2628,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         const char **c_groups              = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
         CallState cs;
+        PyObject *group_strs = NULL; /* str() of each group id, see below */
         rd_kafka_queue_t *rkqu;
         int groups_cnt     = 0;
         int i              = 0;
@@ -2659,6 +2668,10 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
 #endif
 
         c_groups = malloc(sizeof(char *) * groups_cnt);
+        /* c_groups[i] points into the str() of group i, which can be a new
+         * object: keep them until librdkafka has copied them */
+        if (!(group_strs = PyList_New(groups_cnt)))
+                goto err;
 
         for (i = 0; i < groups_cnt; i++) {
                 PyObject *group = PyList_GET_ITEM(group_ids, i);
@@ -2675,9 +2688,11 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
+                PyList_SET_ITEM(group_strs, i, ugroup);
                 c_groups[i] = cfl_PyUnistr_AsUTF8(ugroup, &uogroup);
+                if (!c_groups[i])
+                        goto err; /* e.g. UnicodeEncodeError */
 
-                Py_XDECREF(ugroup);
                 Py_XDECREF(uogroup);
         }
 
@@ -2711,6 +2726,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                                         c_options, rkqu);
         CallState_end(self, &cs);
 
+        Py_XDECREF(group_strs);
         if (c_groups) {
                 free(c_groups);
         }
@@ -2723,6 +2739,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
+        Py_XDECREF(group_strs);
         if (c_groups) {
                 free(c_groups);
         }
@@ -3004,7 +3021,8 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         int i;
-        int entered_rk_use = 0;
+        int entered_rk_use   = 0;
+        PyObject *group_strs = NULL; /* str() of each group id, see below */
 
         static char *kws[] = {"group_ids", "future",
                               /* options */
@@ -3047,6 +3065,10 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
 
         c_delete_group_ids =
             malloc(sizeof(rd_kafka_DeleteGroup_t *) * group_ids_cnt);
+        /* group_id_string points into the str() of the group id, which can
+         * be a new object: keep them until librdkafka has copied them */
+        if (!(group_strs = PyList_New(group_ids_cnt)))
+                goto err;
         for (i = 0; i < group_ids_cnt; i++) {
                 group_id = PyList_GET_ITEM(group_ids, i);
 
@@ -3059,9 +3081,11 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
+                PyList_SET_ITEM(group_strs, i, ks);
                 group_id_string = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                if (!group_id_string)
+                        goto err; /* e.g. UnicodeEncodeError */
 
-                Py_DECREF(ks);
                 Py_XDECREF(ks8);
 
                 c_delete_group_ids[i] =
@@ -3086,6 +3110,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, group_ids_cnt);
         free(c_delete_group_ids);
+        Py_XDECREF(group_strs);
         rd_kafka_AdminOptions_destroy(c_options);
 #ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
@@ -3101,6 +3126,7 @@ err:
                 rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, i);
                 free(c_delete_group_ids);
         }
+        Py_XDECREF(group_strs);
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
