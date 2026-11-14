@@ -33,6 +33,14 @@
 - Fix a memory leak in `Producer.produce_batch()` when a message of the batch is invalid:
   the state kept for each message before it, with a reference to its delivery callback,
   was never released.
+- Fix `AdminClient.alter_user_scram_credentials()` giving an upsertion without a salt
+  the salt of an earlier upsertion in the same call. Such an upsertion now gets a random
+  salt from librdkafka, as documented.
+- `AdminClient.alter_user_scram_credentials()` now raises `TypeError` for an iteration
+  count that is not an `int`, such as `4096.0`, an `IntEnum` member or `True`, and
+  `OverflowError` for one that does not fit in a C `int`. Its checks let these through:
+  the request was sent with an uninitialized or truncated iteration count, and the call
+  returned normally or raised `SystemError`, depending on the value and Python version.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
