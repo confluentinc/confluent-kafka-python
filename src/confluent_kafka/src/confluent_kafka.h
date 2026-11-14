@@ -361,6 +361,11 @@ typedef struct {
         PyObject *logger;
         PyObject *oauth_cb;
         atomic_int_t oauth_token_set;
+        /* 1 once oauth_cb has failed and oauth_token_errstr describes its
+         * first failure (2 while that is being written), so that
+         * wait_for_oauth_token_set() stops waiting for a token. */
+        atomic_int_t oauth_token_failed;
+        char oauth_token_errstr[512];
 
         /* Protects self->rk in Producer and Admin clients from being freed by
          * close() while another method is still using it.
