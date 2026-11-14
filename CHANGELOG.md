@@ -25,6 +25,14 @@
   could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
   wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
   applies to Python 3.9 only.
+- Fix `oauth_cb` failure handling. A token refresh whose `oauth_cb` returned an
+  invalid value was never retried, so the client stopped refreshing its token. When
+  `oauth_cb` failed while a client was created, the constructor waited 10 seconds
+  and raised a generic timeout error, or a `SystemError` for a consumer with an
+  `error_cb`. It now raises the callback's error right away, and the `_AUTHENTICATION`
+  error that `error_cb` gets for a failed refresh includes it too. Creating a client
+  with an `oauth_cb` also no longer takes at least a second, and Ctrl+C now interrupts
+  the wait for its first token.
 
 ## v2.16.1
 

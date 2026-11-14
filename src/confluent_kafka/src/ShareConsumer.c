@@ -1288,8 +1288,13 @@ ShareConsumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 if (ret_wait_oauth == -1) {
                         CallState cs;
                         CallState_begin(&self->base, &cs);
+                        /* Skip the consumer close: it serves callbacks such
+                         * as error_cb, which can't run while the exception
+                         * for the failure is set. */
                         rd_kafka_error_t *destroy_error =
-                            rd_kafka_share_destroy(self->rkshare);
+                            rd_kafka_share_destroy_flags(
+                                self->rkshare,
+                                RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
                         if (destroy_error)
                                 rd_kafka_error_destroy(destroy_error);
                         CallState_end(&self->base, &cs);

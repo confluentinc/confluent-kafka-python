@@ -2628,44 +2628,113 @@ static int py_extensions_to_c(char **extensions,
  *        so we have a token before returning.
  *
  * @returns 0 if the token was set within the timeout (or if oauth_cb is not
- *          configured); -1 on timeout, with a Python exception set.
+ *          configured); -1 with a Python exception set if oauth_cb failed,
+ *          the timeout expired or a signal handler raised.
  *
  * @remark On -1 the caller owns teardown. This intentionally does NOT call
  *         rd_kafka_destroy() / rd_kafka_share_destroy() — each client type
  *         knows which destroy API matches what it allocated.
  */
 int wait_for_oauth_token_set(Handle *h) {
+        const int max_wait_ms = 10 * 1000;
+        const int interval_ms = 100;
+        int elapsed_ms        = 0;
 
         if (!h->oauth_cb)
                 return 0;
 
-        int max_wait_sec       = 10;
-        int retry_interval_sec = 1; /* Check every 1 sec */
-        int elapsed_sec        = 0;
-        while (!atomic_int_get(&h->oauth_token_set) &&
-               elapsed_sec < max_wait_sec) {
-                CallState cs;
-                CallState_begin(h, &cs);
-#ifdef _WIN32
-                Sleep(retry_interval_sec * 1000);
-#else
-                sleep(retry_interval_sec);
-#endif
-                CallState_end(h, &cs);
-                elapsed_sec += retry_interval_sec;
+        while (!atomic_int_get(&h->oauth_token_set)) {
+                if (atomic_int_get(&h->oauth_token_failed) == 1) {
+                        /* librdkafka retries a failed refresh 10 seconds
+                         * later, so no token can arrive in time. */
+                        cfl_PyErr_Format(
+                            RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
+                            "Failed to acquire SASL OAUTHBEARER token: %s",
+                            h->oauth_token_errstr);
+                        return -1;
+                }
+
+                if (elapsed_ms >= max_wait_ms) {
+                        /* Token timeout. Don't tear down here — each _init
+                         * knows whether to call rd_kafka_destroy() or
+                         * rd_kafka_share_destroy() for what it allocated. */
+                        cfl_PyErr_Format(
+                            RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
+                            "OAuth token not set within %d seconds timeout",
+                            max_wait_ms / 1000);
+                        return -1;
+                }
+
+                if (!Handle_sleep(h, interval_ms))
+                        return -1; /* A signal handler raised. */
+                elapsed_ms += interval_ms;
         }
 
-        if (!atomic_int_get(&h->oauth_token_set)) {
-                /* Token timeout. Don't tear down here — each _init knows
-                 * whether to call rd_kafka_destroy() or
-                 * rd_kafka_share_destroy() for what it allocated. */
-                cfl_PyErr_Format(
-                    RD_KAFKA_RESP_ERR_SASL_AUTHENTICATION_FAILED,
-                    "OAuth token not set within %d seconds timeout",
-                    max_wait_sec);
-                return -1;
-        }
         return 0;
+}
+
+/**
+ * @brief Write the pending exception as "Type: message" to \p dst and
+ *        clear it.
+ */
+static void cfl_PyErr_describe_clear(char *dst, size_t dst_size) {
+        PyObject *exc;
+        PyObject *str   = NULL;
+        const char *msg = NULL;
+
+#if PY_VERSION_HEX >= 0x030c0000
+        exc = PyErr_GetRaisedException();
+#else
+        PyObject *exc_type, *exc_tb;
+        PyErr_Fetch(&exc_type, &exc, &exc_tb);
+        PyErr_NormalizeException(&exc_type, &exc, &exc_tb);
+        Py_XDECREF(exc_type);
+        Py_XDECREF(exc_tb);
+#endif
+        if (!exc) {
+                snprintf(dst, dst_size, "unknown error");
+                return;
+        }
+
+        if ((str = PyObject_Str(exc)))
+                msg = PyUnicode_AsUTF8(str);
+        if (!msg)
+                PyErr_Clear(); /* Describe it by its type alone. */
+
+        if (msg && *msg)
+                snprintf(dst, dst_size, "%s: %s", Py_TYPE(exc)->tp_name, msg);
+        else
+                snprintf(dst, dst_size, "%s", Py_TYPE(exc)->tp_name);
+
+        Py_XDECREF(str);
+        Py_DECREF(exc);
+}
+
+/**
+ * @brief Handle the exception a failed oauth_cb call left pending.
+ *
+ * Reports it to librdkafka as the token refresh failure, which raises an
+ * ERR__AUTHENTICATION error and retries the refresh 10 seconds later, then
+ * clears it: this background thread has no Python caller to raise it to.
+ * The first failure is also kept for wait_for_oauth_token_set().
+ */
+static void oauth_cb_failed(Handle *h, rd_kafka_t *rk) {
+        static const char prefix[] = "oauth_cb failed: ";
+        char errstr[sizeof(h->oauth_token_errstr)];
+
+        memcpy(errstr, prefix, sizeof(prefix));
+        cfl_PyErr_describe_clear(errstr + sizeof(prefix) - 1,
+                                 sizeof(errstr) - (sizeof(prefix) - 1));
+
+        /* h->rk is NULL on share consumer; use the callback's rk.
+         * This only fails if OAUTHBEARER isn't the SASL mechanism, and
+         * librdkafka doesn't call oauth_cb then. */
+        rd_kafka_oauthbearer_set_token_failure(rk, errstr);
+
+        if (atomic_int_cas(&h->oauth_token_failed, 0, 2)) {
+                memcpy(h->oauth_token_errstr, errstr, sizeof(errstr));
+                atomic_int_set(&h->oauth_token_failed, 1);
+        }
 }
 
 /**
@@ -2705,7 +2774,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                                 "expect returned value from oauth_cb "
                                 "to be (token_str, expiry_time[, principal, "
                                 "extensions]) tuple");
-                goto err;
+                goto fail;
         }
 
         if (extensions) {
@@ -2713,7 +2782,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 PyObject *owned_extensions = PyDict_Copy(extensions);
                 if (!owned_extensions) {
                         Py_DECREF(result);
-                        goto err;
+                        goto fail;
                 }
                 extensions = owned_extensions;
 #endif
@@ -2728,8 +2797,7 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                                 Py_DECREF(owned_extensions);
 #endif
                                 Py_DECREF(result);
-                                free(rd_extensions);
-                                goto err;
+                                goto fail;
                         }
                         rd_extensions_size = rd_extensions_size + 2;
                 }
@@ -2743,13 +2811,6 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
             (const char **)rd_extensions, rd_extensions_size, err_msg,
             sizeof(err_msg));
         Py_DECREF(result);
-        if (rd_extensions) {
-                int i;
-                for (i = 0; i < rd_extensions_size; i++) {
-                        free(rd_extensions[i]);
-                }
-                free(rd_extensions);
-        }
 
         if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);
@@ -2759,21 +2820,14 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         goto done;
 
 fail:
-        /* h->rk is NULL on share consumer; use the callback's rk. */
-        err_code = rd_kafka_oauthbearer_set_token_failure(
-            rk, "OAuth callback raised exception");
-        if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
-                PyErr_SetString(PyExc_ValueError,
-                                "Failed to set token failure");
-                goto err;
-        }
-        PyErr_Clear();
-        goto done;
-err:
-        PyGILState_Release(gstate);
-        rd_kafka_yield(rk);
-        return;
+        oauth_cb_failed(h, rk);
 done:
+        if (rd_extensions) {
+                Py_ssize_t i;
+                for (i = 0; i < rd_extensions_size; i++)
+                        free(rd_extensions[i]);
+                free(rd_extensions);
+        }
         PyGILState_Release(gstate);
 }
 

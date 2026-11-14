@@ -14,14 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import _thread
 import asyncio
+import signal
+import threading
 import time
 
 import pytest
 
-from confluent_kafka import KafkaException
+from confluent_kafka import KafkaError, KafkaException, Producer, ShareConsumer
+from confluent_kafka.admin import AdminClient
 from confluent_kafka.aio import AIOConsumer
 from tests.common import TestConsumer
+
+# Failure bounds of waits that end on an event, never part of a result: polls
+# of 0.5 s, and seconds.
+POLLS_BEFORE_GIVING_UP = 60
+WATCHDOG_S = 30
 
 
 def get_oauth_config(oauth_cb, session_timeout_ms=1000):
@@ -141,6 +150,146 @@ def test_oauth_cb_token_refresh_failure():
 
     kc.close()
     assert oauth_cb_count > 2
+
+
+def test_oauth_cb_token_refresh_invalid_return():
+    """
+    A token refresh whose oauth_cb returns an invalid value is reported to
+    librdkafka as a failure, as when the callback raises: error_cb gets the
+    callback's error, and librdkafka retries the refresh. The failure used to
+    stay unreported on librdkafka's thread, so the client never asked for a
+    token again and error_cb never heard of it.
+    """
+    oauth_cb_count = 0
+    errors = []
+    reported = threading.Event()
+
+    def oauth_cb(oauth_config):
+        nonlocal oauth_cb_count
+        oauth_cb_count += 1
+        if oauth_cb_count == 2:
+            return 'just-a-token-string'  # not a (token, expiry, ...) tuple
+        return 'token', time.time() + 3
+
+    def error_cb(error):
+        errors.append(error)
+        if error.code() == KafkaError._AUTHENTICATION:
+            reported.set()
+
+    conf = get_oauth_config(oauth_cb)
+    conf['error_cb'] = error_cb
+    kc = TestConsumer(conf)
+    assert oauth_cb_count == 1
+
+    # librdkafka refreshes the token when 80% of its 3 second life is over
+    # and error_cb runs from poll(). The wait ends with the event it waits
+    # for; the number of polls only bounds a failure.
+    for _ in range(POLLS_BEFORE_GIVING_UP):
+        if reported.is_set():
+            break
+        kc.poll(0.5)
+
+    kc.close()
+    assert reported.is_set(), errors
+    assert oauth_cb_count >= 2
+    assert any(
+        e.code() == KafkaError._AUTHENTICATION and "oauth_cb failed: TypeError: expect returned value" in e.str()
+        for e in errors
+    ), errors
+
+
+def _raise_runtime_error(oauth_config):
+    raise RuntimeError("no token today")
+
+
+def _return_bare_string(oauth_config):
+    return 'just-a-token-string'  # not a (token, expiry, ...) tuple
+
+
+OAUTH_CB_FAILURES = {
+    'raises': (_raise_runtime_error, "oauth_cb failed: RuntimeError: no token today"),
+    'invalid-return': (_return_bare_string, "oauth_cb failed: TypeError: expect returned value from oauth_cb"),
+}
+
+
+def _make_client(kind, oauth_cb, error_cb):
+    conf = {
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+        'error_cb': error_cb,
+    }
+    if kind == 'producer':
+        return Producer(conf)
+    if kind == 'admin':
+        return AdminClient(conf)
+    if kind == 'share-consumer':
+        return ShareConsumer(dict(conf, **{'group.id': 'test', 'bootstrap.servers': 'localhost:19999'}))
+    return TestConsumer(dict(conf, **{'group.id': 'test', 'session.timeout.ms': 1000}))
+
+
+@pytest.mark.parametrize('failure', sorted(OAUTH_CB_FAILURES))
+@pytest.mark.parametrize('kind', ['consumer', 'producer', 'admin', 'share-consumer'])
+def test_oauth_cb_failure_fails_construction_with_its_error(kind, failure):
+    """
+    A failed oauth_cb makes the constructor raise the callback's error as soon
+    as it fails. It used to wait out the 10 second token timeout and raise a
+    timeout error, or a SystemError for a consumer with an error_cb.
+    """
+    oauth_cb, message = OAUTH_CB_FAILURES[failure]
+    errors = []
+
+    with pytest.raises(KafkaException) as exc_info:
+        _make_client(kind, oauth_cb, errors.append)
+
+    # The error is the callback's own: before the fix, the constructor waited
+    # for a token that could no longer come and raised a timeout error.
+    error = exc_info.value.args[0]
+    assert error.code() == KafkaError.SASL_AUTHENTICATION_FAILED
+    assert message in error.str()
+
+
+def test_oauth_cb_token_wait_is_interruptible():
+    """
+    Ctrl+C while the constructor waits for the first token raises
+    KeyboardInterrupt. The wait used to ignore it, then fail with a
+    SystemError once the token came.
+
+    oauth_cb gives no token until the Ctrl+C has been handled, so the
+    constructor can only be left by it: the callback signals once it runs,
+    which is when the constructor is waiting or about to, a thread delivers
+    the Ctrl+C then, and its handler (run by the main thread once the wait
+    checks for signals) lets the callback return.
+    """
+    started = threading.Event()
+    handled = threading.Event()
+
+    def oauth_cb(oauth_config):
+        started.set()
+        # the wait bounds a failure only: a constructor that ignores the
+        # Ctrl+C never sets `handled`
+        handled.wait(WATCHDOG_S)
+        raise RuntimeError("no token")
+
+    def interrupt_once_started():
+        started.wait(WATCHDOG_S)
+        _thread.interrupt_main()
+
+    def on_sigint(signum, frame):
+        handled.set()
+        raise KeyboardInterrupt
+
+    previous = signal.signal(signal.SIGINT, on_sigint)
+    interrupt_thread = threading.Thread(target=interrupt_once_started)
+    interrupt_thread.start()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            TestConsumer(get_oauth_config(oauth_cb))
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        handled.set()
+        interrupt_thread.join()
 
 
 # Async IO Consumer Tests

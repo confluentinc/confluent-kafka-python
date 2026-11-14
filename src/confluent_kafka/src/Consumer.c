@@ -2007,7 +2007,11 @@ static int Consumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 if (ret_wait_oauth == -1) {
                         CallState cs;
                         CallState_begin(self, &cs);
-                        rd_kafka_destroy(self->rk);
+                        /* Skip the consumer close: it serves callbacks such
+                         * as error_cb, which can't run while the exception
+                         * for the failure is set. */
+                        rd_kafka_destroy_flags(
+                            self->rk, RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
                         CallState_end(self, &cs);
                         self->rk = NULL;
                 }
