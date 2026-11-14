@@ -1958,8 +1958,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                 rd_kafka_topic_partition_t *rktpar;
                 TopicPartition *tp = (TopicPartition *)PyList_GetItem(plist, i);
 
-                if (PyObject_Type((PyObject *)tp) !=
-                    (PyObject *)&TopicPartitionType) {
+                if (Py_TYPE(tp) != &TopicPartitionType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      TopicPartitionType.tp_name);
                         rd_kafka_topic_partition_list_destroy(c_parts);
@@ -2072,11 +2071,10 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
                         }
                         vsize = (Py_ssize_t)strlen(v);
                 } else {
-                        PyErr_Format(
-                            PyExc_TypeError,
-                            "expected header value to be "
-                            "None, binary, or unicode string, not %s",
-                            ((PyTypeObject *)PyObject_Type(value))->tp_name);
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected header value to be "
+                                     "None, binary, or unicode string, not %s",
+                                     Py_TYPE(value)->tp_name);
                         Py_DECREF(ks);
                         Py_XDECREF(ks8);
                         return 0;
@@ -2203,7 +2201,7 @@ rd_kafka_headers_t *py_headers_to_c(PyObject *hdrs) {
                 PyErr_Format(PyExc_TypeError,
                              "expected headers to be "
                              "dict or list of (key, value) tuples, not %s",
-                             ((PyTypeObject *)PyObject_Type(hdrs))->tp_name);
+                             Py_TYPE(hdrs)->tp_name);
                 return NULL;
         }
 }
@@ -2604,7 +2602,7 @@ static int py_extensions_to_c(char **extensions,
                 PyErr_Format(PyExc_TypeError,
                              "expected extension value to be "
                              "unicode string, not %s",
-                             ((PyTypeObject *)PyObject_Type(value))->tp_name);
+                             Py_TYPE(value)->tp_name);
                 Py_DECREF(ks);
                 Py_XDECREF(ks8);
                 return 0;
@@ -3880,11 +3878,12 @@ int cfl_PyObject_GetAttr(PyObject *object,
         }
 
         if (!(allow_None && o == Py_None) && py_type && Py_TYPE(o) != py_type) {
-                Py_DECREF(o);
+                /* Format the message before dropping the reference:
+                 * the attribute may be a fresh object that dies with it. */
                 PyErr_Format(PyExc_TypeError,
                              "Expected .%s to be %s type, not %s", attr_name,
-                             py_type->tp_name,
-                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                             py_type->tp_name, Py_TYPE(o)->tp_name);
+                Py_DECREF(o);
                 return 0;
         }
 
@@ -3939,7 +3938,7 @@ int cfl_PyBool_get(PyObject *object, const char *name, int *valp) {
         if (!PyBool_Check(object)) {
                 PyErr_Format(PyExc_TypeError,
                              "Expected %s to be bool type, not %s", name,
-                             ((PyTypeObject *)PyObject_Type(object))->tp_name);
+                             Py_TYPE(object)->tp_name);
                 return 0;
         }
 
@@ -3988,11 +3987,10 @@ int cfl_PyObject_GetString(PyObject *object,
         }
 
         if (!(uo = cfl_PyObject_Unistr(o))) {
-                Py_DECREF(o);
                 PyErr_Format(PyExc_TypeError,
                              "Expected .%s to be a unicode string type, not %s",
-                             attr_name,
-                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                             attr_name, Py_TYPE(o)->tp_name);
+                Py_DECREF(o);
                 return 0;
         }
         Py_DECREF(o);
