@@ -15,13 +15,15 @@
 # limitations under the License.
 
 import asyncio
+import threading
 import time
 
 import pytest
 
-from confluent_kafka import KafkaException
+from confluent_kafka import KafkaError, KafkaException, Producer, ShareConsumer
+from confluent_kafka.admin import AdminClient
 from confluent_kafka.aio import AIOConsumer
-from tests.common import TestConsumer
+from tests.common import TestConsumer, TestUtils
 
 
 def get_oauth_config(oauth_cb, session_timeout_ms=1000):
@@ -141,6 +143,111 @@ def test_oauth_cb_token_refresh_failure():
 
     kc.close()
     assert oauth_cb_count > 2
+
+
+def test_oauth_cb_token_refresh_invalid_return():
+    """
+    A token refresh whose oauth_cb returns an invalid value is retried, as when
+    the callback raises, and error_cb gets the callback's error. The client
+    used to never refresh its token again.
+    """
+    oauth_cb_count = 0
+    errors = []
+
+    def oauth_cb(oauth_config):
+        nonlocal oauth_cb_count
+        oauth_cb_count += 1
+        if oauth_cb_count == 2:
+            return 'just-a-token-string'  # not a (token, expiry, ...) tuple
+        return 'token', time.time() + 3
+
+    conf = get_oauth_config(oauth_cb)
+    conf['error_cb'] = errors.append
+    kc = TestConsumer(conf)
+    assert oauth_cb_count == 1
+
+    # The refresh fails about 2.4 seconds in and is retried 10 seconds later.
+    deadline = time.monotonic() + 16
+    while oauth_cb_count <= 2 and time.monotonic() < deadline:
+        kc.poll(0.5)
+
+    kc.close()
+    assert oauth_cb_count > 2
+    assert any(
+        e.code() == KafkaError._AUTHENTICATION and "oauth_cb failed: TypeError: expect returned value" in e.str()
+        for e in errors
+    ), errors
+
+
+def _raise_runtime_error(oauth_config):
+    raise RuntimeError("no token today")
+
+
+def _return_bare_string(oauth_config):
+    return 'just-a-token-string'  # not a (token, expiry, ...) tuple
+
+
+OAUTH_CB_FAILURES = {
+    'raises': (_raise_runtime_error, "oauth_cb failed: RuntimeError: no token today"),
+    'invalid-return': (_return_bare_string, "oauth_cb failed: TypeError: expect returned value from oauth_cb"),
+}
+
+
+def _make_client(kind, oauth_cb, error_cb):
+    conf = {
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+        'error_cb': error_cb,
+    }
+    if kind == 'producer':
+        return Producer(conf)
+    if kind == 'admin':
+        return AdminClient(conf)
+    if kind == 'share-consumer':
+        return ShareConsumer(dict(conf, **{'group.id': 'test', 'bootstrap.servers': 'localhost:19999'}))
+    return TestConsumer(dict(conf, **{'group.id': 'test', 'session.timeout.ms': 1000}))
+
+
+@pytest.mark.parametrize('failure', sorted(OAUTH_CB_FAILURES))
+@pytest.mark.parametrize('kind', ['consumer', 'producer', 'admin', 'share-consumer'])
+def test_oauth_cb_failure_fails_construction_with_its_error(kind, failure):
+    """
+    A failed oauth_cb makes the constructor raise the callback's error right
+    away. It used to wait out the 10 second token timeout and raise a timeout
+    error, or a SystemError for a consumer with an error_cb.
+    """
+    oauth_cb, message = OAUTH_CB_FAILURES[failure]
+    errors = []
+
+    start = time.monotonic()
+    with pytest.raises(KafkaException) as exc_info:
+        _make_client(kind, oauth_cb, errors.append)
+    assert time.monotonic() - start < 5
+
+    error = exc_info.value.args[0]
+    assert error.code() == KafkaError.SASL_AUTHENTICATION_FAILED
+    assert message in error.str()
+
+
+def test_oauth_cb_token_wait_is_interruptible():
+    """
+    Ctrl+C while the constructor waits for the first token raises
+    KeyboardInterrupt. The wait used to ignore it, then fail with a
+    SystemError once the token came.
+    """
+
+    def oauth_cb(oauth_config):
+        time.sleep(2)
+        return 'token', time.time() + 300.0
+
+    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.3))
+    interrupt_thread.daemon = True
+    interrupt_thread.start()
+
+    with pytest.raises(KeyboardInterrupt):
+        TestConsumer(get_oauth_config(oauth_cb))
 
 
 # Async IO Consumer Tests
