@@ -308,6 +308,32 @@ def test_lookup_schema_cache_format(mock_schema_registry):
     count_after = COUNTER['POST'].get('/subjects/test-lookup', 0)
     assert count_after - count_before == 2
 
+    # Subsequent get_schema with fmt='serialized' must return formatted schema from response index
+    cached_get = sr.get_schema(serialized.schema_id, subject_name='test-lookup', fmt='serialized')
+    assert cached_get.schema_str == 'basic_schema_string_serialized'
+    if serialized.guid:
+        cached_guid = sr.get_schema_by_guid(serialized.guid, fmt='serialized')
+        assert cached_guid.schema_str == 'basic_schema_string_serialized'
+
+
+def test_get_latest_version_single_cache_slot(mock_schema_registry):
+    """Verify default-format result consumes only one slot in bounded cache."""
+    conf = {'url': TEST_URL, 'cache.capacity': 2}
+    sr = SchemaRegistryClient(conf)
+
+    # First fetch for subject1 and subject2
+    sr.get_latest_version('subject1')
+    sr.get_latest_version('subject2')
+
+    count_after_first = COUNTER['GET'].get('/subjects/subject1/versions/latest', 0)
+
+    # Alternating access should not evict when capacity is 2
+    sr.get_latest_version('subject1')
+    sr.get_latest_version('subject2')
+
+    count_after_second = COUNTER['GET'].get('/subjects/subject1/versions/latest', 0)
+    assert count_after_second == count_after_first
+
 
 def test_get_schema_types(mock_schema_registry):
     conf = {'url': TEST_URL}

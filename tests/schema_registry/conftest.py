@@ -436,9 +436,7 @@ def get_subject_metadata_callback(request, route):
 
     fmt = request.url.params.get('format')
     schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
-    return Response(
-        200, json={'subject': subject, 'id': SCHEMA_ID, 'version': VERSION, 'schema': schema_str}
-    )
+    return Response(200, json={'subject': subject, 'id': SCHEMA_ID, 'version': VERSION, 'schema': schema_str})
 
 
 def get_subject_version_callback(request, route):
@@ -457,9 +455,7 @@ def get_subject_version_callback(request, route):
         return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
     fmt = request.url.params.get('format')
     schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
-    return Response(
-        200, json={'subject': subject, 'id': SCHEMA_ID, 'version': version_num, 'schema': schema_str}
-    )
+    return Response(200, json={'subject': subject, 'id': SCHEMA_ID, 'version': version_num, 'schema': schema_str})
 
 
 def delete_subject_version_callback(request, route):

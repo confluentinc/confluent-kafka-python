@@ -169,17 +169,17 @@ class _SchemaCache(object):
         version = registered_schema.version
         with self.lock:
             if schema_id is not None:
-                self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, schema)
+                self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, registered_schema.schema)
                 if fmt is None and reference_format is None:
-                    self.schema_id_index[subject][schema_id] = (guid, schema)
+                    self.schema_id_index[subject][schema_id] = (guid, registered_schema.schema)
                 self.schema_index[subject][schema] = schema_id
                 self.rs_id_index[subject][(schema_id, fmt, reference_format)] = registered_schema
                 if fmt is None and reference_format is None:
                     self.rs_id_index[subject][schema_id] = registered_schema
             if guid is not None:
-                self.schema_guid_index[(guid, fmt)] = schema
+                self.schema_guid_index[(guid, fmt)] = registered_schema.schema
                 if fmt is None:
-                    self.schema_guid_index[guid] = schema
+                    self.schema_guid_index[guid] = registered_schema.schema
             if version is not None:
                 self.rs_version_index[subject][(version, fmt)] = registered_schema
                 if fmt is None:
@@ -381,8 +381,9 @@ class _SchemaCache(object):
                         if k_id == rs.schema_id:
                             del self.schema_id_index[subject][key]
                 if subject in self.schema_index:
-                    if rs.schema in self.schema_index[subject]:
-                        del self.schema_index[subject][rs.schema]
+                    for s, sid in list(self.schema_index[subject].items()):
+                        if sid == rs.schema_id:
+                            del self.schema_index[subject][s]
 
     def clear(self):
         """

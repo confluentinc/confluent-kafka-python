@@ -1134,11 +1134,11 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        cache_key = (subject_name, fmt)
+        cache_key = subject_name if fmt is None else (subject_name, fmt)
         async with self._latest_lock:
             registered_schema = self._latest_version_cache.get(cache_key, None)
             if registered_schema is None and fmt is None:
-                registered_schema = self._latest_version_cache.get(subject_name, None)
+                registered_schema = self._latest_version_cache.get((subject_name, None), None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1151,8 +1151,6 @@ class AsyncSchemaRegistryClient(object):
 
         async with self._latest_lock:
             self._latest_version_cache[cache_key] = registered_schema
-            if fmt is None:
-                self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1175,12 +1173,17 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
         """  # noqa: E501
 
-        cache_key = (subject_name, frozenset(metadata.items()), deleted, fmt)
-        legacy_cache_key = (subject_name, frozenset(metadata.items()), deleted)
+        cache_key = (
+            (subject_name, frozenset(metadata.items()), deleted)
+            if fmt is None
+            else (subject_name, frozenset(metadata.items()), deleted, fmt)
+        )
         async with self._latest_lock:
             registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
             if registered_schema is None and fmt is None:
-                registered_schema = self._latest_with_metadata_cache.get(legacy_cache_key, None)
+                registered_schema = self._latest_with_metadata_cache.get(
+                    (subject_name, frozenset(metadata.items()), deleted, None), None
+                )
         if registered_schema is not None:
             return registered_schema
 
@@ -1198,8 +1201,6 @@ class AsyncSchemaRegistryClient(object):
 
         async with self._latest_lock:
             self._latest_with_metadata_cache[cache_key] = registered_schema
-            if fmt is None:
-                self._latest_with_metadata_cache[legacy_cache_key] = registered_schema
 
         return registered_schema
 
