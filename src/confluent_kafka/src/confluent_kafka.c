@@ -3911,7 +3911,7 @@ int cfl_PyObject_GetAttr(PyObject *object,
 
 /**
  * @brief Get attribute \p attr_name from \p object and make sure it is
- *        an integer type.
+ *        an integer type with a value that fits in an int.
  *
  * @returns 1 if \p valp was updated with either the object value, or \p defval.
  *          0 if an exception was raised.
@@ -3922,6 +3922,8 @@ int cfl_PyObject_GetInt(PyObject *object,
                         int defval,
                         int required) {
         PyObject *o;
+        long v;
+        int overflow;
 
         if (!cfl_PyObject_GetAttr(object, attr_name, &o,
 #ifdef PY3
@@ -3937,8 +3939,16 @@ int cfl_PyObject_GetInt(PyObject *object,
                 return 1;
         }
 
-        *valp = cfl_PyInt_AsInt(o);
+        v = PyLong_AsLongAndOverflow(o, &overflow);
         Py_DECREF(o);
+        if (v == -1 && PyErr_Occurred())
+                return 0;
+        if (overflow || v < INT_MIN || v > INT_MAX) {
+                PyErr_Format(PyExc_OverflowError,
+                             "Expected .%s to fit in a C int", attr_name);
+                return 0;
+        }
+        *valp = (int)v;
 
         return 1;
 }

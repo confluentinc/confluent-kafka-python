@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import concurrent.futures
 import sys
+from enum import IntEnum
 
 import pytest
 
@@ -1071,6 +1072,37 @@ def test_alter_user_scram_credentials_api():
             a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
         with pytest.raises(TypeError):
             a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+
+
+class _Iterations(IntEnum):
+    DEFAULT = 4096
+
+
+@pytest.mark.parametrize(
+    "iterations,error",
+    [
+        (4096.0, TypeError),
+        (_Iterations.DEFAULT, TypeError),
+        (True, TypeError),
+        (2**31, OverflowError),
+        (2**100, OverflowError),
+    ],
+    ids=["float", "IntEnum", "bool", "2**31", "2**100"],
+)
+def test_alter_user_scram_credentials_iterations_not_a_c_int(iterations, error):
+    """The checks of alter_user_scram_credentials() let these iteration counts
+    through, and the request was sent with an uninitialized or truncated one."""
+    with AdminClient({"socket.timeout.ms": 10}) as a:
+        info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, iterations)
+        with pytest.raises(error, match=r"\.iterations"):
+            a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", info, b"password")])
+
+
+def test_alter_user_scram_credentials_iterations_int_max():
+    with AdminClient({"socket.timeout.ms": 10}) as a:
+        info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 2**31 - 1)
+        futmap = a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", info, b"password")])
+        assert list(futmap) == ["sam"]
 
 
 def test_list_offsets_api():
