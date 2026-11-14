@@ -96,7 +96,7 @@ def test_kafkaError_custom_msg():
 
 def test_kafkaError_unknown_error():
     with pytest.raises(KafkaException, match="Err-12345?") as e:
-        raise KafkaError(12345)
+        raise KafkaException(KafkaError(12345))
     assert not e.value.args[0].fatal()
     assert not e.value.args[0].retriable()
     assert not e.value.args[0].txn_requires_abort()
