@@ -834,7 +834,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        result = self._cache.get_schema_by_id(subject_name, schema_id)
+        result = self._cache.get_schema_by_id(subject_name, schema_id, fmt=fmt, reference_format=reference_format)
         if result is not None:
             return result[1]
 
@@ -849,9 +849,21 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        self._cache.set_schema(
+            subject_name,
+            schema_id,
+            registered_schema.guid,
+            registered_schema.schema,
+            fmt=fmt,
+            reference_format=reference_format,
+        )
         if subject_name is not None:
-            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+            self._cache.set_registered_schema(
+                registered_schema.schema,
+                registered_schema,
+                fmt=fmt,
+                reference_format=reference_format,
+            )
 
         return registered_schema.schema
 
@@ -875,7 +887,7 @@ class AsyncSchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        schema = self._cache.get_schema_by_guid(guid)
+        schema = self._cache.get_schema_by_guid(guid, fmt=fmt)
         if schema is not None:
             return schema
 
@@ -886,7 +898,13 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(None, registered_schema.schema_id, registered_schema.guid, registered_schema.schema)
+        self._cache.set_schema(
+            None,
+            registered_schema.schema_id,
+            registered_schema.guid,
+            registered_schema.schema,
+            fmt=fmt,
+        )
 
         return registered_schema.schema
 
@@ -1003,7 +1021,7 @@ class AsyncSchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
-        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
+        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema, fmt=fmt)
         if registered_schema is not None:
             return registered_schema
 
@@ -1021,16 +1039,19 @@ class AsyncSchemaRegistryClient(object):
 
         result = RegisteredSchema.from_dict(response)
 
-        # Ensure the schema matches the input
+        # Ensure the schema matches the input when fmt is None, or use formatted schema if fmt is specified
+        ret_schema = (
+            schema if (fmt is None or result.schema is None or result.schema.schema_str is None) else result.schema
+        )
         registered_schema = RegisteredSchema(
             schema_id=result.schema_id,
             guid=result.guid,
             subject=result.subject,
             version=result.version,
-            schema=schema,
+            schema=ret_schema,
         )
 
-        self._cache.set_registered_schema(schema, registered_schema)
+        self._cache.set_registered_schema(schema, registered_schema, fmt=fmt)
 
         return registered_schema
 
@@ -1113,8 +1134,11 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
+        cache_key = subject_name if fmt is None else (subject_name, fmt)
         async with self._latest_lock:
-            registered_schema = self._latest_version_cache.get(subject_name, None)
+            registered_schema = self._latest_version_cache.get(cache_key, None)
+            if registered_schema is None and fmt is None:
+                registered_schema = self._latest_version_cache.get((subject_name, None), None)
         if registered_schema is not None:
             return registered_schema
 
@@ -1126,7 +1150,7 @@ class AsyncSchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         async with self._latest_lock:
-            self._latest_version_cache[subject_name] = registered_schema
+            self._latest_version_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1149,9 +1173,17 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
         """  # noqa: E501
 
-        cache_key = (subject_name, frozenset(metadata.items()), deleted)
+        cache_key = (
+            (subject_name, frozenset(metadata.items()), deleted)
+            if fmt is None
+            else (subject_name, frozenset(metadata.items()), deleted, fmt)
+        )
         async with self._latest_lock:
             registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
+            if registered_schema is None and fmt is None:
+                registered_schema = self._latest_with_metadata_cache.get(
+                    (subject_name, frozenset(metadata.items()), deleted, None), None
+                )
         if registered_schema is not None:
             return registered_schema
 
@@ -1199,7 +1231,7 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
 
         if version != "latest":  # Skip cache lookup for reading the latest version
-            registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
+            registered_schema = self._cache.get_registered_by_subject_version(subject_name, version, fmt=fmt)
             if registered_schema is not None:
                 return registered_schema
 
@@ -1210,7 +1242,7 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+        self._cache.set_registered_schema(registered_schema.schema, registered_schema, fmt=fmt)
 
         return registered_schema
 

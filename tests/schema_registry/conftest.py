@@ -229,11 +229,13 @@ def mock_schema_registry():
         respx_mock.delete(MODE_RE).mock(side_effect=delete_mode_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
+        respx_mock.get(SCHEMAS_GUIDS_RE).mock(side_effect=get_schemas_guids_callback)
         respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
         respx_mock.get(SCHEMAS_SUBJECTS_RE).mock(side_effect=get_schema_subjects_callback)
         respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
 
         respx_mock.get(SUBJECTS_VERSIONS_REFERENCED_BY_RE).mock(side_effect=get_subject_version_referenced_by_callback)
+        respx_mock.get(SUBJECTS_METADATA_RE).mock(side_effect=get_subject_metadata_callback)
         respx_mock.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
         respx_mock.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
         respx_mock.post(SUBJECTS_VERSIONS_RE).mock(side_effect=post_subject_version_callback)
@@ -246,7 +248,8 @@ def mock_schema_registry():
 
 
 # request paths
-SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
+SCHEMAS_RE = re.compile(r"/schemas/ids/([0-9]*)(\?.*)?$")
+SCHEMAS_GUIDS_RE = re.compile(r"/schemas/guids/(.*)$")
 SCHEMAS_VERSIONS_RE = re.compile(r"/schemas/ids/([0-9]*)/versions(\?.*)?$")
 SCHEMAS_SUBJECTS_RE = re.compile(r"/schemas/ids/([0-9]*)/subjects(\?.*)?$")
 SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
@@ -255,6 +258,7 @@ SUBJECTS_RE = re.compile("/subjects/?(.*)$")
 SUBJECTS_VERSIONS_RE = re.compile("/subjects/(.*)/versions/?(.*)$")
 SUBJECTS_VERSIONS_SCHEMA_RE = re.compile(r"/subjects/(.*)/versions/(.*)/schema(\?.*)?$")
 SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile(r"/subjects/(.*)/versions/(.*)/referencedby(\?.*)?$")
+SUBJECTS_METADATA_RE = re.compile(r"/subjects/(.*)/metadata(\?.*)?$")
 
 CONFIG_RE = re.compile("/config/?(.*)$")
 
@@ -379,7 +383,9 @@ def post_subject_callback(request, route):
         return Response(404, json={'error_code': 40403, 'message': "Schema not found"})
 
     body = json.loads(request.content.decode('utf-8'))
-    return Response(200, json={'subject': subject, "id": SCHEMA_ID, "version": VERSION, "schema": body['schema']})
+    fmt = request.url.params.get('format')
+    schema_str = f"{body['schema']}_{fmt}" if fmt else body['schema']
+    return Response(200, json={'subject': subject, "id": SCHEMA_ID, "version": VERSION, "schema": schema_str})
 
 
 def get_schemas_callback(request, route):
@@ -391,7 +397,20 @@ def get_schemas_callback(request, route):
     if int(schema_id) == 404:
         return Response(404, json={'error_code': 40403, 'message': "Schema not found"})
 
-    return Response(200, json={'schema': _load_avsc(SCHEMA)})
+    fmt = request.url.params.get('format')
+    schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
+    return Response(200, json={'schema': schema_str})
+
+
+def get_schemas_guids_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+
+    path_match = re.match(SCHEMAS_GUIDS_RE, request.url.path)
+    guid = path_match.group(1)
+
+    fmt = request.url.params.get('format')
+    schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
+    return Response(200, json={'guid': guid, 'schema': schema_str})
 
 
 def get_schema_subjects_callback(request, route):
@@ -409,6 +428,17 @@ def get_schema_versions_callback(request, route):
     return Response(200, json=[{'subject': 'subject1', 'version': 1}, {'subject': 'subject2', 'version': 2}])
 
 
+def get_subject_metadata_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+
+    path_match = re.match(SUBJECTS_METADATA_RE, request.url.path)
+    subject = path_match.group(1)
+
+    fmt = request.url.params.get('format')
+    schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
+    return Response(200, json={'subject': subject, 'id': SCHEMA_ID, 'version': VERSION, 'schema': schema_str})
+
+
 def get_subject_version_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
 
@@ -423,9 +453,9 @@ def get_subject_version_callback(request, route):
         return Response(422, json={'error_code': 42202, 'message': "Invalid version"})
     if subject == 'notfound':
         return Response(404, json={'error_code': 40401, 'message': "Subject not found"})
-    return Response(
-        200, json={'subject': subject, 'id': SCHEMA_ID, 'version': version_num, 'schema': _load_avsc(SCHEMA)}
-    )
+    fmt = request.url.params.get('format')
+    schema_str = f"{_load_avsc(SCHEMA)}_{fmt}" if fmt else _load_avsc(SCHEMA)
+    return Response(200, json={'subject': subject, 'id': SCHEMA_ID, 'version': version_num, 'schema': schema_str})
 
 
 def delete_subject_version_callback(request, route):

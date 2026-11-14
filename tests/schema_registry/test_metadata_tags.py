@@ -100,3 +100,61 @@ def test_schema_cache_with_metadata_tags():
     )
     cache.set_registered_schema(schema, registered_schema)
     assert cache.rs_schema_index["user-value"][schema_lookup] == registered_schema
+
+
+def test_schema_cache_format_isolation():
+    cache = _SchemaCache()
+    raw_schema = Schema('syntax = "proto3";', schema_type="PROTOBUF")
+    serialized_schema = Schema('Cg1leGFtcGxlLnByb3Rv', schema_type="PROTOBUF")
+
+    # set_schema format isolation
+    cache.set_schema("user-value", 1, "guid-1", raw_schema)
+    cache.set_schema("user-value", 1, "guid-1", serialized_schema, fmt="serialized")
+
+    assert cache.get_schema_by_id("user-value", 1)[1] == raw_schema
+    assert cache.get_schema_by_id("user-value", 1, fmt="serialized")[1] == serialized_schema
+    assert cache.get_schema_by_guid("guid-1") == raw_schema
+    assert cache.get_schema_by_guid("guid-1", fmt="serialized") == serialized_schema
+
+    # set_registered_schema format isolation
+    rs_raw = RegisteredSchema(schema_id=1, schema=raw_schema, subject="user-value", version=1, guid="guid-1")
+    rs_serialized = RegisteredSchema(
+        schema_id=1, schema=serialized_schema, subject="user-value", version=1, guid="guid-1"
+    )
+
+    cache.set_registered_schema(raw_schema, rs_raw)
+    cache.set_registered_schema(serialized_schema, rs_serialized, fmt="serialized")
+
+    assert cache.get_registered_by_subject_version("user-value", 1) == rs_raw
+    assert cache.get_registered_by_subject_version("user-value", 1, fmt="serialized") == rs_serialized
+    assert cache.get_registered_by_subject_schema("user-value", raw_schema) == rs_raw
+    assert cache.get_registered_by_subject_schema("user-value", serialized_schema, fmt="serialized") == rs_serialized
+    assert cache.get_registered_by_subject_id("user-value", 1) == rs_raw
+    assert cache.get_registered_by_subject_id("user-value", 1, fmt="serialized") == rs_serialized
+
+    # remove_by_subject_version cleans all format variants
+    cache.remove_by_subject_version("user-value", 1)
+    assert cache.get_registered_by_subject_version("user-value", 1) is None
+    assert cache.get_registered_by_subject_version("user-value", 1, fmt="serialized") is None
+    assert cache.get_schema_by_id("user-value", 1) is None
+    assert cache.get_schema_by_id("user-value", 1, fmt="serialized") is None
+    assert cache.get_id_by_schema("user-value", raw_schema) is None
+    assert cache.get_id_by_schema("user-value", serialized_schema) is None
+
+
+def test_schema_cache_lookup_schema_response_indexes():
+    """Verify formatted lookup_schema stores response schema in ID and GUID indexes."""
+    cache = _SchemaCache()
+    raw_schema = Schema('syntax = "proto3";', schema_type="PROTOBUF")
+    serialized_schema = Schema('Cg1leGFtcGxlLnByb3Rv', schema_type="PROTOBUF")
+
+    rs = RegisteredSchema(schema_id=42, schema=serialized_schema, subject="test-sub", version=1, guid="guid-42")
+    cache.set_registered_schema(raw_schema, rs, fmt="serialized")
+
+    # ID and GUID indexes must return the formatted response schema
+    assert cache.get_schema_by_id("test-sub", 42, fmt="serialized")[1] == serialized_schema
+    assert cache.get_schema_by_guid("guid-42", fmt="serialized") == serialized_schema
+
+    # Schema-based indexes must key by the input schema
+    assert cache.get_id_by_schema("test-sub", raw_schema) == 42
+    assert cache.get_registered_by_subject_schema("test-sub", raw_schema, fmt="serialized") == rs
