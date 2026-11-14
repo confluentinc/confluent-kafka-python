@@ -3129,6 +3129,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                                             PyObject *kwargs) {
         PyObject *request, *future, *require_stable_obj = NULL;
         int requests_cnt;
+        int r;
         struct Admin_options options                = Admin_options_INITIALIZER;
         PyObject *ConsumerGroupTopicPartitions_type = NULL;
         rd_kafka_AdminOptions_t *c_options          = NULL;
@@ -3209,8 +3210,11 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        if (!PyObject_IsInstance(single_request,
-                                 ConsumerGroupTopicPartitions_type)) {
+        r = PyObject_IsInstance(single_request,
+                                ConsumerGroupTopicPartitions_type);
+        if (r == -1)
+                goto err; /* Exception raised by IsInstance() */
+        if (!r) {
                 PyErr_SetString(PyExc_ImportError,
                                 "Each request should be of "
                                 "ConsumerGroupTopicPartitions type");
@@ -3227,12 +3231,13 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        cfl_PyObject_GetAttr(single_request, "topic_partitions",
-                             &topic_partitions, &PyList_Type, 0, 1);
+        if (!cfl_PyObject_GetAttr(single_request, "topic_partitions",
+                                  &topic_partitions, &PyList_Type, 1, 1))
+                goto err;
 
-        if (topic_partitions != Py_None) {
-                c_topic_partitions = py_to_c_parts(topic_partitions);
-        }
+        if (topic_partitions != Py_None &&
+            !(c_topic_partitions = py_to_c_parts(topic_partitions)))
+                goto err; /* Exception raised by py_to_c_parts() */
 
         c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) *
                        requests_cnt);
@@ -3316,6 +3321,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                                              PyObject *kwargs) {
         PyObject *request, *future;
         int requests_cnt;
+        int r;
         struct Admin_options options                = Admin_options_INITIALIZER;
         PyObject *ConsumerGroupTopicPartitions_type = NULL;
         rd_kafka_AdminOptions_t *c_options          = NULL;
@@ -3391,8 +3397,11 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        if (!PyObject_IsInstance(single_request,
-                                 ConsumerGroupTopicPartitions_type)) {
+        r = PyObject_IsInstance(single_request,
+                                ConsumerGroupTopicPartitions_type);
+        if (r == -1)
+                goto err; /* Exception raised by IsInstance() */
+        if (!r) {
                 PyErr_SetString(PyExc_ImportError,
                                 "Each request should be of "
                                 "ConsumerGroupTopicPartitions type");
@@ -3409,12 +3418,18 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-        cfl_PyObject_GetAttr(single_request, "topic_partitions",
-                             &topic_partitions, &PyList_Type, 0, 1);
+        if (!cfl_PyObject_GetAttr(single_request, "topic_partitions",
+                                  &topic_partitions, &PyList_Type, 1, 1))
+                goto err;
 
-        if (topic_partitions != Py_None) {
-                c_topic_partitions = py_to_c_parts(topic_partitions);
+        if (topic_partitions == Py_None) {
+                PyErr_SetString(PyExc_ValueError,
+                                "topic_partitions is mandatory for alter "
+                                "consumer offset operation");
+                goto err;
         }
+        if (!(c_topic_partitions = py_to_c_parts(topic_partitions)))
+                goto err; /* Exception raised by py_to_c_parts() */
 
         c_obj    = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) *
                           requests_cnt);
