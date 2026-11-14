@@ -29,6 +29,9 @@
   from `os.fsdecode()`: a NULL pointer was passed on to librdkafka. These now raise
   `UnicodeEncodeError`, and `Producer.produce_batch()` no longer queues the message with
   an empty value or key before raising it.
+- Fix `AdminClient.alter_user_scram_credentials()` giving an upsertion without a salt
+  the salt of an earlier upsertion in the same call. Such an upsertion now gets a random
+  salt from librdkafka, as documented.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`

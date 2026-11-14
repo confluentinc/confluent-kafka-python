@@ -2399,99 +2399,115 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
 
         for (i = 0; i < c_alteration_cnt; i++) {
                 PyObject *alteration = PyList_GET_ITEM(alterations, i);
-                if (!PyObject_IsInstance(alteration,
-                                         UserScramCredentialAlteration_type)) {
+                int r;
+
+                r = PyObject_IsInstance(alteration,
+                                        UserScramCredentialAlteration_type);
+                if (r == -1)
+                        goto err; /* Exception raised by IsInstance() */
+                if (!r) {
                         PyErr_Format(PyExc_TypeError,
                                      "Alteration %d: should be a "
                                      "UserScramCredentialAlteration"
                                      ", got %s",
-                                     i,
-                                     ((PyTypeObject *)PyObject_Type(alteration))
-                                         ->tp_name);
+                                     i, Py_TYPE(alteration)->tp_name);
                         goto err;
                 }
 
-                cfl_PyObject_GetAttr(alteration, "user", &user, NULL, 1, 1);
+                if (!cfl_PyObject_GetAttr(alteration, "user", &user, NULL, 1,
+                                          1))
+                        goto err;
                 if (user == Py_None || !(u_user = cfl_PyObject_Unistr(user))) {
                         PyErr_Format(
                             PyExc_TypeError,
                             "Alteration %d: user field should be a string, got "
                             "%s",
-                            i, ((PyTypeObject *)PyObject_Type(user))->tp_name);
+                            i, Py_TYPE(user)->tp_name);
                         goto err;
                 }
 
-                Py_DECREF(user);
+                Py_CLEAR(user);
                 if (!(c_user = cfl_PyUnistr_AsUTF8(u_user, &uo_user)))
                         goto err; /* e.g. UnicodeEncodeError */
 
-                if (PyObject_IsInstance(alteration,
-                                        UserScramCredentialUpsertion_type)) {
+                r = PyObject_IsInstance(alteration,
+                                        UserScramCredentialUpsertion_type);
+                if (r == -1)
+                        goto err;
+                if (r) {
                         /* Upsertion Type*/
-                        cfl_PyObject_GetAttr(
-                            alteration, "scram_credential_info",
-                            &scram_credential_info, NULL, 0, 0);
-                        if (!PyObject_IsInstance(scram_credential_info,
-                                                 ScramCredentialInfo_type)) {
-                                PyErr_Format(PyExc_TypeError,
-                                             "Alteration %d: field "
-                                             "\"scram_credential_info\" "
-                                             "should be a ScramCredentialInfo"
-                                             ", got %s",
-                                             i,
-                                             ((PyTypeObject *)PyObject_Type(
-                                                  scram_credential_info))
-                                                 ->tp_name);
+                        if (!cfl_PyObject_GetAttr(
+                                alteration, "scram_credential_info",
+                                &scram_credential_info, NULL, 1, 0))
+                                goto err;
+                        r = PyObject_IsInstance(scram_credential_info,
+                                                ScramCredentialInfo_type);
+                        if (r == -1)
+                                goto err;
+                        if (!r) {
+                                PyErr_Format(
+                                    PyExc_TypeError,
+                                    "Alteration %d: field "
+                                    "\"scram_credential_info\" "
+                                    "should be a ScramCredentialInfo"
+                                    ", got %s",
+                                    i, Py_TYPE(scram_credential_info)->tp_name);
                                 goto err;
                         }
 
-                        cfl_PyObject_GetInt(scram_credential_info, "iterations",
-                                            &iterations, 0, 1);
-                        cfl_PyObject_GetAttr(scram_credential_info, "mechanism",
-                                             &mechanism, NULL, 0, 0);
-                        if (!PyObject_IsInstance(mechanism,
-                                                 ScramMechanism_type)) {
+                        if (!cfl_PyObject_GetInt(scram_credential_info,
+                                                 "iterations", &iterations, 0,
+                                                 1) ||
+                            !cfl_PyObject_GetAttr(scram_credential_info,
+                                                  "mechanism", &mechanism, NULL,
+                                                  1, 0))
+                                goto err;
+                        r = PyObject_IsInstance(mechanism, ScramMechanism_type);
+                        if (r == -1)
+                                goto err;
+                        if (!r) {
                                 PyErr_Format(
                                     PyExc_TypeError,
                                     "Alteration %d: field "
                                     "\"scram_credential_info."
                                     "mechanism\" should be a ScramMechanism"
                                     ", got %s",
-                                    i,
-                                    ((PyTypeObject *)PyObject_Type(mechanism))
-                                        ->tp_name);
+                                    i, Py_TYPE(mechanism)->tp_name);
                                 goto err;
                         }
-                        cfl_PyObject_GetInt(mechanism, "value", &c_mechanism, 0,
-                                            1);
+                        if (!cfl_PyObject_GetInt(mechanism, "value",
+                                                 &c_mechanism, 0, 1))
+                                goto err;
 
-                        cfl_PyObject_GetAttr(alteration, "password", &password,
-                                             NULL, 0, 0);
+                        if (!cfl_PyObject_GetAttr(alteration, "password",
+                                                  &password, NULL, 1, 0))
+                                goto err;
                         if (Py_TYPE(password) != &PyBytes_Type) {
                                 PyErr_Format(
                                     PyExc_TypeError,
                                     "Alteration %d: password field should be "
                                     "bytes, got %s",
-                                    i,
-                                    ((PyTypeObject *)PyObject_Type(password))
-                                        ->tp_name);
+                                    i, Py_TYPE(password)->tp_name);
                                 goto err;
                         }
                         PyBytes_AsStringAndSize(password, (char **)&c_password,
                                                 &c_password_size);
 
-                        cfl_PyObject_GetAttr(alteration, "salt", &salt, NULL, 0,
-                                             0);
+                        if (!cfl_PyObject_GetAttr(alteration, "salt", &salt,
+                                                  NULL, 1, 0))
+                                goto err;
                         if (salt != Py_None && Py_TYPE(salt) != &PyBytes_Type) {
                                 PyErr_Format(
                                     PyExc_TypeError,
                                     "Alteration %d: salt field should be "
                                     "bytes, got %s",
-                                    i,
-                                    ((PyTypeObject *)PyObject_Type(salt))
-                                        ->tp_name);
+                                    i, Py_TYPE(salt)->tp_name);
                                 goto err;
                         }
+                        /* Without a salt, librdkafka generates a random one:
+                         * don't pass on the previous alteration's. */
+                        c_salt      = NULL;
+                        c_salt_size = 0;
                         if (salt != Py_None) {
                                 PyBytes_AsStringAndSize(salt, (char **)&c_salt,
                                                         &c_salt_size);
@@ -2511,25 +2527,40 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
                         scram_credential_info = NULL;
                         mechanism             = NULL;
 
-                } else if (PyObject_IsInstance(
-                               alteration, UserScramCredentialDeletion_type)) {
+                } else {
+                        r = PyObject_IsInstance(
+                            alteration, UserScramCredentialDeletion_type);
+                        if (r == -1)
+                                goto err;
+                        if (!r) {
+                                PyErr_Format(
+                                    PyExc_TypeError,
+                                    "Alteration %d: should be a "
+                                    "UserScramCredentialUpsertion or "
+                                    "UserScramCredentialDeletion, got %s",
+                                    i, Py_TYPE(alteration)->tp_name);
+                                goto err;
+                        }
+
                         /* Deletion Type*/
-                        cfl_PyObject_GetAttr(alteration, "mechanism",
-                                             &mechanism, NULL, 0, 0);
-                        if (!PyObject_IsInstance(mechanism,
-                                                 ScramMechanism_type)) {
+                        if (!cfl_PyObject_GetAttr(alteration, "mechanism",
+                                                  &mechanism, NULL, 1, 0))
+                                goto err;
+                        r = PyObject_IsInstance(mechanism, ScramMechanism_type);
+                        if (r == -1)
+                                goto err;
+                        if (!r) {
                                 PyErr_Format(
                                     PyExc_TypeError,
                                     "Alteration %d: field \"mechanism\" "
                                     "should be a ScramMechanism"
                                     ", got %s",
-                                    i,
-                                    ((PyTypeObject *)PyObject_Type(mechanism))
-                                        ->tp_name);
+                                    i, Py_TYPE(mechanism)->tp_name);
                                 goto err;
                         }
-                        cfl_PyObject_GetInt(mechanism, "value", &c_mechanism, 0,
-                                            1);
+                        if (!cfl_PyObject_GetInt(mechanism, "value",
+                                                 &c_mechanism, 0, 1))
+                                goto err;
 
                         c_alterations[i] =
                             rd_kafka_UserScramCredentialDeletion_new(
@@ -2577,6 +2608,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         Py_RETURN_NONE;
 err:
 
+        Py_XDECREF(user);
         Py_XDECREF(u_user);
         Py_XDECREF(uo_user);
         Py_XDECREF(salt);
