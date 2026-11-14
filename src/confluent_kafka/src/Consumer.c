@@ -556,8 +556,7 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyObject *uo8;
                 rd_kafka_topic_partition_t *rktpar;
 
-                if (PyObject_Type((PyObject *)msg) !=
-                    (PyObject *)&MessageType) {
+                if (Py_TYPE(msg) != &MessageType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      MessageType.tp_name);
                         Handle_serialize_exit(self);
@@ -713,8 +712,7 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyObject *error;
                 PyObject *topic;
 
-                if (PyObject_Type((PyObject *)msg) !=
-                    (PyObject *)&MessageType) {
+                if (Py_TYPE(msg) != &MessageType) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      MessageType.tp_name);
                         goto done;
@@ -963,7 +961,7 @@ static PyObject *Consumer_seek(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
 
-        if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
+        if (Py_TYPE(tp) != &TopicPartitionType) {
                 PyErr_Format(PyExc_TypeError, "expected %s",
                              TopicPartitionType.tp_name);
                 goto done;
@@ -1030,7 +1028,7 @@ Consumer_get_watermark_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
 
-        if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
+        if (Py_TYPE(tp) != &TopicPartitionType) {
                 PyErr_Format(PyExc_TypeError, "expected %s",
                              TopicPartitionType.tp_name);
                 goto done;

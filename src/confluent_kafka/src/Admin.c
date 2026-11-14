@@ -850,11 +850,10 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 if (topic == Py_None ||
                     !(utopic = cfl_PyObject_Unistr(topic))) {
-                        PyErr_Format(
-                            PyExc_ValueError,
-                            "Expected list of topic strings, "
-                            "not %s",
-                            ((PyTypeObject *)PyObject_Type(topic))->tp_name);
+                        PyErr_Format(PyExc_ValueError,
+                                     "Expected list of topic strings, "
+                                     "not %s",
+                                     Py_TYPE(topic)->tp_name);
                         goto done;
                 }
 
@@ -2667,11 +2666,10 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 if (group == Py_None ||
                     !(ugroup = cfl_PyObject_Unistr(group))) {
-                        PyErr_Format(
-                            PyExc_ValueError,
-                            "Expected list of group strings, "
-                            "not %s",
-                            ((PyTypeObject *)PyObject_Type(group))->tp_name);
+                        PyErr_Format(PyExc_ValueError,
+                                     "Expected list of group strings, "
+                                     "not %s",
+                                     Py_TYPE(group)->tp_name);
                         goto err;
                 }
 
@@ -2806,12 +2804,10 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                         PyObject *uotopic = NULL;
 
                         if (topic == Py_None || !PyUnicode_Check(topic)) {
-                                PyErr_Format(
-                                    PyExc_TypeError,
-                                    "Expected list of topics strings, "
-                                    "not %s",
-                                    ((PyTypeObject *)PyObject_Type(topic))
-                                        ->tp_name);
+                                PyErr_Format(PyExc_TypeError,
+                                             "Expected list of topics strings, "
+                                             "not %s",
+                                             Py_TYPE(topic)->tp_name);
                                 goto err;
                         }
 
