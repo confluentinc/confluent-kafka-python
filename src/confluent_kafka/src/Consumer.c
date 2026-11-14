@@ -114,9 +114,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result = NULL;
         Py_ssize_t pos   = 0;
         rd_kafka_resp_err_t err;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_tlist = NULL;
-#endif
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws, &tlist,
                                          &on_assign, &on_revoke, &on_lost))
@@ -151,25 +149,28 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto done;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_tlist = PyList_GetSlice(tlist, 0, PY_SSIZE_T_MAX);
         if (!owned_tlist)
                 goto done;
         tlist = owned_tlist;
-#endif
 
         topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
         for (pos = 0; pos < PyList_Size(tlist); pos++) {
                 PyObject *o = PyList_GetItem(tlist, pos);
                 PyObject *uo, *uo8;
+                const char *topic;
                 if (!(uo = cfl_PyObject_Unistr(o))) {
                         PyErr_Format(PyExc_TypeError,
                                      "expected list of unicode strings");
                         rd_kafka_topic_partition_list_destroy(topics);
                         goto done;
                 }
-                rd_kafka_topic_partition_list_add(topics,
-                                                  cfl_PyUnistr_AsUTF8(uo, &uo8),
+                if (!(topic = cfl_PyUnistr_AsUTF8(uo, &uo8))) {
+                        Py_DECREF(uo);
+                        rd_kafka_topic_partition_list_destroy(topics);
+                        goto done; /* e.g. UnicodeEncodeError */
+                }
+                rd_kafka_topic_partition_list_add(topics, topic,
                                                   RD_KAFKA_PARTITION_UA);
                 Py_XDECREF(uo8);
                 Py_DECREF(uo);
@@ -219,9 +220,7 @@ Consumer_subscribe(Handle *self, PyObject *args, PyObject *kwargs) {
         result = Py_None;
 
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_tlist);
-#endif
         Handle_serialize_exit(self);
         return result;
 }
@@ -553,7 +552,8 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
         } else if (msg) {
                 Message *m;
-                PyObject *uo8;
+                PyObject *uo8 = NULL;
+                const char *c_topic;
                 rd_kafka_topic_partition_t *rktpar;
 
                 if (PyObject_Type((PyObject *)msg) !=
@@ -582,10 +582,17 @@ Consumer_commit(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic   = Message_topic(m, NULL);
+                c_topic = NULL; /* None topic: left to librdkafka, as before */
+                if (topic != Py_None &&
+                    !(c_topic = cfl_PyUnistr_AsUTF8(topic, &uo8))) {
+                        Py_DECREF(topic); /* e.g. UnicodeEncodeError */
+                        Handle_serialize_exit(self);
+                        return NULL;
+                }
                 c_offsets = rd_kafka_topic_partition_list_new(1);
-                rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
+                rktpar = rd_kafka_topic_partition_list_add(c_offsets, c_topic,
+                                                           m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);
@@ -708,7 +715,8 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto done;
         } else {
                 Message *m;
-                PyObject *uo8;
+                PyObject *uo8 = NULL;
+                const char *c_topic;
                 rd_kafka_topic_partition_t *rktpar;
                 PyObject *error;
                 PyObject *topic;
@@ -735,10 +743,16 @@ Consumer_store_offsets(Handle *self, PyObject *args, PyObject *kwargs) {
                 }
                 Py_DECREF(error);
 
-                topic     = Message_topic(m, NULL);
+                topic   = Message_topic(m, NULL);
+                c_topic = NULL; /* None topic: left to librdkafka, as before */
+                if (topic != Py_None &&
+                    !(c_topic = cfl_PyUnistr_AsUTF8(topic, &uo8))) {
+                        Py_DECREF(topic); /* e.g. UnicodeEncodeError */
+                        goto done;
+                }
                 c_offsets = rd_kafka_topic_partition_list_new(1);
-                rktpar    = rd_kafka_topic_partition_list_add(
-                    c_offsets, cfl_PyUnistr_AsUTF8(topic, &uo8), m->partition);
+                rktpar = rd_kafka_topic_partition_list_add(c_offsets, c_topic,
+                                                           m->partition);
                 rktpar->offset = m->offset + 1;
                 rd_kafka_topic_partition_set_leader_epoch(rktpar,
                                                           m->leader_epoch);

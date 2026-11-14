@@ -1935,9 +1935,7 @@ err:
 rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
         rd_kafka_topic_partition_list_t *c_parts;
         size_t i;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_plist = NULL;
-#endif
 
         if (!PyList_Check(plist)) {
                 PyErr_SetString(PyExc_TypeError,
@@ -1945,12 +1943,10 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                 return NULL;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_plist = PyList_GetSlice(plist, 0, PY_SSIZE_T_MAX);
         if (!owned_plist)
                 return NULL;
         plist = owned_plist;
-#endif
 
         c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
@@ -1963,9 +1959,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                         PyErr_Format(PyExc_TypeError, "expected %s",
                                      TopicPartitionType.tp_name);
                         rd_kafka_topic_partition_list_destroy(c_parts);
-#ifdef Py_GIL_DISABLED
                         Py_DECREF(owned_plist);
-#endif
                         return NULL;
                 }
 
@@ -1983,9 +1977,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts(PyObject *plist) {
                 }
         }
 
-#ifdef Py_GIL_DISABLED
         Py_DECREF(owned_plist);
-#endif
         return c_parts;
 }
 
@@ -2051,7 +2043,11 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
                 return 0;
         }
 
-        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+        if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8))) {
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
 
         if (value != Py_None) {
                 if (cfl_PyBin(_Check(value))) {
@@ -2111,12 +2107,10 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
 static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
         int i, len;
         rd_kafka_headers_t *rd_headers = NULL;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_hdrs = PyList_GetSlice(hdrs, 0, PY_SSIZE_T_MAX);
         if (!owned_hdrs)
                 return NULL;
         hdrs = owned_hdrs;
-#endif
 
         len        = (int)PyList_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -2129,24 +2123,18 @@ static rd_kafka_headers_t *py_headers_list_to_c(PyObject *hdrs) {
                         PyErr_SetString(PyExc_TypeError,
                                         "Headers are expected to be a "
                                         "list of (key, value) tuples");
-#ifdef Py_GIL_DISABLED
                         Py_DECREF(owned_hdrs);
-#endif
                         return NULL;
                 }
 
                 if (!py_header_to_c(rd_headers, PyTuple_GET_ITEM(tuple, 0),
                                     PyTuple_GET_ITEM(tuple, 1))) {
                         rd_kafka_headers_destroy(rd_headers);
-#ifdef Py_GIL_DISABLED
                         Py_DECREF(owned_hdrs);
-#endif
                         return NULL;
                 }
         }
-#ifdef Py_GIL_DISABLED
         Py_DECREF(owned_hdrs);
-#endif
         return rd_headers;
 }
 
@@ -2159,12 +2147,10 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
         Py_ssize_t pos                 = 0;
         rd_kafka_headers_t *rd_headers = NULL;
         PyObject *ko, *vo;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_hdrs = PyDict_Copy(hdrs);
         if (!owned_hdrs)
                 return NULL;
         hdrs = owned_hdrs;
-#endif
 
         len        = (int)PyDict_Size(hdrs);
         rd_headers = rd_kafka_headers_new(len);
@@ -2173,16 +2159,12 @@ static rd_kafka_headers_t *py_headers_dict_to_c(PyObject *hdrs) {
 
                 if (!py_header_to_c(rd_headers, ko, vo)) {
                         rd_kafka_headers_destroy(rd_headers);
-#ifdef Py_GIL_DISABLED
                         Py_DECREF(owned_hdrs);
-#endif
                         return NULL;
                 }
         }
 
-#ifdef Py_GIL_DISABLED
         Py_DECREF(owned_hdrs);
-#endif
         return rd_headers;
 }
 
@@ -2588,7 +2570,11 @@ static int py_extensions_to_c(char **extensions,
                 return 0;
         }
 
-        k     = cfl_PyUnistr_AsUTF8(ks, &ks8);
+        if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8))) {
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
         ksize = (Py_ssize_t)strlen(k);
 
         if (cfl_PyUnistr(_Check(value))) {
@@ -2709,14 +2695,12 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
         }
 
         if (extensions) {
-#ifdef Py_GIL_DISABLED
                 PyObject *owned_extensions = PyDict_Copy(extensions);
                 if (!owned_extensions) {
                         Py_DECREF(result);
                         goto err;
                 }
-                extensions = owned_extensions;
-#endif
+                extensions     = owned_extensions;
                 int len        = (int)PyDict_Size(extensions);
                 rd_extensions  = (char **)malloc(2 * len * sizeof(char *));
                 Py_ssize_t pos = 0;
@@ -2724,18 +2708,14 @@ oauth_cb(rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
                 while (PyDict_Next(extensions, &pos, &ko, &vo)) {
                         if (!py_extensions_to_c(rd_extensions,
                                                 rd_extensions_size, ko, vo)) {
-#ifdef Py_GIL_DISABLED
                                 Py_DECREF(owned_extensions);
-#endif
                                 Py_DECREF(result);
                                 free(rd_extensions);
                                 goto err;
                         }
                         rd_extensions_size = rd_extensions_size + 2;
                 }
-#ifdef Py_GIL_DISABLED
                 Py_DECREF(owned_extensions);
-#endif
         }
 
         err_code = rd_kafka_oauthbearer_set_token(
@@ -2983,7 +2963,12 @@ static int common_conf_set_special(PyObject *confdict,
                 return 0;
         }
 
-        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+        /* A NULL value would reset the property to its default */
+        if (!(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
+                Py_DECREF(vs);
+                Py_XDECREF(vs8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
         if (rd_kafka_conf_set(conf, name, v, errstr, sizeof(errstr)) !=
             RD_KAFKA_CONF_OK) {
                 cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "%s", errstr);
@@ -3317,7 +3302,8 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                         goto inner_err;
                 }
 
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8)))
+                        goto inner_err; /* e.g. UnicodeEncodeError */
                 if (!strcmp(k, "error_cb")) {
                         if (!PyCallable_Check(vo)) {
                                 PyErr_SetString(PyExc_TypeError,
@@ -3434,7 +3420,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                                 "unicode string");
                                 goto inner_err;
                         }
-                        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+                        /* A NULL value would reset the property */
+                        if (!(v = cfl_PyUnistr_AsUTF8(vs, &vs8)))
+                                goto inner_err; /* e.g. UnicodeEncodeError */
                 }
 
                 if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
