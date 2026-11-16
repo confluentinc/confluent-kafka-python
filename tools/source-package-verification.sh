@@ -52,7 +52,7 @@ if [[ $RUN_COVERAGE == true ]]; then
       # Example: ".tox/cover/lib/python3.11/site-packages/confluent_kafka/__init__.py"
       #   instead of "src/confluent_kafka/__init__.py"
   uv pip install -e .
-  python -m pytest --cov confluent_kafka --cov-report term --cov-report html --cov-report xml \
+  python -m pytest --cov confluent_kafka --cov tools --cov-report term --cov-report html --cov-report xml \
       --cov-branch --junitxml=test-report.xml tests/ --timeout 1200 --ignore=dest
   exit 0
 fi

@@ -11,6 +11,17 @@ fi
 # List of Python versions to run the code with
 python_versions=("3.8" "3.9" "3.10" "3.11" "3.12" "3.13" "3.14")
 
+# Optional third argument restricts the run to a comma-separated list of
+# Python versions (e.g. "3.13,3.14"), or "none" to skip verification
+versions_arg="${3// /}"
+if [[ "$versions_arg" = "none" ]]; then
+    echo "No wheels were published, skipping verification"
+    exit 0
+fi
+if [[ -n "$versions_arg" && "$versions_arg" != "all" ]]; then
+    IFS=',' read -r -a python_versions <<< "$versions_arg"
+fi
+
 if command -v sem-version &> /dev/null; then
     use_sem_version=true
 else
@@ -54,12 +65,14 @@ for version in "${python_versions[@]}"; do
     echo "Uninstalling confluent_kafka if already installed"
     uv pip uninstall confluent_kafka > /dev/null 2>&1 || true
 
+    # --only-binary: verify the published wheel, never a build of the sdist. If the
+    # wheel isn't visible on the index yet, the install fails and is retried below.
     if [[ "$2" = "test" ]]; then
         echo "Installing confluent_kafka from test PyPI"
-        install_cmd="PIP_CONFIG_FILE=/dev/null uv pip install --no-cache --no-config --no-deps --prerelease allow --index-url https://test.pypi.org/simple/ confluent_kafka==$1"
+        install_cmd="PIP_CONFIG_FILE=/dev/null uv pip install --no-cache --no-config --no-deps --prerelease allow --only-binary confluent-kafka --index-url https://test.pypi.org/simple/ confluent_kafka==$1"
     else
         echo "Installing confluent_kafka"
-        install_cmd="uv pip install confluent_kafka==$1"
+        install_cmd="uv pip install --only-binary confluent-kafka confluent_kafka==$1"
     fi
 
     max_retries=20

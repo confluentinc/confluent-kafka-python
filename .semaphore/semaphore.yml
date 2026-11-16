@@ -716,6 +716,19 @@ blocks:
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
+    parameters:
+      env_vars:
+        - name: PYTHON_VERSIONS
+          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything, or 'none' to publish no wheels (sdist only)."
+          required: true
+          default_value: all
+        - name: INCLUDE_SDIST
+          description: "Upload the source distribution too. Set to False when adding wheels to an already published release."
+          required: true
+          default_value: "True"
+          options:
+            - "True"
+            - "False"
 after_pipeline:
   task:
     agent:
