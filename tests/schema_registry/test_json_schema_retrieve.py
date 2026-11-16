@@ -52,8 +52,9 @@ def test_retrieve_via_httpx_allows_public_host():
     def gai(host, port, *args, **kwargs):
         return [(2, 1, 6, "", ("93.184.216.34", port))]
 
-    with mock.patch.object(json_schema.socket, "getaddrinfo", side_effect=gai), mock.patch.object(
-        json_schema.httpx, "get", return_value=response
-    ) as get:
+    with (
+        mock.patch.object(json_schema.socket, "getaddrinfo", side_effect=gai),
+        mock.patch.object(json_schema.httpx, "get", return_value=response) as get,
+    ):
         json_schema._retrieve_via_httpx("http://schemas.example.com/draft-07/schema")
         get.assert_called_once()

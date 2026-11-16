@@ -14,7 +14,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules"]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dynamic = ["dependencies", "optional-dependencies"]
 
 [[project.authors]]
@@ -55,7 +55,7 @@ follow_imports = "skip"
 
 [tool.black]
 line-length = 120
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+target-version = ['py39', 'py310', 'py311', 'py312', 'py313']
 skip-string-normalization = true
 include = '\.pyi?$'
 extend-exclude = '''
