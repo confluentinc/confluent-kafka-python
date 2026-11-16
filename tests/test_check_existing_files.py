@@ -43,9 +43,12 @@ def _run_main(files, existing, include_sdist="True", python_versions="all", inde
         argv = ["check-existing-files.py", wheelhouse, index, "1.0.0", include_sdist, python_versions]
         out = io.StringIO()
         code = None
-        with mock.patch.object(sys, "argv", argv), mock.patch.object(
-            check, "published_files", return_value=existing
-        ), mock.patch.object(check, "source_differences", return_value=list(differences)), redirect_stdout(out):
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(check, "published_files", return_value=existing),
+            mock.patch.object(check, "source_differences", return_value=list(differences)),
+            redirect_stdout(out),
+        ):
             try:
                 check.main()
             except SystemExit as e:
