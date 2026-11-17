@@ -53,7 +53,12 @@ static int Admin_clear(Handle *self) {
 static void Admin_dealloc(Handle *self) {
         PyObject_GC_UnTrack(self);
 
-        if (self->rk) {
+        /* rd_kafka_destroy() waits for librdkafka's background thread, which
+         * may be waiting for the GIL to deliver a result
+         * (Admin_background_event_cb()). During interpreter shutdown, it
+         * never gets it: leave the handle to the end of the process rather
+         * than hang it. */
+        if (self->rk && !cfl_Py_IsFinalizing()) {
                 CallState cs;
                 CallState_begin(self, &cs);
 
@@ -3885,7 +3890,13 @@ static PyObject *Admin_exit(Handle *self, PyObject *args) {
                 }
         }
 
-        /* Cleanup: destroy admin client */
+        /* Cleanup: destroy admin client, unless the interpreter is shutting
+         * down (see Admin_dealloc()). */
+        if (cfl_Py_IsFinalizing()) {
+                atomic_ptr_set(&self->rk, NULL);
+                Py_RETURN_NONE;
+        }
+
         CallState_begin(self, &cs);
 
         rd_kafka_destroy(self->rk);

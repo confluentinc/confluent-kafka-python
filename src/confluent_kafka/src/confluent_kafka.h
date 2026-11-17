@@ -470,6 +470,22 @@ static inline void cfl_exception_restore(PyObject *exc_value) {
 #endif
 }
 
+/**
+ * @brief Returns true once the interpreter has started shutting down.
+ *
+ * During shutdown, a thread that wants the GIL never gets it: Python 3.14
+ * parks it forever, earlier versions end it. librdkafka threads that call
+ * into Python, such as the background thread, must not be waited for then.
+ * Py_IsFinalizing() is public as of Python 3.13, _Py_IsFinalizing() before.
+ */
+static inline int cfl_Py_IsFinalizing(void) {
+#if PY_VERSION_HEX >= 0x030d0000
+        return Py_IsFinalizing();
+#else
+        return _Py_IsFinalizing();
+#endif
+}
+
 static inline void CallState_fetch_exception(CallState *cs) {
         cfl_exception_fetch(&cs->exception_value);
 }
