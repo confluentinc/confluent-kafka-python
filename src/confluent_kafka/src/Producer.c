@@ -847,12 +847,25 @@ Producer_execute_and_handle_errors(PyObject *messages_list,
                                    rd_kafka_message_t *rkmessages,
                                    struct Producer_msgstate **msgstates,
                                    int message_cnt) {
-        int good = 0;
+        int msgflags = RD_KAFKA_MSG_F_COPY;
+        int good     = 0;
         int i;
 
+        /* Without RD_KAFKA_MSG_F_PARTITION, librdkafka ignores the
+         * partition of each message (which defaults to \p partition) and
+         * produces them all to \p partition. Only set it when a message
+         * has a partition of its own: when all of them go to \p partition,
+         * librdkafka looks up that partition once for the whole batch. */
+        for (i = 0; i < message_cnt; i++) {
+                if (rkmessages[i].partition != partition) {
+                        msgflags |= RD_KAFKA_MSG_F_PARTITION;
+                        break;
+                }
+        }
+
         /* Call librdkafka batch produce */
-        good = rd_kafka_produce_batch(rkt, partition, RD_KAFKA_MSG_F_COPY,
-                                      rkmessages, message_cnt);
+        good = rd_kafka_produce_batch(rkt, partition, msgflags, rkmessages,
+                                      message_cnt);
 
         /* Handle results and cleanup failed messages */
         for (i = 0; i < message_cnt; i++) {

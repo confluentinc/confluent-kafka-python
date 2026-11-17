@@ -378,6 +378,30 @@ def test_produce_batch_basic_types_and_data():
     assert count == 1
 
 
+@pytest.mark.parametrize(
+    "batch_partition,messages,expected_partitions",
+    [
+        (None, [{'partition': 2}, {'partition': 0}, {'partition': 3}, {'partition': 2}], [2, 0, 3, 2]),
+        (1, [{'partition': 2}, {}, {'partition': 3}, {'partition': None}], [2, 1, 3, 1]),
+    ],
+)
+def test_produce_batch_message_partition(batch_partition, messages, expected_partitions):
+    """A message's 'partition' overrides the partition of the batch."""
+    delivered = []
+
+    def on_delivery(err, msg):
+        delivered.append((err, msg.value(), msg.partition()))
+
+    # The mock cluster creates the topic with 4 partitions.
+    producer = Producer({'test.mock.num.brokers': 1})
+    messages = [dict(message, value=b'%d' % i) for i, message in enumerate(messages)]
+    kwargs = {} if batch_partition is None else {'partition': batch_partition}
+
+    assert producer.produce_batch('test-topic', messages, on_delivery=on_delivery, **kwargs) == len(messages)
+    assert producer.flush(10) == 0
+    assert sorted(delivered) == [(None, b'%d' % i, partition) for i, partition in enumerate(expected_partitions)]
+
+
 def test_produce_batch_encoding_and_unicode():
     """Test advanced encoding, Unicode handling, and large message scenarios."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
