@@ -521,6 +521,22 @@ def test_produce_batch_invalid_message_releases_the_messages_before_it(invalid_m
     assert sys.getrefcount(on_delivery) == refcount
 
 
+@pytest.mark.parametrize("partition", [2**31, -(2**31) - 1, 2**32, 2**63, -(2**63) - 1])
+def test_produce_batch_partition_out_of_int_range(partition):
+    """A partition that does not fit in a C int raises OverflowError, as it does
+    with produce(), and none of the messages of the batch is produced."""
+    delivered = []
+    producer = Producer({'test.mock.num.brokers': 1})
+    with pytest.raises(OverflowError, match="Message partition at index 1 must fit in a C int"):
+        producer.produce_batch(
+            'test-topic',
+            [{'value': b'v'}, {'value': b'v', 'partition': partition}],
+            on_delivery=lambda err, msg: delivered.append(msg),
+        )
+    assert producer.flush(10) == 0
+    assert delivered == []
+
+
 def test_produce_batch_argument_validation():
     """Test function argument validation and topic name handling."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})

@@ -25,6 +25,10 @@
   re-serialized with headers copied from an inbound message no longer carries both a
   schema id header and a payload prefix, which deserializers decoded as wrong values
   without raising an error.
+- `Producer.produce_batch()` now raises `OverflowError` for a message `partition` that
+  does not fit in a C `int`, as `produce()` does, before producing any message of the
+  batch. It used to truncate it, for example to 0 for `2**32`, or to queue the batch and
+  then raise `OverflowError` when it did not fit in a C `long` either.
 - Fix crashes when a topic, configuration property or header name, a configuration value
   or a SCRAM user name cannot be encoded as UTF-8, such as a `str` with a lone surrogate
   from `os.fsdecode()`: a NULL pointer was passed on to librdkafka. These now raise
