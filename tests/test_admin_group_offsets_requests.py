@@ -19,11 +19,14 @@
 Input checks of the C list_consumer_group_offsets() and
 alter_consumer_group_offsets().
 
-AdminClient validates the request before passing it to the C methods, so these
-tests call the C methods directly. They used to ignore the result of reading
-the topic_partitions attribute and of converting the partitions: a missing or
-invalid one crashed them or left an exception set while they carried on. Each
-case runs in a subprocess so that a crash fails only that case.
+AdminClient validates the request before passing it to the C methods, so most
+of these tests call the C methods directly. Its checks accept subclasses of
+list and TopicPartition, though, and the C methods take only those exact
+types, so the subclass tests go through AdminClient. The C methods used to
+ignore the result of reading the topic_partitions attribute and of converting
+the partitions: a missing or invalid one crashed them or left an exception set
+while they carried on. Each case runs in a subprocess so that a crash fails
+only that case.
 """
 
 import subprocess
@@ -85,16 +88,71 @@ CASES = {
 }
 
 
+_ADMIN_CLIENT_SETUP = """
+from confluent_kafka import OFFSET_INVALID, ConsumerGroupTopicPartitions, TopicPartition
+from confluent_kafka.admin import AdminClient
+
+
+class PartitionList(list):
+    pass
+
+
+class Partition(TopicPartition):
+    pass
+
+
+# AdminClient takes the partitions without an offset to list offsets, and with
+# one to alter them.
+offset = OFFSET_INVALID if method == 'list_consumer_group_offsets' else 5
+"""
+
+_ADMIN_CLIENT_CALL = """
+admin = AdminClient({"socket.timeout.ms": 10})
+try:
+    getattr(admin, method)([ConsumerGroupTopicPartitions("group", partitions)])
+except Exception as e:
+    print(f"{type(e).__name__}: {e}")
+else:
+    print("accepted")
+"""
+
+# AdminClient's checks accept these subclasses; the C methods reject them.
+SUBCLASS_CASES = {
+    'list-subclass': (
+        "partitions = PartitionList([TopicPartition('topic', 0, offset)])",
+        "TypeError: Expected .topic_partitions to be list type, not PartitionList",
+    ),
+    'topic-partition-subclass': (
+        "partitions = [Partition('topic', 0, offset)]",
+        "TypeError: expected cimpl.TopicPartition",
+    ),
+}
+
+
+def _run(code):
+    """Run code in a new interpreter and return what it printed."""
+    result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, f'returncode={result.returncode}\nstderr:\n{result.stderr}'
+    return result.stdout.strip()
+
+
 @pytest.mark.parametrize('case', sorted(CASES))
 @pytest.mark.parametrize('method', ['list_consumer_group_offsets', 'alter_consumer_group_offsets'])
 def test_group_offsets_request_checks(method, case):
     statement, expected_list, expected_alter = CASES[case]
     expected = expected_list if method == 'list_consumer_group_offsets' else expected_alter
-    result = subprocess.run(
-        [sys.executable, '-c', _SETUP + f"method = {method!r}\n" + statement + "\n" + _CALL],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    assert result.returncode == 0, f'returncode={result.returncode}\nstderr:\n{result.stderr}'
-    assert result.stdout.strip() == expected
+    assert _run(_SETUP + f"method = {method!r}\n" + statement + "\n" + _CALL) == expected
+
+
+@pytest.mark.parametrize('case', sorted(SUBCLASS_CASES))
+@pytest.mark.parametrize('method', ['list_consumer_group_offsets', 'alter_consumer_group_offsets'])
+def test_group_offsets_request_subclasses_through_admin_client(method, case):
+    """
+    A list or TopicPartition subclass passes AdminClient's checks, and the C
+    methods raise TypeError for it. They used to crash the process, or for a
+    TopicPartition subclass given to list_consumer_group_offsets(), raise a
+    SystemError.
+    """
+    statement, expected = SUBCLASS_CASES[case]
+    code = f"method = {method!r}\n" + _ADMIN_CLIENT_SETUP + statement + "\n" + _ADMIN_CLIENT_CALL
+    assert _run(code) == expected
