@@ -45,6 +45,8 @@ from confluent_kafka import (
     Consumer,
     ConsumerGroupState,
     ConsumerGroupType,
+    KafkaError,
+    KafkaException,
     Producer,
     TopicCollection,
     TopicPartition,
@@ -530,34 +532,86 @@ def test_delete_acls_releases_snapshot_on_error():
 # them as duplicates.
 ###############################################################################
 
+# Failure bound of the waits for the result of a request, which the
+# unreachable broker of _CONF ends after socket.timeout.ms.
+RESULT_TIMEOUT_SECONDS = 30
 
-@pytest.mark.parametrize(
-    "method", ["describe_consumer_groups", "delete_consumer_groups", "describe_user_scram_credentials"]
-)
-def test_str_of_names_kept_until_all_are_converted(method):
-    events = []
+
+class _Converted(str):
+    pass
+
+
+class _Name(str):
+    """A name whose str() is a new object, as for an enum.StrEnum member."""
+
+    def __str__(self):
+        return _Converted(str.__str__(self))
+
+
+@pytest.mark.parametrize("method", ["describe_consumer_groups", "describe_user_scram_credentials"])
+def test_str_of_names_kept_until_the_request_is_made(method):
+    """
+    These methods give librdkafka the names when they make the request, after
+    converting them all. The release of each str() here waits for the result,
+    which only comes once the request has been made with the names. The str()
+    used to be released right after its conversion, and that wait ran out.
+    """
+    result = AdminClient._create_future()
+    result_set = threading.Event()
+    result.add_done_callback(lambda _: result_set.set())
+    released_after_result = []
 
     class Converted(str):
         def __del__(self):
-            events.append('released')
+            released_after_result.append(result_set.wait(RESULT_TIMEOUT_SECONDS))
 
     class Name(str):
         def __str__(self):
-            events.append('converted')
             return Converted(str.__str__(self))
 
-    getattr(AdminClient(_CONF), method)([Name('name-1'), Name('name-2')])
-    assert events == ['converted', 'converted', 'released', 'released']
+    getattr(super(AdminClient, AdminClient(_CONF)), method)([Name('name-1'), Name('name-2')], result)
+    assert released_after_result == [True, True]
+
+
+def test_delete_consumer_groups_copies_names_before_releasing_them():
+    """
+    delete_consumer_groups() releases the str() of each name once
+    rd_kafka_DeleteGroup_new() has copied it. It used to release it first, and
+    librdkafka copied freed memory: with CPython's default allocator, two
+    distinct names came out the same, and the request failed with "Duplicate
+    groups not allowed".
+    """
+    admin = AdminClient(_CONF)
+    futures = admin.delete_consumer_groups([_Name('name-1'), _Name('name-2')])
+
+    for future in futures.values():
+        with pytest.raises(KafkaException) as exc_info:
+            future.result(RESULT_TIMEOUT_SECONDS)
+        # The request was made, and timed out on the unreachable broker.
+        assert exc_info.value.args[0].code() == KafkaError._TIMED_OUT
+
+
+def _check_name_not_encodable_as_utf8_raises(method):
+    """str() of a name with a lone surrogate has no UTF-8 data: raise instead
+    of passing NULL to librdkafka. (Individual tests per method rather than
+    @pytest.mark.parametrize, for the reason given in _admin_list_crash().)"""
+    with pytest.raises(UnicodeEncodeError):
+        getattr(AdminClient(_CONF), method)(['name-\ud800'])
 
 
 @subprocess_isolated
-def test_names_not_encodable_as_utf8_raise():
-    """str() of a name with a lone surrogate has no UTF-8 data: raise instead
-    of passing NULL to librdkafka."""
-    admin = AdminClient(_CONF)
-    for method in ('describe_consumer_groups', 'delete_consumer_groups', 'describe_user_scram_credentials'):
-        with pytest.raises(UnicodeEncodeError):
-            getattr(admin, method)(['name-\ud800'])
+def test_describe_consumer_groups_name_not_encodable_as_utf8_raises():
+    _check_name_not_encodable_as_utf8_raises('describe_consumer_groups')
+
+
+@subprocess_isolated
+def test_delete_consumer_groups_name_not_encodable_as_utf8_raises():
+    _check_name_not_encodable_as_utf8_raises('delete_consumer_groups')
+
+
+@subprocess_isolated
+def test_describe_user_scram_credentials_name_not_encodable_as_utf8_raises():
+    _check_name_not_encodable_as_utf8_raises('describe_user_scram_credentials')
 
 
 ###############################################################################

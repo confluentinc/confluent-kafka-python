@@ -3021,8 +3021,7 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
         int i;
-        int entered_rk_use   = 0;
-        PyObject *group_strs = NULL; /* str() of each group id, see below */
+        int entered_rk_use = 0;
 
         static char *kws[] = {"group_ids", "future",
                               /* options */
@@ -3065,10 +3064,6 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
 
         c_delete_group_ids =
             malloc(sizeof(rd_kafka_DeleteGroup_t *) * group_ids_cnt);
-        /* group_id_string points into the str() of the group id, which can
-         * be a new object: keep them until librdkafka has copied them */
-        if (!(group_strs = PyList_New(group_ids_cnt)))
-                goto err;
         for (i = 0; i < group_ids_cnt; i++) {
                 group_id = PyList_GET_ITEM(group_ids, i);
 
@@ -3081,15 +3076,19 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
-                PyList_SET_ITEM(group_strs, i, ks);
                 group_id_string = cfl_PyUnistr_AsUTF8(ks, &ks8);
-                if (!group_id_string)
+                if (!group_id_string) {
+                        Py_DECREF(ks);
                         goto err; /* e.g. UnicodeEncodeError */
+                }
 
-                Py_XDECREF(ks8);
-
+                /* group_id_string points into ks, which can be a new object:
+                 * release it once rd_kafka_DeleteGroup_new() has copied it */
                 c_delete_group_ids[i] =
                     rd_kafka_DeleteGroup_new(group_id_string);
+
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
         }
 
         /* Use librdkafka's background thread queue to automatically dispatch
@@ -3110,7 +3109,6 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, group_ids_cnt);
         free(c_delete_group_ids);
-        Py_XDECREF(group_strs);
         rd_kafka_AdminOptions_destroy(c_options);
 #ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
@@ -3126,7 +3124,6 @@ err:
                 rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, i);
                 free(c_delete_group_ids);
         }
-        Py_XDECREF(group_strs);
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
