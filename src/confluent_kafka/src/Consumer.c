@@ -2007,6 +2007,10 @@ static int Consumer_init(PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 if (ret_wait_oauth == -1) {
                         CallState cs;
                         CallState_begin(self, &cs);
+                        /* librdkafka requires the queues to be destroyed
+                         * before the handle, as in Consumer_close(). */
+                        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
+                        self->u.Consumer.rkqu = NULL;
                         /* Skip the consumer close: it serves callbacks such
                          * as error_cb, which can't run while the exception
                          * for the failure is set. */

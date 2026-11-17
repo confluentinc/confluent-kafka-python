@@ -33,6 +33,13 @@
   error that `error_cb` gets for a failed refresh includes it too. Creating a client
   with an `oauth_cb` also no longer takes at least a second, and Ctrl+C now interrupts
   the wait for its first token.
+  The text of the `oauth_cb` exception now also appears in librdkafka's log when a
+  broker connection has no token to log in with. Exceptions from token libraries can
+  include the response of the identity provider. librdkafka reports a failed refresh
+  to `error_cb` only when its text differs from the previous failure's, so an
+  `oauth_cb` whose exceptions include a timestamp or a request id makes `error_cb` get
+  an `_AUTHENTICATION` error for each failed refresh, every 10 seconds while the
+  refreshes fail.
 
 ## v2.16.1
 

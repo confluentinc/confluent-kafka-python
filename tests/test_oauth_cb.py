@@ -156,9 +156,11 @@ def test_oauth_cb_token_refresh_invalid_return():
     """
     A token refresh whose oauth_cb returns an invalid value is reported to
     librdkafka as a failure, as when the callback raises: error_cb gets the
-    callback's error, and librdkafka retries the refresh. The failure used to
-    stay unreported on librdkafka's thread, so the client never asked for a
-    token again and error_cb never heard of it.
+    callback's error. The failure used to stay unreported on librdkafka's
+    thread: error_cb never heard of it, and as librdkafka schedules the next
+    refresh only once a token or a failure is set, the client never asked for
+    a token again. The test doesn't wait for that next refresh, which
+    librdkafka makes 10 seconds after a failure.
     """
     oauth_cb_count = 0
     errors = []
@@ -191,7 +193,6 @@ def test_oauth_cb_token_refresh_invalid_return():
 
     kc.close()
     assert reported.is_set(), errors
-    assert oauth_cb_count >= 2
     assert any(
         e.code() == KafkaError._AUTHENTICATION and "oauth_cb failed: TypeError: expect returned value" in e.str()
         for e in errors
@@ -248,6 +249,38 @@ def test_oauth_cb_failure_fails_construction_with_its_error(kind, failure):
     error = exc_info.value.args[0]
     assert error.code() == KafkaError.SASL_AUTHENTICATION_FAILED
     assert message in error.str()
+    # Destroying the half-built client serves no callbacks: error_cb used to
+    # run while the constructor's exception was set.
+    assert errors == []
+
+
+def test_oauth_cb_failed_init_does_not_fail_the_next_one():
+    """
+    __init__ can be called again on a client whose construction failed. That
+    second construction waits for its own token: the first one's failure used
+    to fail it straight away, with the first one's error.
+    """
+    calls = 0
+
+    def oauth_cb(oauth_config):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("no token for the first construction")
+        return 'token', time.time() + 300.0
+
+    conf = {
+        'security.protocol': 'sasl_plaintext',
+        'sasl.mechanisms': 'OAUTHBEARER',
+        'sasl.oauthbearer.config': 'oauth_cb',
+        'oauth_cb': oauth_cb,
+    }
+    producer = Producer.__new__(Producer)
+    with pytest.raises(KafkaException, match="no token for the first construction"):
+        producer.__init__(conf)
+
+    producer.__init__(conf)
+    assert calls == 2
 
 
 def test_oauth_cb_token_wait_is_interruptible():

@@ -3536,6 +3536,10 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                 rd_kafka_conf_set_oauthbearer_token_refresh_cb(conf, oauth_cb);
                 rd_kafka_conf_enable_sasl_queue(conf, 1);
         }
+        /* The client can be initialized again after a failed construction:
+         * wait_for_oauth_token_set() waits for the token of the new one. */
+        atomic_int_set(&h->oauth_token_set, 0);
+        atomic_int_set(&h->oauth_token_failed, 0);
 
         rd_kafka_conf_set_opaque(conf, h);
 
