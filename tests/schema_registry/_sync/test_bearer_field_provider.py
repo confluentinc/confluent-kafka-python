@@ -315,3 +315,85 @@ def test_static_field_provider_optional_pool():
         assert 'bearer.auth.identity.pool.id' not in bearer_fields
 
     check_provider()
+
+
+def test_oauth_client_close():
+    """Test that closing SchemaRegistryClient closes the owned OAuth token client."""
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'OAUTHBEARER',
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+        'bearer.auth.client.id': 'test-id',
+        'bearer.auth.client.secret': 'test-secret',
+        'bearer.auth.scope': 'test-scope',
+        'bearer.auth.issuer.endpoint.url': 'http://127.0.0.1:65534/token',
+    }
+    client = SchemaRegistryClient(conf)
+    token_client = client._rest_client.bearer_field_provider.client
+    assert not client._rest_client.session.is_closed
+    assert not token_client.is_closed
+
+    client.close()
+    assert client._rest_client.session.is_closed
+    assert token_client.is_closed
+
+    # Safe to call again
+    client.close()
+    assert token_client.is_closed
+
+
+def test_oauth_azure_imds_client_close():
+    """Test that closing SchemaRegistryClient closes the owned Azure IMDS token client."""
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'OAUTHBEARER_AZURE_IMDS',
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+        'bearer.auth.issuer.endpoint.url': 'http://127.0.0.1:65534/token',
+    }
+    client = SchemaRegistryClient(conf)
+    token_client = client._rest_client.bearer_field_provider.client
+    assert not client._rest_client.session.is_closed
+    assert not token_client.is_closed
+
+    client.close()
+    assert client._rest_client.session.is_closed
+    assert token_client.is_closed
+
+
+def test_oauth_client_context_manager_close():
+    """Test that exiting context manager closes the owned OAuth token client."""
+    conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'OAUTHBEARER',
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+        'bearer.auth.client.id': 'test-id',
+        'bearer.auth.client.secret': 'test-secret',
+        'bearer.auth.scope': 'test-scope',
+        'bearer.auth.issuer.endpoint.url': 'http://127.0.0.1:65534/token',
+    }
+    with SchemaRegistryClient(conf) as client:
+        token_client = client._rest_client.bearer_field_provider.client
+        assert not client._rest_client.session.is_closed
+        assert not token_client.is_closed
+
+    assert client._rest_client.session.is_closed
+    assert token_client.is_closed
+
+
+def test_no_auth_and_static_token_close():
+    """Test that no-auth and static-token clients continue to close normally."""
+    no_auth_client = SchemaRegistryClient({'url': TEST_URL})
+    assert not no_auth_client._rest_client.session.is_closed
+    no_auth_client.close()
+    assert no_auth_client._rest_client.session.is_closed
+
+    static_conf = {
+        'url': TEST_URL,
+        'bearer.auth.credentials.source': 'STATIC_TOKEN',
+        'bearer.auth.token': TEST_TOKEN,
+        'bearer.auth.logical.cluster': TEST_CLUSTER,
+    }
+    static_client = SchemaRegistryClient(static_conf)
+    assert not static_client._rest_client.session.is_closed
+    static_client.close()
+    assert static_client._rest_client.session.is_closed
