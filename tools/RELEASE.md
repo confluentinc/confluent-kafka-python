@@ -360,6 +360,18 @@ That's it, back to the coal mine.
 
 ## 7. Add wheels for a new Python version to a published release
 
+**Only within 14 days of the release.** Since July 2026, PyPI and Test PyPI
+reject new files for a release first published more than 14 days ago
+(pypi/warehouse#19727, `MAXIMUM_AGE_FOR_NEW_UPLOADS` in
+`warehouse/constants.py`). It's a security measure: a leaked upload token
+can't add files to an old release that users already trust. Nothing is
+uploaded, and the Upload job fails with `400 Bad Request`.
+
+Before you start, check that the release was first published less than 14
+days ago, replacing `<version>` (use `test.pypi.org` for Test PyPI):
+
+    $ curl -s https://pypi.org/pypi/confluent-kafka/<version>/json | python3 -c 'import json,sys; print(min(f["upload_time"] for f in json.load(sys.stdin)["urls"]))'
+
 To publish, for example, Python 3.15 wheels for the already released v2.16.1,
 the wheels must be built from v2.16.1's code. Master may have the same version
 in `pyproject.toml` but newer code, and PyPI never lets a file be replaced.
