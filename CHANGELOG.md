@@ -2,13 +2,6 @@
 
 ## Unreleased
 
-### Enhancements
-
-- Add Python 3.15 and 3.15t (free-threaded) wheels. The `rules` extra
-  (CSFLE and data quality rules) can't be installed on Python 3.15 yet, as
-  its `tink` and `google-re2` dependencies publish no Python 3.15 wheels (#2406)
-- Drop Python 3.8 support. Python 3.8 reached end of life in October 2024 (#2406)
-
 ### Fixes
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
@@ -32,6 +25,24 @@
   could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
   wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
   applies to Python 3.9 only.
+
+## v2.16.2
+
+v2.16.2 adds wheels for Python 3.15 and 3.15t and drops Python 3.8. The
+library code is the same as in v2.16.1.
+
+### Enhancements
+
+- Add Python 3.15 and 3.15t (free-threaded) wheels. The `rules` extra
+  (CSFLE and data quality rules) can't be installed on Python 3.15 yet, as
+  its `tink` and `google-re2` dependencies publish no Python 3.15 wheels (#2406)
+- Drop Python 3.8 support. Python 3.8 reached end of life in October 2024 (#2406)
+
+
+confluent-kafka-python 2.16.2 is based on librdkafka 2.16.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.16.1
 
