@@ -23,7 +23,7 @@ Queues for Kafka (KIP-932) lets many consumers in the same share group read from
 ## AsyncIO Examples
 
 - [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
-- [asyncio_avro_producer.py](asyncio_avro_producer.py): Minimal AsyncIO Avro producer using `AsyncSchemaRegistryClient` and `AsyncAvroSerializer` (supports Confluent Cloud using `--sr-api-key`/`--sr-api-secret`).
+- [asyncio_avro_producer.py](asyncio_avro_producer.py): Minimal AsyncIO Avro producer using `AsyncSerializingProducer` with an `AsyncAvroSerializerBuilder` (supports Confluent Cloud using `--sr-api-key`/`--sr-api-secret`).
 
 **Architecture:** For implementation details and component design, see the [AIOProducer Architecture Overview](../aio_producer_simple_diagram.md).
 
@@ -230,6 +230,7 @@ from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSeriali
 #### Avro Serialization
 
 - [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
+- [avro_association.py](avro_association.py): Associate a topic with a Schema Registry subject under the Kafka cluster id (from `AdminClient.cluster_id()`), then produce and consume through `AvroSerializerBuilder` / `AvroDeserializerBuilder`, which resolve the association without any cluster id configured.
 - [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
 - [avro_producer_encryption.py](avro_producer_encryption.py): Produce Avro data with client-side field level encryption (CSFLE).
 - [avro_consumer_encryption.py](avro_consumer_encryption.py): Consume Avro data with client-side field level encryption (CSFLE).

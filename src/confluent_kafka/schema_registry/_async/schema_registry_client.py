@@ -28,12 +28,11 @@ from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional, Type
 from urllib.parse import unquote, urlparse
 
 import certifi
-import httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from cachetools import Cache, LRUCache, TTLCache
-from httpx import Response
 
 from confluent_kafka import version
+from confluent_kafka.schema_registry.common._httpx_compat import Response, httpx
 from confluent_kafka.schema_registry.common._oauthbearer import (
     _AbstractCustomOAuthBearerFieldProviderBuilder,
     _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
@@ -716,6 +715,14 @@ class AsyncSchemaRegistryClient(object):
         return self
 
     async def __aexit__(self, *args):
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """
+        Close the underlying HTTP session.
+
+        The client is unusable afterwards. Safe to call more than once.
+        """
         if self._rest_client is not None:
             await self._rest_client.session.aclose()
 

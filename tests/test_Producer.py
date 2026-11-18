@@ -266,6 +266,57 @@ def test_purge():
     assert p.close(), "The producer was not closed"
 
 
+@pytest.mark.parametrize(
+    "args, kwargs",
+    [
+        ((), {"in_queue": False}),
+        ((), {"in_queue": False, "in_flight": False}),
+        ((), {"in_queue": False, "in_flight": False, "blocking": False}),
+        ((False, False, False), {}),
+    ],
+)
+def test_purge_keeps_queued_messages_when_in_queue_is_false(args, kwargs):
+    """
+    purge() must honour flags set to False, however they are passed: with
+    in_queue=False a queued message stays queued, with no delivery report.
+    The flags used to be parsed with the one-byte "b" format, which on
+    big-endian platforms (e.g. s390x) left them stuck at True, so the queue
+    was purged anyway.
+    """
+    p = Producer({"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000})
+    errors = []
+    p.produce(topic="some_topic", value="testing", partition=9, callback=lambda err, msg: errors.append(err))
+
+    p.purge(*args, **kwargs)
+    p.flush(0.002)
+    assert errors == []
+    assert len(p) == 1
+
+    p.purge()
+    p.flush(0.002)
+    assert [err.code() for err in errors] == [KafkaError._PURGE_QUEUE]
+    assert p.close(), "The producer was not closed"
+
+
+@pytest.mark.parametrize("falsy", [0, None])
+def test_purge_flags_accept_any_falsy_value(falsy):
+    """
+    0 and None turn a purge() flag off, the same as False.
+    """
+    p = Producer({"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000})
+    errors = []
+    p.produce(topic="some_topic", value="testing", partition=9, callback=lambda err, msg: errors.append(err))
+
+    p.purge(in_queue=falsy)
+    p.flush(0.002)
+    assert errors == []
+
+    p.purge()
+    p.flush(0.002)
+    assert [err.code() for err in errors] == [KafkaError._PURGE_QUEUE]
+    assert p.close(), "The producer was not closed"
+
+
 def test_producer_bool_value():
     """
     Make sure producer has a truth-y bool value

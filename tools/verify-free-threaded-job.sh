@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# Body of the "Verify free threaded" job in the Linux and macOS Wheel
+# Verification blocks of .semaphore/semaphore.yml: install the cp315t wheel,
+# run the free-threaded wheel checks (tools/verify-free-threaded-wheel.sh) and then the unit suite.
+#
+# Run from the repo root with the uv package installed in the active python
+# (`pip install uv`). Expects OS_NAME (linux|osx) and ARCH
+# (x64|arm64, or s390x on linux) as the Wheel blocks set them, and
+# LIBRDKAFKA_VERSION for the wheel checks.
+
+set -eu
+
+: "${OS_NAME:?set OS_NAME to linux or osx}"
+: "${ARCH:?set ARCH to x64, arm64 or s390x}"
+
+# cibuildwheel tags Linux wheels manylinux_*_{x86_64,aarch64,s390x} and macOS
+# wheels macosx_*_{x86_64,arm64}.
+case "$OS_NAME-$ARCH" in
+    linux-x64)   wheel_glob='*-cp315t-manylinux*x86_64.whl' ;;
+    linux-arm64) wheel_glob='*-cp315t-manylinux*aarch64.whl' ;;
+    linux-s390x) wheel_glob='*-cp315t-manylinux*s390x.whl' ;;
+    osx-x64)     wheel_glob='*-cp315t-macosx*x86_64.whl' ;;
+    osx-arm64)   wheel_glob='*-cp315t-macosx*arm64.whl' ;;
+    *) echo "$0: unsupported OS_NAME-ARCH '$OS_NAME-$ARCH'" >&2; exit 1 ;;
+esac
+echo "Verifying the free-threaded wheel matching $wheel_glob for $OS_NAME-$ARCH"
+
+# s390x: cryptography (via authlib, trivup's jwcrypto) ships no s390x wheels,
+# so this installs the reduced requirements-tests-install-nogil-s390x.txt;
+# tests/conftest.py skips tests/schema_registry there to match.
+if [[ $ARCH == "s390x" ]]; then
+    tests_install_reqs=requirements/requirements-tests-install-nogil-s390x.txt
+else
+    tests_install_reqs=requirements/requirements-tests-install-nogil.txt
+fi
+
+# Use the uv that `pip install uv` just installed, not the first uv on PATH: the
+# macOS and s390x agent images ship uv 0.11.17, which only knows 3.15.0b1 for 3.15t.
+uv=$(python -c 'from uv import find_uv_bin; print(find_uv_bin())')
+"$uv" --version
+
+"$uv" venv _venv315t --python 3.15t
+source _venv315t/bin/activate
+python -c 'import sys; print(sys.version); sys.exit(sys.version_info.releaselevel != "final")'
+"$uv" pip install -r "$tests_install_reqs"
+
+artifact pull workflow artifacts
+# Fail fast, with a clear message, if the pull brought no wheel tarballs at all.
+ls artifacts/*.tgz
+(cd artifacts && ls *.tgz | xargs -n1 tar -xvf)
+# Unquoted on purpose: the glob must expand, and ls fails if nothing matches.
+ls artifacts/wheelhouse/$wheel_glob
+"$uv" pip install --no-index --find-links artifacts/wheelhouse confluent-kafka
+
+tools/verify-free-threaded-wheel.sh
+python -m pytest tests/ --ignore=tests/integration --ignore=tests/test_unasync.py --timeout 1200

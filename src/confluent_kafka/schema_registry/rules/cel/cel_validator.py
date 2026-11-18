@@ -23,6 +23,7 @@ from google.protobuf import descriptor, message
 from confluent_kafka.schema_registry.rules.cel.cel_executor import _value_to_cel
 from confluent_kafka.schema_registry.rules.cel.cel_field_presence import InterpretedRunner
 from confluent_kafka.schema_registry.rules.cel.constraints import _field_value_to_cel, _msg_to_cel
+from confluent_kafka.schema_registry.rules.cel.decimal_funcs import decimal_boundary_value
 from confluent_kafka.schema_registry.rules.cel.extra_func import EXTRA_FUNCS
 from confluent_kafka.schema_registry.serde import RuleError, ValidationRule, ValidationRuleExecutor
 
@@ -119,6 +120,9 @@ def _to_cel(schema: Any, value: Any) -> Any:
     scalars, repeated fields and maps faithfully), and the format's schema object
     otherwise (unused — Avro/JSON values are converted structurally).
     """
+    decimal_value = decimal_boundary_value(value)
+    if decimal_value is not None:
+        return decimal_value
     if isinstance(value, message.Message):
         return _msg_to_cel(value)
     if isinstance(schema, descriptor.FieldDescriptor):

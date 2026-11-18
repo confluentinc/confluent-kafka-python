@@ -92,9 +92,9 @@ class AIOProducer:
         2. **Cancel Timeout Task**: Immediately cancels the buffer timeout monitoring task
         3. **Flush All Messages**: Flushes any buffered messages and waits for delivery confirmation
         4. **Shutdown ThreadPool**: Waits for all pending ThreadPool operations to complete
-        5. **Cleanup**: Ensures the underlying librdkafka producer is properly closed. The shutdown
-            is designed to be safe and non-blocking for the asyncio event loop
-            while ensuring all pending operations complete before the producer is closed.
+        5. **Cleanup** [Not implemented yet]: Ensures the underlying librdkafka producer is properly closed.
+                       The shutdown is designed to be safe and non-blocking for the asyncio event loop
+                       while ensuring all pending operations complete before the producer is closed.
 
         Raises:
             Exception: May raise exceptions from buffer flushing, but these are logged
@@ -251,6 +251,14 @@ class AIOProducer:
 
     async def list_topics(self, *args: Any, **kwargs: Any) -> Any:
         return await self._call(self._producer.list_topics, *args, **kwargs)
+
+    async def cluster_id(self, *args: Any, **kwargs: Any) -> str:
+        """
+        Request the id of the cluster the producer is connected to. See :py:func:`Producer.cluster_id`.
+
+        *This API is experimental and subject to incompatible changes in future versions of the library.*
+        """
+        return await self._call(self._producer.cluster_id, *args, **kwargs)
 
     # ========================================================================
     # TRANSACTION OPERATIONS - Kafka transaction support

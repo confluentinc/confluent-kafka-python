@@ -2,7 +2,7 @@ import pickle
 
 import pytest
 
-from confluent_kafka.cimpl import Message
+from confluent_kafka.cimpl import KafkaError, Message
 
 
 def empty_message_1():
@@ -308,3 +308,21 @@ def test_message_compare():
         assert msg0 < None
     with pytest.raises(TypeError):
         assert msg0 < object()
+
+
+def test_message_compare_unset_fields():
+    # Unset on one side only: False, never SystemError.
+    assert Message() != Message(topic="t")
+    assert not (Message() == Message(topic="t"))
+    assert Message(value=b"x", key=b"k") != Message(value=b"x")
+    assert Message(headers=[("h", b"v")]) != Message()
+    assert Message(error=KafkaError(KafkaError._PARTITION_EOF)) != Message()
+
+    # Unset on both sides is equal, including None stored via a setter.
+    assert Message() == Message()
+    m = Message(topic="t")
+    m.set_topic(None)
+    assert m == Message()
+    m = Message(headers=[("h", b"v")])
+    m.set_headers(None)
+    assert m == Message()

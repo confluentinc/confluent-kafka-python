@@ -1,8 +1,27 @@
 """Per-directory pytest fixtures for share consumer integration tests."""
 
 import sys
+import sysconfig
+import warnings
 
 import pytest
+
+# test_share_consumer_deserialization.py imports fastavro.
+# fastavro does ship a free-threaded wheel, but has not declared itself GIL-safe
+# so it is not installed on free-threaded builds (see requirements-tests-install-nogil.txt)
+FREE_THREADED_BUILD = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+
+collect_ignore = []
+if FREE_THREADED_BUILD:
+    collect_ignore = [
+        "test_share_consumer_deserialization.py",
+    ]
+    warnings.warn(
+        "free-threaded build: skipping collection of {} share_consumer "
+        "integration test module(s) requiring fastavro, which has not "
+        "declared itself GIL-safe".format(len(collect_ignore)),
+        RuntimeWarning,
+    )
 
 
 @pytest.fixture(scope='module', autouse=True)

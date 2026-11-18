@@ -17,7 +17,8 @@
 #
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 from fastavro._logical_readers import UUID
@@ -42,8 +43,6 @@ from confluent_kafka.schema_registry.common.serde import SubjectNameStrategyType
 from confluent_kafka.schema_registry.rule_registry import RuleOverride, RuleRegistry
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import CelFieldExecutor
-from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import (
     DekAlgorithm,
     DekRegistryClient,
@@ -53,9 +52,6 @@ from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import (
     EncryptionExecutor,
     FieldEncryptionExecutor,
 )
-from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
-from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
 from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import JsonataExecutor
 from confluent_kafka.schema_registry.schema_registry_client import (
     Rule,
@@ -92,12 +88,7 @@ def run_before_and_after_tests(tmpdir):
 
     CelExecutor.register()
     CelFieldExecutor.register()
-    AwsKmsDriver.register()
-    AzureKmsDriver.register()
-    GcpKmsDriver.register()
-    HcVaultKmsDriver.register()
     JsonataExecutor.register()
-    LocalKmsDriver.register()
 
     yield  # this is where the testing happens
 
@@ -176,6 +167,89 @@ def test_avro_guid_in_header():
     deser = AvroDeserializer(client)
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
+
+
+@pytest.mark.parametrize(
+    "schema, obj",
+    [
+        ("int", 1),
+        ("boolean", True),
+        ("string", "abcd"),
+        ({'type': 'record', 'name': 'empty', 'fields': []}, {}),
+        ({'type': 'record', 'name': 'key', 'fields': [{'name': 'id', 'type': 'int'}]}, {'id': 7}),
+    ],
+)
+@pytest.mark.parametrize("field", [MessageField.KEY, MessageField.VALUE])
+@pytest.mark.parametrize("headers_type", [dict, list])
+def test_avro_guid_in_header_deserializes_payloads_of_five_bytes_or_fewer(schema, obj, field, headers_type):
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'schema.id.serializer': header_schema_id_serializer}
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, field, headers_type())
+    obj_bytes = ser(obj, ser_ctx)
+    assert len(obj_bytes) <= 5
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_payload_prefix_serializer_drops_stale_schema_id_header():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    schema = {
+        'type': 'record',
+        'name': 'user',
+        'fields': [{'name': 'id', 'type': 'int'}, {'name': 'name', 'type': 'string'}],
+    }
+    obj = {'id': 99, 'name': 'radia perlman'}
+
+    # Headers copied from an inbound message that was serialized in header mode
+    header_ser = AvroSerializer(
+        client,
+        schema_str=json.dumps(schema),
+        conf={'auto.register.schemas': True, 'schema.id.serializer': header_schema_id_serializer},
+    )
+    headers = []
+    header_ser(obj, SerializationContext(_TOPIC, MessageField.VALUE, headers))
+    assert [k for k, _ in headers] == ['__value_schema_id']
+
+    # Re-serialize in prefix mode, keeping the inbound headers
+    prefix_ser = AvroSerializer(client, schema_str=json.dumps(schema), conf={'auto.register.schemas': True})
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, headers)
+    obj_bytes = prefix_ser(obj, ser_ctx)
+    assert headers == []
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_payload_prefix_deserializes_empty_body():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    schema = {'type': 'record', 'name': 'empty', 'fields': []}
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser({}, ser_ctx)
+    assert len(obj_bytes) == 5
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj2 == {}
+
+
+@pytest.mark.parametrize("data", [b'', b'\x00', b'\x00\x00\x00\x01', b'\x01\x02\x03\x04\x05'])
+def test_avro_deserializer_raises_serialization_error_when_prefix_is_truncated(data):
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
+
+    deser = AvroDeserializer(client)
+    with pytest.raises(SerializationError, match="Invalid schema id framing"):
+        deser(data, ser_ctx)
 
 
 def test_avro_serialize_use_schema_id():
@@ -1171,6 +1245,321 @@ def test_avro_cel_field_condition_fail():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+_AVRO_DECIMAL_SCHEMA = {
+    'type': 'record',
+    'name': 'test',
+    'fields': [
+        {
+            'name': 'decField',
+            'type': {
+                'type': 'bytes',
+                'logicalType': 'decimal',
+                'precision': 10,
+                'scale': 2,
+            },
+        },
+    ],
+}
+
+
+def test_avro_cel_decimal_passes():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.gt(decimal(message.decField), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_cel_decimal_fails():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.lt(decimal(message.decField), decimal("10.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+def test_avro_cel_decimal_needs_no_constructor():
+    """Cross-client parity: an Avro ``decimal`` logical type is usable as a Decimal with **no
+    ``decimal(...)`` call**, and the wrapped form keeps working alongside it. fastavro decodes it
+    to a Python ``Decimal`` at the schema's scale, which is this client's in-CEL decimal
+    representation, so ``decimals.*`` accept it directly and ``==`` is numeric (Python's own
+    ``Decimal.__eq__``).
+    """
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    def serialize(expr):
+        rule = Rule(
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
+        )
+        client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+        return ser({'decField': Decimal('12.34')}, ser_ctx)
+
+    # Bare: no constructor call on the field.
+    assert serialize('decimals.eq(message.decField, decimal("12.34"))') is not None
+    assert serialize('decimals.gt(message.decField, decimal("10.00"))') is not None
+    # The wrapped form must keep working (decimal(...) re-entry).
+    assert serialize('decimals.eq(decimal(message.decField), decimal("12.34"))') is not None
+    # `==` is numeric on it: 12.34 equals 12.340 despite the differing scale.
+    assert serialize('message.decField == decimal("12.340")') is not None
+    # The schema's scale is applied, not guessed: as scale 0 this would be 1234.
+    assert serialize('decimals.lt(message.decField, decimal("100"))') is not None
+    # Negative control: a false comparison must fail.
+    with pytest.raises(SerializationError) as e:
+        serialize('decimals.gt(message.decField, decimal("100"))')
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+def test_avro_cel_decimal_arithmetic():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'decimals.eq(decimals.add(decimal(message.decField), decimal("1.66")), decimal("14.00"))',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_cel_decimal_string():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'string(decimal(message.decField)) == "12.34"',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_DECIMAL_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'decField': Decimal('12.34')}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+_AVRO_TIMESTAMP_SCHEMA = {
+    'type': 'record',
+    'name': 'test',
+    'fields': [
+        {'name': 'tsField', 'type': {'type': 'long', 'logicalType': 'timestamp-millis'}},
+    ],
+}
+
+
+def test_avro_cel_timestamp_millis_passes():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp(message.tsField) < now',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'tsField': datetime(2020, 1, 1, tzinfo=timezone.utc)}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_cel_timestamp_millis_fails():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        'timestamp(message.tsField) > now',
+        None,
+        None,
+        False,
+    )
+    client.register_schema(
+        _SUBJECT,
+        Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+    )
+
+    obj = {'tsField': datetime(2020, 1, 1, tzinfo=timezone.utc)}
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError) as e:
+        ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
+
+
+def test_avro_cel_timestamp_millis_needs_no_constructor():
+    """Cross-client parity: an Avro timestamp logical type is usable as a timestamp with **no
+    constructor call at all**. fastavro decodes it to an aware datetime, which the boundary
+    binds as a CEL timestamp, so it is comparable against ``now`` and carries the timestamp
+    accessors. Every one of the seven clients has this test; the constructor is only needed for
+    a plain numeric field whose unit the schema cannot supply.
+    """
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    def serialize(expr, value):
+        rule = Rule(
+            "test-cel",
+            "",
+            RuleKind.CONDITION,
+            RuleMode.WRITE,
+            "CEL",
+            None,
+            None,
+            expr,
+            None,
+            None,
+            False,
+        )
+        client.register_schema(
+            _SUBJECT,
+            Schema(json.dumps(_AVRO_TIMESTAMP_SCHEMA), "AVRO", [], None, RuleSet(None, [rule])),
+        )
+        ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+        return ser({'tsField': value}, ser_ctx)
+
+    past = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    exact = datetime(2023, 11, 14, 22, 13, 20, 123000, tzinfo=timezone.utc)
+
+    # Bare comparison against `now`.
+    assert serialize('message.tsField < now', past) is not None
+    # The schema's millis unit is applied, not guessed, and the accessors work directly.
+    assert serialize('message.tsField == timestamp("2023-11-14T22:13:20.123Z")', exact) is not None
+    assert serialize('message.tsField.getFullYear() == 2023', exact) is not None
+    # Negative control: a future value must fail, so the comparison really happens.
+    with pytest.raises(SerializationError) as e:
+        serialize('message.tsField < now', datetime(2100, 1, 1, tzinfo=timezone.utc))
     assert isinstance(e.value.__cause__, RuleConditionError)
 
 
@@ -3282,3 +3671,184 @@ def test_associated_name_strategy_caching():
     # Deserialize second message
     result2 = deser(obj_bytes2, ser_ctx)
     assert obj2 == result2
+
+
+# --- cluster id resolver -----------------------------------------------------
+#
+# The serde-building clients hand their serdes a resolver for the Kafka cluster
+# id instead of the id itself, so that constructing a client never waits on a
+# broker. The strategy invokes it only when it has to look a subject up.
+
+_RESOLVER_SCHEMA = {
+    'type': 'record',
+    'name': 'ResolverRecord',
+    'fields': [
+        {'name': 'count', 'type': 'int'},
+    ],
+}
+
+
+class _Resolver:
+    """Cluster id resolver recording its invocations; ``results`` are handed out in turn."""
+
+    def __init__(self, *results):
+        self.results = list(results)
+        self.calls = 0
+
+    def __call__(self):
+        self.calls += 1
+        result = self.results.pop(0) if len(self.results) > 1 else self.results[0]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+def _associate(client, namespace, subject, resource_id):
+    request = AssociationCreateOrUpdateRequest(
+        resource_name=_TOPIC,
+        resource_namespace=namespace,
+        resource_id=resource_id,
+        resource_type="topic",
+        associations=[
+            AssociationCreateOrUpdateInfo(
+                subject=subject,
+                association_type="value",
+                lifecycle="STRONG",
+                schema=Schema(schema_str=json.dumps(_RESOLVER_SCHEMA)),
+            )
+        ],
+    )
+    client.create_association(request)
+
+
+def _resolver_serializer(client, strategy_conf=None, strategy=SubjectNameStrategyType.ASSOCIATED):
+    ser_conf = {
+        'auto.register.schemas': True,
+        'subject.name.strategy.type': strategy,
+    }
+    if strategy_conf is not None:
+        ser_conf['subject.name.strategy.conf'] = strategy_conf
+    return AvroSerializer(client, schema_str=json.dumps(_RESOLVER_SCHEMA), conf=ser_conf)
+
+
+def test_cluster_id_resolver_invoked_on_subject_cache_miss_only():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "resolver-subject", "mock-resource-resolver-1")
+
+    ser = _resolver_serializer(client)
+    resolver = _Resolver("resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # construction and handing over the resolver never invoke it
+    assert resolver.calls == 0
+
+    ser({'count': 1}, ser_ctx)
+    assert resolver.calls == 1
+    assert client.get_latest_version("resolver-subject") is not None
+
+    # the subject is cached, so no further resolution
+    ser({'count': 2}, ser_ctx)
+    assert resolver.calls == 1
+
+    client.delete_associations(resource_id="mock-resource-resolver-1", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_not_invoked_when_id_is_configured():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "configured-cluster", "configured-subject", "mock-resource-resolver-2")
+
+    ser = _resolver_serializer(client, {KAFKA_CLUSTER_ID: "configured-cluster"})
+    resolver = _Resolver(RuntimeError("must not be called"))
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 0
+    assert client.get_latest_version("configured-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-2", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_used_when_configured_id_is_empty():
+    # an empty configured id counts as unset, as in the Go client
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "empty-conf-subject", "mock-resource-resolver-3")
+
+    ser = _resolver_serializer(client, {KAFKA_CLUSTER_ID: ""})
+    resolver = _Resolver("resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 1
+    assert client.get_latest_version("empty-conf-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-3", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_failure_is_reported_and_retried():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "resolved-cluster", "retry-subject", "mock-resource-resolver-4")
+
+    ser = _resolver_serializer(client)
+    # the broker is not reachable yet on the first attempt
+    resolver = _Resolver(RuntimeError("Timed out"), "resolved-cluster")
+    ser.set_cluster_id_resolver(resolver)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    with pytest.raises(SerializationError) as excinfo:
+        ser({'count': 1}, ser_ctx)
+    assert KAFKA_CLUSTER_ID in str(excinfo.value)
+    assert "Timed out" in str(excinfo.value)
+
+    # nothing was cached, so the next message resolves again and succeeds
+    ser({'count': 1}, ser_ctx)
+    assert resolver.calls == 2
+    assert client.get_latest_version("retry-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-4", cascade_lifecycle=True)
+
+
+def test_cluster_id_resolver_empty_result_is_an_error():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+
+    ser = _resolver_serializer(client)
+    ser.set_cluster_id_resolver(_Resolver(""))
+
+    with pytest.raises(SerializationError) as excinfo:
+        ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+    assert KAFKA_CLUSTER_ID in str(excinfo.value)
+    assert "empty" in str(excinfo.value)
+
+
+def test_cluster_id_resolver_ignored_by_other_strategies():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+
+    ser = _resolver_serializer(client, strategy=SubjectNameStrategyType.TOPIC)
+    resolver = _Resolver(RuntimeError("must not be called"))
+    ser.set_cluster_id_resolver(resolver)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert resolver.calls == 0
+    assert client.get_latest_version(_TOPIC + "-value") is not None
+
+
+def test_cluster_id_resolver_last_one_wins():
+    client = SchemaRegistryClient.new_client({'url': _BASE_URL})
+    _associate(client, "second-cluster", "second-subject", "mock-resource-resolver-5")
+
+    ser = _resolver_serializer(client)
+    first = _Resolver("first-cluster")
+    second = _Resolver("second-cluster")
+    ser.set_cluster_id_resolver(first)
+    ser.set_cluster_id_resolver(second)
+
+    ser({'count': 1}, SerializationContext(_TOPIC, MessageField.VALUE))
+
+    assert first.calls == 0
+    assert second.calls == 1
+    assert client.get_latest_version("second-subject") is not None
+
+    client.delete_associations(resource_id="mock-resource-resolver-5", cascade_lifecycle=True)

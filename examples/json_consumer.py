@@ -16,13 +16,18 @@
 # limitations under the License.
 
 
-# A simple example demonstrating use of JSONDeserializer.
+# A simple example demonstrating use of JSONDeserializerBuilder with a
+# DeserializingConsumer.
+#
+# The builder is handed to the consumer through the
+# 'value.deserializer.builder' configuration property; the consumer then
+# constructs the deserializer and passes it the Kafka cluster id if it needs
+# one. poll() returns a message whose value is already a User.
 
 import argparse
 
-from confluent_kafka import Consumer
-from confluent_kafka.schema_registry.json_schema import JSONDeserializer
-from confluent_kafka.serialization import MessageField, SerializationContext
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry.json_schema import JSONDeserializerBuilder
 
 
 class User(object):
@@ -84,15 +89,14 @@ def main(args):
       "required": [ "name", "favorite_number", "favorite_color" ]
     }
     """
-    json_deserializer = JSONDeserializer(schema_str, from_dict=dict_to_user)
-
     consumer_conf = {
         'bootstrap.servers': args.bootstrap_servers,
         'group.id': args.group,
         'auto.offset.reset': "earliest",
+        'value.deserializer.builder': JSONDeserializerBuilder(schema=schema_str, from_dict=dict_to_user),
     }
 
-    consumer = Consumer(consumer_conf)
+    consumer = DeserializingConsumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -102,7 +106,9 @@ def main(args):
             if msg is None:
                 continue
 
-            user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+            # deserialized_value() returns the same object as value(); prefer it
+            # so the type is the User this consumer was parameterized with.
+            user = msg.deserialized_value()
 
             if user is not None:
                 print(
@@ -117,7 +123,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="JSONDeserializer example")
+    parser = argparse.ArgumentParser(description="JSONDeserializerBuilder example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_json", help="Topic name")

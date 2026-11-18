@@ -35,16 +35,16 @@ from uuid import uuid4
 import protobuf.user_pb2 as user_pb2
 from six.moves import input
 
-from confluent_kafka import Producer
+from confluent_kafka import SerializingProducer
 from confluent_kafka.schema_registry import Rule, RuleKind, RuleMode, RuleParams, RuleSet, Schema, SchemaRegistryClient
-from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, _schema_to_str
+from confluent_kafka.schema_registry.protobuf import ProtobufSerializerBuilder, _schema_to_str
 from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import AwsKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import FieldEncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import HcVaultKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver import LocalKmsDriver
-from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
+from confluent_kafka.serialization import StringSerializer
 
 
 def delivery_report(err, msg):
@@ -107,13 +107,19 @@ def main(args):
     # KMS credentials can be passed as follows
     # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
     # Alternatively, the KMS credentials can be set via environment variables
-    protobuf_serializer = ProtobufSerializer(user_pb2.User, schema_registry_client, ser_conf, rule_conf=rule_conf)
 
-    string_serializer = StringSerializer('utf8')
+    producer_conf = {
+        'bootstrap.servers': args.bootstrap_servers,
+        'key.serializer': StringSerializer('utf8'),
+        'value.serializer.builder': ProtobufSerializerBuilder(
+            schema_registry_client=schema_registry_client,
+            message_type=user_pb2.User,
+            serializer_config=ser_conf,
+            rule_config=rule_conf,
+        ),
+    }
 
-    producer_conf = {'bootstrap.servers': args.bootstrap_servers}
-
-    producer = Producer(producer_conf)
+    producer = SerializingProducer(producer_conf)
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -126,13 +132,7 @@ def main(args):
             user = user_pb2.User(
                 name=user_name, favorite_color=user_favorite_color, favorite_number=user_favorite_number
             )
-            producer.produce(
-                topic=topic,
-                partition=0,
-                key=string_serializer(str(uuid4())),
-                value=protobuf_serializer(user, SerializationContext(topic, MessageField.VALUE)),
-                on_delivery=delivery_report,
-            )
+            producer.produce(topic=topic, partition=0, key=str(uuid4()), value=user, on_delivery=delivery_report)
         except (KeyboardInterrupt, EOFError):
             break
         except ValueError:
@@ -144,7 +144,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="ProtobufSerializer example")
+    parser = argparse.ArgumentParser(description="ProtobufSerializerBuilder encryption example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True, help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True, help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_protobuf", help="Topic name")

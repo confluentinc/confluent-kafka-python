@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import threading
 import time
 
 import pytest
@@ -210,3 +211,39 @@ def test_set_sasl_credentials_api():
 
         with pytest.raises(TypeError):
             c.set_sasl_credentials('username', None)
+
+
+@pytest.mark.parametrize(
+    "make_client",
+    [
+        lambda conf: Producer(conf),
+        lambda conf: TestConsumer({**conf, 'group.id': 'test'}),
+    ],
+    ids=['producer', 'consumer'],
+)
+def test_close_interrupts_a_blocked_cluster_id_call(make_client):
+    """close() makes a cluster_id() blocked on an unreachable broker return early,
+    instead of the two waiting on each other for the rest of the timeout."""
+    client = make_client({'bootstrap.servers': '127.0.0.1:1', 'log_level': 0})
+    outcome = {}
+
+    def call():
+        try:
+            client.cluster_id(timeout=30)
+        except confluent_kafka.KafkaException as e:
+            outcome['error'] = e.args[0]
+
+    t = threading.Thread(target=call)
+    t.start()
+    time.sleep(0.5)
+
+    start = time.monotonic()
+    client.close()
+    t.join(10)
+
+    assert not t.is_alive()
+    assert time.monotonic() - start < 5
+    assert outcome['error'].code() == confluent_kafka.KafkaError._DESTROY
+
+    with pytest.raises(RuntimeError):
+        client.cluster_id(timeout=1)

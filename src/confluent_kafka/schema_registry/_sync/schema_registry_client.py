@@ -27,12 +27,11 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 from urllib.parse import unquote, urlparse
 
 import certifi
-import httpx
 from authlib.integrations.httpx_client import OAuth2Client
 from cachetools import Cache, LRUCache, TTLCache
-from httpx import Response
 
 from confluent_kafka import version
+from confluent_kafka.schema_registry.common._httpx_compat import Response, httpx
 from confluent_kafka.schema_registry.common._oauthbearer import (
     _AbstractCustomOAuthBearerFieldProviderBuilder,
     _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder,
@@ -713,6 +712,14 @@ class SchemaRegistryClient(object):
         return self
 
     def __exit__(self, *args):
+        self.close()
+
+    def close(self) -> None:
+        """
+        Close the underlying HTTP session.
+
+        The client is unusable afterwards. Safe to call more than once.
+        """
         if self._rest_client is not None:
             self._rest_client.session.close()
 

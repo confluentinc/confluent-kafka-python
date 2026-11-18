@@ -8,13 +8,13 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.15.0
+      value: v2.16.0
   prologue:
     commands:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64 - Python 3.8-3.12"
+  - name: "Wheels: OSX x64 - Python 3.9-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -35,7 +35,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX x64 - Python 3.13-3.14"
+  - name: "Wheels: OSX x64 - Python 3.13-3.15"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -48,7 +48,7 @@ blocks:
         - name: OS_NAME
           value: osx
         - name: CIBW_SKIP
-          value: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
+          value: cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
           value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
@@ -60,7 +60,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
-  - name: "Wheels: OSX arm64 - Python 3.8-3.12"
+  - name: "Wheels: OSX arm64 - Python 3.9-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -83,7 +83,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64 - Python 3.13-3.14"
+  - name: "Wheels: OSX arm64 - Python 3.13-3.15"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -98,7 +98,7 @@ blocks:
         - name: CIBW_ARCHS
           value: arm64
         - name: CIBW_SKIP
-          value: cp38-* cp39-* cp310-* cp311-* cp312-*
+          value: cp39-* cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
           value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
@@ -131,6 +131,27 @@ blocks:
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: Linux s390x"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Pre-release Validation"
+    task:
+      agent:
+        machine:
+          type: s1-ubuntu-24-s390x-4
+      env_vars:
+        - name: OS_NAME
+          value: linux
+      jobs:
+        - name: Build
+          commands:
+            - export ARCH=s390x
+            - sem-version python 3.13
+            - pip install uv
+            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
     run:
       when: "tag =~ '.*'"
@@ -139,7 +160,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-0
       env_vars:
         - name: OS_NAME
           value: linux
@@ -190,7 +211,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-2
       env_vars:
         - name: OS_NAME
           value: linux
@@ -233,6 +254,38 @@ blocks:
             - cp test-report.xml test-output
             - test-results publish test-output
             - artifact push workflow coverage.xml
+  - name: "Source package verification and Integration tests with Python 3.15t free-threaded (Linux x64)"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+      prologue:
+        commands:
+          - export ARCH=x64
+          - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
+          - sudo apt-get update -qq && sudo apt-get install -y -qq clang-format
+      jobs:
+        - name: Build and Tests with 'classic' group protocol
+          commands:
+            - sem-version python 3.11
+            - sem-version java 17
+            - pip install uv
+            - uv venv _venv --python 3.15t && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
+        - name: Build and Tests with 'consumer' group protocol
+          commands:
+            - sem-version python 3.11
+            - sem-version java 17
+            - pip install uv
+            - uv venv _venv --python 3.15t && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
+            - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (Linux arm64)"
     dependencies: []
     task:
@@ -399,7 +452,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-1
       env_vars:
         - name: OS_NAME
           value: linux
@@ -411,6 +464,13 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify free threaded
+          commands:
+            - export ARCH=x64
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.9
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -431,12 +491,46 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify free threaded
+          commands:
+            - export ARCH=arm64
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.9
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
+  - name: "Wheel Verification: Linux s390x"
+    run:
+      when: "tag =~ '.*'"
+    dependencies:
+      - "Wheels: Linux s390x"
+    task:
+      agent:
+        machine:
+          type: s1-ubuntu-24-s390x-4
+      env_vars:
+        - name: OS_NAME
+          value: linux
+      jobs:
+        - name: Verify
+          commands:
+            - export ARCH=s390x
+            - sem-version python 3.9
+            - artifact pull workflow artifacts
+            - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
+            - tools/test-wheels.sh artifacts/wheelhouse
+        - name: Verify free threaded
+          commands:
+            - export ARCH=s390x
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.13
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: OSX x64"
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64 - Python 3.8-3.12"
-      - "Wheels: OSX x64 - Python 3.13-3.14"
+      - "Wheels: OSX x64 - Python 3.9-3.12"
+      - "Wheels: OSX x64 - Python 3.13-3.15"
     task:
       agent:
         machine:
@@ -463,12 +557,19 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
+        - name: Verify free threaded
+          commands:
+            - export ARCH=x64
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.11
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: OSX arm64"
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX arm64 - Python 3.8-3.12"
-      - "Wheels: OSX arm64 - Python 3.13-3.14"
+      - "Wheels: OSX arm64 - Python 3.9-3.12"
+      - "Wheels: OSX arm64 - Python 3.13-3.15"
     task:
       agent:
         machine:
@@ -495,6 +596,13 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests/test_error.py
+        - name: Verify free threaded
+          commands:
+            - export ARCH=arm64
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.11
+            - pip install uv
+            - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Windows"
     run:
       when: "tag =~ '.*'"
@@ -527,6 +635,29 @@ blocks:
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''snappy''}); print(''OK: snappy'')"'
             - 'python -c "import confluent_kafka; confluent_kafka.Producer({''compression.codec'':''zstd''}); print(''OK: zstd'')"'
             - pytest tests\test_error.py
+        - name: Verify free threaded
+          commands:
+            # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
+            - sem-version python 3.11
+            - python -m pip install uv
+            # python -m uv: the uv just installed, not the image's (see tools/verify-free-threaded-job.sh).
+            - python -m uv venv _venv315t --python 3.15t
+            - . .\_venv315t\Scripts\Activate.ps1
+            - python -c "import sys; print(sys.version); sys.exit(sys.version_info.releaselevel != 'final')"
+            - python -m ensurepip
+            - python -m pip install -r requirements/requirements-tests-install-nogil.txt
+            - artifact pull workflow artifacts
+            - python -c "import glob, sys; found = glob.glob('artifacts/*.tgz'); print(found); sys.exit(0 if found else 1)"
+            - cd artifacts
+            - Get-ChildItem *.tgz | ForEach-Object { tar -xf $_.Name }
+            - cd ..
+            - python -c "import glob, sys; found = glob.glob('artifacts/wheelhouse/*-cp315t-win_amd64.whl'); print(found); sys.exit(0 if found else 1)"
+            - python -m pip install --no-index --find-links artifacts\wheelhouse confluent-kafka
+            - ".\\tools\\mingw-w64\\setup-msys2.ps1"
+            # The Windows librdkafka build has no git tag in its version string (2.16.0, not 2.16.0-RC2)
+            # FIXME: add LIBRDKAFKA_GIT_VERSION when building Windows as well.
+            - C:\msys64\usr\bin\bash.exe -c 'LIBRDKAFKA_VERSION=${LIBRDKAFKA_VERSION%%-*} tools/verify-free-threaded-wheel.sh _venv315t/Scripts/python.exe'
+            - python -m pytest tests --ignore=tests\integration --ignore=tests\test_unasync.py --timeout 1200
   - name: "Pre-release Validation"
     run:
       when: "tag =~ '.*'"
@@ -546,6 +677,7 @@ blocks:
     dependencies:
       - "Wheel Verification: Linux x64"
       - "Wheel Verification: Linux arm64"
+      - "Wheel Verification: Linux s390x"
       - "Wheel Verification: OSX x64"
       - "Wheel Verification: OSX arm64"
       - "Wheel Verification: Windows"
@@ -569,7 +701,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu24-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-0
       jobs:
         - name: "Packaging all artifacts"
           commands:
@@ -586,6 +718,19 @@ blocks:
 promotions:
   - name: "Publish to Test PyPI"
     pipeline_file: publish-test-pypi.yml
+    parameters:
+      env_vars:
+        - name: PYTHON_VERSIONS
+          description: "Comma-separated Python versions to publish wheels for (e.g. 3.14 or 3.13,3.14). Use 'all' to publish everything, or 'none' to publish no wheels (sdist only)."
+          required: true
+          default_value: all
+        - name: INCLUDE_SDIST
+          description: "Upload the source distribution too. Set to False when adding wheels to an already published release."
+          required: true
+          default_value: "True"
+          options:
+            - "True"
+            - "False"
 after_pipeline:
   task:
     agent:

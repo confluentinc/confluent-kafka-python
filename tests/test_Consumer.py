@@ -10,7 +10,7 @@ from confluent_kafka import (
     Message,
     TopicPartition,
 )
-from tests.common import TestConsumer
+from tests.common import TestConsumer, call_until_callback_raises
 
 
 def test_basic_api():
@@ -398,6 +398,50 @@ def test_any_method_after_close_throws_exception():
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
     assert ex.match('Consumer closed')
 
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
+
+
+def test_pause_after_close_raises_runtime_error():
+    """Regression test: Consumer__pause_internal must check self->rk before
+    calling into librdkafka, same as every other _internal method. Prior
+    to this fix, pause() after close() dereferenced a NULL self->rk and
+    segfaulted the process instead of raising RuntimeError."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.pause([])
+    assert ex.match('Consumer closed')
+
+
+def test_resume_after_close_raises_runtime_error():
+    """Same regression as test_pause_after_close_raises_runtime_error, for
+    Consumer__resume_internal."""
+    c = TestConsumer(
+        {
+            'group.id': 'test',
+            'bootstrap.servers': 'nonexistent-broker:9092',
+            'socket.timeout.ms': 50,
+            'session.timeout.ms': 100,
+        }
+    )
+    c.close()
+    with pytest.raises(RuntimeError) as ex:
+        c.resume([])
+    assert ex.match('Consumer closed')
+
 
 def test_calling_store_offsets_after_close_throws_erro():
     """calling store_offset after close should throw RuntimeError"""
@@ -440,9 +484,10 @@ def test_callback_exception_no_system_error():
     error_called = []
 
     def error_cb_that_raises(error):
-        """Error callback that raises an exception"""
+        """Error callback that raises an exception, but only the first time"""
         error_called.append(error)
-        raise RuntimeError("Test exception from error_cb")
+        if len(error_called) == 1:
+            raise RuntimeError("Test exception from error_cb")
 
     consumer1 = TestConsumer(
         {
@@ -458,7 +503,7 @@ def test_callback_exception_no_system_error():
 
     # Test error_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer1.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer1.poll(timeout=0.2))
 
     # Verify error_cb was called and raised the expected exception
     assert "Test exception from error_cb" in str(exc_info.value)
@@ -469,9 +514,13 @@ def test_callback_exception_no_system_error():
     stats_called = []
 
     def stats_cb_that_raises(stats_json):
-        """Stats callback that raises an exception"""
+        """Stats callback that raises an exception, but only the first
+        time -- statistics.interval.ms fires independently of consume(),
+        so a later call (e.g. during close()'s own internal polling) must
+        not raise again and turn the unguarded close() below flaky."""
         stats_called.append(stats_json)
-        raise RuntimeError("Test exception from stats_cb")
+        if len(stats_called) == 1:
+            raise RuntimeError("Test exception from stats_cb")
 
     consumer2 = TestConsumer(
         {
@@ -488,7 +537,7 @@ def test_callback_exception_no_system_error():
 
     # Test stats_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer2.consume(timeout=0.2)  # Longer timeout to allow stats callback
+        call_until_callback_raises(lambda: consumer2.poll(timeout=0.2))
 
     # Verify stats_cb was called and raised the expected exception
     assert "Test exception from stats_cb" in str(exc_info.value)
@@ -517,7 +566,7 @@ def test_callback_exception_no_system_error():
 
     # Test throttle_cb callback - may not be triggered, so we'll just verify it doesn't crash
     try:
-        consumer3.consume(timeout=0.1)
+        consumer3.poll(timeout=0.5)
         # If no exception is raised, that's also fine - throttle_cb may not be triggered
         print("Throttle callback not triggered in this scenario")
     except RuntimeError as exc_info:
@@ -557,7 +606,7 @@ def test_error_callback_exception_different_error_types():
     consumer1.subscribe(['test-topic'])
 
     with pytest.raises(KafkaException):
-        consumer1.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer1.consume(timeout=0.2))
     consumer1.close()
 
     # Test with ValueError
@@ -573,7 +622,7 @@ def test_error_callback_exception_different_error_types():
     consumer2.subscribe(['test-topic'])
 
     with pytest.raises(ValueError) as exc_info:
-        consumer2.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer2.consume(timeout=0.2))
     assert "Custom error:" in str(exc_info.value)
     consumer2.close()
 
@@ -590,7 +639,7 @@ def test_error_callback_exception_different_error_types():
     consumer3.subscribe(['test-topic'])
 
     with pytest.raises(RuntimeError) as exc_info:
-        consumer3.consume(timeout=0.1)
+        call_until_callback_raises(lambda: consumer3.consume(timeout=0.2))
     assert "Runtime error:" in str(exc_info.value)
     consumer3.close()
 

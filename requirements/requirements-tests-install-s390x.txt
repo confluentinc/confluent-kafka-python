@@ -1,0 +1,22 @@
+# Reduced test-install set for s390x (IBM Z).
+#
+# Same as requirements-tests-install.txt but WITHOUT requirements-schemaregistry.txt
+# and requirements-rules.txt, whose transitive deps (cryptography, google-re2,
+# tink) publish no s390x wheels and would fall back to slow/failing source builds
+# on the s390x agent (e.g. google-re2 needs the abseil C++ headers).
+#
+# This is only the smoke-test dependency set: tools/smoketest.sh runs the
+# top-level unit tests, which do not import the rules/schema-registry crypto
+# stack. (It then also installs the [avro], [protobuf] and [json] extras, which
+# pull the schema-registry deps, so cryptography is still built from source
+# there.) Drop this file and use requirements-tests-install.txt once
+# cryptography/google-re2/tink ship s390x wheels.
+#
+# trivup is also omitted: it is only used by tests/integration (not exercised by
+# the smoke test) and it pulls jwcrypto -> cryptography, reintroducing the same
+# no-s390x-wheel source build this file exists to avoid.
+-r requirements-tests.txt
+-r requirements-avro.txt
+-r requirements-protobuf.txt
+-r requirements-json.txt
+-r requirements-oauthbearer-aws.txt

@@ -15,41 +15,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# A minimal example demonstrating AsyncIO Avro producer with Schema Registry.
+# A minimal example demonstrating the AsyncIO Avro producer with Schema Registry.
+#
+# The AsyncAvroSerializerBuilder is handed to AsyncSerializingProducer through
+# the 'value.serializer.builder' configuration property; the producer then
+# constructs the Schema Registry client and the serializer, gives them the
+# Kafka cluster id when they need it, and closes them along with itself.
+# produce() is called with the value object itself rather than with bytes.
 
 import argparse
 import asyncio
 
-from confluent_kafka.aio import AIOProducer
-from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
-from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
-from confluent_kafka.serialization import MessageField, SerializationContext
+from confluent_kafka.aio import AsyncSerializingProducer
+from confluent_kafka.schema_registry.avro import AsyncAvroSerializerBuilder
 
 
 async def main(args):
-    # Configure Async Schema Registry client
+    # Configure the Schema Registry client the builder will create
     sr_conf = {'url': args.schema_registry}
     if args.sr_api_key and args.sr_api_secret:
         sr_conf['basic.auth.user.info'] = f"{args.sr_api_key}:{args.sr_api_secret}"
-    sr_client = AsyncSchemaRegistryClient(sr_conf)
 
     # Example Avro schema
     schema_str = '{"type": "record", "name": "User", "fields": [{"name": "name", "type": "string"}]}'
 
-    # Instantiate async serializer
-    avro_serializer = await AsyncAvroSerializer(sr_client, schema_str=schema_str)
-
-    producer = AIOProducer({'bootstrap.servers': args.bootstrap_servers})
+    # Construction is asynchronous, as the builder's serializer is
+    producer = await AsyncSerializingProducer(
+        {
+            'bootstrap.servers': args.bootstrap_servers,
+            'value.serializer.builder': AsyncAvroSerializerBuilder(schema_registry_config=sr_conf, schema=schema_str),
+        }
+    )
 
     try:
-        # Serialize value and produce
-        value = {'name': 'alice'}
-        serialized_value = await avro_serializer(value, SerializationContext(args.topic, MessageField.VALUE))
-        delivery_future = await producer.produce(args.topic, value=serialized_value)
+        # The value is serialized by the producer before being queued
+        delivery_future = await producer.produce(args.topic, value={'name': 'alice'})
+        await producer.flush()
         msg = await delivery_future
         print(f"Produced to {msg.topic()} [{msg.partition()}] @ {msg.offset()}")
     finally:
-        await producer.flush()
+        # Closes the producer, then the serializer and its Schema Registry client
         await producer.close()
 
 

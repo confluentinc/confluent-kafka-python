@@ -1,12 +1,101 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.x.0
+## Unreleased
 
 ### Enhancements
 
+- Add Python 3.15 and 3.15t (free-threaded) wheels. The `rules` extra
+  (CSFLE and data quality rules) can't be installed on Python 3.15 yet, as
+  its `tink` and `google-re2` dependencies publish no Python 3.15 wheels (#2406)
+- Drop Python 3.8 support. Python 3.8 reached end of life in October 2024 (#2406)
+
+### Fixes
+- Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
+  sent in a header (`header_schema_id_serializer`), for example `int` keys or short
+  strings. The length check now runs where the schema id framing is parsed, so it
+  applies only to the bytes that actually carry the framing (payload prefix or header).
+  Truncated framing now raises `SerializationError` for Avro, JSON Schema and Protobuf,
+  and a prefix-framed Avro message with an empty body (5 bytes) is accepted.
+- When a message has more than one `__key_schema_id` / `__value_schema_id` header, the
+  Schema Registry deserializers now use the last one, matching the Java client. They
+  previously used the first.
+- `header_schema_id_serializer` now replaces an existing schema id header for the same
+  field instead of appending a second one, and `prefix_schema_id_serializer` removes an
+  existing schema id header for the same field from the message headers. A message
+  re-serialized with headers copied from an inbound message no longer carries both a
+  schema id header and a payload prefix, which deserializers decoded as wrong values
+  without raising an error.
+- A Protobuf payload with truncated message indexes now raises `SerializationError`
+  instead of `EOFError`.
+- Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `confluent-kafka[rules]` failing to install on Python 3.14 unless google-re2
+  could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
+  wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
+  applies to Python 3.9 only.
+
+## v2.16.1
+
+### Fixes
+
+- Require `certifi>=2026.10.19` for the Schema Registry client. When
+  `ssl.ca.location` is not set (and the `SSL_CERT_FILE` and `SSL_CERT_DIR`
+  environment variables are not set), the client verifies Schema Registry
+  certificates against the `certifi` CA bundle, and earlier `certifi` releases
+  still trust the eMudhra root whose intermediate CA keys were compromised
+  ([details](https://emudhra.we-have-a-problem.com/)). This update does not
+  change custom trust stores configured through `ssl.ca.location`,
+  `SSL_CERT_FILE` or `SSL_CERT_DIR`; keep those up to date separately.
+- Fix `MetadataTags.__hash__` raising `TypeError` on unhashable list values so schemas with `metadata.tags` can be cached (#2385)
+- Fix `TopicPartition` string formatting showing `%I32d` instead of the partition number on Windows (#2374)
+
+
+confluent-kafka-python 2.16.1 is based on librdkafka 2.16.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.16.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.16.0
+
+v2.16.0 is a feature release with the following features, fixes and enhancements:
+
+### Enhancements
+- `confluent_kafka` now declares itself GIL-safe, enabling real multi-core parallelism on free-threaded CPython builds. See the [Multithreading Guide](docs/multithreading-guide.md) for thread-safety details and free-threaded caveats. (#2347)
+- Add Python 3.14t wheels (#2352)
+- Add Linux s390x (IBM Z) wheels, including Python 3.14t (#2360)
+- Producer `close()` now aborts any open transaction (#2347)
+- Async IO Consumer's default worker pool size has been increased from 2 to 100 (#2347)
+- Add support for CPython free-threading (PEP 703) to enable true multi-core parallel execution in No-GIL environments (#2347)
+- `SerializingProducer` and `DeserializingConsumer` accept a *serde builder*
+  when not passing a ready-made serde, through the new `key.serializer.builder` /
+  `value.serializer.builder` and `key.deserializer.builder` /
+  `value.deserializer.builder` configuration properties. Serdes built this way,
+  and any Schema Registry client the builder created for them, are owned by the
+  client and closed by its `close()`; ready-made serdes remain the
+  application's. This API is experimental (#2364).
+- Serdes that resolve subjects through the Schema Registry *associated* subject
+  name strategy are now given the Kafka cluster id automatically. The id is
+  resolved lazily, on the first subject lookup, so creating a client never
+  waits on a broker, and concurrent lookups share a single `cluster_id()`
+  call; until a broker has been reached the lookup raises a
+  `SerializationError` naming `subject.name.strategy.kafka.cluster.id`, which
+  can be set to supply the id explicitly. The new serde hooks
+  (`set_cluster_id_resolver()`, `close()`) are experimental (#2364).
+- New `Producer.cluster_id()`, `Consumer.cluster_id()` and
+  `AdminClient.cluster_id()` (also on `AIOProducer` and `AIOConsumer`),
+  returning the id of the cluster the client is connected to. This API is
+  experimental (#2364).
+- New asyncio clients `AsyncSerializingProducer` and `AsyncDeserializingConsumer`
+  in `confluent_kafka.aio`, the counterparts of `SerializingProducer` and
+  `DeserializingConsumer` built on `AIOProducer` / `AIOConsumer`, accepting the
+  asyncio Schema Registry serdes and their builders. These classes are
+  experimental (#2364).
+- New `Message.deserialized_key()` and `Message.deserialized_value()`, which
+  return the same objects as `key()` and `value()` but are typed with the
+  deserialized types on a `DeserializingConsumer`. `SerializingProducer` and
+  `DeserializingConsumer` are now generic in their key and value types. This
+  API is experimental (#2364).
 - Add support for saving Azure key version with DEK (#2306)
 - Pass context when clients make KEK calls to DEK Registry (#2308)
-- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Schema Registry: add support for the DLQ (dead-letter-queue) rule action
   (`DlqAction`). When a rule fails, the record is teed to a configured DLQ
   topic and the original serialize/deserialize call still raises. With the
@@ -14,7 +103,22 @@
   `dlq.auto.flush=true` or give the serde its own `RuleRegistry` (closable on
   shutdown) for durability.
 - Add support for inline validation rules (#2326)
+- Add Variant, Decimal, and Timestamp CEL functions (#2332)
 
+### Fixes
+
+- Raise `SerializationError` for Unicode encoding and decoding failures in string serializers.
+- Fix concurrency safety issues in `Producer`, `Consumer`, `AdminClient`, and
+  `Message` classes (#2347)
+- Serialize concurrent access to a shared `Consumer` instance across threads
+  instead of leaving it as undefined behavior (#2347)
+- Prefer httpx2 over httpx for Schema Registry to avoid Authlib deprecation warnings (#2351)
+- Fix KafkaError error strings raising/garbling on non-UTF-8 locales (#2331)
+- Fix crash on nullable array of $ref items in JSON Schema CSFLE (#2370)
+- Fix `Producer.purge()` ignoring `in_queue`, `in_flight` and `blocking` set to `False` on big-endian platforms such as s390x (#2345)
+
+
+## v2.15.1
 
 ### Fixes
 
@@ -22,13 +126,16 @@
   message key before the value, matching `SerializingProducer` and the Java
   client. When both key and value fail to deserialize, the key error is now
   surfaced instead of the value error.
-
-### Fixes
-
+- Minor fix for subjectPrefix parameter in subjects API (#2311)
 - Fix race conditions (#2315)
 - Fix segmentation fault after calling `AdminClient.delete_records()` followed
   by another Admin API call (e.g. `list_topics()`) on Python 3.14.
 - Use `asyncio.get_running_loop()` instead of `asyncio.get_event_loop()` to avoid creating a new event loop and raise an error in case a loop isn't available (@AlexCai26, #2339).
+
+
+confluent-kafka-python 2.15.1 is based on librdkafka 2.15.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.15.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.15.0

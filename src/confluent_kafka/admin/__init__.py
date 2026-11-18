@@ -33,6 +33,7 @@ from .._model import ConsumerGroupType as _ConsumerGroupType
 from .._model import ElectionType as _ElectionType
 from .._model import TopicCollection as _TopicCollection
 from ..cimpl import KafkaException  # noqa: F401
+from ..cimpl import _AdminClientImpl  # noqa: F401
 from ..cimpl import (  # noqa: F401
     CONFIG_SOURCE_DEFAULT_CONFIG,
     CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
@@ -53,7 +54,6 @@ from ..cimpl import (  # noqa: F401
     NewTopic,
 )
 from ..cimpl import TopicPartition as _TopicPartition
-from ..cimpl import _AdminClientImpl
 from ._acl import AclOperation  # noqa: F401
 from ._acl import AclBinding, AclBindingFilter, AclPermissionType  # noqa: F401
 from ._cluster import DescribeClusterResult  # noqa: F401
@@ -661,6 +661,9 @@ class AdminClient(_AdminClientImpl):
     def list_groups(self, *args: Any, **kwargs: Any) -> List[GroupMetadata]:
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
+    def cluster_id(self, *args: Any, **kwargs: Any) -> str:
+        return super(AdminClient, self).cluster_id(*args, **kwargs)
+
     def create_partitions(  # type: ignore[override]
         self, new_partitions: List[NewPartitions], **kwargs: Any
     ) -> Dict[str, concurrent.futures.Future]:
@@ -713,7 +716,11 @@ class AdminClient(_AdminClientImpl):
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
                   The type of the value returned by the future result() method is
-                  dict(<configname, ConfigEntry>).
+                  dict(<configname, ConfigEntry>). On Confluent Platform and
+                  Confluent Cloud, the result for a topic with a Schema Registry
+                  subject association includes ``confluent.value.association``
+                  and/or ``confluent.key.association`` entries. Apache Kafka
+                  doesn't recognize these configs.
 
         :rtype: dict(<ConfigResource, future>)
 
@@ -788,6 +795,12 @@ class AdminClient(_AdminClientImpl):
         and rest remain as is.
 
         :param list(ConfigResource) resources: Resources to update configuration of.
+                  On Confluent Platform and Confluent Cloud, a topic's Schema
+                  Registry subject association can be set or updated with a SET
+                  operation on ``confluent.value.association`` or
+                  ``confluent.key.association``, and removed with a DELETE
+                  operation on the same config. Apache Kafka doesn't recognize
+                  these configs.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms/1000.0`.

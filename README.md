@@ -1,5 +1,21 @@
 # Confluent's Python Client for Apache Kafka®
 
+> [!WARNING]
+> **4.x is coming.** 4.x will be a breaking change once released for production (GA). We recommend upgrading to 4.x when you can. If you aren't ready to move yet, pin to 2.x, or you will upgrade to it automatically. Use `confluent-kafka~=2.16` or `confluent-kafka>=2.16,<3`. See the preview note below and [Python packaging: versioning](https://packaging.python.org/en/latest/discussions/versioning/).
+
+> [!NOTE]
+> **Preview: confluent-kafka 4.4**
+>
+> A next-generation Python client is available in preview as `confluent-kafka` 4.4.0b1. It is built on a native Rust core and mirrors the Apache Kafka Java client API.
+>
+> - **Not for production yet.** The API may change before GA.
+> - **New API.** 4.x is not compatible with 2.x code.
+> - **Opt-in.** `pip install confluent-kafka` still installs 2.x. To try the preview: `pip install confluent-kafka==4.4.0b1`.
+> - **Why 4.4?** Versions now track Apache Kafka (4.4 = Apache Kafka 4.4), so there is no 3.x. See the [versioning RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/versioning.md).
+> - **Why a new repository?** The Rust core and every language binding live in one monorepo, [confluentinc/kafka-clients](https://github.com/confluentinc/kafka-clients), so one change can ship across all languages. Python development for 4.x happens there. See the [repository structure RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/repository-structure.md).
+>
+> Read the [Python API RFC](https://github.com/confluentinc/kafka-clients/blob/master/rfc/apis/python.md) and share feedback in [confluentinc/kafka-clients](https://github.com/confluentinc/kafka-clients/issues).
+
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
 **confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
@@ -97,32 +113,68 @@ The AsyncIO producer and consumer integrate seamlessly with async Schema Registr
 
 ### Basic Producer example
 
+Production applications should serialize with Schema Registry. Producing raw bytes
+leads to data-quality issues, broken consumers, and ungovernable data.
+
 ```python
 from confluent_kafka import Producer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+
+schema_str = """
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "User",
+  "type": "object",
+  "properties": {
+    "name": {"type": "string"},
+    "favorite_number": {"type": "integer"}
+  }
+}
+"""
+
+# The schema is registered and validated automatically on produce.
+schema_registry_client = SchemaRegistryClient({'url': 'http://localhost:8081'})
+json_serializer = JSONSerializer(schema_str, schema_registry_client)
+string_serializer = StringSerializer('utf_8')
 
 p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
+
 def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush()."""
+    """Called once for each message produced to indicate delivery result.
+    Triggered by poll() or flush()."""
     if err is not None:
         print(f'Message delivery failed: {err}')
     else:
         print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
-for data in some_data_source:
+
+# Each `user` is a dict, for example {"name": "...", "favorite_number": 42}
+for user in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
     p.poll(0)
 
     # Asynchronously produce a message. The delivery report callback will
     # be triggered from the call to poll() above, or flush() below, when the
     # message has been successfully delivered or failed permanently.
-    p.produce('mytopic', data.encode('utf-8'), callback=delivery_report)
+    p.produce(
+        topic='mytopic',
+        key=string_serializer(user['name']),
+        value=json_serializer(user, SerializationContext('mytopic', MessageField.VALUE)),
+        callback=delivery_report,
+    )
 
 # Wait for any outstanding messages to be delivered and delivery report
 # callbacks to be triggered.
 p.flush()
 ```
+
+This example requires the JSON Schema extra: `pip install "confluent-kafka[json,schemaregistry]"`.
+See [Schema Registry Integration](#schema-registry-integration) for Avro and Protobuf,
+Confluent Cloud configuration, and the asynchronous serializers, and
+[`examples/json_producer.py`](examples/json_producer.py) for a fuller runnable version.
 
 For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
@@ -264,10 +316,12 @@ for topic, f in fs.items():
 ```
 ## Thread safety
 
-The `Producer`, `Consumer`, and `AdminClient` are all thread safe. The
-`ShareConsumer` (Preview) is **not** thread safe — a single instance must not
-be used concurrently from multiple threads (see the
+The `Producer` and `AdminClient` are thread safe. `Consumer` and
+`ShareConsumer` (Preview) are **not** designed for concurrent use (a single
+instance must not be shared across threads). For `Consumer`, concurrent calls to the same instance are serialized, `ShareConsumer` instead raises `ConcurrentModificationException` (see the
 [Share Consumer guide](docs/kip-932-share-consumer.md)).
+
+See the [Multithreading Guide](docs/multithreading-guide.md) for more detail, including free-threaded (No-GIL) Python specifics and recommended usage patterns.
 ## Install
 
 ```bash
