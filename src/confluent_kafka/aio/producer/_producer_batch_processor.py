@@ -157,7 +157,7 @@ class ProducerBatchManager:
             # Execute batches with cleanup
             await self._execute_batches(batches, target_topic)
         except Exception:
-            # Add batches back to buffer on failure
+            # Add only failed and unattempted batches back to buffer on failure
             try:
                 self._add_batches_back_to_buffer(batches)
             except Exception:
@@ -169,7 +169,7 @@ class ProducerBatchManager:
         """Execute batches and handle cleanup after successful execution
 
         Args:
-            batches: List of batches to execute
+            batches: List of batches to execute; on failure, completed batches are removed
             target_topic: Optional topic for selective buffer clearing
 
         Returns:
@@ -179,12 +179,14 @@ class ProducerBatchManager:
             Exception: If any batch execution fails
         """
         # Execute each batch
-        for batch in batches:
+        for index, batch in enumerate(batches):
             try:
                 # Execute batch using the Kafka executor
                 await self._kafka_executor.execute_batch(batch.topic, batch.messages, batch.partition)
 
             except Exception as e:
+                # Successfully submitted batches must not be produced again on retry.
+                del batches[:index]
                 # Handle batch failure by failing all unresolved futures for this batch
                 self._handle_batch_failure(e, batch.futures)
                 # Re-raise the exception so caller knows the batch operation failed
