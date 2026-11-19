@@ -164,7 +164,7 @@ def test_proto_use_schema_id_avoids_redundant_lookup_schema():
         get_schema_calls['count'] += 1
         schema = original_get_schema(schema_id, subject_name, fmt, reference_format)
         if subject_name is not None and registered.schema_id == schema_id:
-            client._cache.set_registered_schema(registered.schema, registered)
+            client._cache.set_registered_schema(registered.schema, registered, fmt=fmt)
         return schema
 
     def patched_lookup_schema(subject_name, schema, normalize_schemas=False, fmt=None, deleted=False):
@@ -187,6 +187,50 @@ def test_proto_use_schema_id_avoids_redundant_lookup_schema():
 
     assert get_schema_calls['count'] == 1
     assert lookup_calls['count'] == 0
+
+
+def test_proto_use_schema_id_respects_format_when_default_cached():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    obj = example_pb2.Author(
+        name='Kafka', id=123, picture=b'foobar', works=['The Castle', 'TheTrial'], oneof_string='oneof'
+    )
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+
+    # Prime registry with schema
+    primer = ProtobufSerializer(
+        example_pb2.Author, client, conf={'auto.register.schemas': True, 'use.deprecated.format': False}
+    )
+    primer(obj, ser_ctx)
+    registered_default = client.get_latest_version(_SUBJECT)
+
+    # Pre-populate default format in cache under fmt=None
+    client._cache.set_registered_schema(registered_default.schema, registered_default)
+
+    # When fmt='serialized' requested, default format is not returned from cache
+    assert client._cache.get_registered_by_subject_id(_SUBJECT, registered_default.schema_id, fmt='serialized') is None
+
+    # Serializer with use.schema.id passes fmt='serialized' through to lookup_schema
+    serializer = ProtobufSerializer(
+        example_pb2.Author,
+        client,
+        conf={
+            'auto.register.schemas': False,
+            'use.schema.id': registered_default.schema_id,
+            'use.deprecated.format': False,
+        },
+    )
+    lookup_calls = []
+    original_lookup = client.lookup_schema
+
+    def patched_lookup(subject_name, schema, normalize_schemas=False, fmt=None, deleted=False):
+        lookup_calls.append(fmt)
+        return original_lookup(subject_name, schema, normalize_schemas, fmt, deleted)
+
+    client.lookup_schema = patched_lookup
+    reader_schema = serializer._get_reader_schema(_SUBJECT, fmt='serialized')
+    assert lookup_calls == ['serialized']
+    assert reader_schema is not None
 
 
 def test_proto_basic_deserialization_no_client():

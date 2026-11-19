@@ -140,8 +140,9 @@ class _SchemaCache(object):
                 self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, schema)
                 if fmt is None and reference_format is None:
                     self.schema_id_index[subject][schema_id] = (guid, schema)
-                self.schema_index[subject][schema] = schema_id
-            if guid is not None:
+                if reference_format is None:
+                    self.schema_index[subject][schema] = schema_id
+            if guid is not None and reference_format is None:
                 self.schema_guid_index[(guid, fmt)] = schema
                 if fmt is None:
                     self.schema_guid_index[guid] = schema
@@ -172,21 +173,23 @@ class _SchemaCache(object):
                 self.schema_id_index[subject][(schema_id, fmt, reference_format)] = (guid, registered_schema.schema)
                 if fmt is None and reference_format is None:
                     self.schema_id_index[subject][schema_id] = (guid, registered_schema.schema)
-                self.schema_index[subject][schema] = schema_id
+                if reference_format is None:
+                    self.schema_index[subject][schema] = schema_id
                 self.rs_id_index[subject][(schema_id, fmt, reference_format)] = registered_schema
                 if fmt is None and reference_format is None:
                     self.rs_id_index[subject][schema_id] = registered_schema
-            if guid is not None:
+            if guid is not None and reference_format is None:
                 self.schema_guid_index[(guid, fmt)] = registered_schema.schema
                 if fmt is None:
                     self.schema_guid_index[guid] = registered_schema.schema
-            if version is not None:
+            if version is not None and reference_format is None:
                 self.rs_version_index[subject][(version, fmt)] = registered_schema
                 if fmt is None:
                     self.rs_version_index[subject][version] = registered_schema
-            self.rs_schema_index[subject][(schema, fmt)] = registered_schema
-            if fmt is None:
-                self.rs_schema_index[subject][schema] = registered_schema
+            if reference_format is None:
+                self.rs_schema_index[subject][(schema, fmt)] = registered_schema
+                if fmt is None:
+                    self.rs_schema_index[subject][schema] = registered_schema
 
     def get_schema_by_id(
         self,
@@ -358,31 +361,37 @@ class _SchemaCache(object):
         """
 
         with self.lock:
+            deleted_schema_ids = set()
             if subject in self.rs_id_index:
                 for key, registered_schema in list(self.rs_id_index[subject].items()):
                     if registered_schema.version == version:
+                        if registered_schema.schema_id is not None:
+                            deleted_schema_ids.add(registered_schema.schema_id)
                         del self.rs_id_index[subject][key]
 
             if subject in self.rs_schema_index:
                 for key, registered_schema in list(self.rs_schema_index[subject].items()):
                     if registered_schema.version == version:
+                        if registered_schema.schema_id is not None:
+                            deleted_schema_ids.add(registered_schema.schema_id)
                         del self.rs_schema_index[subject][key]
-            rs = None
             if subject in self.rs_version_index:
                 for key in list(self.rs_version_index[subject].keys()):
                     k_ver = key[0] if isinstance(key, tuple) else key
                     if k_ver == version:
                         rs = self.rs_version_index[subject][key]
+                        if rs.schema_id is not None:
+                            deleted_schema_ids.add(rs.schema_id)
                         del self.rs_version_index[subject][key]
-            if rs is not None:
+            for sid in deleted_schema_ids:
                 if subject in self.schema_id_index:
                     for key in list(self.schema_id_index[subject].keys()):
                         k_id = key[0] if isinstance(key, tuple) else key
-                        if k_id == rs.schema_id:
+                        if k_id == sid:
                             del self.schema_id_index[subject][key]
                 if subject in self.schema_index:
-                    for s, sid in list(self.schema_index[subject].items()):
-                        if sid == rs.schema_id:
+                    for s, sid_val in list(self.schema_index[subject].items()):
+                        if sid_val == sid:
                             del self.schema_index[subject][s]
 
     def clear(self):

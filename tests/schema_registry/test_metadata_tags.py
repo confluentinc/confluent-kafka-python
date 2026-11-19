@@ -158,3 +158,49 @@ def test_schema_cache_lookup_schema_response_indexes():
     # Schema-based indexes must key by the input schema
     assert cache.get_id_by_schema("test-sub", raw_schema) == 42
     assert cache.get_registered_by_subject_schema("test-sub", raw_schema, fmt="serialized") == rs
+
+
+def test_schema_cache_custom_reference_format_exclusion():
+    """Verify custom-reference responses are excluded from format-blind indexes."""
+    cache = _SchemaCache()
+    default_schema = Schema('syntax = "proto3";', schema_type="PROTOBUF")
+    custom_ref_schema = Schema('syntax = "proto3"; // custom ref', schema_type="PROTOBUF")
+
+    # set_schema with custom reference_format
+    cache.set_schema("user-value", 10, "guid-10", default_schema)
+    cache.set_schema(
+        "user-value", 10, "guid-10", custom_ref_schema, reference_format="CUSTOM"
+    )
+
+    # schema_id_index can resolve custom reference_format
+    assert cache.get_schema_by_id("user-value", 10)[1] == default_schema
+    assert cache.get_schema_by_id("user-value", 10, reference_format="CUSTOM")[1] == custom_ref_schema
+
+    # Format-blind guid index retains default schema only
+    assert cache.get_schema_by_guid("guid-10") == default_schema
+
+    # set_registered_schema with custom reference_format
+    rs_default = RegisteredSchema(schema_id=10, schema=default_schema, subject="user-value", version=1, guid="guid-10")
+    rs_custom = RegisteredSchema(
+        schema_id=10, schema=custom_ref_schema, subject="user-value", version=1, guid="guid-10"
+    )
+
+    cache.set_registered_schema(default_schema, rs_default)
+    cache.set_registered_schema(custom_ref_schema, rs_custom, reference_format="CUSTOM")
+
+    # rs_id_index can resolve custom reference_format
+    assert cache.get_registered_by_subject_id("user-value", 10) == rs_default
+    assert cache.get_registered_by_subject_id("user-value", 10, reference_format="CUSTOM") == rs_custom
+
+    # Format-blind indexes retain default schema only
+    assert cache.get_registered_by_subject_version("user-value", 1) == rs_default
+    assert cache.get_registered_by_subject_schema("user-value", default_schema) == rs_default
+    assert cache.get_registered_by_subject_schema("user-value", custom_ref_schema) is None
+    assert cache.get_id_by_schema("user-value", default_schema) == 10
+
+    # Version removal cleans both default and custom-reference entries
+    cache.remove_by_subject_version("user-value", 1)
+    assert cache.get_schema_by_id("user-value", 10) is None
+    assert cache.get_schema_by_id("user-value", 10, reference_format="CUSTOM") is None
+    assert cache.get_registered_by_subject_id("user-value", 10) is None
+    assert cache.get_registered_by_subject_id("user-value", 10, reference_format="CUSTOM") is None
