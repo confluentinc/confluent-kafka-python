@@ -566,7 +566,11 @@ Admin_config_dict_to_c(void *c_obj, PyObject *dict, const char *op_name) {
                         goto done;
                 }
 
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8))) {
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
+                        goto done; /* e.g. UnicodeEncodeError */
+                }
 
                 if (!(vs = cfl_PyObject_Unistr(vo)) ||
                     !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
@@ -847,6 +851,7 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyObject *topic = PyList_GET_ITEM(topics, i);
                 PyObject *utopic;
                 PyObject *uotopic = NULL;
+                const char *c_topic;
 
                 if (topic == Py_None ||
                     !(utopic = cfl_PyObject_Unistr(topic))) {
@@ -858,8 +863,11 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto done;
                 }
 
-                c_objs[i] = rd_kafka_DeleteTopic_new(
-                    cfl_PyUnistr_AsUTF8(utopic, &uotopic));
+                if (!(c_topic = cfl_PyUnistr_AsUTF8(utopic, &uotopic))) {
+                        Py_DECREF(utopic);
+                        goto done; /* e.g. UnicodeEncodeError */
+                }
+                c_objs[i] = rd_kafka_DeleteTopic_new(c_topic);
 
                 Py_XDECREF(utopic);
                 Py_XDECREF(uotopic);
@@ -2414,7 +2422,8 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
                 }
 
                 Py_DECREF(user);
-                c_user = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
+                if (!(c_user = cfl_PyUnistr_AsUTF8(u_user, &uo_user)))
+                        goto err; /* e.g. UnicodeEncodeError */
 
                 if (PyObject_IsInstance(alteration,
                                         UserScramCredentialUpsertion_type)) {
@@ -2529,8 +2538,10 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
                         mechanism = NULL;
                 }
 
-                Py_DECREF(u_user);
-                Py_XDECREF(uo_user);
+                /* Not left pointing to released objects: the error path
+                 * releases them in the next iteration. */
+                Py_CLEAR(u_user);
+                Py_CLEAR(uo_user);
         }
         /* Use librdkafka's background thread queue to automatically dispatch
          * Admin_background_event_cb() when the admin operation is finished. */
@@ -2817,6 +2828,8 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
 
                         c_topics[i] = cfl_PyUnistr_AsUTF8(topic, &uotopic);
                         Py_XDECREF(uotopic);
+                        if (!c_topics[i])
+                                goto err; /* e.g. UnicodeEncodeError */
 
                         if (!c_topics[i][0]) {
                                 PyErr_Format(

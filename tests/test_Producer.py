@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gc
+import sys
 import threading
 import time
 from struct import pack
@@ -491,6 +492,33 @@ def test_produce_batch_input_validation(invalid_input, expected_error):
             assert count >= 0
         except (KafkaException, ValueError, TypeError):
             assert True
+
+
+@pytest.mark.parametrize(
+    "invalid_message",
+    [
+        "not_dict",
+        {'value': 123},
+        {'value': 'value-\ud800'},  # not encodable as UTF-8
+        {'value': b'v', 'key': ['invalid']},
+        {'value': b'v', 'key': 'key-\ud800'},
+        {'value': b'v', 'partition': "invalid"},
+        {'value': b'v', 'timestamp': 1},
+        {'value': b'v', 'headers': "invalid"},
+    ],
+)
+def test_produce_batch_invalid_message_releases_the_messages_before_it(invalid_message):
+    """A batch with an invalid message is not produced: the state kept for each
+    message before it, which holds its delivery callback, must be released."""
+
+    def on_delivery(err, msg):
+        pass
+
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    refcount = sys.getrefcount(on_delivery)
+    with pytest.raises((TypeError, ValueError, NotImplementedError)):
+        producer.produce_batch('test-topic', [{'value': b'v'}, invalid_message], on_delivery=on_delivery)
+    assert sys.getrefcount(on_delivery) == refcount
 
 
 def test_produce_batch_argument_validation():
