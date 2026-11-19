@@ -773,6 +773,9 @@ Producer_validate_and_parse_batch(Handle *self,
 
                 /* Parse partition */
                 if (partition_obj && partition_obj != Py_None) {
+                        long partition;
+                        int overflow;
+
                         if (!PyLong_Check(partition_obj)) {
                                 PyErr_Format(
                                     PyExc_TypeError,
@@ -780,7 +783,19 @@ Producer_validate_and_parse_batch(Handle *self,
                                     i);
                                 goto err;
                         }
-                        msg_partition = (int)PyLong_AsLong(partition_obj);
+                        partition =
+                            PyLong_AsLongAndOverflow(partition_obj, &overflow);
+                        if (partition == -1 && PyErr_Occurred())
+                                goto err;
+                        if (overflow || partition < INT_MIN ||
+                            partition > INT_MAX) {
+                                PyErr_Format(PyExc_OverflowError,
+                                             "Message partition at index %d "
+                                             "must fit in a C int",
+                                             i);
+                                goto err;
+                        }
+                        msg_partition = (int)partition;
                 }
 
                 /* Parse timestamp - currently not supported in batch mode */
