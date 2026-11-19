@@ -35,6 +35,11 @@
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
+- Fix `AdminClient.list_consumer_group_offsets()` and `alter_consumer_group_offsets()`
+  crashing the process when the request's `topic_partitions` is a `list` subclass or
+  holds a `TopicPartition` subclass (`list_consumer_group_offsets()` raised a
+  `SystemError` for the latter). These subclasses pass the request checks but are not
+  supported: both methods now raise `TypeError` for them.
 - Fix `confluent-kafka[rules]` failing to install on Python 3.14 unless google-re2
   could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
   wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
