@@ -588,13 +588,10 @@ def test_poll_interruptible_by_signal():
     )
     sc1.subscribe(['test-topic'])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        sc1.poll(timeout=5.0)  # 5s budget — interrupt should fire well before
+        with TestUtils.interrupt_main_after(0.4):
+            sc1.poll(timeout=5.0)  # 5s budget — interrupt should fire well before
     except KeyboardInterrupt:
         interrupted = True
     finally:
@@ -610,13 +607,10 @@ def test_poll_interruptible_by_signal():
     )
     sc2.subscribe(['test-topic'])
 
-    interrupt_thread = threading.Thread(target=lambda: TestUtils.send_sigint_after_delay(0.4))
-    interrupt_thread.daemon = True
-    interrupt_thread.start()
-
     interrupted = False
     try:
-        sc2.poll()  # infinite timeout
+        with TestUtils.interrupt_main_after(0.4):
+            sc2.poll()  # infinite timeout
     except KeyboardInterrupt:
         interrupted = True
     finally:
