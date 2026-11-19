@@ -1623,3 +1623,24 @@ def test_uninitialized_admin_client_methods():
 
     # Test __len__() - should return 0 for closed admin (safe, no crash)
     assert len(admin) == 0
+
+
+def test_admin_config():
+    """Issue #465
+    The effective configuration of an AdminClient instance can be inspected
+    via the config() method."""
+    conf = {
+        'bootstrap.servers': 'localhost:65531',
+        'client.id': 'test-admin-id',
+        'sasl.password': 'adminsecret',
+    }
+
+    a = AdminClient(conf)
+
+    config = a.config()
+    assert isinstance(config, dict)
+    assert config['client.id'] == 'test-admin-id'
+    assert config['sasl.password'] == '[redacted]'
+
+    config_sensitive = a.config(include_sensitive=True)
+    assert config_sensitive['sasl.password'] == 'adminsecret'
