@@ -18,6 +18,9 @@
 - When a message has more than one `__key_schema_id` / `__value_schema_id` header, the
   Schema Registry deserializers now use the last one, matching the Java client. They
   previously used the first.
+- Fix `Producer.produce_batch()` ignoring the `partition` of each message: all the
+  messages went to the `partition` of the batch, or through the partitioner when it was
+  not given. A message's `partition` now overrides the batch's, as documented.
 - `header_schema_id_serializer` now replaces an existing schema id header for the same
   field instead of appending a second one, and `prefix_schema_id_serializer` removes an
   existing schema id header for the same field from the message headers. A message
