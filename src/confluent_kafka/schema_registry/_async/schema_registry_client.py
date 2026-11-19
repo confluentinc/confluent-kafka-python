@@ -149,6 +149,10 @@ class _AsyncAbstractOAuthClient(_AsyncBearerFieldProvider):
                     )
                 await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
 
+    async def aclose(self) -> None:
+        if hasattr(self, 'client') and self.client is not None:
+            await self.client.aclose()
+
 
 class _AsyncOAuthClient(_AsyncAbstractOAuthClient):
     def __init__(
@@ -620,6 +624,16 @@ class _AsyncRestClient(_AsyncBaseRestClient):
             await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
         return response  # type: ignore[return-value]
 
+    async def aclose(self) -> None:
+        """
+        Close the underlying HTTP session and any owned token client.
+
+        Safe to call more than once.
+        """
+        await self.session.aclose()
+        if hasattr(self.bearer_field_provider, 'aclose'):
+            await self.bearer_field_provider.aclose()
+
 
 class AsyncSchemaRegistryClient(object):
     """
@@ -724,7 +738,7 @@ class AsyncSchemaRegistryClient(object):
         The client is unusable afterwards. Safe to call more than once.
         """
         if self._rest_client is not None:
-            await self._rest_client.session.aclose()
+            await self._rest_client.aclose()
 
     def config(self):
         return self._conf

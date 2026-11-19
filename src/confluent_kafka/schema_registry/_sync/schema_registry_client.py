@@ -148,6 +148,10 @@ class _AbstractOAuthClient(_BearerFieldProvider):
                     )
                 time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
 
+    def close(self) -> None:
+        if hasattr(self, 'client') and self.client is not None:
+            self.client.close()
+
 
 class _OAuthClient(_AbstractOAuthClient):
     def __init__(
@@ -617,6 +621,16 @@ class _RestClient(_BaseRestClient):
             time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
         return response  # type: ignore[return-value]
 
+    def close(self) -> None:
+        """
+        Close the underlying HTTP session and any owned token client.
+
+        Safe to call more than once.
+        """
+        self.session.close()
+        if hasattr(self.bearer_field_provider, 'close'):
+            self.bearer_field_provider.close()
+
 
 class SchemaRegistryClient(object):
     """
@@ -721,7 +735,7 @@ class SchemaRegistryClient(object):
         The client is unusable afterwards. Safe to call more than once.
         """
         if self._rest_client is not None:
-            self._rest_client.session.close()
+            self._rest_client.close()
 
     def config(self):
         return self._conf
