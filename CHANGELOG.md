@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixes
+- Document that `Message.key()` / `Message.value()` return the deserialized object,
+  not only `str` / `bytes`, on messages from a `DeserializingConsumer`, and point to
+  `deserialized_key()` / `deserialized_value()` (#1800).
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
