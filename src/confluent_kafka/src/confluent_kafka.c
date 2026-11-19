@@ -757,12 +757,22 @@ static PyMethodDef Message_methods[] = {
      "\n"},
 
     {"value", (PyCFunction)Message_value, METH_NOARGS,
+     "  On a message from :py:class:`DeserializingConsumer` this is the\n"
+     "  deserialized object, e.g. a dict from\n"
+     "  :py:class:`~confluent_kafka.schema_registry.avro.AvroDeserializer`;\n"
+     "  use :py:func:`deserialized_value` for an accessor typed accordingly.\n"
+     "\n"
      "  :returns: message value (payload) or None if not available.\n"
-     "  :rtype: str|bytes or None\n"
+     "  :rtype: str|bytes|object or None\n"
      "\n"},
     {"key", (PyCFunction)Message_key, METH_NOARGS,
+     "  On a message from :py:class:`DeserializingConsumer` this is the\n"
+     "  deserialized object, e.g. a dict from\n"
+     "  :py:class:`~confluent_kafka.schema_registry.avro.AvroDeserializer`;\n"
+     "  use :py:func:`deserialized_key` for an accessor typed accordingly.\n"
+     "\n"
      "  :returns: message key or None if not available.\n"
-     "  :rtype: str|bytes or None\n"
+     "  :rtype: str|bytes|object or None\n"
      "\n"},
     {"deserialized_value", (PyCFunction)Message_deserialized_value,
      METH_NOARGS,
