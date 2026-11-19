@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import concurrent.futures
+import subprocess
 import sys
 
 import pytest
@@ -1623,3 +1624,86 @@ def test_uninitialized_admin_client_methods():
 
     # Test __len__() - should return 0 for closed admin (safe, no crash)
     assert len(admin) == 0
+
+
+# Run in a subprocess by test_admin_client_destroyed_at_interpreter_exit().
+# librdkafka's background thread delivers the result of a request and runs the
+# callbacks of its future: block() holds it there. The future is passed to the
+# C method, with block() set first, so that block() can only run in that
+# thread. The mock cluster answers the OffsetFetch request.
+_EXIT_SETUP = """
+import concurrent.futures
+import sys
+import threading
+import types
+
+from confluent_kafka import ConsumerGroupTopicPartitions
+from confluent_kafka.admin import AdminClient
+
+entered = threading.Event()
+release = threading.Event()
+
+
+def block(future):
+    entered.set()
+    release.wait()
+
+
+def request(admin):
+    future = concurrent.futures.Future()
+    future.add_done_callback(block)
+    super(AdminClient, admin).list_consumer_group_offsets([ConsumerGroupTopicPartitions("group")], future)
+    entered.wait()
+
+
+# What the module holds goes away during interpreter shutdown, unlike the
+# globals of __main__, which block() keeps alive.
+module = types.ModuleType("_admin_at_exit")
+sys.modules[module.__name__] = module
+"""
+
+# Each case lets the background thread go on during interpreter shutdown, right
+# before the client is destroyed: the thread then waits for the GIL to return
+# from release.wait(), and never gets it.
+_EXIT_CASES = {
+    # The last reference to the client goes away.
+    'dealloc': """
+class Holder:
+    def __init__(self, admin, release):
+        self.admin = admin
+        self.release = release
+
+    def __del__(self):
+        self.release.set()
+
+
+admin = AdminClient({"test.mock.num.brokers": 1})
+request(admin)
+module.holder = Holder(admin, release)
+del admin
+""",
+    # A generator suspended in a with block is closed.
+    'exit': """
+def session(release):
+    with AdminClient({"test.mock.num.brokers": 1}) as admin:
+        try:
+            yield admin
+        finally:
+            release.set()
+
+
+module.session = session(release)
+request(next(module.session))
+""",
+}
+
+
+@pytest.mark.parametrize('case', sorted(_EXIT_CASES))
+def test_admin_client_destroyed_at_interpreter_exit(case):
+    """Destroying the client during interpreter shutdown must not wait for
+    librdkafka's background thread when it wants the GIL to deliver a result:
+    Python 3.14 parks a thread that wants the GIL during shutdown forever."""
+    script = _EXIT_SETUP + _EXIT_CASES[case] + 'del module\nprint("exiting", flush=True)\n'
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == 'exiting\n'

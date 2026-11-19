@@ -34,6 +34,10 @@
   was never released.
 - A Protobuf payload with truncated message indexes now raises `SerializationError`
   instead of `EOFError`.
+- Fix the process hanging at exit on Python 3.14 when an `AdminClient` was destroyed
+  during interpreter shutdown while librdkafka's background thread delivered a result:
+  destroying the client waits for that thread, which Python 3.14 parks forever when it
+  asks for the GIL during shutdown. The client is now left to the end of the process then.
 - Fix `ImportError` (circular import) when the Azure KMS module `azure_client` is imported before `azure_driver`
 - Fix `AdminClient.list_consumer_group_offsets()` and `alter_consumer_group_offsets()`
   crashing the process when the request's `topic_partitions` is a `list` subclass or
