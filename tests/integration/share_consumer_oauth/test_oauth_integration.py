@@ -107,21 +107,6 @@ def test_share_consumer_oauth_refresh_through_reauth(oauth_share_consumer_conf):
         sc.close()
 
 
-# Skipping for now: this hits a latent bug in the OAuth path where a failed
-# construction comes back as a SystemError instead of a KafkaException.
-#
-# What happens: when the initial token doesn't arrive in time,
-# wait_for_oauth_token_set sets a KafkaException and we then tear the half-built
-# client down. That teardown drains whatever is still queued on rk_rep, and a
-# broker "auth failed" event is sitting there waiting to fire error_cb. So
-# error_cb (errors.append(...)) ends up being called while the KafkaException is
-# still pending, which CPython won't allow: you can't call into Python with an
-# exception already set. The result is a SystemError that hides the real
-# KafkaException the caller was meant to catch.
-#
-# TODO KIP-932: fix the OAuth construction path so it surfaces a KafkaException
-# instead of a SystemError, then re-enable this test.
-@pytest.mark.skip(reason="Latent OAuth bug: failed construction raises SystemError instead of " "KafkaException.")
 def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consumer_conf):
     """Expired token is rejected by the broker; error_cb fires from the poll drain.
 
@@ -134,8 +119,12 @@ def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consum
 
     def oauth_cb(_oauth_config):
         # exp is in the past, so the token is structurally valid but
-        # rejected by the validator's expiration check.
-        return make_unsecured_jwt(lifetime_sec=-60.0)
+        # rejected by the validator's expiration check. The expiry given to
+        # librdkafka is in the future: librdkafka rejects a token whose given
+        # expiry has passed, and the construction then fails with that error
+        # before any broker sees the token.
+        token, _ = make_unsecured_jwt(lifetime_sec=-60.0)
+        return token, time.time() + 300.0
 
     def error_cb(err):
         errors.append(err)
@@ -149,15 +138,7 @@ def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consum
         },
     )
 
-    # Construction can either succeed (if librdkafka accepts the past-exp
-    # token from oauth_cb and the broker rejects it during the handshake)
-    # or fail (if librdkafka's own bounds check catches it first). Either
-    # way the failure surfaces through error_cb.
-    try:
-        sc = ShareConsumer(conf)
-    except KafkaException:
-        return
-
+    sc = ShareConsumer(conf)
     try:
         sc.subscribe(['test-share-oauth-expired-topic'])
         deadline = time.time() + 8
@@ -173,14 +154,15 @@ def test_share_consumer_oauth_expired_token_surfaces_error_cb(oauth_share_consum
 
 
 def test_share_consumer_oauth_cb_raises_fails_construction(oauth_share_consumer_conf):
-    """oauth_cb raising on the first call makes the constructor fail after
-    the initial-token timeout in wait_for_oauth_token_set.
+    """oauth_cb raising on the first call makes the constructor fail with
+    the callback's error, which wait_for_oauth_token_set raises as soon as
+    the callback has failed.
 
     Also covers the ShareConsumer-specific cleanup path: when
     wait_for_oauth_token_set returns -1, ShareConsumer_init calls
-    rd_kafka_share_destroy(self->rkshare). If that destroy path were
-    wrong (for example, still calling rd_kafka_destroy(h->rk) for a NULL
-    rk), the test would crash rather than raise.
+    rd_kafka_share_destroy_flags(self->rkshare, ...). If that destroy path
+    were wrong (for example, still calling rd_kafka_destroy(h->rk) for a
+    NULL rk), the test would crash rather than raise.
     """
 
     def oauth_cb(_oauth_config):

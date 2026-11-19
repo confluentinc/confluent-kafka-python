@@ -44,6 +44,21 @@
   could be built from source: the `google-re2<1.1.20251105` pin, kept for Python 3.9
   wheels, excluded the first google-re2 release with Python 3.14 wheels. It now
   applies to Python 3.9 only.
+- Fix `oauth_cb` failure handling. A token refresh whose `oauth_cb` returned an
+  invalid value was never retried, so the client stopped refreshing its token. When
+  `oauth_cb` failed while a client was created, the constructor waited 10 seconds
+  and raised a generic timeout error, or a `SystemError` for a consumer with an
+  `error_cb`. It now raises the callback's error right away, and the `_AUTHENTICATION`
+  error that `error_cb` gets for a failed refresh includes it too. Creating a client
+  with an `oauth_cb` also no longer takes at least a second, and Ctrl+C now interrupts
+  the wait for its first token.
+  The text of the `oauth_cb` exception now also appears in librdkafka's log when a
+  broker connection has no token to log in with. Exceptions from token libraries can
+  include the response of the identity provider. librdkafka reports a failed refresh
+  to `error_cb` only when its text differs from the previous failure's, so an
+  `oauth_cb` whose exceptions include a timestamp or a request id makes `error_cb` get
+  an `_AUTHENTICATION` error for each failed refresh, every 10 seconds while the
+  refreshes fail.
 
 ## v2.16.2
 
