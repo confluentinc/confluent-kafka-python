@@ -19,9 +19,8 @@ import argparse
 import time
 from typing import Optional
 
-from verifiable_client import VerifiableClient
-
 from confluent_kafka import KafkaException, Producer
+from confluent_kafka.kafkatest.verifiable_client import VerifiableClient
 
 
 class VerifiableProducer(VerifiableClient):
@@ -40,6 +39,7 @@ class VerifiableProducer(VerifiableClient):
         self.num_acked = 0
         self.num_sent = 0
         self.num_err = 0
+        self.max_msgs = 0
 
     def dr_cb(self, err, msg):
         """Per-message Delivery report callback. Called from poll()"""
@@ -50,8 +50,8 @@ class VerifiableProducer(VerifiableClient):
                     'name': 'producer_send_error',
                     'message': str(err),
                     'topic': msg.topic(),
-                    'key': msg.key(),
-                    'value': msg.value(),
+                    'key': self.decode(msg.key()),
+                    'value': self.decode(msg.value()),
                 }
             )
         else:
@@ -62,8 +62,8 @@ class VerifiableProducer(VerifiableClient):
                     'topic': msg.topic(),
                     'partition': msg.partition(),
                     'offset': msg.offset(),
-                    'key': msg.key(),
-                    'value': msg.value(),
+                    'key': self.decode(msg.key()),
+                    'value': self.decode(msg.value()),
                 }
             )
 
