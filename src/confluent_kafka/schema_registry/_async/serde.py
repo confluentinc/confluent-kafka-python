@@ -563,10 +563,12 @@ class AsyncBaseSerde(object):
     async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = await self._registry.get_schema(self._use_schema_id, subject, fmt)
-            registered_schema = self._registry._cache.get_registered_by_subject_id(subject, self._use_schema_id)
+            registered_schema = self._registry._cache.get_registered_by_subject_id(
+                subject, self._use_schema_id, fmt=fmt
+            )
             if registered_schema is not None:
                 return registered_schema
-            return await self._registry.lookup_schema(subject, schema, normalize_schemas=False, deleted=True)
+            return await self._registry.lookup_schema(subject, schema, normalize_schemas=False, fmt=fmt, deleted=True)
         if self._use_latest_with_metadata is not None:
             return await self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, deleted=True, fmt=fmt
