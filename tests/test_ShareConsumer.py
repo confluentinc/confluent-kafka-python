@@ -165,6 +165,21 @@ def test_subscribe_multiple_topics(share_consumer):
     assert sorted(share_consumer.subscription()) == ['topic-a', 'topic-b', 'topic-c']
 
 
+def test_subscribe_list_cleared_by_topic_str(share_consumer):
+    """subscribe() subscribes to the list as it was passed, even when str() of a
+    topic runs Python code that changes the list."""
+    topics = []
+
+    class ClearListOnStr:
+        def __str__(self):
+            topics.clear()
+            return 'topic-a'
+
+    topics.extend([ClearListOnStr(), 'topic-b', 'topic-c'])
+    share_consumer.subscribe(topics)
+    assert sorted(share_consumer.subscription()) == ['topic-a', 'topic-b', 'topic-c']
+
+
 def test_subscribe_idempotent_and_incremental(share_consumer):
     """Re-subscribing to the same set is idempotent, growing the topic list
     grows the subscription, and a repeated unsubscribe() is a harmless no-op.
