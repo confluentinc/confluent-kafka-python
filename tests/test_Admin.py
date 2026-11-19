@@ -920,6 +920,89 @@ def test_alter_consumer_group_offsets_api():
         )
 
 
+def test_delete_consumer_group_offsets_api():
+
+    with AdminClient({"socket.timeout.ms": 10}) as a:
+
+        request_with_group_and_topic_partition1 = ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic1", 1)]
+        )
+        same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4)])
+        request_with_group_and_topic_partition2 = ConsumerGroupTopicPartitions(
+            "test-group2", [TopicPartition("test-topic2", 1)]
+        )
+
+        a.delete_consumer_group_offsets([request_with_group_and_topic_partition1])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets(None)
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets(1)
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets("")
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets(
+                [request_with_group_and_topic_partition1, request_with_group_and_topic_partition2]
+            )
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([request_with_group_and_topic_partition1, same_name_request])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([request_with_group_and_topic_partition1], request_timeout=-5)
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+
+        with pytest.raises(TypeError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+
+        with pytest.raises(ValueError):
+            a.delete_consumer_group_offsets(
+                [ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])]
+            )
+
+        a.delete_consumer_group_offsets(
+            [ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])]
+        )
+
+
 def test_describe_user_scram_credentials_api():
     # Describe User Scram API
     with AdminClient({"socket.timeout.ms": 10}) as a:
@@ -1608,6 +1691,9 @@ def test_uninitialized_admin_client_methods():
 
     with pytest.raises(RuntimeError, match="AdminClient has been closed"):
         admin.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("group", [TopicPartition("topic", 0, 5)])])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_consumer_group_offsets([ConsumerGroupTopicPartitions("group", [TopicPartition("topic", 0)])])
 
     with pytest.raises(RuntimeError, match="AdminClient has been closed"):
         admin.list_offsets({TopicPartition("topic", 0, 10): OffsetSpec.earliest()})
