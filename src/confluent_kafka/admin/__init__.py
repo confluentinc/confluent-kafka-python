@@ -108,10 +108,10 @@ class AdminClient(_AdminClientImpl):
     See examples/adminapi.py for example usage.
 
     For more information see the `Java Admin API documentation
-    <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/clients/admin/package-frame.html>`_.
+    <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/clients/admin/package-summary.html>`_.
 
     Requires broker version v0.11.0.0 or later.
-    """
+    """  # noqa: E501
 
     def __init__(self, conf: Dict[str, Union[str, int, float, bool]], **kwargs: Any) -> None:
         """

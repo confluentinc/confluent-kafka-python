@@ -32,7 +32,7 @@ Thread-safety reference
      - No
      - Not thread-safe. Concurrent use raises
        :py:exc:`~confluent_kafka.ConcurrentModificationException`. See the
-       `Share Consumer guide <docs/kip-932-share-consumer.md>`_.
+       `Share Consumer guide <https://github.com/confluentinc/confluent-kafka-python/blob/master/docs/kip-932-share-consumer.md>`_.
 
 ``AIOProducer`` wraps ``Producer`` and is safe to call concurrently from
 multiple tasks on the same event loop.

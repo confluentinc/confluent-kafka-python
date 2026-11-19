@@ -8,7 +8,7 @@ Starting with v2.16.0, `confluent_kafka` declares itself GIL-safe ([PEP 703](htt
 | `~confluent_kafka.admin.AdminClient` | Yes | Same model as `Producer`. |
 | `~confluent_kafka.Consumer` | Yes (serialized, not recommended) | See [Consumer: cross-thread access](#consumer-cross-thread-access). |
 | `~confluent_kafka.Message` | Yes | Safe to read and mutate from multiple threads on the same instance. |
-| `~confluent_kafka.ShareConsumer` / `~confluent_kafka.DeserializingShareConsumer` (Preview) | No | Not thread-safe. Concurrent use raises `~confluent_kafka.ConcurrentModificationException`. See the [Share Consumer guide](docs/kip-932-share-consumer.md). |
+| `~confluent_kafka.ShareConsumer` / `~confluent_kafka.DeserializingShareConsumer` (Preview) | No | Not thread-safe. Concurrent use raises `~confluent_kafka.ConcurrentModificationException`. See the [Share Consumer guide](https://github.com/confluentinc/confluent-kafka-python/blob/master/docs/kip-932-share-consumer.md). |
 
 `AIOProducer` wraps `Producer` and is safe to call concurrently from multiple tasks on the same event loop.
 

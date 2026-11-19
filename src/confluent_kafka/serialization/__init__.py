@@ -351,7 +351,7 @@ class DoubleSerializer(Serializer):
     Serializes float to IEEE 764 binary64.
 
     See Also:
-        `DoubleSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html>`_
+        `DoubleSerializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/DoubleSerializer.html>`_
 
     """  # noqa: E501
 
@@ -387,7 +387,7 @@ class DoubleDeserializer(Deserializer):
     Deserializes float to IEEE 764 binary64.
 
     See Also:
-        `DoubleDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html>`_
+        `DoubleDeserializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/DoubleDeserializer.html>`_
     """  # noqa: E501
 
     def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[float]:
@@ -421,7 +421,7 @@ class IntegerSerializer(Serializer):
     Serializes int to int32 bytes.
 
     See Also:
-        `IntegerSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html>`_
+        `IntegerSerializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/IntegerSerializer.html>`_
     """  # noqa: E501
 
     def __call__(self, obj: Optional[int], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -458,7 +458,7 @@ class IntegerDeserializer(Deserializer):
     Deserializes int to int32 bytes.
 
     See Also:
-        `IntegerDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html>`_
+        `IntegerDeserializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/IntegerDeserializer.html>`_
     """  # noqa: E501
 
     def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[int]:
@@ -500,7 +500,7 @@ class StringSerializer(Serializer):
     See Also:
         `Supported encodings <https://docs.python.org/3/library/codecs.html#standard-encodings>`_
 
-        `StringSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringSerializer.html>`_
+        `StringSerializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/StringSerializer.html>`_
     """  # noqa: E501
 
     def __init__(self, codec: str = 'utf_8') -> None:
@@ -546,7 +546,7 @@ class StringDeserializer(Deserializer):
     See Also:
         `Supported encodings <https://docs.python.org/3/library/codecs.html#standard-encodings>`_
 
-        `StringDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringDeserializer.html>`_
+        `StringDeserializer Javadoc <https://docs.confluent.io/platform/current/clients/javadocs/javadoc/org/apache/kafka/common/serialization/StringDeserializer.html>`_
     """  # noqa: E501
 
     def __init__(self, codec: str = 'utf_8') -> None:
