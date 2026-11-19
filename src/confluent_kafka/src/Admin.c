@@ -38,6 +38,19 @@
  *
  ****************************************************************************/
 
+/*
+ * The methods below convert the lists and dicts passed by the caller
+ * (resources, topics, group ids, configs, ...) from a private snapshot of
+ * them, PyList_GetSlice() or PyDict_Copy(), with or without the GIL.
+ * Converting an item can run Python code: str() of a topic name or config
+ * value, an attribute getter, an Enum's .value. That code can mutate the
+ * caller's list, and another thread can take the GIL there and do the same,
+ * which would leave the loop with a stale count and borrowed items that may
+ * have been freed. Some methods also hand strings borrowed from the items to
+ * librdkafka after releasing the GIL. The snapshot keeps every item alive
+ * until the request has been passed to librdkafka.
+ */
+
 static int Admin_rk_use_begin(Handle *self) {
         return Handle_rk_use_begin(self, ERR_MSG_ADMIN_CLIENT_CLOSED);
 }
@@ -314,11 +327,9 @@ static int Admin_set_replica_assignment(const char *forApi,
                                         int max_count,
                                         const char *err_count_desc) {
         int pi;
-        int ret = 0;
-#ifdef Py_GIL_DISABLED
+        int ret                  = 0;
         PyObject *owned_ra       = NULL;
         PyObject *owned_replicas = NULL;
-#endif
 
         if (!PyList_Check(ra) || (int)PyList_Size(ra) < min_count ||
             (int)PyList_Size(ra) > max_count) {
@@ -330,12 +341,10 @@ static int Admin_set_replica_assignment(const char *forApi,
                 goto done;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_ra = PyList_GetSlice(ra, 0, PY_SSIZE_T_MAX);
         if (!owned_ra)
                 goto done;
         ra = owned_ra;
-#endif
 
         for (pi = 0; pi < (int)PyList_Size(ra); pi++) {
                 size_t ri;
@@ -354,12 +363,10 @@ static int Admin_set_replica_assignment(const char *forApi,
                         goto done;
                 }
 
-#ifdef Py_GIL_DISABLED
                 owned_replicas = PyList_GetSlice(replicas, 0, PY_SSIZE_T_MAX);
                 if (!owned_replicas)
                         goto done;
                 replicas = owned_replicas;
-#endif
 
                 if ((replica_cnt = (size_t)PyList_Size(replicas)) < 1) {
                         PyErr_Format(PyExc_ValueError,
@@ -411,17 +418,13 @@ static int Admin_set_replica_assignment(const char *forApi,
                         goto done;
                 }
 
-#ifdef Py_GIL_DISABLED
                 Py_CLEAR(owned_replicas);
-#endif
         }
 
         ret = 1;
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_replicas);
         Py_XDECREF(owned_ra);
-#endif
         return ret;
 }
 
@@ -543,13 +546,11 @@ static int
 Admin_config_dict_to_c(void *c_obj, PyObject *dict, const char *op_name) {
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
-        int ret = 0;
-#ifdef Py_GIL_DISABLED
+        int ret              = 0;
         PyObject *owned_dict = PyDict_Copy(dict);
         if (!owned_dict)
                 return 0;
         dict = owned_dict;
-#endif
 
         while (PyDict_Next(dict, &pos, &ko, &vo)) {
                 PyObject *ks, *ks8;
@@ -613,9 +614,7 @@ Admin_config_dict_to_c(void *c_obj, PyObject *dict, const char *op_name) {
 
         ret = 1;
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_dict);
-#endif
         return ret;
 }
 
@@ -640,9 +639,7 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result             = NULL;
         int future_incremented       = 0;
         CallState cs;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_topics = NULL;
-#endif
 
         /* topics is a list of NewTopic objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws, &topics,
@@ -676,13 +673,11 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(future);
         future_incremented = 1;
 
-#ifdef Py_GIL_DISABLED
         owned_topics = PyList_GetSlice(topics, 0, PY_SSIZE_T_MAX);
         if (!owned_topics)
                 goto done;
         topics = owned_topics;
         tcnt   = (int)PyList_Size(topics);
-#endif
 
         /*
          * Parse the list of NewTopics and convert to corresponding C types.
@@ -768,9 +763,7 @@ Admin_create_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(result);
 
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_topics);
-#endif
         if (c_objs)
                 rd_kafka_NewTopic_destroy_array(c_objs, i);
         if (c_options)
@@ -804,9 +797,7 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result                = NULL;
         int future_incremented          = 0;
         CallState cs;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_topics = NULL;
-#endif
 
         /* topics is a list of strings. */
         if (!PyArg_ParseTupleAndKeywords(
@@ -834,13 +825,11 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(future);
         future_incremented = 1;
 
-#ifdef Py_GIL_DISABLED
         owned_topics = PyList_GetSlice(topics, 0, PY_SSIZE_T_MAX);
         if (!owned_topics)
                 goto done;
         topics = owned_topics;
         tcnt   = (int)PyList_Size(topics);
-#endif
 
         /*
          * Parse the list of strings and convert to corresponding C types.
@@ -892,9 +881,7 @@ Admin_delete_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(result);
 
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_topics);
-#endif
         if (c_objs)
                 rd_kafka_DeleteTopic_destroy_array(c_objs, i);
         if (c_options)
@@ -931,9 +918,7 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result                  = NULL;
         int future_incremented            = 0;
         CallState cs;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_topics = NULL;
-#endif
 
         /* topics is a list of NewPartitions_t objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws, &topics,
@@ -968,13 +953,11 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(future);
         future_incremented = 1;
 
-#ifdef Py_GIL_DISABLED
         owned_topics = PyList_GetSlice(topics, 0, PY_SSIZE_T_MAX);
         if (!owned_topics)
                 goto done;
         topics = owned_topics;
         tcnt   = (int)PyList_Size(topics);
-#endif
 
         /*
          * Parse the list of NewPartitions and convert to corresponding C types.
@@ -1037,9 +1020,7 @@ Admin_create_partitions(Handle *self, PyObject *args, PyObject *kwargs) {
         Py_INCREF(result);
 
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_topics);
-#endif
         if (c_objs)
                 rd_kafka_NewPartitions_destroy_array(c_objs, i);
         if (c_options)
@@ -1063,9 +1044,6 @@ done:
 static PyObject *
 Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *resources, *future;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_resources = NULL;
-#endif
         static char *kws[]           = {"resources", "future",
                                         /* options */
                                         "request_timeout", "broker", NULL};
@@ -1078,6 +1056,7 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *result                   = NULL;
         int future_incremented             = 0;
         CallState cs;
+        PyObject *owned_resources = NULL;
 
         /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws, &resources,
@@ -1101,13 +1080,11 @@ Admin_describe_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!c_options)
                 goto done; /* Exception raised by options_to_c() */
 
-#ifdef Py_GIL_DISABLED
         owned_resources = PyList_GetSlice(resources, 0, PY_SSIZE_T_MAX);
         if (!owned_resources)
                 goto done;
         resources = owned_resources;
         cnt       = (int)PyList_Size(resources);
-#endif
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -1190,9 +1167,7 @@ done:
         free(c_objs);
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_resources);
-#endif
         Py_XDECREF(ConfigResource_type); /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
          * it (see options_to_c()). */
@@ -1387,9 +1362,7 @@ static PyObject *
 Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *resources, *future;
         PyObject *validate_only_obj = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_resources = NULL;
-#endif
+        PyObject *owned_resources   = NULL;
         static char *kws[] = {"resources", "future",
                               /* options */
                               "validate_only", "request_timeout", "broker",
@@ -1431,13 +1404,11 @@ Admin_alter_configs(Handle *self, PyObject *args, PyObject *kwargs) {
         if (!c_options)
                 goto done; /* Exception raised by options_to_c() */
 
-#ifdef Py_GIL_DISABLED
         owned_resources = PyList_GetSlice(resources, 0, PY_SSIZE_T_MAX);
         if (!owned_resources)
                 goto done;
         resources = owned_resources;
         cnt       = (int)PyList_Size(resources);
-#endif
 
         /* Look up the ConfigResource class so we can check if the provided
          * topics are of correct type.
@@ -1536,9 +1507,7 @@ done:
         free(c_objs);
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_resources);
-#endif
         Py_XDECREF(ConfigResource_type); /* from lookup() */
         /* Release our extra ref only on failure; on success the opaque keeps
          * it (see options_to_c()). */
@@ -1556,9 +1525,7 @@ done:
 static PyObject *
 Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *acls_list, *future;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_acls_list = NULL;
-#endif
         int cnt, i = 0;
         struct Admin_options options       = Admin_options_INITIALIZER;
         PyObject *AclBinding_type          = NULL;
@@ -1610,13 +1577,11 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-#ifdef Py_GIL_DISABLED
         owned_acls_list = PyList_GetSlice(acls_list, 0, PY_SSIZE_T_MAX);
         if (!owned_acls_list)
                 goto err;
         acls_list = owned_acls_list;
         cnt       = (int)PyList_Size(acls_list);
-#endif
 
         /*
          * Parse the list of AclBinding and convert to
@@ -1666,9 +1631,7 @@ Admin_create_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         Py_DECREF(AclBinding_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_acls_list);
-#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
@@ -1677,9 +1640,7 @@ err:
                 rd_kafka_AclBinding_destroy_array(c_objs, i);
                 free(c_objs);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_acls_list);
-#endif
         if (AclBinding_type)
                 Py_DECREF(AclBinding_type);
         if (c_options) {
@@ -1820,9 +1781,7 @@ static const char Admin_describe_acls_doc[] = PyDoc_STR(
 static PyObject *
 Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *acls_list, *future;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_acls_list = NULL;
-#endif
         int cnt, i = 0;
         struct Admin_options options         = Admin_options_INITIALIZER;
         PyObject *AclBindingFilter_type      = NULL;
@@ -1874,13 +1833,11 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-#ifdef Py_GIL_DISABLED
         owned_acls_list = PyList_GetSlice(acls_list, 0, PY_SSIZE_T_MAX);
         if (!owned_acls_list)
                 goto err;
         acls_list = owned_acls_list;
         cnt       = (int)PyList_Size(acls_list);
-#endif
 
         /*
          * Parse the list of AclBindingFilter and convert to
@@ -1930,9 +1887,7 @@ Admin_delete_acls(Handle *self, PyObject *args, PyObject *kwargs) {
         free(c_objs);
         Py_DECREF(AclBindingFilter_type); /* from lookup() */
         rd_kafka_AdminOptions_destroy(c_options);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_acls_list);
-#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
@@ -1941,9 +1896,7 @@ err:
                 rd_kafka_AclBinding_destroy_array(c_objs, i);
                 free(c_objs);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_acls_list);
-#endif
         if (AclBindingFilter_type)
                 Py_DECREF(AclBindingFilter_type);
         if (c_options) {
@@ -1981,10 +1934,8 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         int types_cnt                             = 0;
         int i                                     = 0;
         int entered_rk_use                        = 0;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_states = NULL;
-        PyObject *owned_types  = NULL;
-#endif
+        PyObject *owned_states                    = NULL;
+        PyObject *owned_types                     = NULL;
 
         static char *kws[] = {"future",
                               /* options */
@@ -2004,12 +1955,10 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
-#ifdef Py_GIL_DISABLED
                 owned_states = PyList_GetSlice(states_int, 0, PY_SSIZE_T_MAX);
                 if (!owned_states)
                         goto err;
                 states_int = owned_states;
-#endif
 
                 states_cnt = (int)PyList_Size(states_int);
 
@@ -2041,12 +1990,10 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                         goto err;
                 }
 
-#ifdef Py_GIL_DISABLED
                 owned_types = PyList_GetSlice(types_int, 0, PY_SSIZE_T_MAX);
                 if (!owned_types)
                         goto err;
                 types_int = owned_types;
-#endif
 
                 types_cnt = (int)PyList_Size(types_int);
 
@@ -2104,10 +2051,8 @@ Admin_list_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         if (c_types) {
                 free(c_types);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_states);
         Py_XDECREF(owned_types);
-#endif
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
         Handle_rk_use_end(self);
@@ -2119,10 +2064,8 @@ err:
         if (c_types) {
                 free(c_types);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_states);
         Py_XDECREF(owned_types);
-#endif
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
@@ -2155,12 +2098,10 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
         rd_kafka_AdminOptions_t *c_options = NULL;
         int user_cnt                       = 0, i;
         const char **c_users               = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_users = NULL;
-#endif
-        rd_kafka_queue_t *rkqu = NULL;
-        PyObject *result       = NULL;
-        int future_incremented = 0;
+        PyObject *owned_users              = NULL;
+        rd_kafka_queue_t *rkqu             = NULL;
+        PyObject *result                   = NULL;
+        int future_incremented             = 0;
         CallState cs;
         PyObject *user_strs = NULL; /* str() of each user, see below */
 
@@ -2192,12 +2133,10 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
         future_incremented = 1;
 
         if (users != Py_None) {
-#ifdef Py_GIL_DISABLED
                 owned_users = PyList_GetSlice(users, 0, PY_SSIZE_T_MAX);
                 if (!owned_users)
                         goto done;
-                users = owned_users;
-#endif
+                users    = owned_users;
                 user_cnt = (int)PyList_Size(users);
                 if (user_cnt > 0)
                         c_users = malloc(sizeof(char *) * user_cnt);
@@ -2255,9 +2194,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self,
         Py_INCREF(result);
 
 done:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_users);
-#endif
         free(c_users);
         if (rkqu)
                 rd_kafka_queue_destroy(rkqu); /* drop ref from get_background */
@@ -2293,14 +2230,12 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         rd_kafka_AdminOptions_t *c_options = NULL;
         int c_alteration_cnt               = 0, i;
         rd_kafka_UserScramCredentialAlteration_t **c_alterations = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_alterations = NULL;
-#endif
-        PyObject *UserScramCredentialAlteration_type = NULL;
-        PyObject *UserScramCredentialUpsertion_type  = NULL;
-        PyObject *UserScramCredentialDeletion_type   = NULL;
-        PyObject *ScramCredentialInfo_type           = NULL;
-        PyObject *ScramMechanism_type                = NULL;
+        PyObject *owned_alterations                              = NULL;
+        PyObject *UserScramCredentialAlteration_type             = NULL;
+        PyObject *UserScramCredentialUpsertion_type              = NULL;
+        PyObject *UserScramCredentialDeletion_type               = NULL;
+        PyObject *ScramCredentialInfo_type                       = NULL;
+        PyObject *ScramMechanism_type                            = NULL;
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
@@ -2393,12 +2328,10 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-#ifdef Py_GIL_DISABLED
         owned_alterations = PyList_GetSlice(alterations, 0, PY_SSIZE_T_MAX);
         if (!owned_alterations)
                 goto err;
         alterations = owned_alterations;
-#endif
 
         c_alteration_cnt = (int)PyList_Size(alterations);
         c_alterations =
@@ -2573,9 +2506,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self,
         }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_alterations);
-#endif
         Py_DECREF(UserScramCredentialAlteration_type); /* from lookup() */
         Py_DECREF(UserScramCredentialUpsertion_type);  /* from lookup() */
         Py_DECREF(UserScramCredentialDeletion_type);   /* from lookup() */
@@ -2592,9 +2523,7 @@ err:
         Py_XDECREF(scram_credential_info);
         Py_XDECREF(mechanism);
 
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_alterations);
-#endif
         Py_XDECREF(UserScramCredentialAlteration_type); /* from lookup() */
         Py_XDECREF(UserScramCredentialUpsertion_type);  /* from lookup() */
         Py_XDECREF(UserScramCredentialDeletion_type);   /* from lookup() */
@@ -2632,9 +2561,7 @@ const char alter_user_scram_credentials_doc[] = PyDoc_STR(
 PyObject *
 Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *future, *group_ids, *include_authorized_operations = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_group_ids = NULL;
-#endif
+        PyObject *owned_group_ids          = NULL;
         struct Admin_options options       = Admin_options_INITIALIZER;
         const char **c_groups              = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -2670,13 +2597,11 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_group_ids = PyList_GetSlice(group_ids, 0, PY_SSIZE_T_MAX);
         if (!owned_group_ids)
                 goto err;
         group_ids  = owned_group_ids;
         groups_cnt = (int)PyList_Size(group_ids);
-#endif
 
         c_groups = malloc(sizeof(char *) * groups_cnt);
         /* c_groups[i] points into the str() of group i, which can be a new
@@ -2741,9 +2666,7 @@ Admin_describe_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         if (c_groups) {
                 free(c_groups);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
-#endif
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
 
@@ -2754,9 +2677,7 @@ err:
         if (c_groups) {
                 free(c_groups);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
-#endif
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
@@ -2782,9 +2703,7 @@ const char Admin_describe_consumer_groups_doc[] = PyDoc_STR(
 PyObject *
 Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *future, *topics, *include_authorized_operations = NULL;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_topics = NULL;
-#endif
+        PyObject *owned_topics             = NULL;
         struct Admin_options options       = Admin_options_INITIALIZER;
         const char **c_topics              = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -2818,12 +2737,10 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_topics = PyList_GetSlice(topics, 0, PY_SSIZE_T_MAX);
         if (!owned_topics)
                 goto err;
         topics = owned_topics;
-#endif
 
         topics_cnt = PyList_Size(topics);
 
@@ -2893,9 +2810,7 @@ Admin_describe_topics(Handle *self, PyObject *args, PyObject *kwargs) {
         if (c_topics) {
                 free(c_topics);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_topics);
-#endif
         if (c_topic_collection) {
                 rd_kafka_TopicCollection_destroy(c_topic_collection);
         }
@@ -2908,9 +2823,7 @@ err:
         if (c_topics) {
                 free(c_topics);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_topics);
-#endif
         if (c_topic_collection) {
                 rd_kafka_TopicCollection_destroy(c_topic_collection);
         }
@@ -3024,9 +2937,7 @@ PyObject *
 Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *group_ids, *future;
         PyObject *group_id;
-#ifdef Py_GIL_DISABLED
         PyObject *owned_group_ids = NULL;
-#endif
         int group_ids_cnt;
         struct Admin_options options                = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options          = NULL;
@@ -3066,12 +2977,10 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_group_ids = PyList_GetSlice(group_ids, 0, PY_SSIZE_T_MAX);
         if (!owned_group_ids)
                 goto err;
         group_ids = owned_group_ids;
-#endif
 
         group_ids_cnt = (int)PyList_Size(group_ids);
 
@@ -3123,16 +3032,12 @@ Admin_delete_consumer_groups(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, group_ids_cnt);
         free(c_delete_group_ids);
         rd_kafka_AdminOptions_destroy(c_options);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
-#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
 err:
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_group_ids);
-#endif
         if (c_delete_group_ids) {
                 rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, i);
                 free(c_delete_group_ids);
@@ -3176,9 +3081,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
         PyObject *topic_partitions = NULL;
         char *group_id             = NULL;
         int entered_rk_use         = 0;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_request = NULL;
-#endif
+        PyObject *owned_request    = NULL;
 
         static char *kws[] = {"request", "future",
                               /* options */
@@ -3217,12 +3120,10 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_request = PyList_GetSlice(request, 0, PY_SSIZE_T_MAX);
         if (!owned_request)
                 goto err;
         request = owned_request;
-#endif
 
         if ((requests_cnt = (int)PyList_Size(request)) != 1) {
                 PyErr_SetString(PyExc_ValueError,
@@ -3305,9 +3206,7 @@ PyObject *Admin_list_consumer_group_offsets(Handle *self,
         Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_request);
-#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
@@ -3320,9 +3219,7 @@ err:
                                                                 requests_cnt);
                 free(c_obj);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_request);
-#endif
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
@@ -3368,9 +3265,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
         PyObject *topic_partitions = NULL;
         char *group_id             = NULL;
         int entered_rk_use         = 0;
-#ifdef Py_GIL_DISABLED
-        PyObject *owned_request = NULL;
-#endif
+        PyObject *owned_request    = NULL;
 
         static char *kws[] = {"request", "future",
                               /* options */
@@ -3404,12 +3299,10 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
                 goto err;
         }
 
-#ifdef Py_GIL_DISABLED
         owned_request = PyList_GetSlice(request, 0, PY_SSIZE_T_MAX);
         if (!owned_request)
                 goto err;
         request = owned_request;
-#endif
 
         if ((requests_cnt = (int)PyList_Size(request)) != 1) {
                 PyErr_SetString(PyExc_ValueError,
@@ -3495,9 +3388,7 @@ PyObject *Admin_alter_consumer_group_offsets(Handle *self,
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_request);
-#endif
 
         Handle_rk_use_end(self);
         Py_RETURN_NONE;
@@ -3507,9 +3398,7 @@ err:
                                                                  requests_cnt);
                 free(c_obj);
         }
-#ifdef Py_GIL_DISABLED
         Py_XDECREF(owned_request);
-#endif
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
