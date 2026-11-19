@@ -1167,7 +1167,7 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         const int CHUNK_TIMEOUT_MS = 200; /* 200ms chunks for signal checking */
         int total_timeout_ms;
         int chunk_timeout_ms;
-        int chunk_count = 0;
+        int64_t start_ms;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout)) {
                 return NULL;
@@ -1182,6 +1182,7 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
         total_timeout_ms = cfl_timeout_ms(tmout);
+        start_ms         = cfl_monotonic_ms();
 
         CallState_begin(self, &cs);
 
@@ -1195,7 +1196,7 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
                 while (1) {
                         /* Calculate timeout for this chunk */
                         chunk_timeout_ms = calculate_chunk_timeout(
-                            total_timeout_ms, chunk_count, CHUNK_TIMEOUT_MS);
+                            total_timeout_ms, start_ms, CHUNK_TIMEOUT_MS);
                         if (chunk_timeout_ms == 0) {
                                 /* Timeout expired */
                                 break;
@@ -1209,8 +1210,6 @@ static PyObject *Consumer_poll(Handle *self, PyObject *args, PyObject *kwargs) {
                         if (rkm) {
                                 break;
                         }
-
-                        chunk_count++;
 
                         /* Check for signals between chunks */
                         if (check_signals_between_chunks(self, &cs))

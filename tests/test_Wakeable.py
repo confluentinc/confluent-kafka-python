@@ -12,6 +12,7 @@ Includes:
 - Consumer wakeable tests (poll, consume)
 """
 
+import sys
 import threading
 import time
 
@@ -178,9 +179,9 @@ def test_producer_wakeable_poll_interruptibility_and_messages():
     # Assert: No signal - timeout works normally
     producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     result = producer4.poll(timeout=0.5)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(result, int), "poll() should return int"
     assert (
@@ -194,9 +195,9 @@ def test_producer_wakeable_poll_edge_cases():
     # Assert: Zero timeout returns immediately
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     result = producer1.poll(timeout=0.0)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Zero timeout took {elapsed:.2f}s"
     assert isinstance(result, int)
@@ -213,9 +214,9 @@ def test_producer_wakeable_poll_edge_cases():
     # Assert: Short timeout works correctly
     producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     result = producer3.poll(timeout=0.1)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(result, int)
     # Short timeouts don't use chunking
@@ -225,9 +226,9 @@ def test_producer_wakeable_poll_edge_cases():
     # Assert: Very short timeout works
     producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     result = producer4.poll(timeout=0.05)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(result, int)
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Very short timeout took {elapsed:.2f}s"
@@ -481,9 +482,9 @@ def test_producer_wakeable_flush_interruptibility_and_messages():
     except Exception:
         pass
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer4.flush(timeout=0.5)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(qlen, int), "flush() should return int"
     assert elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, f"Timeout took {elapsed:.2f}s"
@@ -495,9 +496,9 @@ def test_producer_wakeable_flush_edge_cases():
     # Assert: Zero timeout returns immediately
     producer1 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer1.flush(timeout=0.0)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Zero timeout took {elapsed:.2f}s"
     assert isinstance(qlen, int)
@@ -514,9 +515,9 @@ def test_producer_wakeable_flush_edge_cases():
     # Assert: Short timeout works correctly
     producer3 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer3.flush(timeout=0.1)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(qlen, int)
     # Short timeouts don't use chunking
@@ -526,9 +527,9 @@ def test_producer_wakeable_flush_edge_cases():
     # Assert: Very short timeout works
     producer4 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer4.flush(timeout=0.05)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(qlen, int)
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Very short timeout took {elapsed:.2f}s"
@@ -537,9 +538,9 @@ def test_producer_wakeable_flush_edge_cases():
     # Assert: Empty queue flush returns immediately
     producer5 = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer5.flush(timeout=1.0)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert qlen == 0
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, f"Empty flush took {elapsed:.2f}s"
@@ -696,9 +697,9 @@ def test_consumer_wakeable_poll_interruptibility_and_messages():
     )
     consumer4.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msg = consumer4.poll(timeout=0.5)  # 500ms, no signal
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert msg is None, "Assertion 4 failed: Expected None (timeout), no signal should not interrupt"
     assert (
@@ -722,9 +723,9 @@ def test_consumer_wakeable_poll_edge_cases():
     )
     consumer1.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msg = consumer1.poll(timeout=0.0)  # Zero timeout
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert (
         elapsed < WAKEABLE_POLL_TIMEOUT_MAX
@@ -752,9 +753,9 @@ def test_consumer_wakeable_poll_edge_cases():
     )
     consumer3.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msg = consumer3.poll(timeout=0.1)  # 100ms timeout
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert msg is None, "Assertion 3 failed: Short timeout with no messages should return None"
     # Short timeouts (< 200ms) don't use chunking, so they can complete faster than WAKEABLE_POLL_TIMEOUT_MIN
@@ -775,9 +776,9 @@ def test_consumer_wakeable_poll_edge_cases():
     )
     consumer4.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msg = consumer4.poll(timeout=0.05)  # 50ms timeout (less than 200ms chunk)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert msg is None, "Assertion 4 failed: Very short timeout should return None"
     assert (
@@ -806,9 +807,9 @@ def test_consumer_consume_timeout_and_message_handling():
     )
     consumer1.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer1.consume(num_messages=10, timeout=0.5)  # 500ms, no signal
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "Assertion 1 failed: consume() should return a list"
     assert len(msglist) == 0, f"Assertion 1 failed: Expected empty list (timeout), got {len(msglist)} messages"
@@ -828,9 +829,9 @@ def test_consumer_consume_timeout_and_message_handling():
     )
     consumer2.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer2.consume(num_messages=0, timeout=1.0)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "Assertion 2 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 2 failed: num_messages=0 should return empty list"
@@ -855,9 +856,9 @@ def test_consumer_wakeable_consume_edge_cases():
     )
     consumer1.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer1.consume(num_messages=10, timeout=0.0)  # Zero timeout
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert (
         elapsed < WAKEABLE_POLL_TIMEOUT_MAX
@@ -920,9 +921,9 @@ def test_consumer_wakeable_consume_edge_cases():
     )
     consumer5.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer5.consume(num_messages=10, timeout=0.1)  # 100ms timeout
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "Assertion 5 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 5 failed: Short timeout with no messages should return empty list"
@@ -943,9 +944,9 @@ def test_consumer_wakeable_consume_edge_cases():
     )
     consumer6.subscribe([topic])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer6.consume(num_messages=5, timeout=0.05)  # 50ms timeout (less than 200ms chunk)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "Assertion 6 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 6 failed: Very short timeout should return empty list"
@@ -1004,9 +1005,9 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 2: Finite timeout exact multiple (1.0s = 5 chunks of 200ms)
     obj2, blocking_call2 = create_api_obj("exact-multiple")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call2(1.0)  # Exactly 1000ms (5 chunks)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     if api_type == "producer":
         assert isinstance(result, int), "Assertion 2 failed: poll() should return int"
@@ -1019,9 +1020,9 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 3: Finite timeout not multiple (0.35s = 1 chunk + 150ms partial)
     obj3, blocking_call3 = create_api_obj("not-multiple")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call3(0.35)  # 350ms (1 full chunk + 150ms partial)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     if api_type == "producer":
         assert isinstance(result, int), "Assertion 3 failed: poll() should return int"
@@ -1034,9 +1035,9 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 4: Very short timeout (< 200ms chunk size)
     obj4, blocking_call4 = create_api_obj("very-short")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call4(0.05)  # 50ms (less than 200ms chunk)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     if api_type == "producer":
         assert isinstance(result, int), "Assertion 4 failed: poll() should return int"
@@ -1050,9 +1051,9 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 5: Zero timeout (non-blocking)
     obj5, blocking_call5 = create_api_obj("zero")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call5(0.0)  # Non-blocking
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert elapsed < WAKEABLE_POLL_TIMEOUT_MAX, (
         f"Assertion 5 failed: Zero timeout took {elapsed:.2f}s, " f"expected < {WAKEABLE_POLL_TIMEOUT_MAX}s"
@@ -1061,9 +1062,9 @@ def test_calculate_chunk_timeout_utility_function(api_type):
 
     # Assertion 6: Large finite timeout (10s = 50 chunks)
     obj6, blocking_call6 = create_api_obj("large")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call6(10.0)  # 10 seconds (50 chunks)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     if api_type == "producer":
         assert isinstance(result, int), "Assertion 6 failed: poll() should return int"
@@ -1094,6 +1095,67 @@ def test_calculate_chunk_timeout_utility_function(api_type):
         obj7.close()
 
     assert interrupted, "Assertion 7 failed: Should have raised KeyboardInterrupt"
+
+
+@pytest.mark.skipif(not getattr(sys, "_is_gil_enabled", lambda: True)(), reason="Delays the chunks by holding the GIL")
+@pytest.mark.parametrize(
+    "api_type,method",
+    [
+        ("producer", "poll"),
+        ("producer", "flush"),
+        ("consumer", "poll"),
+    ],
+)
+def test_calculate_chunk_timeout_measures_elapsed_time(api_type, method):
+    """Test that a finite timeout ends after that much time, however long the chunks take.
+
+    Between two chunks, the call takes the GIL back to check for signals. Here a busy thread
+    holds the GIL, so that this waits for a whole switch interval every time. Counting the
+    timeout in 200ms chunks would add these waits up, and a 2s timeout would block for over 5s.
+    """
+    timeout = 2.0
+    switch_interval = 0.3
+
+    if api_type == "producer":
+        obj = Producer({'socket.timeout.ms': 100, 'message.timeout.ms': 60000})
+        if method == "flush":
+            obj.produce('test-topic', value=b'never delivered')  # No broker: stays queued
+    else:
+        obj = TestConsumer(
+            {
+                'group.id': 'test-chunk-elapsed',
+                'socket.timeout.ms': 100,
+                'session.timeout.ms': 1000,
+                'auto.offset.reset': 'latest',
+            }
+        )
+        obj.subscribe(['test-topic'])
+    blocking_call = getattr(obj, method)
+
+    stop = threading.Event()
+
+    def hold_gil():
+        while not stop.is_set():
+            pass
+
+    old_switch_interval = sys.getswitchinterval()
+    sys.setswitchinterval(switch_interval)
+    busy_thread = threading.Thread(target=hold_gil, daemon=True)
+    busy_thread.start()
+    try:
+        start = time.monotonic()
+        blocking_call(timeout=timeout)
+        elapsed = time.monotonic() - start
+    finally:
+        stop.set()
+        busy_thread.join()
+        sys.setswitchinterval(old_switch_interval)
+        if method == "flush":
+            obj.purge()
+        obj.close()
+
+    # The call waits for the GIL a few times past the timeout: after its last chunk and to return
+    assert elapsed < timeout + 5 * switch_interval, f"{method}(timeout={timeout}) took {elapsed:.2f}s"
 
 
 @pytest.mark.parametrize("api_type", ["producer", "consumer"])
@@ -1156,9 +1218,9 @@ def test_check_signals_between_chunks_utility_function(api_type):
 
     # Assertion 3: No signal - continues polling
     obj3, blocking_call3 = create_api_obj("no-signal")
-    start = time.time()
+    start = time.monotonic()
     result = blocking_call3(0.5)  # 500ms, no signal
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     if api_type == "producer":
         assert isinstance(result, int), "Assertion 3 failed: poll() should return int"
@@ -1336,13 +1398,13 @@ def test_short_timeout_not_chunked(api_type, method):
             def blocking_call(t):
                 return obj.consume(timeout=t)
 
-    start = time.time()
+    start = time.monotonic()
     if method == "consume":
         result = blocking_call(0.1)
         assert isinstance(result, list)
     else:
         result = blocking_call(0.1)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     obj.close()
 
@@ -1354,9 +1416,9 @@ def test_flush_empty_queue_returns_immediately():
     """Test that flush() with no messages returns immediately."""
     producer = Producer({'bootstrap.servers': 'localhost:9092', 'socket.timeout.ms': 100, 'message.timeout.ms': 10})
 
-    start = time.time()
+    start = time.monotonic()
     qlen = producer.flush(timeout=0.5)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     producer.close()
 
@@ -1382,9 +1444,9 @@ def test_consume_no_messages_waits_full_timeout():
     )
     consumer.subscribe(['test-accumulate-topic'])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer.consume(num_messages=10, timeout=0.5)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "consume() should return a list"
     assert len(msglist) == 0, "Expected empty list when no messages available"
@@ -1407,9 +1469,9 @@ def test_consume_accumulation_timeout_returns_partial():
     )
     consumer.subscribe(['test-accumulate-topic'])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer.consume(num_messages=1000, timeout=0.5)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "consume() should return a list"
     assert len(msglist) == 0, "Expected empty list with no broker"
@@ -1431,9 +1493,9 @@ def test_consume_short_timeout_returns_quickly():
     )
     consumer.subscribe(['test-accumulate-topic'])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer.consume(num_messages=10, timeout=0.05)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "consume() should return a list"
     assert len(msglist) == 0, "Expected empty list"
@@ -1453,9 +1515,9 @@ def test_consume_accumulation_zero_timeout_nonblocking():
     )
     consumer.subscribe(['test-accumulate-topic'])
 
-    start = time.time()
+    start = time.monotonic()
     msglist = consumer.consume(num_messages=10, timeout=0.0)
-    elapsed = time.time() - start
+    elapsed = time.monotonic() - start
 
     assert isinstance(msglist, list), "consume() should return a list"
     assert len(msglist) == 0, "Expected empty list"
