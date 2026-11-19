@@ -266,7 +266,7 @@ class KafkaError:
     _WAIT_COORD: int
     def __init__(
         self,
-        code: int,
+        error: int,
         reason: Optional[str] = None,
         fatal: bool = False,
         retriable: bool = False,
