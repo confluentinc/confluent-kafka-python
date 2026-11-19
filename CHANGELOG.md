@@ -50,6 +50,13 @@
 v2.16.2 adds wheels for Python 3.15 and 3.15t and drops Python 3.8. The
 library code is the same as in v2.16.1.
 
+### Fixes
+
+- Invalidate subject-specific schema and latest-version caches after successful
+  soft or permanent subject deletion, allowing subsequent lookups and schema
+  re-registration to reach Schema Registry. Responses to reads that were in
+  flight during an invalidation are no longer written back to the cache.
+
 ### Enhancements
 
 - Add Python 3.15 and 3.15t (free-threaded) wheels. The `rules` extra

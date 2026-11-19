@@ -711,6 +711,7 @@ class SchemaRegistryClient(object):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
         self._latest_lock = _locks.Lock()
+        self._latest_cache_generation = 0
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         self._latest_version_cache: Cache[Any, Any]
@@ -795,6 +796,7 @@ class SchemaRegistryClient(object):
                     schema_id=schema_id, guid=result[0], subject=subject_name, version=None, schema=result[1]
                 )
 
+        generation = self._cache.generation
         request = schema.to_dict()
 
         response = self._rest_client.post(
@@ -813,7 +815,7 @@ class SchemaRegistryClient(object):
 
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
-        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.guid, s)
+        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.guid, s, generation)
 
         return registered_schema
 
@@ -849,6 +851,7 @@ class SchemaRegistryClient(object):
         if result is not None:
             return result[1]
 
+        generation = self._cache.generation
         query = {}
         if subject_name is not None:
             query['subject'] = subject_name
@@ -860,9 +863,9 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema)
+        self._cache.set_schema(subject_name, schema_id, registered_schema.guid, registered_schema.schema, generation)
         if subject_name is not None:
-            self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+            self._cache.set_registered_schema(registered_schema.schema, registered_schema, generation)
 
         return registered_schema.schema
 
@@ -1018,6 +1021,7 @@ class SchemaRegistryClient(object):
         if registered_schema is not None:
             return registered_schema
 
+        generation = self._cache.generation
         request = schema.to_dict()
 
         query_params: dict[str, Any] = {'normalize': normalize_schemas, 'deleted': deleted}
@@ -1039,7 +1043,7 @@ class SchemaRegistryClient(object):
             schema=schema,
         )
 
-        self._cache.set_registered_schema(schema, registered_schema)
+        self._cache.set_registered_schema(schema, registered_schema, generation)
 
         return registered_schema
 
@@ -1098,9 +1102,17 @@ class SchemaRegistryClient(object):
 
         if permanent:
             versions = self._rest_client.delete('subjects/{}?permanent=true'.format(_urlencode(subject_name)))
-            self._cache.remove_by_subject(subject_name)
         else:
             versions = self._rest_client.delete('subjects/{}'.format(_urlencode(subject_name)))
+
+        # Soft-deleted subjects must also be looked up or registered again.
+        self._cache.remove_by_subject(subject_name)
+        with self._latest_lock:
+            self._latest_cache_generation += 1
+            self._latest_version_cache.pop(subject_name, None)
+            for cache_key in list(self._latest_with_metadata_cache):
+                if cache_key[0] == subject_name:
+                    self._latest_with_metadata_cache.pop(cache_key, None)
 
         return versions
 
@@ -1123,6 +1135,7 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         with self._latest_lock:
+            generation = self._latest_cache_generation
             registered_schema = self._latest_version_cache.get(subject_name, None)
         if registered_schema is not None:
             return registered_schema
@@ -1133,7 +1146,9 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         with self._latest_lock:
-            self._latest_version_cache[subject_name] = registered_schema
+            # Do not repopulate a cache invalidated while this request was in flight.
+            if generation == self._latest_cache_generation:
+                self._latest_version_cache[subject_name] = registered_schema
 
         return registered_schema
 
@@ -1158,6 +1173,7 @@ class SchemaRegistryClient(object):
 
         cache_key = (subject_name, frozenset(metadata.items()), deleted)
         with self._latest_lock:
+            generation = self._latest_cache_generation
             registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
@@ -1175,7 +1191,8 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         with self._latest_lock:
-            self._latest_with_metadata_cache[cache_key] = registered_schema
+            if generation == self._latest_cache_generation:
+                self._latest_with_metadata_cache[cache_key] = registered_schema
 
         return registered_schema
 
@@ -1210,12 +1227,13 @@ class SchemaRegistryClient(object):
             if registered_schema is not None:
                 return registered_schema
 
+        generation = self._cache.generation
         query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
         response = self._rest_client.get('subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+        self._cache.set_registered_schema(registered_schema.schema, registered_schema, generation)
 
         return registered_schema
 
@@ -1623,11 +1641,13 @@ class SchemaRegistryClient(object):
 
     def clear_latest_caches(self):
         with self._latest_lock:
+            self._latest_cache_generation += 1
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
 
     def clear_caches(self):
         with self._latest_lock:
+            self._latest_cache_generation += 1
             self._latest_version_cache.clear()
             self._latest_with_metadata_cache.clear()
         self._cache.clear()
