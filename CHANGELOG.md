@@ -9,6 +9,12 @@
   applies only to the bytes that actually carry the framing (payload prefix or header).
   Truncated framing now raises `SerializationError` for Avro, JSON Schema and Protobuf,
   and a prefix-framed Avro message with an empty body (5 bytes) is accepted.
+- Fix `AdminClient.describe_consumer_groups()` and `describe_user_scram_credentials()`
+  rejecting distinct names as duplicates when they are `str` subclasses, such as
+  `enum.StrEnum` members: librdkafka got pointers into copies of the names that had
+  already been released. `delete_consumer_groups()` also read such names after releasing
+  them. The three methods now raise `UnicodeEncodeError` for names with lone surrogates
+  instead of crashing.
 - When a message has more than one `__key_schema_id` / `__value_schema_id` header, the
   Schema Registry deserializers now use the last one, matching the Java client. They
   previously used the first.
