@@ -437,11 +437,19 @@ def test_produce_batch_scalability_and_limits():
         assert count == size, f"Failed for batch size {size}"
 
     messages_with_timestamp = [{'value': b'msg', 'timestamp': 1234567890}]
-    with pytest.raises(NotImplementedError, match="Message timestamps are not currently supported"):
+    with pytest.raises(NotImplementedError, match="Message timestamps are not currently supported in batch mode"):
         producer.produce_batch('test-topic', messages_with_timestamp)
 
     messages_with_headers = [{'value': b'msg', 'headers': {'key': b'value'}}]
-    count = producer.produce_batch('test-topic', messages_with_headers)
+    with pytest.raises(NotImplementedError, match="Message headers are not currently supported in batch mode"):
+        producer.produce_batch('test-topic', messages_with_headers)
+
+    messages_with_header_list = [{'value': b'msg', 'headers': [('key', b'value')]}]
+    with pytest.raises(NotImplementedError, match="Message headers are not currently supported in batch mode"):
+        producer.produce_batch('test-topic', messages_with_header_list)
+
+    messages_with_none_extras = [{'value': b'msg', 'headers': None, 'timestamp': None}]
+    count = producer.produce_batch('test-topic', messages_with_none_extras)
     assert count == 1
 
 
