@@ -73,8 +73,11 @@ Rebalance Callback Changes
       partitions
    -  ``consumer.incremental_unassign(partitions)`` to revoke partitions
 
--  **Do not** use ``consumer.assign()`` or ``consumer.unassign()`` when
-   using ``group.protocol='consumer'`` (KIP-848).
+-  With ``group.protocol='consumer'`` (KIP-848), ``consumer.assign()`` and
+   ``consumer.unassign()`` support manual assignment only before the first
+   ``consumer.subscribe()`` call. After the first subscription, even after
+   ``consumer.unsubscribe()``, use ``consumer.incremental_assign()`` and
+   ``consumer.incremental_unassign()`` instead.
 -  If you don't provide incremental assign/unassign inside rebalance callbacks, the client will automatically use incremental assign/unassign internally.
 -  ⚠️ The ``partitions`` list passed to ``incremental_assign()`` and
    ``incremental_unassign()`` contains only the **incremental changes**

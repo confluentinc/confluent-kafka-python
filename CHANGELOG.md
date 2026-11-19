@@ -67,6 +67,9 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 ### Fixes
 
+- Clarify that KIP-848 manual assignment is supported only before the first
+  subscription; unsubscribing does not restore `assign()` or `unassign()`.
+
 - Require `certifi>=2026.10.19` for the Schema Registry client. When
   `ssl.ca.location` is not set (and the `SSL_CERT_FILE` and `SSL_CERT_DIR`
   environment variables are not set), the client verifies Schema Registry
