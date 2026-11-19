@@ -2051,7 +2051,11 @@ py_header_to_c(rd_kafka_headers_t *rd_headers, PyObject *key, PyObject *value) {
                 return 0;
         }
 
-        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+        if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8))) {
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
 
         if (value != Py_None) {
                 if (cfl_PyBin(_Check(value))) {
@@ -2588,7 +2592,11 @@ static int py_extensions_to_c(char **extensions,
                 return 0;
         }
 
-        k     = cfl_PyUnistr_AsUTF8(ks, &ks8);
+        if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8))) {
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
         ksize = (Py_ssize_t)strlen(k);
 
         if (cfl_PyUnistr(_Check(value))) {
@@ -2983,7 +2991,12 @@ static int common_conf_set_special(PyObject *confdict,
                 return 0;
         }
 
-        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+        /* A NULL value would reset the property to its default */
+        if (!(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
+                Py_DECREF(vs);
+                Py_XDECREF(vs8);
+                return 0; /* e.g. UnicodeEncodeError */
+        }
         if (rd_kafka_conf_set(conf, name, v, errstr, sizeof(errstr)) !=
             RD_KAFKA_CONF_OK) {
                 cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "%s", errstr);
@@ -3317,7 +3330,8 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                         goto inner_err;
                 }
 
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                if (!(k = cfl_PyUnistr_AsUTF8(ks, &ks8)))
+                        goto inner_err; /* e.g. UnicodeEncodeError */
                 if (!strcmp(k, "error_cb")) {
                         if (!PyCallable_Check(vo)) {
                                 PyErr_SetString(PyExc_TypeError,
@@ -3434,7 +3448,9 @@ rd_kafka_conf_t *common_conf_setup(rd_kafka_type_t ktype,
                                                 "unicode string");
                                 goto inner_err;
                         }
-                        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+                        /* A NULL value would reset the property */
+                        if (!(v = cfl_PyUnistr_AsUTF8(vs, &vs8)))
+                                goto inner_err; /* e.g. UnicodeEncodeError */
                 }
 
                 if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
@@ -3895,7 +3911,7 @@ int cfl_PyObject_GetAttr(PyObject *object,
 
 /**
  * @brief Get attribute \p attr_name from \p object and make sure it is
- *        an integer type.
+ *        an integer type with a value that fits in an int.
  *
  * @returns 1 if \p valp was updated with either the object value, or \p defval.
  *          0 if an exception was raised.
@@ -3906,6 +3922,8 @@ int cfl_PyObject_GetInt(PyObject *object,
                         int defval,
                         int required) {
         PyObject *o;
+        long v;
+        int overflow;
 
         if (!cfl_PyObject_GetAttr(object, attr_name, &o,
 #ifdef PY3
@@ -3921,8 +3939,16 @@ int cfl_PyObject_GetInt(PyObject *object,
                 return 1;
         }
 
-        *valp = cfl_PyInt_AsInt(o);
+        v = PyLong_AsLongAndOverflow(o, &overflow);
         Py_DECREF(o);
+        if (v == -1 && PyErr_Occurred())
+                return 0;
+        if (overflow || v < INT_MIN || v > INT_MAX) {
+                PyErr_Format(PyExc_OverflowError,
+                             "Expected .%s to fit in a C int", attr_name);
+                return 0;
+        }
+        *valp = (int)v;
 
         return 1;
 }

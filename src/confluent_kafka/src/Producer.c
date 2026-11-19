@@ -680,7 +680,8 @@ Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
  * @param rkmessages Output array of librdkafka messages (must be pre-allocated)
  * @param msgstates Output array of message states (must be pre-allocated)
  * @param message_cnt Output parameter for message count
- * @returns 0 on success, -1 on error (with Python exception set)
+ * @returns 0 on success, -1 on error (with Python exception set, and the
+ *          message states created for the batch released)
  */
 static int
 Producer_validate_and_parse_batch(Handle *self,
@@ -721,7 +722,7 @@ Producer_validate_and_parse_batch(Handle *self,
                 if (!PyDict_Check(msg_dict)) {
                         PyErr_Format(PyExc_TypeError,
                                      "Message at index %d must be a dict", i);
-                        return -1;
+                        goto err;
                 }
 
                 /* Extract message fields */
@@ -740,12 +741,14 @@ Producer_validate_and_parse_batch(Handle *self,
                         } else if (PyUnicode_Check(value_obj)) {
                                 value = PyUnicode_AsUTF8AndSize(value_obj,
                                                                 &value_len);
+                                if (!value)
+                                        goto err; /* UnicodeEncodeError */
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                              "Message value at index %d must "
                                              "be bytes or str",
                                              i);
-                                return -1;
+                                goto err;
                         }
                 }
 
@@ -757,12 +760,14 @@ Producer_validate_and_parse_batch(Handle *self,
                         } else if (PyUnicode_Check(key_obj)) {
                                 key =
                                     PyUnicode_AsUTF8AndSize(key_obj, &key_len);
+                                if (!key)
+                                        goto err; /* UnicodeEncodeError */
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                              "Message key at index %d must be "
                                              "bytes or str",
                                              i);
-                                return -1;
+                                goto err;
                         }
                 }
 
@@ -773,7 +778,7 @@ Producer_validate_and_parse_batch(Handle *self,
                                     PyExc_TypeError,
                                     "Message partition at index %d must be int",
                                     i);
-                                return -1;
+                                goto err;
                         }
                         msg_partition = (int)PyLong_AsLong(partition_obj);
                 }
@@ -783,7 +788,7 @@ Producer_validate_and_parse_batch(Handle *self,
                         PyErr_Format(PyExc_NotImplementedError,
                                      "Message timestamps are not currently "
                                      "supported in batch mode");
-                        return -1;
+                        goto err;
                 }
 
                 /* Parse callback */
@@ -797,7 +802,7 @@ Producer_validate_and_parse_batch(Handle *self,
                         if (!(rd_headers = py_headers_to_c(headers_obj))) {
                                 PyErr_Format(PyExc_ValueError,
                                              "Invalid headers at index %d", i);
-                                return -1;
+                                goto err;
                         }
                 }
 #endif
@@ -828,6 +833,15 @@ Producer_validate_and_parse_batch(Handle *self,
         }
 
         return 0;
+
+err:
+        /* The batch is not produced: release the states of the messages
+         * before the failing one, and their delivery callbacks. */
+        while (i-- > 0) {
+                Producer_msgstate_destroy(msgstates[i]);
+                msgstates[i] = NULL;
+        }
+        return -1;
 }
 
 /**
