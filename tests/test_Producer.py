@@ -4,11 +4,13 @@ import gc
 import sys
 import threading
 import time
+import warnings
 from struct import pack
 
 import pytest
 
 from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, SerializingProducer, TopicPartition
+from confluent_kafka.admin import AdminClient
 from confluent_kafka.avro import AvroProducer
 
 # Additional imports for batch integration tests
@@ -47,11 +49,33 @@ def test_basic_api():
     p.flush()
 
     try:
-        p.list_topics(timeout=0.2)
+        with pytest.warns(DeprecationWarning, match="AdminClient.list_topics"):
+            p.list_topics(timeout=0.2)
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
     assert p.close(), "Failed to validate that producer was closed."
+
+
+def test_list_topics_is_deprecated_on_producer_only():
+    """Producer.list_topics() warns and points at AdminClient (#756);
+    Consumer and AdminClient share the same metadata call and do not warn."""
+    p = Producer({'socket.timeout.ms': 10, 'error_cb': error_cb})
+    with pytest.warns(DeprecationWarning, match=r"Producer\.list_topics\(\) is deprecated") as record:
+        with pytest.raises(KafkaException):
+            p.list_topics(timeout=0.01)
+    # The warning points at the caller, not at library internals.
+    assert record[0].filename == __file__
+    p.close()
+
+    c = Consumer({'group.id': 'test', 'socket.timeout.ms': 10, 'error_cb': error_cb})
+    a = AdminClient({'socket.timeout.ms': 10, 'error_cb': error_cb})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        for client in (c, a):
+            with pytest.raises(KafkaException):
+                client.list_topics(timeout=0.01)
+    c.close()
 
 
 def test_produce_timestamp():

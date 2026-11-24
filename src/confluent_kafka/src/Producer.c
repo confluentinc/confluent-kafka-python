@@ -1240,6 +1240,42 @@ static PyObject *Producer_exit(Handle *self, PyObject *args) {
 }
 
 
+/**
+ * @brief Producer.list_topics(): deprecated in favour of
+ *        AdminClient.list_topics().
+ *
+ * The metadata request itself is the shared list_topics() in Metadata.c,
+ * which Consumer and AdminClient keep using without a warning.
+ */
+static PyObject *
+Producer_list_topics(Handle *self, PyObject *args, PyObject *kwargs) {
+        if (PyErr_WarnEx(PyExc_DeprecationWarning,
+                         "Producer.list_topics() is deprecated, use "
+                         "AdminClient.list_topics() instead.",
+                         1) == -1)
+                return NULL;
+        return list_topics(self, args, kwargs);
+}
+
+static const char Producer_list_topics_doc[] = PyDoc_STR(
+    ".. py:function:: list_topics([topic=None], [timeout=-1])\n"
+    "\n"
+    " Request metadata from the cluster.\n"
+    "\n"
+    " .. deprecated:: 2.17.0\n"
+    "    Use :py:meth:`AdminClient.list_topics` instead. Calling this "
+    "method emits a :py:class:`DeprecationWarning`.\n"
+    "\n"
+    " :param str topic: If specified, only request information about this "
+    "topic, else return results for all topics in cluster. Warning: If "
+    "auto.create.topics.enable is set to true on the broker and an unknown "
+    "topic is specified, it will be created.\n"
+    " :param float timeout: The maximum response time before timing out, or -1 "
+    "for infinite timeout.\n"
+    " :rtype: ClusterMetadata\n"
+    " :raises: KafkaException\n");
+
+
 static PyMethodDef Producer_methods[] = {
     {"produce", (PyCFunction)Producer_produce, METH_VARARGS | METH_KEYWORDS,
      ".. py:function:: produce(topic, [value], [key], [partition], "
@@ -1396,8 +1432,8 @@ static PyMethodDef Producer_methods[] = {
      "thread queue "
      "purging to finish. By default, true.\n"
      "\n"},
-    {"list_topics", (PyCFunction)list_topics, METH_VARARGS | METH_KEYWORDS,
-     list_topics_doc},
+    {"list_topics", (PyCFunction)Producer_list_topics,
+     METH_VARARGS | METH_KEYWORDS, Producer_list_topics_doc},
     {"cluster_id", (PyCFunction)cluster_id, METH_VARARGS | METH_KEYWORDS,
      cluster_id_doc},
     {"init_transactions", (PyCFunction)Producer_init_transactions, METH_VARARGS,
