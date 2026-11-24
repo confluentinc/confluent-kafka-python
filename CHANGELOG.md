@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Deprecations
+- `Producer.list_topics()` is deprecated and now emits a `DeprecationWarning`. Use
+  `AdminClient.list_topics()` instead, which returns the same `ClusterMetadata`
+  (#756). `Consumer.list_topics()` and `AdminClient.list_topics()` are unchanged.
+
 ### Fixes
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
