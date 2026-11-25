@@ -17,7 +17,7 @@
 import io
 import json
 import threading as _locks
-from typing import Any, Callable, Dict, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Union, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 from fastavro.schema import expand_schema
@@ -252,6 +252,8 @@ class AvroSerializer(BaseSerializer):
         '_schema_name',
         '_to_dict',
         '_parsed_schemas',
+        '_expanded_schemas',
+        '_inline_tags',
         '_strict',
         '_strict_allow_default',
     ]
@@ -296,6 +298,8 @@ class AvroSerializer(BaseSerializer):
         self._known_subjects: set[str] = set()
         self._known_subjects_lock = _locks.Lock()
         self._parsed_schemas = ParsedSchemaCache()
+        self._expanded_schemas = ParsedSchemaCache()
+        self._inline_tags = ParsedSchemaCache()
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError(
@@ -480,7 +484,7 @@ class AvroSerializer(BaseSerializer):
         if latest_schema is not None and ctx is not None and subject is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
 
-            expanded_parsed_schema = expand_schema(parsed_schema)
+            expanded_parsed_schema = self._get_expanded_schema(latest_schema.schema, parsed_schema)
 
             def field_transformer(rule_ctx, field_transform, msg):
                 return transform(rule_ctx, expanded_parsed_schema, msg, field_transform)  # noqa: E731
@@ -495,7 +499,7 @@ class AvroSerializer(BaseSerializer):
                 None,
                 latest_schema.schema,
                 value,
-                get_inline_tags(parsed_schema),
+                self._get_inline_tags(latest_schema.schema, parsed_schema),
                 field_transformer,
             )
 
@@ -553,6 +557,20 @@ class AvroSerializer(BaseSerializer):
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
+
+    def _get_expanded_schema(self, schema: Schema, parsed_schema: AvroSchema) -> AvroSchema:
+        expanded_schema = self._expanded_schemas.get_parsed_schema(schema)
+        if expanded_schema is None:
+            expanded_schema = expand_schema(parsed_schema)
+            self._expanded_schemas.set(schema, expanded_schema)
+        return expanded_schema
+
+    def _get_inline_tags(self, schema: Schema, parsed_schema: AvroSchema) -> Dict[str, Set[str]]:
+        inline_tags = self._inline_tags.get_parsed_schema(schema)
+        if inline_tags is None:
+            inline_tags = get_inline_tags(parsed_schema)
+            self._inline_tags.set(schema, inline_tags)
+        return inline_tags
 
 
 class AvroSerializerBuilder(SerializerBuilder):
@@ -756,7 +774,15 @@ class AvroDeserializer(BaseDeserializer):
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
     """
 
-    __slots__ = ['_reader_schema', '_from_dict', '_return_record_name', '_schema', '_parsed_schemas']
+    __slots__ = [
+        '_reader_schema',
+        '_from_dict',
+        '_return_record_name',
+        '_schema',
+        '_parsed_schemas',
+        '_expanded_schemas',
+        '_inline_tags',
+    ]
 
     _default_conf = {
         'use.latest.version': False,
@@ -791,6 +817,8 @@ class AvroDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._expanded_schemas = ParsedSchemaCache()
+        self._inline_tags = ParsedSchemaCache()
         self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
@@ -955,13 +983,13 @@ class AvroDeserializer(BaseDeserializer):
             else:
                 obj_dict = schemaless_reader(payload, writer_schema, reader_schema, self._return_record_name)
 
-        expanded_reader_schema = expand_schema(reader_schema)
-
-        def field_transformer(rule_ctx, field_transform, message):
-            return transform(rule_ctx, expanded_reader_schema, message, field_transform)  # noqa: E731
-
         if ctx is not None and subject is not None:
-            inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
+            expanded_reader_schema = self._get_expanded_schema(reader_schema_raw, reader_schema)
+
+            def field_transformer(rule_ctx, field_transform, message):
+                return transform(rule_ctx, expanded_reader_schema, message, field_transform)  # noqa: E731
+
+            inline_tags = self._get_inline_tags(reader_schema_raw, reader_schema)
             obj_dict = self._execute_rules(
                 ctx, subject, RuleMode.READ, None, reader_schema_raw, obj_dict, inline_tags, field_transformer, data
             )
@@ -988,6 +1016,20 @@ class AvroDeserializer(BaseDeserializer):
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
+
+    def _get_expanded_schema(self, schema: Schema, parsed_schema: AvroSchema) -> AvroSchema:
+        expanded_schema = self._expanded_schemas.get_parsed_schema(schema)
+        if expanded_schema is None:
+            expanded_schema = expand_schema(parsed_schema)
+            self._expanded_schemas.set(schema, expanded_schema)
+        return expanded_schema
+
+    def _get_inline_tags(self, schema: Schema, parsed_schema: AvroSchema) -> Dict[str, Set[str]]:
+        inline_tags = self._inline_tags.get_parsed_schema(schema)
+        if inline_tags is None:
+            inline_tags = get_inline_tags(parsed_schema)
+            self._inline_tags.set(schema, inline_tags)
+        return inline_tags
 
 
 class AvroDeserializerBuilder(DeserializerBuilder):

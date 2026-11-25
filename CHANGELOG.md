@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixes
+- Fix a slowdown of `AvroSerializer` and `AvroDeserializer` (#2255): they expanded the
+  schema with `fastavro.expand_schema` and walked it for inline tags on every message.
+  Both results are now cached per schema, and the deserializer only computes them when
+  it executes rules.
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
