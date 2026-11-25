@@ -22,7 +22,9 @@ from decimal import Decimal
 
 import pytest
 from fastavro._logical_readers import UUID
+from fastavro.schema import expand_schema
 
+import confluent_kafka.schema_registry._sync.avro as avro_module
 from confluent_kafka.schema_registry import (
     Metadata,
     MetadataProperties,
@@ -3852,3 +3854,57 @@ def test_cluster_id_resolver_last_one_wins():
     assert client.get_latest_version("second-subject") is not None
 
     client.delete_associations(resource_id="mock-resource-resolver-5", cascade_lifecycle=True)
+
+
+def _count_expand_schema_calls(monkeypatch):
+    calls = []
+
+    def counting_expand_schema(schema):
+        calls.append(schema)
+        return expand_schema(schema)
+
+    monkeypatch.setattr(avro_module, 'expand_schema', counting_expand_schema)
+    return calls
+
+
+def test_avro_deserializer_expands_reader_schema_once(monkeypatch):
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {
+                'name': 'nested',
+                'type': {'type': 'record', 'name': 'nested', 'fields': [{'name': 'f', 'type': 'string'}]},
+            },
+        ],
+    }
+    obj = {'intField': 123, 'nested': {'f': 'hi'}}
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf={'auto.register.schemas': True})
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+    deser = AvroDeserializer(client)
+    expand_schema_calls = _count_expand_schema_calls(monkeypatch)
+
+    for _ in range(3):
+        assert deser(obj_bytes, ser_ctx) == obj
+
+    assert len(expand_schema_calls) == 1
+
+
+def test_avro_serializer_expands_latest_schema_once(monkeypatch):
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    schema = {'type': 'record', 'name': 'test', 'fields': [{'name': 'intField', 'type': 'int'}]}
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    expand_schema_calls = _count_expand_schema_calls(monkeypatch)
+
+    for _ in range(3):
+        ser({'intField': 123}, ser_ctx)
+
+    assert len(expand_schema_calls) == 1
