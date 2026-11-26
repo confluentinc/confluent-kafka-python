@@ -38,15 +38,15 @@ function setup_ubuntu {
     add-apt-repository ppa:deadsnakes/ppa
     # python3-distutils is required on Ubuntu 18.04 and later but does
     # not exist on 14.04.
-    apt-get install -y -q python3.9
-    apt-get install -y -q python3.9-distutils
+    apt-get install -y -q python3.10
+    apt-get install -y -q python3.10-distutils
     apt-get install -y -q curl
     # s390x: several test and extra dependencies (fastavro, psutil, librt via
     # mypy, and cryptography via the schema-registry deps of the extras the
     # smoke test installs) publish no s390x wheels and are built from source,
     # which needs a C compiler plus the Python and OpenSSL headers.
     if [[ $(uname -m) == "s390x" ]]; then
-        apt-get install -y -q gcc python3.9-dev libssl-dev pkg-config
+        apt-get install -y -q gcc python3.10-dev libssl-dev pkg-config
     fi
 }
 
@@ -69,7 +69,7 @@ function run_single_in_docker {
     fi
 
     # Install pip and uv for package management
-    curl https://bootstrap.pypa.io/pip/3.9/get-pip.py | python3.9
+    curl https://bootstrap.pypa.io/get-pip.py | python3.10
     pip install uv
 
     /io/tools/smoketest.sh "$wheelhouse"

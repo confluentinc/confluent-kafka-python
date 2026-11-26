@@ -9,7 +9,7 @@ if [[ -z "$1" ]]; then
 fi
 
 # List of Python versions to run the code with
-python_versions=("3.9" "3.10" "3.11" "3.12" "3.13" "3.14" "3.15")
+python_versions=("3.10" "3.11" "3.12" "3.13" "3.14" "3.15")
 
 # Optional third argument restricts the run to a comma-separated list of
 # Python versions (e.g. "3.13,3.14"), or "none" to skip verification

@@ -14,7 +14,7 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64 - Python 3.9-3.12"
+  - name: "Wheels: OSX x64 - Python 3.10-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -48,7 +48,7 @@ blocks:
         - name: OS_NAME
           value: osx
         - name: CIBW_SKIP
-          value: cp39-* cp310-* cp311-* cp312-*
+          value: cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
           value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
@@ -60,7 +60,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
-  - name: "Wheels: OSX arm64 - Python 3.9-3.12"
+  - name: "Wheels: OSX arm64 - Python 3.10-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies:
@@ -98,7 +98,7 @@ blocks:
         - name: CIBW_ARCHS
           value: arm64
         - name: CIBW_SKIP
-          value: cp39-* cp310-* cp311-* cp312-*
+          value: cp310-* cp311-* cp312-*
         - name: CIBW_ENVIRONMENT_MACOS
           value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
@@ -460,7 +460,7 @@ blocks:
         - name: Verify
           commands:
             - export ARCH=x64
-            - sem-version python 3.9
+            - sem-version python 3.10
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
@@ -468,7 +468,7 @@ blocks:
           commands:
             - export ARCH=x64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
-            - sem-version python 3.9
+            - sem-version python 3.10
             - pip install uv
             - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Linux arm64"
@@ -487,7 +487,7 @@ blocks:
         - name: Verify
           commands:
             - export ARCH=arm64
-            - sem-version python 3.9
+            - sem-version python 3.10
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
@@ -495,7 +495,7 @@ blocks:
           commands:
             - export ARCH=arm64
             # sem-version only provides a pip to bootstrap uv; the wheel runs in the 3.15t venv uv creates.
-            - sem-version python 3.9
+            - sem-version python 3.10
             - pip install uv
             - tools/verify-free-threaded-job.sh
   - name: "Wheel Verification: Linux s390x"
@@ -514,7 +514,7 @@ blocks:
         - name: Verify
           commands:
             - export ARCH=s390x
-            - sem-version python 3.9
+            - sem-version python 3.10
             - artifact pull workflow artifacts
             - cd artifacts && ls *.tgz |xargs -n1 tar -xvf && cd ..
             - tools/test-wheels.sh artifacts/wheelhouse
@@ -529,7 +529,7 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64 - Python 3.9-3.12"
+      - "Wheels: OSX x64 - Python 3.10-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.15"
     task:
       agent:
@@ -568,7 +568,7 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX arm64 - Python 3.9-3.12"
+      - "Wheels: OSX arm64 - Python 3.10-3.12"
       - "Wheels: OSX arm64 - Python 3.13-3.15"
     task:
       agent:
