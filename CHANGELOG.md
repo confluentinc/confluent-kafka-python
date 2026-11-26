@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixes
+- The consumer no longer holds the GIL while the rebalance callback falls back to
+  `assign()` / `unassign()` (no `on_assign` / `on_revoke` set, or the callback did not
+  assign). If librdkafka blocked there, for example in `close()` during a group
+  rebalance, every other Python thread in the process froze with it.
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
   strings. The length check now runs where the schema id framing is parsed, so it
