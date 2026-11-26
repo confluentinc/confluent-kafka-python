@@ -1937,36 +1937,39 @@ static void Consumer_rebalance_cb(rd_kafka_t *rk,
               self->u.Consumer.rebalance_incremental_unassigned)) {
                 const char *rebalance_protocol =
                     rd_kafka_rebalance_protocol(rk);
+                rd_kafka_error_t *error        = NULL;
+                rd_kafka_resp_err_t assign_err = RD_KAFKA_RESP_ERR_NO_ERROR;
+
+                /* The assign calls wait for librdkafka and touch no Python
+                 * objects, so do not hold the GIL while they block. */
+                CallState_resume(cs);
+
                 if (rebalance_protocol &&
                     !strcmp(rebalance_protocol, "COOPERATIVE")) {
-                        rd_kafka_error_t *error = NULL;
-
                         if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
                                 error =
                                     rd_kafka_incremental_assign(rk, c_parts);
                         else
                                 error =
                                     rd_kafka_incremental_unassign(rk, c_parts);
-
-                        if (error) {
-                                cfl_PyErr_from_error_destroy(error);
-                                CallState_crash(cs);
-                        }
-
                 } else {
-                        rd_kafka_resp_err_t assign_err;
-
                         if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
                                 assign_err = rd_kafka_assign(rk, c_parts);
                         else
                                 assign_err = rd_kafka_assign(rk, NULL);
-
-                        if (assign_err) {
-                                cfl_PyErr_Format(assign_err,
-                                                 "Partition assignment failed");
-                                CallState_crash(cs);
-                        }
                 }
+
+                if (!error && !assign_err)
+                        return;
+
+                cs = CallState_get(self);
+
+                if (error)
+                        cfl_PyErr_from_error_destroy(error);
+                else
+                        cfl_PyErr_Format(assign_err,
+                                         "Partition assignment failed");
+                CallState_crash(cs);
         }
 
         CallState_resume(cs);
