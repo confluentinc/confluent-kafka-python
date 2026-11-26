@@ -168,9 +168,7 @@ def test_schema_cache_custom_reference_format_exclusion():
 
     # set_schema with custom reference_format
     cache.set_schema("user-value", 10, "guid-10", default_schema)
-    cache.set_schema(
-        "user-value", 10, "guid-10", custom_ref_schema, reference_format="CUSTOM"
-    )
+    cache.set_schema("user-value", 10, "guid-10", custom_ref_schema, reference_format="CUSTOM")
 
     # schema_id_index can resolve custom reference_format
     assert cache.get_schema_by_id("user-value", 10)[1] == default_schema
