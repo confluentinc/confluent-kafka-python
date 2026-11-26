@@ -1,6 +1,6 @@
 name: confluent-kafka-python
 lang: python
-lang_version: '3.9'
+lang_version: '3.10'
 git:
   enable: true
 sonarqube:

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Enhancements
+
+- Drop Python 3.9 support. Python 3.9 reached end of life in October 2025
+
 ### Fixes
 - Fix `AvroDeserializer` rejecting messages of 5 bytes or fewer when the schema GUID is
   sent in a header (`header_schema_id_serializer`), for example `int` keys or short
